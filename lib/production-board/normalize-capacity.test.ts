@@ -5,7 +5,7 @@ import type { ProductionBookingRow } from './types';
 
 const params = {
   startDate: '2026-07-06',
-  endDateExclusive: '2026-07-10',
+  endDateExclusive: '2026-07-13',
   weeks: 1,
 };
 
@@ -57,6 +57,12 @@ function run(): void {
   );
   assert.equal(normal.days[0].remainingHours, 1.5);
   assert.equal(normal.days[0].overloadHours, 0);
+  assert.equal(normal.weekGroups.length, 1);
+  assert.equal(normal.weekGroups[0].totalKnownShopHours, 10.5);
+  assert.equal(normal.weekGroups[0].totalAvailableHours, 12);
+  assert.equal(normal.weekGroups[0].remainingHours, 1.5);
+  assert.equal(normal.weekGroups[0].overloadHours, 0);
+  assert.equal(normal.weekGroups[0].comparisonComplete, true);
 
   const overloaded = normalizeProductionBoard(
     [booking({ shop_hours: 15 })],
@@ -66,6 +72,8 @@ function run(): void {
   );
   assert.equal(overloaded.days[0].remainingHours, 0);
   assert.equal(overloaded.days[0].overloadHours, 3);
+  assert.equal(overloaded.weekGroups[0].overloadHours, 3);
+  assert.equal(overloaded.weekGroups[0].dailyOverloadCount, 1);
 
   const closure = normalizeProductionBoard(
     [],
@@ -78,6 +86,9 @@ function run(): void {
   assert.equal(closure.days[0].availableHours, 0);
   assert.equal(closure.days[0].remainingHours, 0);
   assert.equal(closure.summary.scheduledDays, 0);
+  assert.equal(closure.weekGroups[0].closureCount, 1);
+  assert.equal(closure.weekGroups[0].totalAvailableHours, 0);
+  assert.equal(closure.weekGroups[0].comparisonComplete, true);
 
   const unknown = normalizeProductionBoard(
     [booking({ shop_hours: 4 })],
@@ -88,6 +99,9 @@ function run(): void {
   assert.equal(unknown.days[0].capacityKnown, false);
   assert.equal(unknown.days[0].remainingHours, null);
   assert.equal(unknown.days[0].overloadHours, null);
+  assert.equal(unknown.weekGroups[0].unknownCapacityDayCount, 1);
+  assert.equal(unknown.weekGroups[0].capacityComplete, false);
+  assert.equal(unknown.weekGroups[0].remainingHours, null);
 
   const missingHours = normalizeProductionBoard(
     [booking({ shop_hours: null })],
@@ -98,6 +112,8 @@ function run(): void {
   assert.equal(missingHours.days[0].missingShopHoursCount, 1);
   assert.equal(missingHours.days[0].remainingHours, null);
   assert.equal(missingHours.days[0].overloadHours, null);
+  assert.equal(missingHours.weekGroups[0].comparisonComplete, false);
+  assert.equal(missingHours.weekGroups[0].remainingHours, null);
 
   const capacityOnlyDay = normalizeProductionBoard(
     [booking({ production_date: '2026-07-06', shop_hours: 5 })],
@@ -111,6 +127,54 @@ function run(): void {
   assert.equal(capacityOnlyDay.days.length, 2);
   assert.equal(capacityOnlyDay.summary.scheduledDays, 1);
   assert.equal(capacityOnlyDay.days[1].bookingCount, 0);
+  assert.equal(capacityOnlyDay.weekGroups[0].totalAvailableHours, 24);
+
+  const dailyOverloadButWeekOpen = normalizeProductionBoard(
+    [
+      booking({
+        booking_id: 'booking-monday',
+        production_date: '2026-07-06',
+        shop_hours: 15,
+      }),
+      booking({
+        booking_id: 'booking-tuesday',
+        production_date: '2026-07-07',
+        shop_hours: 3,
+      }),
+    ],
+    [],
+    [
+      capacity({
+        productionDate: '2026-07-06',
+        availableHours: 12,
+      }),
+      capacity({
+        productionDate: '2026-07-07',
+        availableHours: 12,
+      }),
+    ],
+    params,
+  );
+  assert.equal(dailyOverloadButWeekOpen.weekGroups[0].dailyOverloadCount, 1);
+  assert.equal(dailyOverloadButWeekOpen.weekGroups[0].overloadHours, 0);
+  assert.equal(dailyOverloadButWeekOpen.weekGroups[0].remainingHours, 6);
+
+  const twoWeeks = normalizeProductionBoard(
+    [],
+    [],
+    [
+      capacity({ productionDate: '2026-07-06' }),
+      capacity({ productionDate: '2026-07-13' }),
+    ],
+    {
+      startDate: '2026-07-06',
+      endDateExclusive: '2026-07-20',
+      weeks: 2,
+    },
+  );
+  assert.equal(twoWeeks.weekGroups.length, 2);
+  assert.equal(twoWeeks.weekGroups[0].days[0].date, '2026-07-06');
+  assert.equal(twoWeeks.weekGroups[1].days[0].date, '2026-07-13');
 
   console.log('production-board capacity verification passed');
 }

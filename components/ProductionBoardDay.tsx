@@ -1,9 +1,20 @@
-import { formatFriendlyDateOnly } from '@/lib/production-board/date-utils';
 import type { ProductionBoardDay } from '@/lib/production-board/types';
 import { ProductionBookingCard } from './ProductionBookingCard';
 
 function formatHours(value: number): string {
   return value.toFixed(2);
+}
+
+function formatCompactDate(dateText: string): string {
+  const [year, month, day] = dateText.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
 }
 
 function capacitySourceLabel(day: ProductionBoardDay): string | null {
@@ -12,7 +23,7 @@ function capacitySourceLabel(day: ProductionBoardDay): string | null {
   }
 
   if (day.capacitySource === 'override') {
-    return 'Capacity override';
+    return 'Override';
   }
 
   if (!day.capacityKnown || day.capacitySource === 'unknown') {
@@ -26,124 +37,102 @@ export function ProductionBoardDay({ day }: { day: ProductionBoardDay }) {
   const sourceLabel = capacitySourceLabel(day);
   const comparisonIncomplete = day.missingShopHoursCount > 0;
   const overloaded = (day.overloadHours ?? 0) > 0;
+  const needsReview = !day.capacityKnown || comparisonIncomplete;
+
+  const resultLabel = day.isClosed
+    ? 'No production'
+    : comparisonIncomplete
+      ? 'Comparison incomplete'
+      : overloaded && day.overloadHours !== null
+        ? `${formatHours(day.overloadHours)} hrs over`
+        : day.remainingHours !== null
+          ? `${formatHours(day.remainingHours)} hrs open`
+          : 'Capacity unknown';
 
   return (
     <section
-      className={`rounded-xl border bg-white p-3 shadow-sm sm:p-4 ${
+      className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
         overloaded
-          ? 'border-rose-300'
+          ? 'border-rose-400 bg-rose-50/30'
           : day.isClosed
-            ? 'border-slate-300 bg-slate-50'
-            : 'border-slate-200'
+            ? 'border-slate-300 bg-slate-100/80'
+            : needsReview
+              ? 'border-amber-300'
+              : 'border-emerald-300'
       }`}
     >
-      <div className="flex flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold text-slate-900">
-              {formatFriendlyDateOnly(day.date)}
-            </h2>
-            {sourceLabel ? (
-              <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                  day.isClosed
-                    ? 'bg-slate-200 text-slate-700'
-                    : day.capacitySource === 'override'
-                      ? 'bg-violet-100 text-violet-700'
-                      : 'bg-amber-100 text-amber-800'
-                }`}
-              >
-                {sourceLabel}
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-1 text-sm text-slate-600">
-            {day.bookingCount} booking{day.bookingCount === 1 ? '' : 's'} •{' '}
-            {formatHours(day.totalKnownShopHours)} known hours
-          </p>
-          {day.capacityNotes ? (
-            <p className="mt-1 text-xs text-slate-500">{day.capacityNotes}</p>
-          ) : null}
-          {day.missingShopHoursCount > 0 ? (
-            <p className="mt-1 text-sm font-medium text-amber-700">
-              {day.missingShopHoursCount} booking
-              {day.missingShopHoursCount === 1 ? '' : 's'} missing shop hours
-            </p>
+      <div className="border-b border-slate-200 bg-white/80 px-3 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          <h3 className="text-sm font-semibold text-slate-900">
+            {formatCompactDate(day.date)}
+          </h3>
+
+          {sourceLabel ? (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                day.isClosed
+                  ? 'bg-slate-200 text-slate-700'
+                  : day.capacitySource === 'override'
+                    ? 'bg-violet-100 text-violet-700'
+                    : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              {sourceLabel}
+            </span>
+          ) : overloaded ? (
+            <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+              Over capacity
+            </span>
           ) : null}
         </div>
 
-        <div className="grid min-w-full grid-cols-2 gap-2 text-sm sm:min-w-[25rem] sm:grid-cols-3 lg:min-w-[31rem]">
-          <CapacityMetric label="Planned" value={`${formatHours(day.totalKnownShopHours)} hrs`} />
-          <CapacityMetric
-            label="Available"
-            value={
-              day.capacityKnown && day.availableHours !== null
-                ? `${formatHours(day.availableHours)} hrs`
-                : 'Unknown'
-            }
-          />
-          <CapacityMetric
-            label={overloaded ? 'Over' : 'Remaining'}
-            value={
-              comparisonIncomplete
-                ? 'Incomplete'
-                : overloaded && day.overloadHours !== null
-                  ? `${formatHours(day.overloadHours)} hrs`
-                  : day.remainingHours !== null
-                    ? `${formatHours(day.remainingHours)} hrs`
-                    : 'Unknown'
-            }
-            emphasis={overloaded ? 'danger' : 'normal'}
-          />
-        </div>
+        <p className="mt-1 text-[11px] font-medium text-slate-600">
+          {formatHours(day.totalKnownShopHours)} planned
+          {' • '}
+          {day.capacityKnown && day.availableHours !== null
+            ? `${formatHours(day.availableHours)} available`
+            : 'capacity unknown'}
+        </p>
+
+        <p
+          className={`mt-1 text-xs font-semibold ${
+            overloaded
+              ? 'text-rose-700'
+              : day.isClosed
+                ? 'text-slate-600'
+                : needsReview
+                  ? 'text-amber-800'
+                  : 'text-emerald-700'
+          }`}
+        >
+          {resultLabel}
+        </p>
+
+        <p className="mt-1 text-[11px] text-slate-500">
+          {day.bookingCount} booking{day.bookingCount === 1 ? '' : 's'}
+          {day.missingShopHoursCount > 0
+            ? ` • ${day.missingShopHoursCount} missing Shop Hours`
+            : ''}
+        </p>
+
+        {day.capacityNotes ? (
+          <p className="mt-1 text-[10px] leading-snug text-slate-500">
+            {day.capacityNotes}
+          </p>
+        ) : null}
       </div>
 
-      {comparisonIncomplete && day.capacityKnown ? (
-        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Capacity comparison is incomplete until all booking Shop Hours are known.
-        </p>
-      ) : null}
-
       {day.cards.length > 0 ? (
-        <div className="mt-3 grid gap-2">
+        <div className="grid gap-2 p-2">
           {day.cards.map((card) => (
             <ProductionBookingCard key={card.bookingId} card={card} />
           ))}
         </div>
       ) : (
-        <p className="mt-3 text-sm text-slate-500">No production bookings scheduled.</p>
+        <p className="px-3 py-4 text-xs text-slate-500">
+          No production bookings.
+        </p>
       )}
     </section>
-  );
-}
-
-function CapacityMetric({
-  label,
-  value,
-  emphasis = 'normal',
-}: {
-  label: string;
-  value: string;
-  emphasis?: 'normal' | 'danger';
-}) {
-  return (
-    <div
-      className={`rounded-lg border px-3 py-2 ${
-        emphasis === 'danger'
-          ? 'border-rose-200 bg-rose-50'
-          : 'border-slate-200 bg-slate-50'
-      }`}
-    >
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-500">
-        {label}
-      </p>
-      <p
-        className={`mt-0.5 font-semibold ${
-          emphasis === 'danger' ? 'text-rose-700' : 'text-slate-900'
-        }`}
-      >
-        {value}
-      </p>
-    </div>
   );
 }

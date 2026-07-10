@@ -5,8 +5,16 @@ import type {
   ProductionBoardDay,
   ProductionBoardSummary,
   ProductionBoardViewModel,
+  ProductionBoardWeek,
   ProductionBookingRow,
 } from './types';
+
+function addDaysToDateOnly(dateText: string, days: number): string {
+  const [year, month, day] = dateText.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
 
 function toHours(value: unknown): number | null {
   if (value === null || value === undefined || value === '') {
@@ -112,6 +120,72 @@ export function normalizeProductionBoard(
     };
   });
 
+  const weekGroups: ProductionBoardWeek[] = Array.from(
+    { length: params.weeks },
+    (_, weekIndex) => {
+      const startDate = addDaysToDateOnly(params.startDate, weekIndex * 7);
+      const endDateExclusive = addDaysToDateOnly(startDate, 7);
+      const weekDays = days.filter(
+        (day) => day.date >= startDate && day.date < endDateExclusive,
+      );
+      const bookingCount = weekDays.reduce(
+        (sum, day) => sum + day.bookingCount,
+        0,
+      );
+      const totalKnownShopHours = weekDays.reduce(
+        (sum, day) => sum + day.totalKnownShopHours,
+        0,
+      );
+      const missingShopHoursCount = weekDays.reduce(
+        (sum, day) => sum + day.missingShopHoursCount,
+        0,
+      );
+      const totalAvailableHours = weekDays.reduce(
+        (sum, day) =>
+          sum +
+          (day.capacityKnown && day.availableHours !== null
+            ? day.availableHours
+            : 0),
+        0,
+      );
+      const unknownCapacityDayCount = weekDays.filter(
+        (day) => !day.capacityKnown,
+      ).length;
+      const closureCount = weekDays.filter((day) => day.isClosed).length;
+      const dailyOverloadCount = weekDays.filter(
+        (day) => (day.overloadHours ?? 0) > 0,
+      ).length;
+      const capacityComplete =
+        weekDays.length > 0 && unknownCapacityDayCount === 0;
+      const comparisonComplete =
+        capacityComplete && missingShopHoursCount === 0;
+      const remainingHours = comparisonComplete
+        ? Math.max(0, totalAvailableHours - totalKnownShopHours)
+        : null;
+      const overloadHours = comparisonComplete
+        ? Math.max(0, totalKnownShopHours - totalAvailableHours)
+        : null;
+
+      return {
+        weekIndex,
+        startDate,
+        endDateExclusive,
+        days: weekDays,
+        bookingCount,
+        totalKnownShopHours,
+        missingShopHoursCount,
+        totalAvailableHours,
+        unknownCapacityDayCount,
+        closureCount,
+        dailyOverloadCount,
+        capacityComplete,
+        comparisonComplete,
+        remainingHours,
+        overloadHours,
+      };
+    },
+  );
+
   const summary: ProductionBoardSummary = {
     totalBookings: cards.length,
     totalKnownShopHours: cards.reduce(
@@ -129,6 +203,7 @@ export function normalizeProductionBoard(
     endDateExclusive: params.endDateExclusive,
     weeks: params.weeks,
     days,
+    weekGroups,
     summary,
   };
 }

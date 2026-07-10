@@ -74,10 +74,29 @@ export type ProductionBoardSummary = {
   missingShopHoursCount: number;
 };
 
+export type ProductionBoardWeek = {
+  weekIndex: number;
+  startDate: string;
+  endDateExclusive: string;
+  days: ProductionBoardDay[];
+  bookingCount: number;
+  totalKnownShopHours: number;
+  missingShopHoursCount: number;
+  totalAvailableHours: number;
+  unknownCapacityDayCount: number;
+  closureCount: number;
+  dailyOverloadCount: number;
+  capacityComplete: boolean;
+  comparisonComplete: boolean;
+  remainingHours: number | null;
+  overloadHours: number | null;
+};
+
 export type ProductionBoardViewModel = {
   startDate: string;
   endDateExclusive: string;
   weeks: number;
   days: ProductionBoardDay[];
+  weekGroups: ProductionBoardWeek[];
   summary: ProductionBoardSummary;
 };

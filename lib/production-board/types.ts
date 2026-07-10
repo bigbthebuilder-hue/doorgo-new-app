@@ -39,7 +39,8 @@ export type ProductionBoardCard = {
   jobId: string | null;
   calendarId: string | null;
   calendarEventId: string | null;
-  shopHours: number;
+  shopHours: number | null;
+  shopHoursKnown: boolean;
   salesperson: string | null;
   source: string | null;
   sourceSystem: string | null;
@@ -47,6 +48,25 @@ export type ProductionBoardCard = {
 
 export type ProductionBoardDay = {
   date: string;
-  totalShopHours: number;
+  totalKnownShopHours: number;
+  bookingCount: number;
+  missingShopHoursCount: number;
   cards: ProductionBoardCard[];
+};
+
+export type ProductionBoardSummary = {
+  totalBookings: number;
+  totalKnownShopHours: number;
+  scheduledDays: number;
+  doorGoLinkedCount: number;
+  bizTrackOnlyCount: number;
+  missingShopHoursCount: number;
+};
+
+export type ProductionBoardViewModel = {
+  startDate: string;
+  endDateExclusive: string;
+  weeks: number;
+  days: ProductionBoardDay[];
+  summary: ProductionBoardSummary;
 };

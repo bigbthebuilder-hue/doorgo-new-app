@@ -1,15 +1,12 @@
+import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 
 export function createSupabaseServerClient() {
   const url = process.env.SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !key) {
-    throw new Error(
-      'Missing SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY.',
-    );
+    throw new Error('Production Board Supabase configuration is missing.');
   }
 
   return createClient(url, key, {

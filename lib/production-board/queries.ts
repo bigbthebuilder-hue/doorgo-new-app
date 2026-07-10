@@ -1,11 +1,12 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { normalizeProductionBoard } from './normalize';
-import type { DoorGoJobRow, ProductionBookingRow } from './types';
+import type { DoorGoJobRow, ProductionBookingRow, ProductionBoardViewModel } from './types';
 
 export async function loadProductionBoardReadOnly(params: {
   boardStart: string;
   boardEndExclusive: string;
-}) {
+  weeks: number;
+}): Promise<ProductionBoardViewModel> {
   const supabase = createSupabaseServerClient();
 
   const { data: bookings, error: bookingError } = await supabase
@@ -78,5 +79,9 @@ export async function loadProductionBoardReadOnly(params: {
     jobRows = (jobs ?? []) as DoorGoJobRow[];
   }
 
-  return normalizeProductionBoard(bookingRows, jobRows);
+  return normalizeProductionBoard(bookingRows, jobRows, {
+    startDate: params.boardStart,
+    endDateExclusive: params.boardEndExclusive,
+    weeks: params.weeks,
+  });
 }

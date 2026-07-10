@@ -1,3 +1,5 @@
+import type { DailyCapacitySource } from './capacity-types';
+
 export type ProductionBookingRow = {
   booking_id: string;
   job_id: string | null;
@@ -51,6 +53,15 @@ export type ProductionBoardDay = {
   totalKnownShopHours: number;
   bookingCount: number;
   missingShopHoursCount: number;
+  availableHours: number | null;
+  staffCapacityHours: number | null;
+  deductionHours: number | null;
+  capacitySource: DailyCapacitySource;
+  capacityKnown: boolean;
+  isClosed: boolean;
+  capacityNotes: string | null;
+  remainingHours: number | null;
+  overloadHours: number | null;
   cards: ProductionBoardCard[];
 };
 

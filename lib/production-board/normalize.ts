@@ -1,3 +1,4 @@
+import type { DailyCapacity } from './capacity-types';
 import type {
   DoorGoJobRow,
   ProductionBoardCard,
@@ -19,6 +20,7 @@ function toHours(value: unknown): number | null {
 export function normalizeProductionBoard(
   bookings: ProductionBookingRow[],
   jobs: DoorGoJobRow[],
+  capacityRows: DailyCapacity[],
   params: { startDate: string; endDateExclusive: string; weeks: number },
 ): ProductionBoardViewModel {
   const jobsById = new Map(jobs.map((job) => [job.job_id, job]));
@@ -50,38 +52,73 @@ export function normalizeProductionBoard(
     };
   });
 
-  const grouped = new Map<string, ProductionBoardCard[]>();
+  const cardsByDate = new Map<string, ProductionBoardCard[]>();
 
   for (const card of cards) {
-    const existing = grouped.get(card.productionDate) ?? [];
+    const existing = cardsByDate.get(card.productionDate) ?? [];
     existing.push(card);
-    grouped.set(card.productionDate, existing);
+    cardsByDate.set(card.productionDate, existing);
   }
 
-  const days: ProductionBoardDay[] = Array.from(grouped.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, dayCards]) => {
-      const sortedCards = dayCards.sort((a, b) => a.title.localeCompare(b.title));
-      const missingShopHoursCount = sortedCards.filter(
-        (card) => !card.shopHoursKnown,
-      ).length;
+  const capacityByDate = new Map(
+    capacityRows.map((capacity) => [capacity.productionDate, capacity]),
+  );
 
-      return {
-        date,
-        totalKnownShopHours: sortedCards.reduce(
-          (sum, card) => sum + (card.shopHoursKnown ? card.shopHours ?? 0 : 0),
-          0,
-        ),
-        bookingCount: sortedCards.length,
-        missingShopHoursCount,
-        cards: sortedCards,
-      };
-    });
+  const visibleDates = Array.from(
+    new Set([...cardsByDate.keys(), ...capacityByDate.keys()]),
+  ).sort((a, b) => a.localeCompare(b));
+
+  const days: ProductionBoardDay[] = visibleDates.map((date) => {
+    const sortedCards = (cardsByDate.get(date) ?? []).sort((a, b) =>
+      a.title.localeCompare(b.title),
+    );
+    const missingShopHoursCount = sortedCards.filter(
+      (card) => !card.shopHoursKnown,
+    ).length;
+    const totalKnownShopHours = sortedCards.reduce(
+      (sum, card) => sum + (card.shopHoursKnown ? card.shopHours ?? 0 : 0),
+      0,
+    );
+
+    const capacity = capacityByDate.get(date) ?? null;
+    const availableHours = capacity?.availableHours ?? null;
+    const capacityKnown =
+      capacity !== null &&
+      capacity.source !== 'unknown' &&
+      availableHours !== null;
+    const comparisonComplete = capacityKnown && missingShopHoursCount === 0;
+    const remainingHours = comparisonComplete
+      ? Math.max(0, availableHours - totalKnownShopHours)
+      : null;
+    const overloadHours = comparisonComplete
+      ? Math.max(0, totalKnownShopHours - availableHours)
+      : null;
+
+    return {
+      date,
+      totalKnownShopHours,
+      bookingCount: sortedCards.length,
+      missingShopHoursCount,
+      availableHours,
+      staffCapacityHours: capacity?.staffCapacityHours ?? null,
+      deductionHours: capacity?.deductionHours ?? null,
+      capacitySource: capacity?.source ?? 'unknown',
+      capacityKnown,
+      isClosed: capacity?.isClosed ?? false,
+      capacityNotes: capacity?.notes ?? null,
+      remainingHours,
+      overloadHours,
+      cards: sortedCards,
+    };
+  });
 
   const summary: ProductionBoardSummary = {
     totalBookings: cards.length,
-    totalKnownShopHours: days.reduce((sum, day) => sum + day.totalKnownShopHours, 0),
-    scheduledDays: days.length,
+    totalKnownShopHours: cards.reduce(
+      (sum, card) => sum + (card.shopHoursKnown ? card.shopHours ?? 0 : 0),
+      0,
+    ),
+    scheduledDays: cardsByDate.size,
     doorGoLinkedCount: cards.filter((card) => card.type === 'doorgo_linked').length,
     bizTrackOnlyCount: cards.filter((card) => card.type === 'biztrack_only').length,
     missingShopHoursCount: cards.filter((card) => !card.shopHoursKnown).length,

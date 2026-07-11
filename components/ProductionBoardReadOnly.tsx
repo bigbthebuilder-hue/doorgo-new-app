@@ -3,7 +3,11 @@ import { ProductionBoardSummary } from '@/components/ProductionBoardSummary';
 import type { ProductionBoardViewModel } from '@/lib/production-board/types';
 
 export function ProductionBoardReadOnly({ board }: { board: ProductionBoardViewModel }) {
-  if (!board.days.length) {
+  const hasWeekendExceptions = board.weekGroups.some(
+    (week) => week.weekendExceptions.length > 0,
+  );
+
+  if (!board.days.length && !hasWeekendExceptions) {
     return (
       <main className="min-h-screen bg-slate-50 px-3 py-6 text-slate-900 sm:px-4">
         <div className="mx-auto flex w-full max-w-[1780px] flex-col gap-4">

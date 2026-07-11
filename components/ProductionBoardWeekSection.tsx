@@ -1,42 +1,13 @@
 import { ProductionBoardDay } from '@/components/ProductionBoardDay';
 import { formatFriendlyDateRange } from '@/lib/production-board/date-utils';
+import {
+  classifyFlowOperationalStatus,
+  weeklyFlowStatusLabel,
+} from '@/lib/production-board/flow-presentation';
 import type { ProductionBoardWeek } from '@/lib/production-board/types';
 
 function formatHours(value: number): string {
   return value.toFixed(2);
-}
-
-function weeklyStatus(week: ProductionBoardWeek): {
-  label: string;
-  tone: 'normal' | 'warning' | 'danger';
-} {
-  if (!week.comparisonComplete) {
-    return {
-      label: 'Weekly comparison incomplete',
-      tone: 'warning',
-    };
-  }
-
-  if ((week.overloadHours ?? 0) > 0) {
-    return {
-      label: `Week over by ${formatHours(week.overloadHours ?? 0)} hrs`,
-      tone: 'danger',
-    };
-  }
-
-  if (week.dailyOverloadCount > 0) {
-    return {
-      label: `${week.dailyOverloadCount} overloaded ${
-        week.dailyOverloadCount === 1 ? 'day' : 'days'
-      } to balance`,
-      tone: 'warning',
-    };
-  }
-
-  return {
-    label: `${formatHours(week.remainingHours ?? 0)} hrs open`,
-    tone: 'normal',
-  };
 }
 
 export function ProductionBoardWeekSection({
@@ -44,17 +15,23 @@ export function ProductionBoardWeekSection({
 }: {
   week: ProductionBoardWeek;
 }) {
-  const status = weeklyStatus(week);
+  const status = classifyFlowOperationalStatus({
+    unresolved: week.unresolvedFlow,
+    openingCarry: week.openingCarryIn,
+    endingCarry: week.endingCarryOut,
+  });
   const weeklyOverload = (week.overloadHours ?? 0) > 0;
 
   return (
     <section
       className={`rounded-2xl border bg-white p-3 shadow-sm ${
-        weeklyOverload
+        status === 'building'
           ? 'border-rose-300'
-          : week.dailyOverloadCount > 0
+          : status === 'reducing' ||
+              status === 'unchanged' ||
+              status === 'unresolved'
             ? 'border-amber-300'
-            : 'border-slate-200'
+            : 'border-emerald-300'
       }`}
     >
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-3 xl:flex-row xl:items-start xl:justify-between">
@@ -65,14 +42,16 @@ export function ProductionBoardWeekSection({
             </h2>
             <span
               className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                status.tone === 'danger'
+                status === 'building'
                   ? 'bg-rose-100 text-rose-700'
-                  : status.tone === 'warning'
+                  : status === 'reducing' ||
+                      status === 'unchanged' ||
+                      status === 'unresolved'
                     ? 'bg-amber-100 text-amber-800'
                     : 'bg-emerald-100 text-emerald-700'
               }`}
             >
-              {status.label}
+              {weeklyFlowStatusLabel(status)}
             </span>
           </div>
 
@@ -95,7 +74,8 @@ export function ProductionBoardWeekSection({
           ) : null}
         </div>
 
-        <div className="grid w-full grid-cols-3 gap-2 text-sm xl:w-auto xl:min-w-[31rem]">
+        <div className="w-full xl:w-auto xl:min-w-[42rem]">
+          <div className="grid grid-cols-4 gap-2 text-sm">
           <WeeklyMetric
             label="Planned"
             value={`${formatHours(week.totalKnownShopHours)} hrs`}
@@ -122,6 +102,55 @@ export function ProductionBoardWeekSection({
                   : 'warning'
             }
           />
+          <WeeklyMetric
+            label="Opening carry"
+            value={
+              week.openingCarryKnown && week.openingCarryIn !== null
+                ? `${formatHours(week.openingCarryIn)} hrs`
+                : 'Unresolved'
+            }
+            emphasis={
+              week.openingCarryKnown && week.openingCarryIn !== null
+                ? 'normal'
+                : 'warning'
+            }
+          />
+          <WeeklyMetric
+            label="Flow starts"
+            value={
+              week.plannedStartsKnown && week.plannedStarts !== null
+                ? `${formatHours(week.plannedStarts)} hrs`
+                : 'Unknown'
+            }
+            emphasis={
+              week.plannedStartsKnown && week.plannedStarts !== null
+                ? 'normal'
+                : 'warning'
+            }
+          />
+          <WeeklyMetric
+            label="Flow capacity"
+            value={
+              week.flowCapacity === null
+                ? 'Unknown'
+                : `${formatHours(week.flowCapacity)} hrs`
+            }
+            emphasis={week.flowCapacity === null ? 'warning' : 'normal'}
+          />
+          <WeeklyMetric
+            label="Ending carry"
+            value={
+              week.endingCarryOut === null
+                ? 'Unresolved'
+                : `${formatHours(week.endingCarryOut)} hrs`
+            }
+            emphasis={week.unresolvedFlow ? 'warning' : 'normal'}
+          />
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            Remaining/Over is the starts-only scheduled balance. Ending Carry is
+            the full rolling-flow result.
+          </p>
         </div>
       </div>
 
@@ -139,6 +168,52 @@ export function ProductionBoardWeekSection({
         </p>
       ) : null}
 
+      {week.unresolvedFlow ? (
+        <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Rolling flow is unresolved because required values are unknown. No numeric
+          carry is inferred.
+        </p>
+      ) : (
+        <p className="mt-2 text-xs font-medium text-slate-600">
+          {week.carriesIntoNextShopDay
+            ? 'Carry flows into the next shop day.'
+            : 'No carry flows into the next shop day.'}
+        </p>
+      )}
+
+      {week.weekendBookingExceptionCount > 0 ? (
+        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+          <p className="text-xs font-semibold text-amber-900">
+            Weekend booking exceptions — included in rolling flow
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {week.weekendExceptions.flatMap((exception) =>
+              exception.cards.map((card) => (
+                <div
+                  key={card.bookingId}
+                  className="rounded-md border border-amber-200 bg-white px-2.5 py-2 text-xs"
+                >
+                  <p className="font-semibold text-amber-900">
+                    {formatWeekendDate(exception.date)} — scheduled on a weekend
+                  </p>
+                  <p className="mt-0.5 font-medium text-slate-900">
+                    {card.title}
+                  </p>
+                  {card.customer && card.customer !== card.title ? (
+                    <p className="text-slate-600">{card.customer}</p>
+                  ) : null}
+                  <p className="mt-0.5 text-slate-600">
+                    {card.shopHoursKnown && card.shopHours !== null
+                      ? `${formatHours(card.shopHours)} Shop Hours`
+                      : 'Missing Shop Hours'}
+                  </p>
+                </div>
+              )),
+            )}
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-3 overflow-x-auto pb-1">
         {week.days.length > 0 ? (
           <div className="grid min-w-[1180px] grid-cols-5 items-start gap-2 2xl:min-w-0">
@@ -154,6 +229,16 @@ export function ProductionBoardWeekSection({
       </div>
     </section>
   );
+}
+
+function formatWeekendDate(dateText: string): string {
+  const [year, month, day] = dateText.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
 function WeeklyMetric({

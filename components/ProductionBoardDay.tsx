@@ -1,4 +1,9 @@
 import type { ProductionBoardDay } from '@/lib/production-board/types';
+import {
+  classifyFlowOperationalStatus,
+  dailyFlowStatusLabel,
+  startsOnlyBalanceLabel,
+} from '@/lib/production-board/flow-presentation';
 import { ProductionBookingCard } from './ProductionBookingCard';
 
 function formatHours(value: number): string {
@@ -38,27 +43,27 @@ export function ProductionBoardDay({ day }: { day: ProductionBoardDay }) {
   const comparisonIncomplete = day.missingShopHoursCount > 0;
   const overloaded = (day.overloadHours ?? 0) > 0;
   const needsReview = !day.capacityKnown || comparisonIncomplete;
-
-  const resultLabel = day.isClosed
-    ? 'No production'
-    : comparisonIncomplete
-      ? 'Comparison incomplete'
-      : overloaded && day.overloadHours !== null
-        ? `${formatHours(day.overloadHours)} hrs over`
-        : day.remainingHours !== null
-          ? `${formatHours(day.remainingHours)} hrs open`
-          : 'Capacity unknown';
+  const operationalStatus = classifyFlowOperationalStatus({
+    unresolved: day.flowStatus === 'unresolved',
+    openingCarry: day.openingCarryIn,
+    endingCarry: day.endingCarryOut,
+  });
+  const resultLabel = startsOnlyBalanceLabel({
+    comparisonComplete: day.capacityKnown && !comparisonIncomplete,
+    remainingHours: day.remainingHours,
+    overloadHours: day.overloadHours,
+  });
 
   return (
     <section
       className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
-        overloaded
+        operationalStatus === 'building'
           ? 'border-rose-400 bg-rose-50/30'
-          : day.isClosed
-            ? 'border-slate-300 bg-slate-100/80'
-            : needsReview
-              ? 'border-amber-300'
-              : 'border-emerald-300'
+          : operationalStatus === 'reducing' ||
+              operationalStatus === 'unchanged' ||
+              operationalStatus === 'unresolved'
+            ? 'border-amber-300 bg-amber-50/20'
+            : 'border-emerald-300'
       }`}
     >
       <div className="border-b border-slate-200 bg-white/80 px-3 py-2.5">
@@ -67,6 +72,20 @@ export function ProductionBoardDay({ day }: { day: ProductionBoardDay }) {
             {formatCompactDate(day.date)}
           </h3>
 
+          <div className="flex flex-wrap justify-end gap-1">
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                operationalStatus === 'building'
+                  ? 'bg-rose-100 text-rose-700'
+                  : operationalStatus === 'reducing' ||
+                      operationalStatus === 'unchanged' ||
+                      operationalStatus === 'unresolved'
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-emerald-100 text-emerald-700'
+              }`}
+            >
+              {dailyFlowStatusLabel(operationalStatus)}
+            </span>
           {sourceLabel ? (
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -79,11 +98,8 @@ export function ProductionBoardDay({ day }: { day: ProductionBoardDay }) {
             >
               {sourceLabel}
             </span>
-          ) : overloaded ? (
-            <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
-              Over capacity
-            </span>
           ) : null}
+          </div>
         </div>
 
         <p className="mt-1 text-[11px] font-medium text-slate-600">
@@ -94,13 +110,46 @@ export function ProductionBoardDay({ day }: { day: ProductionBoardDay }) {
             : 'capacity unknown'}
         </p>
 
+        <div className="mt-2 grid grid-cols-4 gap-1 text-center">
+          <FlowMetric
+            label="Carry in"
+            value={day.openingCarryKnown ? day.openingCarryIn : null}
+            unknownLabel="Unresolved"
+          />
+          <FlowMetric
+            label="Starts"
+            value={day.plannedStartsKnown ? day.plannedStarts : null}
+            unknownLabel="Unknown"
+          />
+          <FlowMetric
+            label="Capacity"
+            value={day.capacityKnown ? day.availableHours : null}
+            unknownLabel="Unknown"
+          />
+          <FlowMetric
+            label="Carry out"
+            value={day.endingCarryOut}
+            unknownLabel="Unresolved"
+          />
+        </div>
+
+        {day.weekendBookingException ? (
+          <p className="mt-2 rounded-md bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-800">
+            Weekend booking exception
+          </p>
+        ) : null}
+
+        {day.flowStatus === 'unresolved' ? (
+          <p className="mt-1 text-[10px] font-medium text-amber-800">
+            Rolling flow unresolved: {flowReasonLabel(day.flowUnresolvedReason)}
+          </p>
+        ) : null}
+
         <p
           className={`mt-1 text-xs font-semibold ${
             overloaded
               ? 'text-rose-700'
-              : day.isClosed
-                ? 'text-slate-600'
-                : needsReview
+              : needsReview
                   ? 'text-amber-800'
                   : 'text-emerald-700'
           }`}
@@ -135,4 +184,40 @@ export function ProductionBoardDay({ day }: { day: ProductionBoardDay }) {
       )}
     </section>
   );
+}
+
+function FlowMetric({
+  label,
+  value,
+  unknownLabel,
+}: {
+  label: string;
+  value: number | null;
+  unknownLabel: 'Unknown' | 'Unresolved';
+}) {
+  return (
+    <div className="rounded-md bg-slate-100 px-1 py-1.5">
+      <p className="text-[8px] font-medium uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-0.5 text-[10px] font-semibold text-slate-800">
+        {value === null ? unknownLabel : formatHours(value)}
+      </p>
+    </div>
+  );
+}
+
+function flowReasonLabel(
+  reason: ProductionBoardDay['flowUnresolvedReason'],
+): string {
+  switch (reason) {
+    case 'before_baseline':
+      return 'pre-baseline carry is unknown';
+    case 'missing_shop_hours':
+      return 'booking Shop Hours are missing';
+    case 'unknown_capacity':
+      return 'capacity is unknown';
+    default:
+      return 'upstream carry is unresolved';
+  }
 }

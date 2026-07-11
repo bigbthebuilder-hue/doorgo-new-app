@@ -1,4 +1,8 @@
 import type { DailyCapacity } from './capacity-types';
+import {
+  PRODUCTION_FLOW_BASELINE_DATE,
+  PRODUCTION_FLOW_BASELINE_OPENING_CARRY,
+} from './flow-constants';
 import type {
   DoorGoJobRow,
   ProductionBoardCard,
@@ -7,6 +11,7 @@ import type {
   ProductionBoardViewModel,
   ProductionBoardWeek,
   ProductionBookingRow,
+  ProductionFlowUnresolvedReason,
 } from './types';
 
 function addDaysToDateOnly(dateText: string, days: number): string {
@@ -29,7 +34,12 @@ export function normalizeProductionBoard(
   bookings: ProductionBookingRow[],
   jobs: DoorGoJobRow[],
   capacityRows: DailyCapacity[],
-  params: { startDate: string; endDateExclusive: string; weeks: number },
+  params: {
+    startDate: string;
+    endDateExclusive: string;
+    weeks: number;
+    calculationStartDate?: string;
+  },
 ): ProductionBoardViewModel {
   const jobsById = new Map(jobs.map((job) => [job.job_id, job]));
 
@@ -74,7 +84,112 @@ export function normalizeProductionBoard(
 
   const visibleDates = Array.from(
     new Set([...cardsByDate.keys(), ...capacityByDate.keys()]),
-  ).sort((a, b) => a.localeCompare(b));
+  )
+    .filter((date) => date >= params.startDate && date < params.endDateExclusive)
+    .filter((date) => {
+      const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
+      return dayOfWeek >= 1 && dayOfWeek <= 5;
+    })
+    .sort((a, b) => a.localeCompare(b));
+
+  const calculationStartDate = params.calculationStartDate ?? params.startDate;
+  const flowByDate = new Map<
+    string,
+    Pick<
+      ProductionBoardDay,
+      | 'plannedStarts'
+      | 'plannedStartsKnown'
+      | 'openingCarryIn'
+      | 'openingCarryKnown'
+      | 'flowLoad'
+      | 'endingCarryOut'
+      | 'openFlowCapacity'
+      | 'flowStatus'
+      | 'flowUnresolvedReason'
+      | 'weekendBookingException'
+    >
+  >();
+  let carry: number | null =
+    calculationStartDate === PRODUCTION_FLOW_BASELINE_DATE
+      ? PRODUCTION_FLOW_BASELINE_OPENING_CARRY
+      : null;
+  let unresolvedReason: ProductionFlowUnresolvedReason | null =
+    carry === null ? 'before_baseline' : null;
+
+  for (
+    let date = calculationStartDate;
+    date < params.endDateExclusive;
+    date = addDaysToDateOnly(date, 1)
+  ) {
+    if (date === PRODUCTION_FLOW_BASELINE_DATE) {
+      carry = PRODUCTION_FLOW_BASELINE_OPENING_CARRY;
+      unresolvedReason = null;
+    }
+
+    const dateCards = cardsByDate.get(date) ?? [];
+    const plannedStartsKnown = dateCards.every((card) => card.shopHoursKnown);
+    const plannedStarts = plannedStartsKnown
+      ? dateCards.reduce((sum, card) => sum + (card.shopHours ?? 0), 0)
+      : null;
+    const openingCarryIn = carry;
+    const openingCarryKnown = openingCarryIn !== null;
+    const flowLoad =
+      openingCarryKnown && plannedStartsKnown
+        ? openingCarryIn + (plannedStarts ?? 0)
+        : null;
+    const capacity = capacityByDate.get(date) ?? null;
+    const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isClosure = capacity?.isClosed || capacity?.source === 'closure';
+    const implicitWeekendCapacity = isWeekend && capacity === null;
+    const availableCapacity =
+      isClosure || implicitWeekendCapacity
+        ? 0
+        : capacity?.availableHours ?? null;
+    const capacityKnown =
+      Boolean(isClosure) ||
+      implicitWeekendCapacity ||
+      (capacity !== null &&
+        capacity.source !== 'unknown' &&
+        availableCapacity !== null);
+    let endingCarryOut: number | null = null;
+    let openFlowCapacity: number | null = null;
+    let dayReason: ProductionFlowUnresolvedReason | null = null;
+
+    if (!plannedStartsKnown) {
+      dayReason = 'missing_shop_hours';
+    } else if (!openingCarryKnown) {
+      dayReason = unresolvedReason === 'before_baseline' ? 'before_baseline' : 'upstream_unresolved';
+    } else if (
+      capacityKnown &&
+      availableCapacity !== null &&
+      flowLoad !== null
+    ) {
+      endingCarryOut = Math.max(0, flowLoad - availableCapacity);
+      openFlowCapacity = Math.max(0, availableCapacity - flowLoad);
+    } else if (flowLoad === 0) {
+      endingCarryOut = 0;
+      dayReason = null;
+    } else {
+      dayReason = 'unknown_capacity';
+    }
+
+    carry = endingCarryOut;
+    unresolvedReason = dayReason;
+    flowByDate.set(date, {
+      plannedStarts,
+      plannedStartsKnown,
+      openingCarryIn,
+      openingCarryKnown,
+      flowLoad,
+      endingCarryOut,
+      openFlowCapacity,
+      flowStatus: endingCarryOut === null ? 'unresolved' : 'resolved',
+      flowUnresolvedReason: dayReason,
+      weekendBookingException:
+        dateCards.length > 0 && isWeekend,
+    });
+  }
 
   const days: ProductionBoardDay[] = visibleDates.map((date) => {
     const sortedCards = (cardsByDate.get(date) ?? []).sort((a, b) =>
@@ -89,16 +204,18 @@ export function normalizeProductionBoard(
     );
 
     const capacity = capacityByDate.get(date) ?? null;
-    const availableHours = capacity?.availableHours ?? null;
+    const isClosed = Boolean(capacity?.isClosed || capacity?.source === 'closure');
+    const availableHours = isClosed ? 0 : capacity?.availableHours ?? null;
     const capacityKnown =
-      capacity !== null &&
-      capacity.source !== 'unknown' &&
-      availableHours !== null;
+      isClosed ||
+      (capacity !== null &&
+        capacity.source !== 'unknown' &&
+        availableHours !== null);
     const comparisonComplete = capacityKnown && missingShopHoursCount === 0;
-    const remainingHours = comparisonComplete
+    const remainingHours = comparisonComplete && availableHours !== null
       ? Math.max(0, availableHours - totalKnownShopHours)
       : null;
-    const overloadHours = comparisonComplete
+    const overloadHours = comparisonComplete && availableHours !== null
       ? Math.max(0, totalKnownShopHours - availableHours)
       : null;
 
@@ -112,10 +229,22 @@ export function normalizeProductionBoard(
       deductionHours: capacity?.deductionHours ?? null,
       capacitySource: capacity?.source ?? 'unknown',
       capacityKnown,
-      isClosed: capacity?.isClosed ?? false,
+      isClosed,
       capacityNotes: capacity?.notes ?? null,
       remainingHours,
       overloadHours,
+      ...(flowByDate.get(date) ?? {
+        plannedStarts: null,
+        plannedStartsKnown: false,
+        openingCarryIn: null,
+        openingCarryKnown: false,
+        flowLoad: null,
+        endingCarryOut: null,
+        openFlowCapacity: null,
+        flowStatus: 'unresolved' as const,
+        flowUnresolvedReason: 'upstream_unresolved' as const,
+        weekendBookingException: false,
+      }),
       cards: sortedCards,
     };
   });
@@ -165,6 +294,67 @@ export function normalizeProductionBoard(
       const overloadHours = comparisonComplete
         ? Math.max(0, totalKnownShopHours - totalAvailableHours)
         : null;
+      const firstDayFlow = flowByDate.get(startDate) ?? null;
+      const effectiveEndExclusive =
+        endDateExclusive < params.endDateExclusive
+          ? endDateExclusive
+          : params.endDateExclusive;
+      const lastDate = addDaysToDateOnly(effectiveEndExclusive, -1);
+      const lastDayFlow = flowByDate.get(lastDate) ?? null;
+      const allWeekDates = Array.from({ length: 7 }, (_, index) =>
+        addDaysToDateOnly(startDate, index),
+      ).filter((date) => date < params.endDateExclusive);
+      const weekFlows = allWeekDates.map((date) => flowByDate.get(date)).filter(Boolean);
+      const plannedStartsKnown = weekFlows.every((flow) => flow?.plannedStartsKnown);
+      const plannedStarts = plannedStartsKnown
+        ? weekFlows.reduce((sum, flow) => sum + (flow?.plannedStarts ?? 0), 0)
+        : null;
+      const flowCapacityKnown = allWeekDates.every((date) => {
+        const capacity = capacityByDate.get(date) ?? null;
+        const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        return (
+          capacity?.isClosed === true ||
+          capacity?.source === 'closure' ||
+          (isWeekend && capacity === null) ||
+          (capacity !== null &&
+            capacity.source !== 'unknown' &&
+            capacity.availableHours !== null)
+        );
+      });
+      const flowCapacity = flowCapacityKnown
+        ? allWeekDates.reduce(
+            (sum, date) => {
+              const capacity = capacityByDate.get(date) ?? null;
+              const isClosure =
+                capacity?.isClosed === true || capacity?.source === 'closure';
+              return sum + (isClosure ? 0 : capacity?.availableHours ?? 0);
+            },
+            0,
+          )
+        : null;
+      const unresolvedFlow = lastDayFlow?.endingCarryOut === null || !lastDayFlow;
+      const firstUnresolved = weekFlows.find((flow) => flow?.flowStatus === 'unresolved');
+      const weekendExceptions = allWeekDates
+        .filter((date) => {
+          const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
+          return (dayOfWeek === 0 || dayOfWeek === 6) && (cardsByDate.get(date)?.length ?? 0) > 0;
+        })
+        .map((date) => {
+          const weekendCards = (cardsByDate.get(date) ?? []).sort((a, b) =>
+            a.title.localeCompare(b.title),
+          );
+          const plannedStartsKnown = weekendCards.every((card) => card.shopHoursKnown);
+
+          return {
+            date,
+            cards: weekendCards,
+            plannedStartsKnown,
+            plannedStarts: plannedStartsKnown
+              ? weekendCards.reduce((sum, card) => sum + (card.shopHours ?? 0), 0)
+              : null,
+          };
+        });
 
       return {
         weekIndex,
@@ -182,20 +372,45 @@ export function normalizeProductionBoard(
         comparisonComplete,
         remainingHours,
         overloadHours,
+        openingCarryIn: firstDayFlow?.openingCarryIn ?? null,
+        openingCarryKnown: firstDayFlow?.openingCarryKnown ?? false,
+        plannedStarts,
+        plannedStartsKnown,
+        flowCapacity,
+        endingCarryOut: lastDayFlow?.endingCarryOut ?? null,
+        unresolvedFlow,
+        flowUnresolvedReason: firstUnresolved?.flowUnresolvedReason ?? null,
+        carriesIntoNextShopDay:
+          !lastDayFlow || lastDayFlow.endingCarryOut === null
+            ? null
+            : lastDayFlow.endingCarryOut > 0,
+        weekendBookingExceptionCount: weekendExceptions.reduce(
+          (sum, exception) => sum + exception.cards.length,
+          0,
+        ),
+        weekendExceptions,
       };
     },
   );
 
+  const visibleCards = cards.filter(
+    (card) =>
+      card.productionDate >= params.startDate &&
+      card.productionDate < params.endDateExclusive,
+  );
+  const visibleScheduledDates = new Set(
+    visibleCards.map((card) => card.productionDate),
+  );
   const summary: ProductionBoardSummary = {
-    totalBookings: cards.length,
-    totalKnownShopHours: cards.reduce(
+    totalBookings: visibleCards.length,
+    totalKnownShopHours: visibleCards.reduce(
       (sum, card) => sum + (card.shopHoursKnown ? card.shopHours ?? 0 : 0),
       0,
     ),
-    scheduledDays: cardsByDate.size,
-    doorGoLinkedCount: cards.filter((card) => card.type === 'doorgo_linked').length,
-    bizTrackOnlyCount: cards.filter((card) => card.type === 'biztrack_only').length,
-    missingShopHoursCount: cards.filter((card) => !card.shopHoursKnown).length,
+    scheduledDays: visibleScheduledDates.size,
+    doorGoLinkedCount: visibleCards.filter((card) => card.type === 'doorgo_linked').length,
+    bizTrackOnlyCount: visibleCards.filter((card) => card.type === 'biztrack_only').length,
+    missingShopHoursCount: visibleCards.filter((card) => !card.shopHoursKnown).length,
   };
 
   return {
@@ -205,5 +420,6 @@ export function normalizeProductionBoard(
     days,
     weekGroups,
     summary,
+    calculationStartDate,
   };
 }

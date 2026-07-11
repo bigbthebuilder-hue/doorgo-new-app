@@ -62,7 +62,30 @@ export type ProductionBoardDay = {
   capacityNotes: string | null;
   remainingHours: number | null;
   overloadHours: number | null;
+  plannedStarts: number | null;
+  plannedStartsKnown: boolean;
+  openingCarryIn: number | null;
+  openingCarryKnown: boolean;
+  flowLoad: number | null;
+  endingCarryOut: number | null;
+  openFlowCapacity: number | null;
+  flowStatus: 'resolved' | 'unresolved';
+  flowUnresolvedReason: ProductionFlowUnresolvedReason | null;
+  weekendBookingException: boolean;
   cards: ProductionBoardCard[];
+};
+
+export type ProductionFlowUnresolvedReason =
+  | 'before_baseline'
+  | 'missing_shop_hours'
+  | 'unknown_capacity'
+  | 'upstream_unresolved';
+
+export type ProductionBoardWeekendException = {
+  date: string;
+  cards: ProductionBoardCard[];
+  plannedStarts: number | null;
+  plannedStartsKnown: boolean;
 };
 
 export type ProductionBoardSummary = {
@@ -90,6 +113,17 @@ export type ProductionBoardWeek = {
   comparisonComplete: boolean;
   remainingHours: number | null;
   overloadHours: number | null;
+  openingCarryIn: number | null;
+  openingCarryKnown: boolean;
+  plannedStarts: number | null;
+  plannedStartsKnown: boolean;
+  flowCapacity: number | null;
+  endingCarryOut: number | null;
+  unresolvedFlow: boolean;
+  flowUnresolvedReason: ProductionFlowUnresolvedReason | null;
+  carriesIntoNextShopDay: boolean | null;
+  weekendBookingExceptionCount: number;
+  weekendExceptions: ProductionBoardWeekendException[];
 };
 
 export type ProductionBoardViewModel = {
@@ -99,4 +133,5 @@ export type ProductionBoardViewModel = {
   days: ProductionBoardDay[];
   weekGroups: ProductionBoardWeek[];
   summary: ProductionBoardSummary;
+  calculationStartDate: string;
 };

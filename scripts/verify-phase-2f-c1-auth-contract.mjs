@@ -112,18 +112,48 @@ assert.equal(changedText, '', 'Production-flow calculations must not change in P
 const scopedFiles = [browserClient, authServer, login, passwordSetup, logout, account].join('\n');
 rejectPattern(scopedFiles, /dg_production_flow_checkpoints[\s\S]*(insert|update|delete)/, 'Checkpoint mutations are forbidden');
 
-const changedPaths = new Set([
-  ...execFileSync('git', ['diff', '--name-only'], { encoding: 'utf8' }).split(/\r?\n/),
-  ...execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {
+const normalizeRepositoryPath = (path) => path.replaceAll('\\', '/').replace(/^\.\//, '');
+const isReviewableRepositoryPath = (path) =>
+  (path === '.env.example' || /\.(?:ts|tsx|js|jsx|mjs|cjs|sql|md|json)$/.test(path)) &&
+  !path.startsWith('node_modules/') &&
+  !path.startsWith('.next/') &&
+  !path.startsWith('out/') &&
+  !path.startsWith('build/') &&
+  !path.startsWith('.tmp-') &&
+  path !== '.env.local';
+
+assert.equal(
+  normalizeRepositoryPath('lib\\supabase\\trusted-read-server.ts'),
+  'lib/supabase/trusted-read-server.ts',
+  'Windows repository paths must normalize consistently',
+);
+assert.equal(
+  isReviewableRepositoryPath(normalizeRepositoryPath('lib\\auth\\future-untracked.ts')),
+  true,
+  'Relevant untracked source files must be reviewable',
+);
+assert.equal(isReviewableRepositoryPath('node_modules/example/index.js'), false);
+assert.equal(isReviewableRepositoryPath('.next/server/app.js'), false);
+assert.equal(isReviewableRepositoryPath('.env.local'), false);
+
+const repositoryPaths = new Set(
+  execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z'], {
     encoding: 'utf8',
-  }).split(/\r?\n/),
-]);
-const reviewablePaths = [...changedPaths].filter(
+  })
+    .split('\0')
+    .filter(Boolean)
+    .map(normalizeRepositoryPath),
+);
+assert.ok(
+  repositoryPaths.has('lib/supabase/trusted-read-server.ts'),
+  'Clean-tree discovery must include committed tracked source files',
+);
+
+const reviewablePaths = [...repositoryPaths].filter(
   (path) =>
-    path &&
+    isReviewableRepositoryPath(path) &&
     existsSync(path) &&
-    statSync(path).isFile() &&
-    /\.(?:ts|tsx|sql|md|mjs)$/.test(path),
+    statSync(path).isFile(),
 );
 const applicationPaths = reviewablePaths.filter(
   (path) => !path.startsWith('scripts/') && !path.endsWith('.test.ts'),
@@ -152,13 +182,26 @@ rejectPattern(
   'Raw user metadata must not authorize application access',
 );
 
-const serviceRoleReferences = applicationPaths.filter((path) =>
+const serviceRoleReferences = reviewablePaths.filter((path) =>
   /SUPABASE_SERVICE_ROLE_KEY|service_role/i.test(read(path)),
-);
+).sort();
 assert.deepEqual(
   serviceRoleReferences,
+  [
+    '.env.example',
+    'lib/supabase/trusted-read-server.ts',
+    'scripts/verify-phase-2f-c1-auth-contract.mjs',
+  ],
+  'Service-role references must remain limited to approved runtime, placeholder, and verifier files',
+);
+
+const runtimeServiceRoleReferences = serviceRoleReferences.filter(
+  (path) => path !== '.env.example' && !path.startsWith('scripts/'),
+);
+assert.deepEqual(
+  runtimeServiceRoleReferences,
   ['lib/supabase/trusted-read-server.ts'],
-  'Service-role references must remain isolated to the trusted read-only server module',
+  'Runtime service-role use must remain isolated to the trusted read-only server module',
 );
 
 console.log('Phase 2F-C1 authentication contract verification passed');

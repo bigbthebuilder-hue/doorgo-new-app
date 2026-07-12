@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createTrustedReadOnlySupabaseClient } from '@/lib/supabase/trusted-read-server';
 import { normalizeDailyCapacityRows } from './capacity-normalize';
 import type { DailyCapacity, DailyCapacityRow } from './capacity-types';
 
@@ -6,7 +6,7 @@ export async function loadDailyCapacityReadOnly(params: {
   startDate: string;
   endDateExclusive: string;
 }): Promise<DailyCapacity[]> {
-  const supabase = createSupabaseServerClient();
+  const supabase = createTrustedReadOnlySupabaseClient();
 
   const { data, error } = await supabase
     .from('dg_daily_capacity')

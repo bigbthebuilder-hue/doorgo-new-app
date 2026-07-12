@@ -9,6 +9,7 @@ export default function HomePage() {
       <Link href="/production-board?start=2026-07-06&weeks=8">
         Open read-only Production Board
       </Link>
+      <p><Link href="/login">Sign in</Link> · <Link href="/account">View account</Link></p>
     </main>
   );
 }

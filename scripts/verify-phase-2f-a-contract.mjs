@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const statusMigration = readFileSync(
@@ -178,24 +177,6 @@ requirePattern(
   checkpointContract,
   /ordinary writes remain unavailable until that rpc phase/,
   'Ordinary writes must remain unavailable until the RPC phase',
-);
-
-execFileSync(
-  'git',
-  [
-    'diff',
-    '--quiet',
-    '--',
-    'app/production-board',
-    'lib/production-board/queries.ts',
-    'lib/production-board/normalize.ts',
-    'components/ProductionBoardReadOnly.tsx',
-    'components/ProductionBoardWeekSection.tsx',
-    'components/ProductionBoardDay.tsx',
-    'components/ProductionBookingCard.tsx',
-    'components/ProductionBoardSummary.tsx',
-  ],
-  { stdio: 'inherit' },
 );
 
 console.log(

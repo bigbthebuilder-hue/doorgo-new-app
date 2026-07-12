@@ -181,6 +181,13 @@ export function ProductionBoardWeekSection({
         </p>
       )}
 
+      {week.hasActualCarryReset ? (
+        <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
+          {week.checkpointCount} actual carry checkpoint
+          {week.checkpointCount === 1 ? '' : 's'} reset rolling flow this week.
+        </p>
+      ) : null}
+
       {week.weekendBookingExceptionCount > 0 ? (
         <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
           <p className="text-xs font-semibold text-amber-900">

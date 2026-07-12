@@ -1,6 +1,10 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import {
+  loadConfirmedCheckpointsInRange,
+  loadLatestConfirmedCheckpointOnOrBefore,
+} from '@/lib/production-flow/checkpoint-queries';
+import { selectCheckpointAwareCalculationStart } from '@/lib/production-flow/checkpoint-window';
 import { loadDailyCapacityReadOnly } from './capacity-queries';
-import { PRODUCTION_FLOW_BASELINE_DATE } from './flow-constants';
 import { normalizeProductionBoard } from './normalize';
 import type { DoorGoJobRow, ProductionBookingRow, ProductionBoardViewModel } from './types';
 
@@ -10,14 +14,16 @@ export async function loadProductionBoardReadOnly(params: {
   weeks: number;
 }): Promise<ProductionBoardViewModel> {
   const supabase = createSupabaseServerClient();
-  const calculationStart =
-    params.boardStart >= PRODUCTION_FLOW_BASELINE_DATE
-      ? PRODUCTION_FLOW_BASELINE_DATE
-      : params.boardStart;
+  const checkpointAnchor =
+    await loadLatestConfirmedCheckpointOnOrBefore(params.boardStart);
+  const calculationStart = selectCheckpointAwareCalculationStart({
+    boardStart: params.boardStart,
+    checkpointAnchorDate: checkpointAnchor?.productionDate ?? null,
+  });
 
   // TODO: Use a persisted carry checkpoint or settings baseline to bound historical reads.
 
-  const [bookingResult, capacityRows] = await Promise.all([
+  const [bookingResult, capacityRows, checkpoints] = await Promise.all([
     supabase
       .from('dg_production_bookings')
       .select(`
@@ -55,6 +61,10 @@ export async function loadProductionBoardReadOnly(params: {
       .order('production_date', { ascending: true })
       .order('title', { ascending: true }),
     loadDailyCapacityReadOnly({
+      startDate: calculationStart,
+      endDateExclusive: params.boardEndExclusive,
+    }),
+    loadConfirmedCheckpointsInRange({
       startDate: calculationStart,
       endDateExclusive: params.boardEndExclusive,
     }),
@@ -100,5 +110,6 @@ export async function loadProductionBoardReadOnly(params: {
     endDateExclusive: params.boardEndExclusive,
     weeks: params.weeks,
     calculationStartDate: calculationStart,
+    checkpoints,
   });
 }

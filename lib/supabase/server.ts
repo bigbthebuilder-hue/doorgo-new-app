@@ -1,18 +1,26 @@
 import 'server-only';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { getPublicSupabaseEnvironment } from './public-env';
 
-export function createSupabaseServerClient() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export async function createAuthenticatedSupabaseServerClient() {
+  const cookieStore = await cookies();
+  const { url, publishableKey } = getPublicSupabaseEnvironment();
 
-  if (!url || !key) {
-    throw new Error('Production Board Supabase configuration is missing.');
-  }
-
-  return createClient(url, key, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
+  return createServerClient(url, publishableKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options),
+          );
+        } catch {
+          // Server Components cannot write cookies. proxy.ts handles refresh writes.
+        }
+      },
     },
   });
 }

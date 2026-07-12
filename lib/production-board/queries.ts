@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createTrustedReadOnlySupabaseClient } from '@/lib/supabase/trusted-read-server';
 import {
   loadConfirmedCheckpointsInRange,
   loadLatestConfirmedCheckpointOnOrBefore,
@@ -13,7 +13,7 @@ export async function loadProductionBoardReadOnly(params: {
   boardEndExclusive: string;
   weeks: number;
 }): Promise<ProductionBoardViewModel> {
-  const supabase = createSupabaseServerClient();
+  const supabase = createTrustedReadOnlySupabaseClient();
   const checkpointAnchor =
     await loadLatestConfirmedCheckpointOnOrBefore(params.boardStart);
   const calculationStart = selectCheckpointAwareCalculationStart({

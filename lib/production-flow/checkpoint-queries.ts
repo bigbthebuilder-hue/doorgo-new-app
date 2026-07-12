@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createTrustedReadOnlySupabaseClient } from '@/lib/supabase/trusted-read-server';
 import type {
   ConfirmedFlowCheckpoint,
   ConfirmedFlowCheckpointRow,
@@ -26,7 +26,7 @@ const CHECKPOINT_SELECT = `
 export async function loadLatestConfirmedCheckpointOnOrBefore(
   productionDate: string,
 ): Promise<ConfirmedFlowCheckpoint | null> {
-  const supabase = createSupabaseServerClient();
+  const supabase = createTrustedReadOnlySupabaseClient();
   const { data, error } = await supabase
     .from('dg_production_flow_checkpoints')
     .select(CHECKPOINT_SELECT)
@@ -47,7 +47,7 @@ export async function loadConfirmedCheckpointsInRange(params: {
   startDate: string;
   endDateExclusive: string;
 }): Promise<ConfirmedFlowCheckpoint[]> {
-  const supabase = createSupabaseServerClient();
+  const supabase = createTrustedReadOnlySupabaseClient();
   const { data, error } = await supabase
     .from('dg_production_flow_checkpoints')
     .select(CHECKPOINT_SELECT)

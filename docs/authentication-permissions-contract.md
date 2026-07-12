@@ -21,6 +21,7 @@ can be added later only if outside usage requires it.
 `use`. A missing row or unknown access value means `none`. Initial module keys are:
 
 - `production`
+- `production_checkpoints`
 - `calendar`
 - `jobs`
 - `documents`
@@ -34,6 +35,12 @@ identifies users who may later manage profiles and permissions; it does not
 silently grant module access. Initial profiles, managers, and permissions are
 created through a controlled Supabase administrative step. Future changes use
 constrained RPCs, not direct table writes.
+
+`production_checkpoints` is independently assignable. `none` means no checkpoint
+access, `view` reserves read-only checkpoint/history access for a future UI, and
+`use` authorizes the complete checkpoint workflow. Neither manager status nor the
+broad `production` permission manufactures checkpoint access. Missing and unknown
+values resolve to `none`.
 
 ## Initial password setup
 
@@ -99,13 +106,13 @@ returning to password setup.
 
 The Production Board remained public while logged out. The account page rendered
 the approved display name, active state, manager state, password-setup-complete
-status, and eight explicit `use` permissions without displaying email, Auth UUID,
+status, and its explicitly configured permissions without displaying email, Auth UUID,
 tokens, or metadata.
 
 Session persistence and simultaneous sessions on multiple devices were verified.
 Local logout invalidated only the current device while the other session remained
 authenticated. A disposable second authenticated user could read exactly its own
-profile and eight permission rows and could not read the manager's records,
+profile and its configured permission rows and could not read the manager's records,
 confirming self-only RLS isolation. The disposable profile, cascading permissions,
 and Auth user were then removed successfully.
 

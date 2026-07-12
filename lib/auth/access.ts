@@ -1,5 +1,6 @@
 export const DOORGO_PERMISSION_KEYS = [
   'production',
+  'production_checkpoints',
   'calendar',
   'jobs',
   'documents',

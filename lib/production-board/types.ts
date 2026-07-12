@@ -66,6 +66,22 @@ export type ProductionBoardDay = {
   plannedStartsKnown: boolean;
   openingCarryIn: number | null;
   openingCarryKnown: boolean;
+  calculatedOpeningCarry: number | null;
+  actualOpeningCarry: number | null;
+  authoritativeOpeningCarry: number | null;
+  adjustmentHours: number | null;
+  hasActualCarryCheckpoint: boolean;
+  checkpointId: string | null;
+  checkpointProductionDate: string | null;
+  checkpointRevisionNumber: number | null;
+  checkpointRecordedAt: string | null;
+  checkpointRecordedByUserId: string | null;
+  checkpointConfirmedAt: string | null;
+  checkpointConfirmedByUserId: string | null;
+  checkpointActorType: string | null;
+  checkpointSourceSystem: string | null;
+  checkpointNote: string | null;
+  checkpointCalculationVersion: string | null;
   flowLoad: number | null;
   endingCarryOut: number | null;
   openFlowCapacity: number | null;
@@ -124,6 +140,8 @@ export type ProductionBoardWeek = {
   carriesIntoNextShopDay: boolean | null;
   weekendBookingExceptionCount: number;
   weekendExceptions: ProductionBoardWeekendException[];
+  checkpointCount: number;
+  hasActualCarryReset: boolean;
 };
 
 export type ProductionBoardViewModel = {

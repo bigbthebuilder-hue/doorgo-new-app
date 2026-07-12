@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import type { DailyCapacity } from './capacity-types';
+import type { ConfirmedFlowCheckpoint } from '../production-flow/checkpoint-types';
+import { selectCheckpointAwareCalculationStart } from '../production-flow/checkpoint-window';
 import {
   classifyFlowOperationalStatus,
   dailyFlowStatusLabel,
@@ -67,6 +69,29 @@ function capacities(
       availableHours,
     });
   });
+}
+
+function checkpoint(
+  overrides: Partial<ConfirmedFlowCheckpoint>,
+): ConfirmedFlowCheckpoint {
+  return {
+    checkpointId: 'checkpoint-1',
+    checkpointSeriesId: 'series-1',
+    productionDate: '2026-07-07',
+    openingCarryHours: 6,
+    revisionNumber: 1,
+    calculatedOpeningCarrySnapshot: null,
+    adjustmentHoursSnapshot: null,
+    calculationVersion: null,
+    note: null,
+    recordedAt: '2026-07-07T15:00:00Z',
+    recordedByUserId: 'user-1',
+    actorType: 'office_user',
+    confirmedAt: '2026-07-07T15:05:00Z',
+    confirmedByUserId: 'user-1',
+    sourceSystem: 'doorgo',
+    ...overrides,
+  };
 }
 
 function run(): void {
@@ -522,6 +547,289 @@ function run(): void {
       overloadHours: 0,
     }),
     'Starts match capacity',
+  );
+
+  const checkpointAnchor = normalizeProductionBoard(
+    [booking({ production_date: '2026-07-10', shop_hours: 3 })],
+    [],
+    [capacity({ productionDate: '2026-07-10', availableHours: 8 })],
+    {
+      startDate: '2026-07-10',
+      endDateExclusive: '2026-07-11',
+      weeks: 1,
+      calculationStartDate: '2026-07-10',
+      checkpoints: [
+        checkpoint({
+          productionDate: '2026-07-10',
+          openingCarryHours: 5,
+          calculatedOpeningCarrySnapshot: 9,
+          adjustmentHoursSnapshot: -4,
+          note: 'Shop count',
+          calculationVersion: 'phase-2e',
+        }),
+      ],
+    },
+  );
+  assert.equal(checkpointAnchor.calculationStartDate, '2026-07-10');
+  assert.equal(checkpointAnchor.days[0].calculatedOpeningCarry, 9);
+  assert.equal(checkpointAnchor.days[0].actualOpeningCarry, 5);
+  assert.equal(checkpointAnchor.days[0].authoritativeOpeningCarry, 5);
+  assert.equal(checkpointAnchor.days[0].openingCarryIn, 5);
+  assert.equal(checkpointAnchor.days[0].adjustmentHours, -4);
+  assert.equal(checkpointAnchor.days[0].flowLoad, 8);
+  assert.equal(checkpointAnchor.days[0].endingCarryOut, 0);
+  assert.equal(checkpointAnchor.days[0].checkpointNote, 'Shop count');
+  assert.equal(checkpointAnchor.days[0].checkpointCalculationVersion, 'phase-2e');
+  assert.equal(checkpointAnchor.weekGroups[0].checkpointCount, 1);
+  assert.equal(checkpointAnchor.weekGroups[0].hasActualCarryReset, true);
+
+  const calculatedAdjustment = normalizeProductionBoard(
+    [],
+    [],
+    capacities('2026-07-06', 3, 0),
+    {
+      ...params,
+      checkpoints: [
+        checkpoint({ productionDate: '2026-07-07', openingCarryHours: 4 }),
+      ],
+    },
+  );
+  const calculatedAdjustmentDay = calculatedAdjustment.days.find(
+    (day) => day.date === '2026-07-07',
+  );
+  assert.equal(calculatedAdjustmentDay?.calculatedOpeningCarry, 0);
+  assert.equal(calculatedAdjustmentDay?.actualOpeningCarry, 4);
+  assert.equal(calculatedAdjustmentDay?.adjustmentHours, 4);
+  assert.equal(calculatedAdjustmentDay?.endingCarryOut, 4);
+
+  const multipleResets = normalizeProductionBoard(
+    [],
+    [],
+    capacities('2026-07-06', 5, 0),
+    {
+      ...params,
+      checkpoints: [
+        checkpoint({ productionDate: '2026-07-07', openingCarryHours: 4 }),
+        checkpoint({
+          checkpointId: 'checkpoint-2',
+          productionDate: '2026-07-09',
+          openingCarryHours: 2,
+          revisionNumber: 1,
+        }),
+      ],
+    },
+  );
+  assert.equal(
+    multipleResets.days.find((day) => day.date === '2026-07-08')?.openingCarryIn,
+    4,
+  );
+  assert.equal(
+    multipleResets.days.find((day) => day.date === '2026-07-09')?.calculatedOpeningCarry,
+    4,
+  );
+  assert.equal(
+    multipleResets.days.find((day) => day.date === '2026-07-09')?.openingCarryIn,
+    2,
+  );
+  assert.equal(multipleResets.weekGroups[0].checkpointCount, 2);
+
+  const resolvesUnknown = normalizeProductionBoard(
+    [booking({ production_date: '2026-07-06', shop_hours: 5 })],
+    [],
+    [
+      capacity({ productionDate: '2026-07-06', availableHours: null, source: 'unknown' }),
+      capacity({ productionDate: '2026-07-07', availableHours: 8 }),
+      capacity({ productionDate: '2026-07-08', availableHours: 8 }),
+    ],
+    {
+      ...params,
+      checkpoints: [
+        checkpoint({ productionDate: '2026-07-08', openingCarryHours: 3 }),
+      ],
+    },
+  );
+  const resetAfterUnknown = resolvesUnknown.days.find(
+    (day) => day.date === '2026-07-08',
+  );
+  assert.equal(resetAfterUnknown?.calculatedOpeningCarry, null);
+  assert.equal(resetAfterUnknown?.openingCarryIn, 3);
+  assert.equal(resetAfterUnknown?.flowStatus, 'resolved');
+  assert.equal(resetAfterUnknown?.endingCarryOut, 0);
+
+  const checkpointClosure = normalizeProductionBoard(
+    [],
+    [],
+    [capacity({ availableHours: null, source: 'closure', isClosed: true })],
+    {
+      ...params,
+      checkpoints: [
+        checkpoint({ productionDate: '2026-07-06', openingCarryHours: 7 }),
+      ],
+    },
+  );
+  assert.equal(checkpointClosure.days[0].openingCarryIn, 7);
+  assert.equal(checkpointClosure.days[0].availableHours, 0);
+  assert.equal(checkpointClosure.days[0].endingCarryOut, 7);
+
+  const mondayCheckpoint = normalizeProductionBoard(
+    [booking({ production_date: '2026-07-10', shop_hours: 5 })],
+    [],
+    [
+      ...capacities('2026-07-06', 4, 8),
+      capacity({ productionDate: '2026-07-10', availableHours: 0 }),
+      capacity({ productionDate: '2026-07-13', availableHours: 0 }),
+    ],
+    {
+      startDate: '2026-07-06',
+      endDateExclusive: '2026-07-14',
+      weeks: 2,
+      checkpoints: [
+        checkpoint({ productionDate: '2026-07-13', openingCarryHours: 2 }),
+      ],
+    },
+  );
+  const checkpointMonday = mondayCheckpoint.days.find(
+    (day) => day.date === '2026-07-13',
+  );
+  assert.equal(checkpointMonday?.calculatedOpeningCarry, 5);
+  assert.equal(checkpointMonday?.openingCarryIn, 2);
+
+  assert.throws(
+    () =>
+      normalizeProductionBoard([], [], [], {
+        ...params,
+        checkpoints: [
+          checkpoint({ productionDate: '2026-07-07' }),
+          checkpoint({ checkpointId: 'duplicate', productionDate: '2026-07-07' }),
+        ],
+      }),
+    /Multiple confirmed production flow checkpoints found for 2026-07-07/,
+  );
+
+  assert.equal(
+    selectCheckpointAwareCalculationStart({
+      boardStart: '2026-08-03',
+      checkpointAnchorDate: '2026-07-31',
+    }),
+    '2026-07-31',
+  );
+  assert.equal(
+    selectCheckpointAwareCalculationStart({
+      boardStart: '2026-08-03',
+      checkpointAnchorDate: null,
+    }),
+    '2026-07-06',
+  );
+  assert.equal(
+    selectCheckpointAwareCalculationStart({
+      boardStart: '2026-07-03',
+      checkpointAnchorDate: null,
+    }),
+    '2026-07-03',
+  );
+
+  const preBaselineCheckpoint = normalizeProductionBoard(
+    [],
+    [],
+    capacities('2026-07-03', 5, 0),
+    {
+      startDate: '2026-07-03',
+      endDateExclusive: '2026-07-08',
+      weeks: 1,
+      calculationStartDate: '2026-07-03',
+      checkpoints: [
+        checkpoint({ productionDate: '2026-07-03', openingCarryHours: 6 }),
+      ],
+    },
+  );
+  assert.equal(
+    preBaselineCheckpoint.days.find((day) => day.date === '2026-07-06')
+      ?.openingCarryIn,
+    6,
+  );
+
+  const zeroPreBaselineCheckpoint = normalizeProductionBoard(
+    [booking({ production_date: '2026-07-03', shop_hours: null })],
+    [],
+    capacities('2026-07-03', 5, 8),
+    {
+      startDate: '2026-07-03',
+      endDateExclusive: '2026-07-08',
+      weeks: 1,
+      calculationStartDate: '2026-07-03',
+      checkpoints: [
+        checkpoint({ productionDate: '2026-07-03', openingCarryHours: 0 }),
+      ],
+    },
+  );
+  const julySixAfterZeroCheckpoint = zeroPreBaselineCheckpoint.days.find(
+    (day) => day.date === '2026-07-06',
+  );
+  assert.equal(julySixAfterZeroCheckpoint?.openingCarryKnown, false);
+  assert.equal(julySixAfterZeroCheckpoint?.flowStatus, 'unresolved');
+
+  const julySixFallbackWithoutCheckpoint = normalizeProductionBoard(
+    [],
+    [],
+    capacities('2026-07-03', 5, 8),
+    {
+      startDate: '2026-07-03',
+      endDateExclusive: '2026-07-08',
+      weeks: 1,
+      calculationStartDate: '2026-07-03',
+    },
+  );
+  assert.equal(
+    julySixFallbackWithoutCheckpoint.days.find(
+      (day) => day.date === '2026-07-06',
+    )?.openingCarryIn,
+    0,
+  );
+
+  const checkpointOnBaseline = normalizeProductionBoard(
+    [],
+    [],
+    [capacity({ productionDate: '2026-07-06', availableHours: 0 })],
+    {
+      ...params,
+      checkpoints: [
+        checkpoint({ productionDate: '2026-07-06', openingCarryHours: 5 }),
+      ],
+    },
+  );
+  assert.equal(checkpointOnBaseline.days[0].calculatedOpeningCarry, 0);
+  assert.equal(checkpointOnBaseline.days[0].actualOpeningCarry, 5);
+  assert.equal(checkpointOnBaseline.days[0].openingCarryIn, 5);
+  assert.equal(checkpointOnBaseline.days[0].endingCarryOut, 5);
+
+  const laterAuthorityReset = normalizeProductionBoard(
+    [],
+    [],
+    capacities('2026-07-03', 6, 0),
+    {
+      startDate: '2026-07-03',
+      endDateExclusive: '2026-07-09',
+      weeks: 1,
+      calculationStartDate: '2026-07-03',
+      checkpoints: [
+        checkpoint({ productionDate: '2026-07-03', openingCarryHours: 6 }),
+        checkpoint({
+          checkpointId: 'later-checkpoint',
+          productionDate: '2026-07-07',
+          openingCarryHours: 2,
+        }),
+      ],
+    },
+  );
+  assert.equal(
+    laterAuthorityReset.days.find((day) => day.date === '2026-07-07')
+      ?.calculatedOpeningCarry,
+    6,
+  );
+  assert.equal(
+    laterAuthorityReset.days.find((day) => day.date === '2026-07-07')
+      ?.openingCarryIn,
+    2,
   );
 
   console.log('production-board capacity verification passed');

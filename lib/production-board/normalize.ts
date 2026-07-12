@@ -1,4 +1,5 @@
 import type { DailyCapacity } from './capacity-types';
+import type { ConfirmedFlowCheckpoint } from '../production-flow/checkpoint-types';
 import {
   PRODUCTION_FLOW_BASELINE_DATE,
   PRODUCTION_FLOW_BASELINE_OPENING_CARRY,
@@ -39,6 +40,7 @@ export function normalizeProductionBoard(
     endDateExclusive: string;
     weeks: number;
     calculationStartDate?: string;
+    checkpoints?: ConfirmedFlowCheckpoint[];
   },
 ): ProductionBoardViewModel {
   const jobsById = new Map(jobs.map((job) => [job.job_id, job]));
@@ -93,6 +95,17 @@ export function normalizeProductionBoard(
     .sort((a, b) => a.localeCompare(b));
 
   const calculationStartDate = params.calculationStartDate ?? params.startDate;
+  const checkpointsByDate = new Map<string, ConfirmedFlowCheckpoint>();
+
+  for (const checkpoint of params.checkpoints ?? []) {
+    if (checkpointsByDate.has(checkpoint.productionDate)) {
+      throw new Error(
+        `Multiple confirmed production flow checkpoints found for ${checkpoint.productionDate}`,
+      );
+    }
+
+    checkpointsByDate.set(checkpoint.productionDate, checkpoint);
+  }
   const flowByDate = new Map<
     string,
     Pick<
@@ -101,6 +114,22 @@ export function normalizeProductionBoard(
       | 'plannedStartsKnown'
       | 'openingCarryIn'
       | 'openingCarryKnown'
+      | 'calculatedOpeningCarry'
+      | 'actualOpeningCarry'
+      | 'authoritativeOpeningCarry'
+      | 'adjustmentHours'
+      | 'hasActualCarryCheckpoint'
+      | 'checkpointId'
+      | 'checkpointProductionDate'
+      | 'checkpointRevisionNumber'
+      | 'checkpointRecordedAt'
+      | 'checkpointRecordedByUserId'
+      | 'checkpointConfirmedAt'
+      | 'checkpointConfirmedByUserId'
+      | 'checkpointActorType'
+      | 'checkpointSourceSystem'
+      | 'checkpointNote'
+      | 'checkpointCalculationVersion'
       | 'flowLoad'
       | 'endingCarryOut'
       | 'openFlowCapacity'
@@ -115,24 +144,44 @@ export function normalizeProductionBoard(
       : null;
   let unresolvedReason: ProductionFlowUnresolvedReason | null =
     carry === null ? 'before_baseline' : null;
+  let checkpointAuthorityEstablished = false;
 
   for (
     let date = calculationStartDate;
     date < params.endDateExclusive;
     date = addDaysToDateOnly(date, 1)
   ) {
-    if (date === PRODUCTION_FLOW_BASELINE_DATE) {
+    if (
+      date === PRODUCTION_FLOW_BASELINE_DATE &&
+      !checkpointAuthorityEstablished
+    ) {
       carry = PRODUCTION_FLOW_BASELINE_OPENING_CARRY;
       unresolvedReason = null;
     }
 
     const dateCards = cardsByDate.get(date) ?? [];
+    const checkpoint = checkpointsByDate.get(date) ?? null;
     const plannedStartsKnown = dateCards.every((card) => card.shopHoursKnown);
     const plannedStarts = plannedStartsKnown
       ? dateCards.reduce((sum, card) => sum + (card.shopHours ?? 0), 0)
       : null;
-    const openingCarryIn = carry;
+    let calculatedOpeningCarry = carry;
+    if (
+      checkpoint &&
+      date === calculationStartDate &&
+      calculatedOpeningCarry === null
+    ) {
+      calculatedOpeningCarry = checkpoint.calculatedOpeningCarrySnapshot;
+    }
+    const actualOpeningCarry = checkpoint?.openingCarryHours ?? null;
+    const authoritativeOpeningCarry =
+      actualOpeningCarry ?? calculatedOpeningCarry;
+    const openingCarryIn = authoritativeOpeningCarry;
     const openingCarryKnown = openingCarryIn !== null;
+    if (checkpoint) {
+      unresolvedReason = null;
+      checkpointAuthorityEstablished = true;
+    }
     const flowLoad =
       openingCarryKnown && plannedStartsKnown
         ? openingCarryIn + (plannedStarts ?? 0)
@@ -181,6 +230,27 @@ export function normalizeProductionBoard(
       plannedStartsKnown,
       openingCarryIn,
       openingCarryKnown,
+      calculatedOpeningCarry,
+      actualOpeningCarry,
+      authoritativeOpeningCarry,
+      adjustmentHours: checkpoint
+        ? checkpoint.adjustmentHoursSnapshot ??
+          (calculatedOpeningCarry === null
+            ? null
+            : checkpoint.openingCarryHours - calculatedOpeningCarry)
+        : null,
+      hasActualCarryCheckpoint: checkpoint !== null,
+      checkpointId: checkpoint?.checkpointId ?? null,
+      checkpointProductionDate: checkpoint?.productionDate ?? null,
+      checkpointRevisionNumber: checkpoint?.revisionNumber ?? null,
+      checkpointRecordedAt: checkpoint?.recordedAt ?? null,
+      checkpointRecordedByUserId: checkpoint?.recordedByUserId ?? null,
+      checkpointConfirmedAt: checkpoint?.confirmedAt ?? null,
+      checkpointConfirmedByUserId: checkpoint?.confirmedByUserId ?? null,
+      checkpointActorType: checkpoint?.actorType ?? null,
+      checkpointSourceSystem: checkpoint?.sourceSystem ?? null,
+      checkpointNote: checkpoint?.note ?? null,
+      checkpointCalculationVersion: checkpoint?.calculationVersion ?? null,
       flowLoad,
       endingCarryOut,
       openFlowCapacity,
@@ -238,6 +308,22 @@ export function normalizeProductionBoard(
         plannedStartsKnown: false,
         openingCarryIn: null,
         openingCarryKnown: false,
+        calculatedOpeningCarry: null,
+        actualOpeningCarry: null,
+        authoritativeOpeningCarry: null,
+        adjustmentHours: null,
+        hasActualCarryCheckpoint: false,
+        checkpointId: null,
+        checkpointProductionDate: null,
+        checkpointRevisionNumber: null,
+        checkpointRecordedAt: null,
+        checkpointRecordedByUserId: null,
+        checkpointConfirmedAt: null,
+        checkpointConfirmedByUserId: null,
+        checkpointActorType: null,
+        checkpointSourceSystem: null,
+        checkpointNote: null,
+        checkpointCalculationVersion: null,
         flowLoad: null,
         endingCarryOut: null,
         openFlowCapacity: null,
@@ -355,6 +441,9 @@ export function normalizeProductionBoard(
               : null,
           };
         });
+      const checkpointCount = allWeekDates.filter((date) =>
+        checkpointsByDate.has(date),
+      ).length;
 
       return {
         weekIndex,
@@ -389,6 +478,8 @@ export function normalizeProductionBoard(
           0,
         ),
         weekendExceptions,
+        checkpointCount,
+        hasActualCarryReset: checkpointCount > 0,
       };
     },
   );

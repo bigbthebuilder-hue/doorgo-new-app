@@ -163,7 +163,12 @@ const diffPaths = new Set(execFileSync('git', ['diff', '--name-only', 'main', '-
 const changedPaths = [...repositoryPaths].filter((path) => diffPaths.has(path) || !mainPaths.has(path));
 assert.ok(repositoryPaths.has(migrationPath), 'Dirty and clean trees must discover the migration');
 assert.deepEqual(changedPaths.filter((path) => /^lib\/production-board\//.test(path)), [], 'Board calculations must remain unchanged');
-assert.deepEqual(changedPaths.filter((path) => /^(?:app|components)\//.test(path)), [], 'No checkpoint UI, Server Action, route, or presentation component may be added');
+const approvedLaterUi = new Set([
+  'app/account/page.tsx',
+  'app/production-checkpoints/page.tsx',
+  'app/production-checkpoints/checkpoint-operation-forms.tsx',
+]);
+assert.deepEqual(changedPaths.filter((path) => /^(?:app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only the exact reviewed C4 UI paths may follow C2');
 assert.deepEqual(changedPaths.filter((path) => /calendar/i.test(path)), [], 'No Calendar mutation file may be added');
 
 const reviewable = [...repositoryPaths].filter((path) => !path.startsWith('node_modules/') && !path.startsWith('.next/') && existsSync(path) && statSync(path).isFile() && /\.(?:ts|tsx|js|jsx|mjs|cjs|sql|md|json)$/.test(path));

@@ -60,8 +60,14 @@ const repositoryPaths = new Set(execFileSync('git', ['ls-files', '-co', '--exclu
 const mainPaths = new Set(execFileSync('git', ['ls-tree', '-r', '--name-only', 'main'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).map(normalizePath));
 const diffPaths = new Set(execFileSync('git', ['diff', '--name-only', 'main', '--'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).map(normalizePath));
 const changed = [...repositoryPaths].filter((path) => diffPaths.has(path) || !mainPaths.has(path));
-assert.deepEqual(changed.filter((path) => path.startsWith('supabase/migrations/')), [], 'C3 must not add or alter migrations');
-assert.deepEqual(changed.filter((path) => /^(app|components)\//.test(path)), [], 'C3 must not add UI or routes');
+const approvedLaterMigration = 'supabase/migrations/20260713000000_create_production_flow_checkpoint_read_rpcs.sql';
+assert.deepEqual(changed.filter((path) => path.startsWith('supabase/migrations/') && path !== approvedLaterMigration), [], 'Only the exact reviewed C4A migration may follow C3');
+const approvedLaterUi = new Set([
+  'app/account/page.tsx',
+  'app/production-checkpoints/page.tsx',
+  'app/production-checkpoints/checkpoint-operation-forms.tsx',
+]);
+assert.deepEqual(changed.filter((path) => /^(app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only the exact reviewed C4 UI paths may follow C3');
 assert.deepEqual(changed.filter((path) => path.startsWith('lib/production-board/')), [], 'Public Production Board implementation must remain unchanged');
 assert.deepEqual(changed.filter((path) => /calendar/i.test(path)), [], 'C3 must not change Calendar behavior');
 

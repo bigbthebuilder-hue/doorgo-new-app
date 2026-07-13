@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {
   DOORGO_PERMISSION_KEYS,
   getPermissionAccess,
+  hasAtLeastView,
 } from '@/lib/auth/access';
 import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
 
@@ -51,7 +52,7 @@ export default async function AccountPage({
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {DOORGO_PERMISSION_KEYS.map((key) => (
                 <div key={key} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                  <span className="capitalize">{key}</span>
+                  <span className="capitalize">{key === 'production_checkpoints' ? 'Production checkpoints' : key}</span>
                   <span className="font-semibold uppercase text-slate-600">{getPermissionAccess(access, key)}</span>
                 </div>
               ))}
@@ -59,9 +60,10 @@ export default async function AccountPage({
           </>
         )}
 
-        <Link className="mt-6 inline-block text-sm text-sky-700" href="/production-board">
-          Open Production Board
-        </Link>
+        <nav className="mt-6 flex flex-wrap gap-4 text-sm text-sky-700" aria-label="DoorGo modules">
+          <Link href="/production-board">Open Production Board</Link>
+          {hasAtLeastView(access, 'production_checkpoints') ? <Link href="/production-checkpoints">Production Carry Checkpoint</Link> : null}
+        </nav>
       </div>
     </main>
   );

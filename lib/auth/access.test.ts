@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  DOORGO_PERMISSION_KEYS,
   canUse,
   getPermissionAccess,
   getProtectedAccessRedirect,
@@ -10,6 +11,8 @@ import {
 } from './access';
 
 function run(): void {
+  assert.equal(DOORGO_PERMISSION_KEYS.length, 9);
+  assert.deepEqual(DOORGO_PERMISSION_KEYS, ['production', 'production_checkpoints', 'calendar', 'jobs', 'documents', 'tools', 'reports', 'settings', 'users']);
   assert.equal(normalizeAccessLevel('none'), 'none');
   assert.equal(normalizeAccessLevel('view'), 'view');
   assert.equal(normalizeAccessLevel('use'), 'use');
@@ -55,6 +58,7 @@ function run(): void {
     },
     permissionRows: [
       { permission_key: 'production', access_level: 'use' },
+      { permission_key: 'production_checkpoints', access_level: 'view' },
       { permission_key: 'reports', access_level: 'view' },
       { permission_key: 'settings', access_level: 'unexpected' },
     ],
@@ -63,10 +67,21 @@ function run(): void {
   assert.equal(active.profile.companyLocation, 'Main Shop');
   assert.equal(isManager(active), true);
   assert.equal(canUse(active, 'production'), true);
+  assert.equal(hasAtLeastView(active, 'production_checkpoints'), true);
+  assert.equal(canUse(active, 'production_checkpoints'), false);
   assert.equal(hasAtLeastView(active, 'reports'), true);
   assert.equal(canUse(active, 'reports'), false);
   assert.equal(getPermissionAccess(active, 'settings'), 'none');
   assert.equal(getPermissionAccess(active, 'users'), 'none');
+
+  const checkpointUser = resolveCurrentDoorGoAccess({
+    user: { id: 'checkpoint-user' },
+    profile: { user_id: 'checkpoint-user', display_name: 'Checkpoint User', active: true, is_manager: false, company_location: null, must_change_password: false },
+    permissionRows: [{ permission_key: 'production_checkpoints', access_level: 'use' }],
+  });
+  assert.equal(isManager(checkpointUser), false);
+  assert.equal(canUse(checkpointUser, 'production_checkpoints'), true);
+  assert.equal(getPermissionAccess(checkpointUser, 'production'), 'none');
 
   const falseStringManager = resolveCurrentDoorGoAccess({
     user: { id: 'user-2' },
@@ -97,6 +112,7 @@ function run(): void {
   });
   assert.equal(getProtectedAccessRedirect(managerMustChange), '/account/change-password');
   assert.equal(canUse(managerMustChange, 'production'), true);
+  assert.equal(getPermissionAccess(managerMustChange, 'production_checkpoints'), 'none');
   assert.equal(getProtectedAccessRedirect(active), null);
   assert.equal(getProtectedAccessRedirect(unauthenticated), '/login');
 

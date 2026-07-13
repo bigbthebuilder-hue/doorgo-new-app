@@ -64,9 +64,13 @@ requirePattern(logout, /auth\.signOut/i, 'Logout route is required');
 requirePattern(logout, /signout\(\{ scope: 'local' \}\)/, 'Normal logout must be local-device only');
 requirePattern(account, /display name[\s\S]*account state[\s\S]*manager[\s\S]*company\/location[\s\S]*module permissions/, 'Account verification details are incomplete');
 
-for (const key of ['production', 'calendar', 'jobs', 'documents', 'tools', 'reports', 'settings', 'users']) {
+const initialPermissionKeys = ['production', 'production_checkpoints', 'calendar', 'jobs', 'documents', 'tools', 'reports', 'settings', 'users'];
+assert.equal(initialPermissionKeys.length, 9, 'There must be nine supported initial permission keys');
+for (const key of initialPermissionKeys) {
   assert.ok(access.includes(`'${key}'`), `Missing broad permission key: ${key}`);
 }
+requirePattern(account, /doorgo_permission_keys\.map/, 'Account must display every supported permission');
+requirePattern(contract, /production_checkpoints[\s\S]*none[\s\S]*view[\s\S]*use[\s\S]*manager status[\s\S]*broad `production` permission/, 'Dedicated checkpoint permission semantics are incomplete');
 requirePattern(access, /return access\.permissions\[permissionkey\] \?\? 'none'/, 'Missing permission rows must resolve to none');
 rejectPattern(access, /raw_user_meta_data|user_metadata/, 'Raw metadata must not authorize access');
 rejectPattern(profiles, /salesperson|calendar_id|calendar_color/, 'Auth profiles must not own salesperson/calendar identity');

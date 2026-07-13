@@ -159,8 +159,12 @@ const reviewablePaths = [...repositoryPaths].filter(
     existsSync(path) &&
     statSync(path).isFile(),
 );
+const laterPhaseCheckpointActionBoundary = new Set([
+  'lib/production-flow/checkpoint-action-contract.ts',
+  'lib/production-flow/checkpoint-service.ts',
+]);
 const applicationPaths = reviewablePaths.filter(
-  (path) => !path.startsWith('scripts/') && !path.endsWith('.test.ts'),
+  (path) => !path.startsWith('scripts/') && !path.endsWith('.test.ts') && !laterPhaseCheckpointActionBoundary.has(path),
 );
 const applicationDiffText = applicationPaths.map((path) => read(path)).join('\n');
 

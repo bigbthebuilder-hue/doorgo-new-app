@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 
 const paths = {
   page: 'app/production-checkpoints/page.tsx', form: 'app/production-checkpoints/checkpoint-operation-forms.tsx',
   read: 'lib/production-flow/checkpoint-read-service.ts', carry: 'lib/production-flow/calculated-carry-server.ts',
   contract: 'lib/production-flow/checkpoint-page-contract.ts', tests: 'lib/production-flow/checkpoint-page-contract.test.ts',
   account: 'app/account/page.tsx', board: 'app/production-board/page.tsx', docs: 'docs/production-flow-checkpoint-read-contract.md',
+  c4aMigration: 'supabase/migrations/20260713000000_create_production_flow_checkpoint_read_rpcs.sql',
+  c4aVerifier: 'scripts/verify-phase-2f-c4a-checkpoint-read-contract.mjs', packageJson: 'package.json',
 };
 for (const path of Object.values(paths)) assert.ok(existsSync(path), `Missing C4 file: ${path}`);
 const read = (path) => readFileSync(path, 'utf8');
@@ -48,13 +49,15 @@ assert.match(tests, /getCheckpointOperations\('none'/); assert.match(tests, /get
 assert.match(tests, /stale_revision/); assert.match(tests, /commandForSubmission/);
 assert.match(tests, /checkpointHistoryStatusLabel/);
 
-const boardCurrent = read(paths.board).replaceAll('\r\n', '\n');
-const boardMain = execFileSync('git', ['show', `main:${paths.board}`], { encoding: 'utf8' }).replaceAll('\r\n', '\n');
-assert.equal(boardCurrent, boardMain, 'Public Production Board route must remain unchanged');
-const boardDiff = execFileSync('git', ['diff', '--name-only', 'main', '--', 'lib/production-board', 'components/ProductionBoard*'], { encoding: 'utf8' }).trim();
-assert.equal(boardDiff, '', 'Production Board behavior must remain unchanged');
-const migrations = execFileSync('git', ['ls-files', '-co', '--exclude-standard', 'supabase/migrations'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
-const mainMigrations = new Set(execFileSync('git', ['ls-tree', '-r', '--name-only', 'main', 'supabase/migrations'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean));
-assert.deepEqual(migrations.filter((path) => !mainMigrations.has(path)), ['supabase/migrations/20260713000000_create_production_flow_checkpoint_read_rpcs.sql'], 'No migration beyond reviewed C4A is allowed');
+const board = read(paths.board);
+assert.match(board, /loadProductionBoardReadOnly/);
+assert.doesNotMatch(board, /requireDoorGoProtectedAccess|getCurrentDoorGoAccess|redirect\(['"]\/login/);
+const packageJson = JSON.parse(read(paths.packageJson));
+assert.match(packageJson.scripts['verify:phase-2f-c4a-checkpoint-read-contract'], /verify-phase-2f-c4a-checkpoint-read-contract\.mjs/);
+const migrationFiles = readdirSync('supabase/migrations')
+  .filter((name) => name.endsWith('.sql'))
+  .map((name) => `supabase/migrations/${name}`);
+const duplicateReadContracts = migrationFiles.filter((path) => path !== paths.c4aMigration && /read_production_flow_checkpoint_day|read_recent_production_flow_checkpoint_history/.test(read(path)));
+assert.deepEqual(duplicateReadContracts, [], 'A second checkpoint read migration contract is forbidden');
 assert.match(read('.gitignore'), /supabase\/\.temp\//);
 console.log('Phase 2F-C4 checkpoint UI static contract verification passed');

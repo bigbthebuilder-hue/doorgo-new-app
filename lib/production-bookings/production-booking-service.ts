@@ -1,10 +1,12 @@
 import 'server-only';
 
-import { getPermissionAccess, hasAtLeastView } from '@/lib/auth/access';
+import { getPermissionAccess, hasAtLeastView, type CurrentDoorGoAccess } from '@/lib/auth/access';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { createAuthenticatedSupabaseServerClient } from '@/lib/supabase/server';
 import {
   createProductionBookingMoveExecutor,
+  getVancouverDate,
+  isValidDateOnly,
   normalizeRecoveryBookingRows,
   productionBookingMoveFailure,
   PRODUCTION_RECOVERY_READ_RPC,
@@ -13,6 +15,12 @@ import {
   type ProductionRecoveryBooking,
 } from './production-booking-move-contract';
 
+export type ProductionRecoveryReadRequest = {
+  startDate: string;
+  endDate: string;
+  limit: number;
+};
+
 export class ProductionRecoveryReadFailure extends Error {
   constructor(public readonly code: 'access_denied' | 'unavailable') {
     super(code);
@@ -20,12 +28,22 @@ export class ProductionRecoveryReadFailure extends Error {
   }
 }
 
-export async function loadRecentProductionRecoveryBookings(
-  params: { startDate: string; endDate: string; limit: number },
+export async function loadAuthorizedRecentProductionRecoveryBookings(
+  access: CurrentDoorGoAccess,
+  params: ProductionRecoveryReadRequest,
 ): Promise<ProductionRecoveryBooking[]> {
-  const access = await getCurrentDoorGoAccess();
   if (!hasAtLeastView(access, 'production')) {
     throw new ProductionRecoveryReadFailure('access_denied');
+  }
+
+  const today = getVancouverDate();
+  const span = isValidDateOnly(params.startDate) && isValidDateOnly(params.endDate)
+    ? (Date.parse(`${params.endDate}T00:00:00Z`) - Date.parse(`${params.startDate}T00:00:00Z`)) / 86_400_000
+    : Number.NaN;
+  if (!Number.isInteger(params.limit) || params.limit < 1 || params.limit > 100
+    || !isValidDateOnly(params.startDate) || !isValidDateOnly(params.endDate)
+    || params.startDate > params.endDate || params.endDate >= today || span > 93) {
+    throw new ProductionRecoveryReadFailure('unavailable');
   }
 
   const supabase = await createAuthenticatedSupabaseServerClient();
@@ -34,10 +52,24 @@ export async function loadRecentProductionRecoveryBookings(
     p_end_date: params.endDate,
     p_limit: params.limit,
   });
-  if (error) throw new ProductionRecoveryReadFailure('unavailable');
+  if (error) {
+    const message = typeof error.message === 'string' ? error.message.trim() : '';
+    if (['production_booking_read.authentication_required', 'production_booking_read.active_profile_required', 'production_booking_read.permission_required'].includes(message)) {
+      throw new ProductionRecoveryReadFailure('access_denied');
+    }
+    throw new ProductionRecoveryReadFailure('unavailable');
+  }
   const bookings = normalizeRecoveryBookingRows(data);
-  if (!bookings) throw new ProductionRecoveryReadFailure('unavailable');
+  if (!bookings || bookings.length > params.limit || bookings.some((booking) =>
+    booking.productionDate < params.startDate || booking.productionDate > params.endDate || booking.productionDate >= today
+  )) throw new ProductionRecoveryReadFailure('unavailable');
   return bookings;
+}
+
+export async function loadRecentProductionRecoveryBookings(
+  params: ProductionRecoveryReadRequest,
+): Promise<ProductionRecoveryBooking[]> {
+  return loadAuthorizedRecentProductionRecoveryBookings(await getCurrentDoorGoAccess(), params);
 }
 
 const executeMove = createProductionBookingMoveExecutor(async () => {

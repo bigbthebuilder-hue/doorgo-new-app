@@ -167,8 +167,10 @@ const approvedLaterUi = new Set([
   'app/account/page.tsx',
   'app/production-checkpoints/page.tsx',
   'app/production-checkpoints/checkpoint-operation-forms.tsx',
+  'app/production-recovery/page.tsx',
+  'app/production-recovery/production-recovery-list.tsx',
 ]);
-assert.deepEqual(changedPaths.filter((path) => /^(?:app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only the exact reviewed C4 UI paths may follow C2');
+assert.deepEqual(changedPaths.filter((path) => /^(?:app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only exact reviewed later-phase UI paths may follow C2');
 assert.deepEqual(changedPaths.filter((path) => /calendar/i.test(path)), [], 'No Calendar mutation file may be added');
 
 const reviewable = [...repositoryPaths].filter((path) => !path.startsWith('node_modules/') && !path.startsWith('.next/') && existsSync(path) && statSync(path).isFile() && /\.(?:ts|tsx|js|jsx|mjs|cjs|sql|md|json)$/.test(path));

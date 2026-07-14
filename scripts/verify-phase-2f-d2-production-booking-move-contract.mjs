@@ -166,7 +166,9 @@ for (const functionName of [
   );
   assert.deepEqual(definingMigrations, [migrationPath], `Only the exact D2 migration may define ${functionName}`);
 }
-assert.equal(existsSync('app/production-recovery/page.tsx'), false, 'D2 must not add the production-recovery UI route');
+if (existsSync('app/production-recovery/page.tsx')) {
+  assert.ok(existsSync('scripts/verify-phase-2f-d3-production-recovery-ui.mjs'), 'A later production-recovery UI requires its permanent D3 verifier');
+}
 assert.doesNotMatch(
   [sql, contract, service, actions].join('\n'),
   /googleapis|apps script|calendar[_ -]?outbox|permission_key\s*=\s*['"]calendar['"]/i,

@@ -69,6 +69,8 @@ const approvedLaterUi = new Set([
   'app/account/page.tsx',
   'app/production-checkpoints/page.tsx',
   'app/production-checkpoints/checkpoint-operation-forms.tsx',
+  'app/production-recovery/page.tsx',
+  'app/production-recovery/production-recovery-list.tsx',
 ]);
 assert.deepEqual(changed.filter((path) => /^(app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only the exact reviewed C4 UI paths may follow C3');
 assert.deepEqual(changed.filter((path) => path.startsWith('lib/production-board/')), [], 'Public Production Board implementation must remain unchanged');

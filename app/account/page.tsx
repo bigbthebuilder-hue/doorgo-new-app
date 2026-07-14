@@ -62,6 +62,7 @@ export default async function AccountPage({
 
         <nav className="mt-6 flex flex-wrap gap-4 text-sm text-sky-700" aria-label="DoorGo modules">
           <Link href="/production-board">Open Production Board</Link>
+          {hasAtLeastView(access, 'production') ? <Link href="/production-schedule">Production Schedule</Link> : null}
           {hasAtLeastView(access, 'production') ? <Link href="/production-recovery">Past Scheduled Bookings</Link> : null}
           {hasAtLeastView(access, 'production_checkpoints') ? <Link href="/production-checkpoints">Production Carry Checkpoint</Link> : null}
         </nav>

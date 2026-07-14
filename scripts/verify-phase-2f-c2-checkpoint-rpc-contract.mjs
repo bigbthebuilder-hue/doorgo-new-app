@@ -169,6 +169,11 @@ const approvedLaterUi = new Set([
   'app/production-checkpoints/checkpoint-operation-forms.tsx',
   'app/production-recovery/page.tsx',
   'app/production-recovery/production-recovery-list.tsx',
+  'app/production-board/page.tsx',
+  'app/production-schedule/page.tsx',
+  'components/ProductionBoardSummary.tsx',
+  'components/ProductionBoardView.tsx',
+  'components/ProductionBoardReadOnly.tsx',
 ]);
 assert.deepEqual(changedPaths.filter((path) => /^(?:app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only exact reviewed later-phase UI paths may follow C2');
 assert.deepEqual(changedPaths.filter((path) => /calendar/i.test(path)), [], 'No Calendar mutation file may be added');

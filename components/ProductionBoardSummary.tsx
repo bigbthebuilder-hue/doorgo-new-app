@@ -1,5 +1,11 @@
+import type { ReactNode } from 'react';
 import { formatFriendlyDateRange } from '@/lib/production-board/date-utils';
 import type { ProductionBoardViewModel } from '@/lib/production-board/types';
+
+export type ProductionBoardPresentation = {
+  title: string;
+  statusLabel: string;
+};
 
 function formatHours(value: number): string {
   return value.toFixed(2);
@@ -7,8 +13,12 @@ function formatHours(value: number): string {
 
 export function ProductionBoardSummary({
   board,
+  presentation,
+  headerActions,
 }: {
   board: ProductionBoardViewModel;
+  presentation: ProductionBoardPresentation;
+  headerActions?: ReactNode;
 }) {
   const { summary } = board;
 
@@ -17,9 +27,9 @@ export function ProductionBoardSummary({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold text-slate-900">Production Board</h1>
+            <h1 className="text-xl font-semibold text-slate-900">{presentation.title}</h1>
             <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-emerald-700">
-              Read only
+              {presentation.statusLabel}
             </span>
           </div>
           <p className="mt-1 text-sm text-slate-600">
@@ -29,6 +39,7 @@ export function ProductionBoardSummary({
             {board.weeks} week{board.weeks === 1 ? '' : 's'} • date-only view
           </p>
         </div>
+        {headerActions ? <div className="shrink-0">{headerActions}</div> : null}
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">

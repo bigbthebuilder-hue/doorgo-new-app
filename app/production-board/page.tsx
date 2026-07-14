@@ -1,4 +1,4 @@
-import { ProductionBoardReadOnly } from '@/components/ProductionBoardReadOnly';
+import { ProductionBoardView } from '@/components/ProductionBoardView';
 import {
   addDaysToDateOnly,
   parseProductionBoardParams,
@@ -20,5 +20,10 @@ export default async function ProductionBoardPage({
     weeks,
   });
 
-  return <ProductionBoardReadOnly board={board} />;
+  return (
+    <ProductionBoardView
+      board={board}
+      presentation={{ title: 'Production Board', statusLabel: 'Read only' }}
+    />
+  );
 }

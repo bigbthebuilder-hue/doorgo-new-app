@@ -10,6 +10,8 @@ import {
   commandForRecoveryMoveAttempt,
   PARTLY_COMPLETED_GUIDANCE,
   previousFiveBusinessDays,
+  productionRecoveryIdentifier,
+  productionRecoveryOriginLabel,
   projectedCapacityMessage,
   recoveryMoveMessage,
   retainCommandForRetry,
@@ -53,6 +55,18 @@ for (const unrelatedPermission of ['manager', 'calendar', 'production_checkpoint
   assert.equal(canReadProductionRecovery('none'), false, `${unrelatedPermission} provides no fallback`);
   assert.equal(canMoveProductionRecovery('none'), false, `${unrelatedPermission} provides no fallback`);
 }
+
+assert.equal(productionRecoveryOriginLabel('doorgo'), 'DoorGo-linked');
+assert.equal(productionRecoveryOriginLabel('biztrack'), 'BizTrack-only');
+assert.notEqual(productionRecoveryOriginLabel('doorgo'), 'doorgo');
+assert.notEqual(productionRecoveryOriginLabel('biztrack'), 'biztrack');
+assert.equal(productionRecoveryOriginLabel(null), null);
+assert.equal(productionRecoveryOriginLabel('unexpected'), null);
+assert.equal(productionRecoveryIdentifier('doorgo', '123', 'unused'), 'Job 123');
+assert.equal(productionRecoveryIdentifier('biztrack', 'unused', '456'), 'Sales order 456');
+assert.equal(productionRecoveryIdentifier('doorgo', null, '456'), null);
+assert.equal(productionRecoveryIdentifier('biztrack', '123', null), null);
+assert.equal(productionRecoveryIdentifier(null, '123', '456'), null);
 
 let uuidCount = 0;
 const createUuid = () => `00000000-0000-4000-8000-${String(++uuidCount).padStart(12, '0')}`;

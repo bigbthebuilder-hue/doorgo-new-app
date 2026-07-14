@@ -43,6 +43,24 @@ export type RecoveryMoveAttempt = {
   fingerprint: string | null;
 };
 
+export function productionRecoveryOriginLabel(
+  bookingOrigin: string | null,
+): 'DoorGo-linked' | 'BizTrack-only' | null {
+  if (bookingOrigin === 'doorgo') return 'DoorGo-linked';
+  if (bookingOrigin === 'biztrack') return 'BizTrack-only';
+  return null;
+}
+
+export function productionRecoveryIdentifier(
+  bookingOrigin: string | null,
+  jobId: string | null,
+  salesOrder: string | null,
+): string | null {
+  if (bookingOrigin === 'doorgo' && jobId) return `Job ${jobId}`;
+  if (bookingOrigin === 'biztrack' && salesOrder) return `Sales order ${salesOrder}`;
+  return null;
+}
+
 function addDays(dateText: string, days: number): string {
   const [year, month, day] = dateText.split('-').map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));

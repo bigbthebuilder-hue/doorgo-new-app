@@ -31,6 +31,17 @@ assert.match(account, /hasAtLeastView\(access, 'production'\)[\s\S]*href="\/prod
 assert.match(page, /productionAccess === 'view'[\s\S]*view-only production access/);
 assert.match(page, /canMove=\{productionAccess === 'use'\}/);
 assert.match(client, /canMove && !isSelected[\s\S]*Move to today/);
+assert.match(client, /grid-cols-1[\s\S]*lg:grid-cols-2/);
+assert.doesNotMatch(client, /(?:[a-z0-9]+:)?grid-cols-(?:3|4|5|6|7|8|9|10|11|12)/);
+assert.match(client, /isSelected \? 'lg:col-span-2' : ''/);
+assert.match(client, /productionRecoveryOriginLabel\(booking\.bookingOrigin\)/);
+assert.match(client, /productionRecoveryIdentifier\([\s\S]*booking\.jobId,[\s\S]*booking\.salesOrder/);
+assert.match(contract, /bookingOrigin === 'doorgo'[\s\S]*return 'DoorGo-linked'/);
+assert.match(contract, /bookingOrigin === 'biztrack'[\s\S]*return 'BizTrack-only'/);
+assert.match(contract, /bookingOrigin === 'doorgo' && jobId[\s\S]*`Job \$\{jobId\}`/);
+assert.match(contract, /bookingOrigin === 'biztrack' && salesOrder[\s\S]*`Sales order \$\{salesOrder\}`/);
+assert.doesNotMatch(client, />\{booking\.bookingOrigin\}</);
+assert.doesNotMatch(client, /Booking origin/);
 
 assert.match(service, /^import 'server-only';/);
 assert.match(service, /createAuthenticatedSupabaseServerClient/);
@@ -93,6 +104,8 @@ for (const marker of [
   "canReadProductionRecovery('none')", "canReadProductionRecovery('view')", "canMoveProductionRecovery('use')",
   'identical retry retains command UUID', 'duplicate submission is prevented while pending', 'capacity context does not block',
   'capacityKnown: false', "recoveryMoveMessage('stale_booking')", 'manager', 'calendar', 'production_checkpoints',
+  "productionRecoveryOriginLabel('doorgo')", "productionRecoveryOriginLabel('biztrack')",
+  "productionRecoveryIdentifier('doorgo'", "productionRecoveryIdentifier('biztrack'",
 ]) assert.ok(tests.includes(marker), `Missing D3 focused test marker: ${marker}`);
 assert.match(docs, /Past Scheduled Bookings/); assert.match(docs, /five previous/); assert.match(docs, /no Google Calendar or Apps Script runtime[\s\S]*behavior/i);
 const packageJson = JSON.parse(read('package.json'));

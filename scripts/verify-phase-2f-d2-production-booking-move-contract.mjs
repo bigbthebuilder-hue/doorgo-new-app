@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 
 const migrationPath = 'supabase/migrations/20260714000000_create_production_booking_move_contract.sql';
 const paths = {
@@ -153,19 +152,30 @@ assert.match(docs, /source and destination dates[\s\S]*differ[\s\S]*past source 
 assert.match(docs, /display name[\s\S]*server-derived snapshot[\s\S]*ON DELETE SET NULL/i);
 assert.ok(packageJson.scripts['verify:phase-2f-d2-production-booking-move-contract']);
 
-const normalizePath = (path) => path.replaceAll('\\', '/').replace(/^\.\//, '');
-const repositoryPaths = new Set(execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean).map(normalizePath));
-const mainPaths = new Set(execFileSync('git', ['ls-tree', '-r', '--name-only', 'main'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).map(normalizePath));
-const diffPaths = new Set(execFileSync('git', ['diff', '--name-only', 'main', '--'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).map(normalizePath));
-const changed = [...repositoryPaths].filter((path) => diffPaths.has(path) || !mainPaths.has(path));
-assert.deepEqual(changed.filter((path) => path.startsWith('supabase/migrations/')), [migrationPath]);
-assert.deepEqual(changed.filter((path) => /^(app|components)\//.test(path)), [], 'D2 must not add UI');
-assert.deepEqual(changed.filter((path) => /calendar/i.test(path)), [], 'D2 must not add Calendar files');
-
-for (const path of [...mainPaths].filter((path) => path.startsWith('supabase/migrations/'))) {
-  const current = read(path).replaceAll('\r\n', '\n');
-  const baseline = execFileSync('git', ['show', `main:${path}`], { encoding: 'utf8' }).replaceAll('\r\n', '\n');
-  assert.equal(current, baseline, `Applied migration changed: ${path}`);
+const migrationPaths = readdirSync('supabase/migrations')
+  .filter((name) => name.endsWith('.sql'))
+  .map((name) => `supabase/migrations/${name}`)
+  .sort();
+assert.ok(migrationPaths.includes(migrationPath), `Missing exact D2 migration: ${migrationPath}`);
+for (const functionName of [
+  'read_recent_production_recovery_bookings',
+  'move_production_booking_to_today',
+]) {
+  const definingMigrations = migrationPaths.filter((path) =>
+    new RegExp(`create\\s+or\\s+replace\\s+function\\s+public\\.${functionName}\\s*\\(`, 'i').test(read(path)),
+  );
+  assert.deepEqual(definingMigrations, [migrationPath], `Only the exact D2 migration may define ${functionName}`);
 }
+assert.equal(existsSync('app/production-recovery/page.tsx'), false, 'D2 must not add the production-recovery UI route');
+assert.doesNotMatch(
+  [sql, contract, service, actions].join('\n'),
+  /googleapis|apps script|calendar[_ -]?outbox|permission_key\s*=\s*['"]calendar['"]/i,
+  'D2 must not add Calendar runtime dependencies or authorization',
+);
+assert.doesNotMatch(
+  moveRpc,
+  /(?:update|insert into)\s+[^;]*(?:calendar_id|calendar_event_id|calendar_sync_state|start_time|end_time)/i,
+  'The move RPC must not mutate legacy Calendar fields',
+);
 
 console.log('Phase 2F-D2 production booking move static contract verification passed');

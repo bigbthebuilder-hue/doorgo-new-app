@@ -163,6 +163,8 @@ const laterPhaseCheckpointActionBoundary = new Set([
   'lib/production-flow/checkpoint-action-contract.ts',
   'lib/production-flow/checkpoint-service.ts',
   'lib/production-flow/checkpoint-read-service.ts',
+  'lib/production-bookings/production-booking-move-contract.ts',
+  'lib/production-bookings/production-booking-service.ts',
 ]);
 const applicationPaths = reviewablePaths.filter(
   (path) => !path.startsWith('scripts/') && !path.endsWith('.test.ts') && !laterPhaseCheckpointActionBoundary.has(path),

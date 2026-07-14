@@ -60,8 +60,11 @@ const repositoryPaths = new Set(execFileSync('git', ['ls-files', '-co', '--exclu
 const mainPaths = new Set(execFileSync('git', ['ls-tree', '-r', '--name-only', 'main'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).map(normalizePath));
 const diffPaths = new Set(execFileSync('git', ['diff', '--name-only', 'main', '--'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).map(normalizePath));
 const changed = [...repositoryPaths].filter((path) => diffPaths.has(path) || !mainPaths.has(path));
-const approvedLaterMigration = 'supabase/migrations/20260713000000_create_production_flow_checkpoint_read_rpcs.sql';
-assert.deepEqual(changed.filter((path) => path.startsWith('supabase/migrations/') && path !== approvedLaterMigration), [], 'Only the exact reviewed C4A migration may follow C3');
+const approvedLaterMigrations = new Set([
+  'supabase/migrations/20260713000000_create_production_flow_checkpoint_read_rpcs.sql',
+  'supabase/migrations/20260714000000_create_production_booking_move_contract.sql',
+]);
+assert.deepEqual(changed.filter((path) => path.startsWith('supabase/migrations/') && !approvedLaterMigrations.has(path)), [], 'Only exact reviewed later-phase migrations may follow C3');
 const approvedLaterUi = new Set([
   'app/account/page.tsx',
   'app/production-checkpoints/page.tsx',

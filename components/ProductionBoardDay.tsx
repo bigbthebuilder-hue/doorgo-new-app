@@ -60,15 +60,26 @@ export function ProductionBoardDay({
     remainingHours: day.remainingHours,
     overloadHours: day.overloadHours,
   });
+  const calendarStateClasses = day.dateState === 'past'
+    ? 'bg-slate-200/80'
+    : day.dateState === 'today'
+      ? 'bg-sky-50 ring-2 ring-sky-400'
+      : 'bg-white';
+  const headerStateClasses = day.dateState === 'past'
+    ? 'bg-slate-100'
+    : day.dateState === 'today'
+      ? 'bg-sky-100/80'
+      : 'bg-white/80';
 
   return (
     <section
+      data-day-state={day.dateState}
       data-production-date={interaction ? day.date : undefined}
       onDragEnter={interaction ? (event) => interaction.onDayDragEnter(day.date, event) : undefined}
       onDragOver={interaction ? (event) => interaction.onDayDragOver(day.date, event) : undefined}
       onDragLeave={interaction ? (event) => interaction.onDayDragLeave(day.date, event) : undefined}
       onDrop={interaction ? (event) => interaction.onDayDrop(day.date, event) : undefined}
-      className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
+      className={`overflow-hidden rounded-xl border shadow-sm ${calendarStateClasses} ${
         operationalStatus === 'building'
           ? 'border-rose-400 bg-rose-50/30'
           : operationalStatus === 'reducing' ||
@@ -76,16 +87,26 @@ export function ProductionBoardDay({
               operationalStatus === 'unresolved'
             ? 'border-amber-300 bg-amber-50/20'
             : 'border-emerald-300'
-      } ${interaction?.hoveredDate === day.date ? 'relative -translate-y-0.5 border-sky-500 shadow-lg ring-2 ring-sky-300' : ''
+      } ${day.isClosed ? 'outline outline-1 outline-slate-500' : ''
+      } ${interaction?.hoveredDate === day.date ? 'relative -translate-y-0.5 border-sky-600 shadow-xl ring-4 ring-sky-400' : ''
       }`}
     >
-      <div className="border-b border-slate-200 bg-white/80 px-3 py-2.5">
+      <div className={`border-b border-slate-300 px-3 py-2.5 ${headerStateClasses}`}>
         <div className="flex flex-wrap items-center justify-between gap-1.5">
           <h3 className="text-sm font-semibold text-slate-900">
             {formatCompactDate(day.date)}
           </h3>
 
           <div className="flex flex-wrap justify-end gap-1">
+            {day.dateState !== 'future' ? (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                day.dateState === 'today'
+                  ? 'bg-sky-700 text-white'
+                  : 'bg-slate-700 text-white'
+              }`}>
+                {day.dateState === 'today' ? 'Today' : 'Past'}
+              </span>
+            ) : null}
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                 operationalStatus === 'building'

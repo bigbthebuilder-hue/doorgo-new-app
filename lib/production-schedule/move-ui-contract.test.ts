@@ -23,7 +23,7 @@ const card: ProductionBoardCard = {
 };
 
 const day = (date: string, cards: ProductionBoardCard[] = []): ProductionBoardDay => ({
-  date, totalKnownShopHours: cards.reduce((sum, value) => sum + (value.shopHours ?? 0), 0),
+  date, dateState: 'future', totalKnownShopHours: cards.reduce((sum, value) => sum + (value.shopHours ?? 0), 0),
   bookingCount: cards.length, missingShopHoursCount: 0, availableHours: 8,
   staffCapacityHours: 8, deductionHours: 0, capacitySource: 'calculated', capacityKnown: true,
   isClosed: false, isExplicitlyClosed: false, capacityNotes: null, remainingHours: 8, overloadHours: 0,
@@ -81,6 +81,7 @@ assert.equal(zeroCapacityPreview.isClosed, false); // zero available hours with 
 assert.equal(zeroCapacityPreview.overload, true); // overload remains nonblocking
 
 assert.equal(getProductionScheduleCardMoveBlockReason(card, false), null); // active unlocked incomplete production booking can move
+assert.equal(getProductionScheduleCardMoveBlockReason({ ...card, productionDate: '2026-07-14' }, false), null); // past unfinished booking remains movable
 for (const shopHours of [0, 0.1, 1.25, 99_999_999.99]) {
   assert.equal(getProductionScheduleCardMoveBlockReason({ ...card, shopHours }, false), null); // valid booking IDs and Shop Hours
 }
@@ -119,9 +120,10 @@ const source = day('2026-07-16', [card, { ...card, bookingId: 'booking-2', title
 const destination = day('2026-07-17');
 const board: ProductionBoardViewModel = {
   startDate: source.date, endDateExclusive: '2026-07-18', weeks: 1,
+  visibleWeekdayEndExclusive: '2026-07-18',
   days: [source, destination],
   weekGroups: [{
-    weekIndex: 0, startDate: source.date, endDateExclusive: '2026-07-18', days: [source, destination],
+    weekIndex: 0, startDate: source.date, endDateExclusive: '2026-07-18', weekdayEndExclusive: '2026-07-18', days: [source, destination],
     bookingCount: 2, totalKnownShopHours: 8, missingShopHoursCount: 0, totalAvailableHours: 16,
     unknownCapacityDayCount: 0, closureCount: 0, dailyOverloadCount: 0, capacityComplete: true,
     comparisonComplete: true, remainingHours: 8, overloadHours: 0, openingCarryIn: 0,

@@ -167,8 +167,12 @@ assert.deepEqual(changedPaths.filter((path) => /^lib\/production-board\//.test(p
   'lib/production-board/types.ts',
   'lib/production-board/capacity-normalize.test.ts',
   'lib/production-board/normalize-capacity.test.ts',
+  'lib/production-board/date-utils.ts',
+  'lib/production-board/date-utils.test.ts',
+  'lib/production-board/queries.ts',
 ].includes(path)), [], 'Only E2C read-only Board card metadata files may change');
 const approvedLaterUi = new Set([
+  'app/page.tsx',
   'app/account/page.tsx',
   'app/production-checkpoints/page.tsx',
   'app/production-checkpoints/checkpoint-operation-forms.tsx',
@@ -185,6 +189,7 @@ const approvedLaterUi = new Set([
   'components/ProductionBoardWeekSection.tsx',
   'components/ProductionBookingCard.tsx',
   'components/ProductionScheduleInteractiveBoard.tsx',
+  'components/ProductionScheduleNavigation.tsx',
   'components/production-board-interaction.ts',
 ]);
 assert.deepEqual(changedPaths.filter((path) => /^(?:app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only exact reviewed later-phase UI paths may follow C2');

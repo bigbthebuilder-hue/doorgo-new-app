@@ -5,7 +5,9 @@ const paths = {
   publicPage: 'app/production-board/page.tsx',
   privatePage: 'app/production-schedule/page.tsx',
   interactive: 'components/ProductionScheduleInteractiveBoard.tsx',
+  navigation: 'components/ProductionScheduleNavigation.tsx',
   view: 'components/ProductionBoardView.tsx',
+  summary: 'components/ProductionBoardSummary.tsx',
   week: 'components/ProductionBoardWeekSection.tsx',
   day: 'components/ProductionBoardDay.tsx',
   card: 'components/ProductionBookingCard.tsx',
@@ -14,6 +16,9 @@ const paths = {
   contract: 'lib/production-schedule/move-ui-contract.ts',
   boardTypes: 'lib/production-board/types.ts',
   boardNormalize: 'lib/production-board/normalize.ts',
+  boardQueries: 'lib/production-board/queries.ts',
+  dateUtils: 'lib/production-board/date-utils.ts',
+  dateTests: 'lib/production-board/date-utils.test.ts',
   capacityTests: 'lib/production-board/capacity-normalize.test.ts',
   boardTests: 'lib/production-board/normalize-capacity.test.ts',
   tests: 'lib/production-schedule/move-ui-contract.test.ts',
@@ -28,12 +33,16 @@ const read = (path) => readFileSync(path, 'utf8');
 const publicPage = read(paths.publicPage);
 const privatePage = read(paths.privatePage);
 const interactive = read(paths.interactive);
+const navigation = read(paths.navigation);
 const shared = [paths.view, paths.week, paths.day, paths.card, paths.interaction].map(read).join('\n');
 const card = read(paths.card);
 const day = read(paths.day);
 const contract = read(paths.contract);
 const boardTypes = read(paths.boardTypes);
 const boardNormalize = read(paths.boardNormalize);
+const boardQueries = read(paths.boardQueries);
+const dateUtils = read(paths.dateUtils);
+const dateTests = read(paths.dateTests);
 const capacityTests = read(paths.capacityTests);
 const boardTests = read(paths.boardTests);
 const tests = read(paths.tests);
@@ -45,10 +54,15 @@ const docs = read(paths.docs);
 assert.doesNotMatch(publicPage, /ProductionScheduleInteractiveBoard|interaction=|reschedule|destination-preview|use server|requireDoorGoProtectedAccess|redirect\s*\(/i);
 assert.match(publicPage, /ProductionBoardView/);
 assert.match(publicPage, /statusLabel: 'Read only'/);
+assert.match(publicPage, /parseProductionBoardParams\(params, today\)/);
+assert.doesNotMatch(publicPage, /ProductionScheduleNavigation/);
 assert.match(privatePage, /requireDoorGoProtectedAccess/);
 assert.match(privatePage, /canViewProductionSchedule\(access\)/);
 assert.match(privatePage, /canRescheduleProductionBooking\(access\)[\s\S]*ProductionScheduleInteractiveBoard/);
 assert.match(privatePage, /ProductionBoardView/);
+assert.match(privatePage, /ProductionScheduleNavigation/);
+assert.match(privatePage, /<ProductionScheduleNavigation[\s\S]*key=\{startDate\}/);
+assert.match(privatePage, /windowNavigation=\{windowNavigation\}/);
 assert.doesNotMatch(privatePage, /isManager|permission_key.*(?:calendar|production_checkpoints)|company_location|\.rpc\(/i);
 
 assert.match(read(paths.view), /interaction\?: ProductionBoardInteraction/);
@@ -59,7 +73,7 @@ assert.match(card, /interaction \? \([\s\S]*\{pending \? 'Move pending' : 'Move'
 assert.match(card, /Completed bookings cannot be moved|blockReason/);
 assert.match(day, /onDragEnter=.*interaction/);
 assert.match(day, /onDrop=.*interaction/);
-assert.match(day, /hoveredDate === day\.date[\s\S]*border-sky-500[\s\S]*shadow-lg/);
+assert.match(day, /hoveredDate === day\.date[\s\S]*border-sky-600[\s\S]*shadow-xl/);
 assert.doesNotMatch(`${shared}\n${publicPage}`, /production-booking-reschedule-actions|rescheduleProductionBooking|previewProductionScheduleDestination/);
 
 assert.match(interactive, /^'use client';/);
@@ -106,6 +120,15 @@ assert.match(interactive, /unchanged|failed|updateProductionScheduleMoveAttempt/
 assert.match(interactive, /crypto\.randomUUID/);
 assert.match(interactive, /crypto\.getRandomValues/);
 
+assert.match(navigation, /^'use client';/);
+for (const label of ['Previous week', 'Today', 'Next week', 'Go to date']) {
+  assert.ok(navigation.includes(label), `Missing Schedule navigation control: ${label}`);
+}
+assert.match(navigation, /router\.push\(`\/production-schedule\?week=\$\{encodeURIComponent\(monday\)\}`\)/);
+assert.match(navigation, /normalizeProductionWeekAnchor\(selectedDate, currentMonday\)/);
+assert.match(navigation, /Loading schedule…/);
+assert.doesNotMatch(navigation, /rescheduleProductionBooking|createSecureCommandId|\.rpc\(/);
+
 assert.match(previewAction, /^'use server';/);
 assert.match(previewService, /^import 'server-only';/);
 assert.match(previewService, /getCurrentDoorGoAccess/);
@@ -123,6 +146,21 @@ assert.match(contract, /sourceDate <= input\.today/);
 assert.match(contract, /destinationDate < input\.today/);
 assert.match(boardTypes, /isExplicitlyClosed: boolean/);
 assert.match(boardNormalize, /const isExplicitlyClosed = capacity\?\.isClosed === true/);
+assert.match(boardNormalize, /for \([\s\S]*date < params\.endDateExclusive[\s\S]*dayOfWeek >= 1 && dayOfWeek <= 5[\s\S]*visibleDates\.push\(date\)/);
+assert.match(boardNormalize, /dateState: classifyProductionBoardDay\(date, today\)/);
+assert.match(boardNormalize, /const weekdayEndExclusive = addDaysToDateOnly\(startDate, 5\)/);
+assert.match(boardTypes, /dateState: ProductionBoardDayState/);
+assert.match(boardTypes, /weekdayEndExclusive: string/);
+assert.match(boardTypes, /visibleWeekdayEndExclusive: string/);
+assert.match(read(paths.summary), /board\.visibleWeekdayEndExclusive/);
+assert.match(read(paths.week), /week\.weekdayEndExclusive/);
+assert.match(day, /data-day-state=\{day\.dateState\}/);
+assert.match(day, /day\.dateState === 'past'[\s\S]*bg-slate-200/);
+assert.match(day, /day\.dateState === 'today'[\s\S]*ring-2 ring-sky-400/);
+assert.match(day, /\{day\.dateState === 'today' \? 'Today' : 'Past'\}/);
+assert.match(card, /const completed = card\.completedAt !== null/);
+assert.match(card, />\s*Completed\s*</);
+assert.match(card, /completed \? 'bg-slate-200 text-slate-700'/);
 assert.match(capacityTests, /is_closed: null as unknown as boolean[\s\S]*isClosed, false/);
 assert.match(boardTests, /source: 'closure', isClosed: false[\s\S]*isExplicitlyClosed, false/);
 assert.match(boardTests, /source: 'calculated', isClosed: true[\s\S]*isExplicitlyClosed, true/);
@@ -145,6 +183,40 @@ assert.match(contract, /shopHours < 0/);
 assert.match(contract, /shopHours > 99_999_999\.99/);
 assert.match(contract, /Number\(shopHours\.toFixed\(2\)\) === shopHours/);
 assert.match(contract, /'invalid_booking_id'/);
+
+assert.match(dateUtils, /PRODUCTION_BOARD_WEEK_COUNT = 8/);
+assert.match(dateUtils, /searchParams\?\.week/);
+assert.match(dateUtils, /normalizeProductionWeekAnchor/);
+assert.match(dateUtils, /getMondayForDate/);
+assert.match(dateUtils, /function getSingleValue\([\s\S]*Array\.isArray\(value\) \? undefined : value/);
+assert.doesNotMatch(dateUtils, /value\s*\[\s*0\s*\]|value\.at\(\s*0\s*\)|value\s*\[\s*value\.length\s*-\s*1\s*\]|value\.at\(\s*-1\s*\)|value\.(?:shift|pop)\s*\(/);
+assert.match(dateUtils, /weekdayDates: \[0, 1, 2, 3, 4\]/);
+assert.match(dateUtils, /weekendDates: \[5, 6\]/);
+assert.match(dateUtils, /classifyProductionBoardDay/);
+assert.doesNotMatch(dateUtils, /searchParams\?\.(?:start|weeks)/);
+for (const marker of [
+  'Monday stays first', 'Tuesday today keeps Monday first', 'Friday today keeps Monday first',
+  "Saturday uses that calendar week's Monday", "Sunday uses that calendar week's Monday",
+  'default uses current Vancouver workweek', 'Go to Wednesday', 'Go to Saturday',
+  'invalid query fallback', 'strict query rejects whitespace', 'leap day', 'year boundary',
+  'Vancouver spring DST week', 'Vancouver fall DST week', 'Previous shifts seven calendar days',
+  'Next shifts seven calendar days', 'Today returns current Monday',
+  'valid scalar date normalizes to Monday', 'scalar Monday remains unchanged',
+  'invalid scalar falls back', 'repeated valid array falls back',
+  'repeated identical array falls back', 'valid and invalid array falls back',
+  'single-element array falls back', 'undefined query falls back',
+]) assert.ok(dateTests.includes(marker), `Missing date-window test marker: ${marker}`);
+assert.match(boardTests, /fixedEightWeeks\.weekGroups\.length, 8/);
+assert.match(boardTests, /week\.days\.length === 5/);
+assert.match(boardTests, /'past', 'past', 'past', 'today', 'future'/);
+assert.match(boardTests, /weekendExceptions\[0\]\.date, '2026-07-18'/);
+assert.match(tests, /past unfinished booking remains movable/);
+
+assert.match(boardQueries, /loadLatestConfirmedCheckpointOnOrBefore\(params\.boardStart\)/);
+assert.match(boardQueries, /selectCheckpointAwareCalculationStart/);
+assert.match(boardQueries, /\.gte\('production_date', calculationStart\)/);
+assert.match(boardQueries, /\.lt\('production_date', params\.boardEndExclusive\)/);
+assert.doesNotMatch(boardQueries, /\.(?:insert|update|upsert|delete)\s*\(|\.rpc\(/);
 
 assert.match(toast, /fixed inset-x-3 top-3/);
 assert.match(toast, /pointer-events-none/);
@@ -172,6 +244,9 @@ assert.match(docs, /one modal review dialog/i);
 assert.match(docs, /no Started status/i);
 assert.match(docs, /no.*placeholders/i);
 assert.match(docs, /controlled Vercel parallel testing/i);
+assert.match(docs, /eight fixed calendar workweeks/i);
+assert.match(docs, /Previous week, Today, Next week, and Go to date/i);
+assert.match(docs, /Completed.*immovable/i);
 
 const migrations = readdirSync('supabase/migrations').filter((name) => name.endsWith('.sql'));
 assert.deepEqual(migrations.filter((name) => /e2c|schedule_move_ui|production_schedule_move/i.test(name)), [], 'E2C must not add a migration');

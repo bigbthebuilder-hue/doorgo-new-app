@@ -60,7 +60,7 @@ export function ProductionBoardWeekSection({
           </div>
 
           <p className="mt-1 text-sm text-slate-600">
-            {formatFriendlyDateRange(week.startDate, week.endDateExclusive)}
+            {formatFriendlyDateRange(week.startDate, week.weekdayEndExclusive)}
           </p>
 
           <p className="mt-1 text-xs text-slate-500">

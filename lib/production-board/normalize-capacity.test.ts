@@ -127,7 +127,7 @@ function run(): void {
     [capacity({ availableHours: 0, source: 'closure', isClosed: true })],
     params,
   );
-  assert.equal(closure.days.length, 1);
+  assert.equal(closure.days.length, 5);
   assert.equal(closure.days[0].capacityKnown, true);
   assert.equal(closure.days[0].isExplicitlyClosed, true);
   assert.equal(closure.days[0].availableHours, 0);
@@ -191,7 +191,7 @@ function run(): void {
     ],
     params,
   );
-  assert.equal(capacityOnlyDay.days.length, 2);
+  assert.equal(capacityOnlyDay.days.length, 5);
   assert.equal(capacityOnlyDay.summary.scheduledDays, 1);
   assert.equal(capacityOnlyDay.days[1].bookingCount, 0);
   assert.equal(capacityOnlyDay.weekGroups[0].totalAvailableHours, 24);
@@ -242,6 +242,38 @@ function run(): void {
   assert.equal(twoWeeks.weekGroups.length, 2);
   assert.equal(twoWeeks.weekGroups[0].days[0].date, '2026-07-06');
   assert.equal(twoWeeks.weekGroups[1].days[0].date, '2026-07-13');
+
+  const fixedEightWeeks = normalizeProductionBoard(
+    [
+      booking({ booking_id: 'completed', production_date: '2026-07-13', completed_at: '2026-07-14T18:00:00Z' }),
+      booking({ booking_id: 'past-unfinished', production_date: '2026-07-14' }),
+      booking({ booking_id: 'weekend', production_date: '2026-07-18' }),
+    ],
+    [],
+    [],
+    {
+      startDate: '2026-07-13',
+      endDateExclusive: '2026-09-07',
+      weeks: 8,
+      today: '2026-07-16',
+    },
+  );
+  assert.equal(fixedEightWeeks.weekGroups.length, 8);
+  assert.ok(fixedEightWeeks.weekGroups.every((week) => week.days.length === 5));
+  assert.deepEqual(fixedEightWeeks.weekGroups[0].days.map((day) => day.date), [
+    '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16', '2026-07-17',
+  ]);
+  assert.deepEqual(fixedEightWeeks.weekGroups[0].days.map((day) => day.dateState), [
+    'past', 'past', 'past', 'today', 'future',
+  ]);
+  assert.ok(fixedEightWeeks.weekGroups.flatMap((week) => week.days).every((day) => {
+    const weekday = new Date(`${day.date}T00:00:00Z`).getUTCDay();
+    return weekday >= 1 && weekday <= 5;
+  }));
+  assert.equal(fixedEightWeeks.weekGroups[0].weekendExceptions[0].date, '2026-07-18');
+  assert.equal(fixedEightWeeks.weekGroups[0].weekendExceptions[0].cards.length, 1);
+  assert.equal(fixedEightWeeks.weekGroups[0].days[0].cards[0].completedAt, '2026-07-14T18:00:00Z');
+  assert.equal(fixedEightWeeks.weekGroups[0].days[1].cards[0].completedAt, null);
 
   const baseline = normalizeProductionBoard([], [], capacities('2026-07-06', 7, 8), params);
   assert.equal(baseline.days[0].openingCarryIn, 0);

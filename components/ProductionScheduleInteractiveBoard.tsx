@@ -61,6 +61,7 @@ export function ProductionScheduleInteractiveBoard(props: {
   board: ProductionBoardViewModel;
   presentation: ProductionBoardPresentation;
   headerActions: ReactNode;
+  windowNavigation: ReactNode;
   today: string;
 }) {
   const version = JSON.stringify(props.board);
@@ -71,11 +72,13 @@ function ProductionScheduleInteractiveBoardSession({
   board,
   presentation,
   headerActions,
+  windowNavigation,
   today,
 }: {
   board: ProductionBoardViewModel;
   presentation: ProductionBoardPresentation;
   headerActions: ReactNode;
+  windowNavigation: ReactNode;
   today: string;
 }) {
   const router = useRouter();
@@ -366,6 +369,7 @@ function ProductionScheduleInteractiveBoardSession({
         board={displayBoard}
         presentation={presentation}
         headerActions={headerActions}
+        windowNavigation={windowNavigation}
         interaction={interaction}
       />
       {active?.showDialog ? (

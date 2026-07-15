@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ProductionBoardView } from '@/components/ProductionBoardView';
 import { ProductionScheduleInteractiveBoard } from '@/components/ProductionScheduleInteractiveBoard';
+import { ProductionScheduleNavigation } from '@/components/ProductionScheduleNavigation';
 import { hasAtLeastView } from '@/lib/auth/access';
 import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
 import {
-  addDaysToDateOnly,
+  getCurrentDateInTimeZone,
+  getMondayForDate,
   parseProductionBoardParams,
 } from '@/lib/production-board/date-utils';
 import { loadProductionBoardReadOnly } from '@/lib/production-board/queries';
@@ -14,7 +16,6 @@ import {
   PRODUCTION_SCHEDULE_PRESENTATION,
 } from '@/lib/production-schedule/view-access';
 import { canRescheduleProductionBooking } from '@/lib/production-bookings/production-booking-reschedule-contract';
-import { getVancouverDate } from '@/lib/production-bookings/production-booking-move-contract';
 
 export default async function ProductionSchedulePage({
   searchParams,
@@ -28,13 +29,24 @@ export default async function ProductionSchedulePage({
   }
 
   const params = await searchParams;
-  const { startDate, weeks } = parseProductionBoardParams(params);
-  const boardEndExclusive = addDaysToDateOnly(startDate, weeks * 7);
+  const today = getCurrentDateInTimeZone('America/Vancouver');
+  const { startDate, weeks, endDateExclusive, visibleWeekdayEndExclusive } =
+    parseProductionBoardParams(params, today);
   const board = await loadProductionBoardReadOnly({
     boardStart: startDate,
-    boardEndExclusive,
+    boardEndExclusive: endDateExclusive,
     weeks,
+    today,
   });
+
+  const windowNavigation = (
+    <ProductionScheduleNavigation
+      key={startDate}
+      anchorMonday={startDate}
+      currentMonday={getMondayForDate(today)}
+      visibleWeekdayEndExclusive={visibleWeekdayEndExclusive}
+    />
+  );
 
   const headerActions = (
     <nav
@@ -55,13 +67,15 @@ export default async function ProductionSchedulePage({
       board={board}
       presentation={PRODUCTION_SCHEDULE_PRESENTATION}
       headerActions={headerActions}
-      today={getVancouverDate()}
+      windowNavigation={windowNavigation}
+      today={today}
     />
   ) : (
     <ProductionBoardView
       board={board}
       presentation={PRODUCTION_SCHEDULE_PRESENTATION}
       headerActions={headerActions}
+      windowNavigation={windowNavigation}
     />
   );
 }

@@ -35,7 +35,8 @@ const docs = read(paths.docs);
 for (const route of [publicPage, privatePage]) {
   assert.match(route, /ProductionBoardView/);
   assert.match(route, /parseProductionBoardParams/);
-  assert.match(route, /addDaysToDateOnly/);
+  assert.match(route, /getCurrentDateInTimeZone\('America\/Vancouver'\)/);
+  assert.match(route, /endDateExclusive/);
   assert.match(route, /loadProductionBoardReadOnly/);
   assert.equal(
     (route.match(/loadProductionBoardReadOnly\s*\(/g) ?? []).length,

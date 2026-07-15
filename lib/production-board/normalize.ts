@@ -4,6 +4,11 @@ import {
   PRODUCTION_FLOW_BASELINE_DATE,
   PRODUCTION_FLOW_BASELINE_OPENING_CARRY,
 } from './flow-constants';
+import {
+  addDaysToDateOnly,
+  classifyProductionBoardDay,
+  getCurrentDateInTimeZone,
+} from './date-utils';
 import type {
   DoorGoJobRow,
   ProductionBoardCard,
@@ -14,13 +19,6 @@ import type {
   ProductionBookingRow,
   ProductionFlowUnresolvedReason,
 } from './types';
-
-function addDaysToDateOnly(dateText: string, days: number): string {
-  const [year, month, day] = dateText.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
 
 function toHours(value: unknown): number | null {
   if (value === null || value === undefined || value === '') {
@@ -41,6 +39,7 @@ export function normalizeProductionBoard(
     weeks: number;
     calculationStartDate?: string;
     checkpoints?: ConfirmedFlowCheckpoint[];
+    today?: string;
   },
 ): ProductionBoardViewModel {
   const jobsById = new Map(jobs.map((job) => [job.job_id, job]));
@@ -87,15 +86,22 @@ export function normalizeProductionBoard(
     capacityRows.map((capacity) => [capacity.productionDate, capacity]),
   );
 
-  const visibleDates = Array.from(
-    new Set([...cardsByDate.keys(), ...capacityByDate.keys()]),
-  )
-    .filter((date) => date >= params.startDate && date < params.endDateExclusive)
-    .filter((date) => {
-      const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
-      return dayOfWeek >= 1 && dayOfWeek <= 5;
-    })
-    .sort((a, b) => a.localeCompare(b));
+  const metricBearingDates = new Set(
+    [...cardsByDate.keys(), ...capacityByDate.keys()].filter(
+      (date) => date >= params.startDate && date < params.endDateExclusive,
+    ),
+  );
+
+  const visibleDates: string[] = [];
+  for (
+    let date = params.startDate;
+    date < params.endDateExclusive;
+    date = addDaysToDateOnly(date, 1)
+  ) {
+    const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) visibleDates.push(date);
+  }
+  const today = params.today ?? getCurrentDateInTimeZone('America/Vancouver');
 
   const calculationStartDate = params.calculationStartDate ?? params.startDate;
   const checkpointsByDate = new Map<string, ConfirmedFlowCheckpoint>();
@@ -295,6 +301,7 @@ export function normalizeProductionBoard(
 
     return {
       date,
+      dateState: classifyProductionBoardDay(date, today),
       totalKnownShopHours,
       bookingCount: sortedCards.length,
       missingShopHoursCount,
@@ -345,22 +352,24 @@ export function normalizeProductionBoard(
     (_, weekIndex) => {
       const startDate = addDaysToDateOnly(params.startDate, weekIndex * 7);
       const endDateExclusive = addDaysToDateOnly(startDate, 7);
+      const weekdayEndExclusive = addDaysToDateOnly(startDate, 5);
       const weekDays = days.filter(
         (day) => day.date >= startDate && day.date < endDateExclusive,
       );
-      const bookingCount = weekDays.reduce(
+      const metricDays = weekDays.filter((day) => metricBearingDates.has(day.date));
+      const bookingCount = metricDays.reduce(
         (sum, day) => sum + day.bookingCount,
         0,
       );
-      const totalKnownShopHours = weekDays.reduce(
+      const totalKnownShopHours = metricDays.reduce(
         (sum, day) => sum + day.totalKnownShopHours,
         0,
       );
-      const missingShopHoursCount = weekDays.reduce(
+      const missingShopHoursCount = metricDays.reduce(
         (sum, day) => sum + day.missingShopHoursCount,
         0,
       );
-      const totalAvailableHours = weekDays.reduce(
+      const totalAvailableHours = metricDays.reduce(
         (sum, day) =>
           sum +
           (day.capacityKnown && day.availableHours !== null
@@ -368,15 +377,15 @@ export function normalizeProductionBoard(
             : 0),
         0,
       );
-      const unknownCapacityDayCount = weekDays.filter(
+      const unknownCapacityDayCount = metricDays.filter(
         (day) => !day.capacityKnown,
       ).length;
-      const closureCount = weekDays.filter((day) => day.isClosed).length;
-      const dailyOverloadCount = weekDays.filter(
+      const closureCount = metricDays.filter((day) => day.isClosed).length;
+      const dailyOverloadCount = metricDays.filter(
         (day) => (day.overloadHours ?? 0) > 0,
       ).length;
       const capacityComplete =
-        weekDays.length > 0 && unknownCapacityDayCount === 0;
+        metricDays.length > 0 && unknownCapacityDayCount === 0;
       const comparisonComplete =
         capacityComplete && missingShopHoursCount === 0;
       const remainingHours = comparisonComplete
@@ -454,6 +463,7 @@ export function normalizeProductionBoard(
         weekIndex,
         startDate,
         endDateExclusive,
+        weekdayEndExclusive,
         days: weekDays,
         bookingCount,
         totalKnownShopHours,
@@ -512,6 +522,10 @@ export function normalizeProductionBoard(
   return {
     startDate: params.startDate,
     endDateExclusive: params.endDateExclusive,
+    visibleWeekdayEndExclusive: addDaysToDateOnly(
+      params.startDate,
+      (params.weeks - 1) * 7 + 5,
+    ),
     weeks: params.weeks,
     days,
     weekGroups,

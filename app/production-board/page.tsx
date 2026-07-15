@@ -1,6 +1,6 @@
 import { ProductionBoardView } from '@/components/ProductionBoardView';
 import {
-  addDaysToDateOnly,
+  getCurrentDateInTimeZone,
   parseProductionBoardParams,
 } from '@/lib/production-board/date-utils';
 import { loadProductionBoardReadOnly } from '@/lib/production-board/queries';
@@ -11,13 +11,14 @@ export default async function ProductionBoardPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const { startDate, weeks } = parseProductionBoardParams(params);
-  const boardEndExclusive = addDaysToDateOnly(startDate, weeks * 7);
+  const today = getCurrentDateInTimeZone('America/Vancouver');
+  const { startDate, weeks, endDateExclusive } = parseProductionBoardParams(params, today);
 
   const board = await loadProductionBoardReadOnly({
     boardStart: startDate,
-    boardEndExclusive,
+    boardEndExclusive: endDateExclusive,
     weeks,
+    today,
   });
 
   return (

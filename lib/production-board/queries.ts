@@ -12,6 +12,7 @@ export async function loadProductionBoardReadOnly(params: {
   boardStart: string;
   boardEndExclusive: string;
   weeks: number;
+  today?: string;
 }): Promise<ProductionBoardViewModel> {
   const supabase = createTrustedReadOnlySupabaseClient();
   const checkpointAnchor =
@@ -111,5 +112,6 @@ export async function loadProductionBoardReadOnly(params: {
     weeks: params.weeks,
     calculationStartDate: calculationStart,
     checkpoints,
+    today: params.today,
   });
 }

@@ -25,6 +25,7 @@ export function ProductionBookingCard({
   const canMove = Boolean(interaction && blockReason === null);
   const canDrag = Boolean(interaction && canMove && interaction.canDragCard(card));
   const pending = interaction?.pendingBookingId === card.bookingId;
+  const completed = card.completedAt !== null;
 
   return (
     <article
@@ -34,7 +35,7 @@ export function ProductionBookingCard({
       onDragStart={canDrag ? (event) => interaction?.onCardDragStart(card, event) : undefined}
       onDragEnd={canDrag ? () => interaction?.onCardDragEnd(card) : undefined}
       onClickCapture={interaction ? (event) => interaction.onCardClickCapture(card, event) : undefined}
-      className={`rounded-lg border border-slate-200 bg-slate-50 p-2 ${
+      className={`rounded-lg border border-slate-200 p-2 ${completed ? 'bg-slate-200 text-slate-700' : 'bg-slate-50'} ${
         card.type === 'doorgo_linked'
           ? 'border-l-4 border-l-sky-400'
           : 'border-l-4 border-l-slate-400'
@@ -49,6 +50,11 @@ export function ProductionBookingCard({
           </h4>
 
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {completed ? (
+              <span className="rounded-full bg-slate-700 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                Completed
+              </span>
+            ) : null}
             <span
               className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
                 card.type === 'doorgo_linked'

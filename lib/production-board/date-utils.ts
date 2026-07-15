@@ -1,50 +1,102 @@
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+export const PRODUCTION_BOARD_WEEK_COUNT = 8;
+
+export type ProductionBoardDayState = 'past' | 'today' | 'future';
+
 export type ProductionBoardSearchParams = Record<
   string,
   string | string[] | undefined
 >;
 
+export type ProductionBoardWindow = {
+  startDate: string;
+  weeks: number;
+  endDateExclusive: string;
+  visibleWeekdayEndExclusive: string;
+};
+
+export type ProductionWorkweek = {
+  monday: string;
+  weekdayDates: [string, string, string, string, string];
+  weekendDates: [string, string];
+};
+
 export function parseProductionBoardParams(
   searchParams?: ProductionBoardSearchParams,
-): { startDate: string; weeks: number } {
-  const rawStart = getSingleValue(searchParams?.start);
-  const rawWeeks = getSingleValue(searchParams?.weeks);
+  vancouverToday = getCurrentDateInTimeZone('America/Vancouver'),
+): ProductionBoardWindow {
+  const rawWeek = getSingleValue(searchParams?.week);
+  const startDate = normalizeProductionWeekAnchor(rawWeek, vancouverToday);
 
   return {
-    startDate: parseBoardStartDate(rawStart),
-    weeks: parseBoardWeeks(rawWeeks),
+    startDate,
+    weeks: PRODUCTION_BOARD_WEEK_COUNT,
+    endDateExclusive: addDaysToDateOnly(startDate, PRODUCTION_BOARD_WEEK_COUNT * 7),
+    visibleWeekdayEndExclusive: addDaysToDateOnly(
+      startDate,
+      (PRODUCTION_BOARD_WEEK_COUNT - 1) * 7 + 5,
+    ),
   };
 }
 
-export function parseBoardStartDate(value: string | undefined): string {
-  const trimmed = value?.trim();
-
-  if (trimmed && isValidDateOnly(trimmed)) {
-    return trimmed;
+export function normalizeProductionWeekAnchor(
+  value: string | undefined,
+  fallbackDate: string,
+): string {
+  const selected = value && isValidDateOnly(value) ? value : fallbackDate;
+  if (!isValidDateOnly(selected)) {
+    throw new Error('A valid fallback calendar date is required');
   }
-
-  return getCurrentDateInTimeZone('America/Vancouver');
+  return getMondayForDate(selected);
 }
 
-export function parseBoardWeeks(value: string | undefined): number {
-  if (!value) {
-    return 8;
+export function getMondayForDate(dateText: string): string {
+  if (!isValidDateOnly(dateText)) {
+    throw new Error(`Invalid calendar date: ${dateText}`);
   }
+  const dayOfWeek = parseDateOnly(dateText).getUTCDay();
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  return addDaysToDateOnly(dateText, -daysSinceMonday);
+}
 
-  const trimmed = value.trim();
-
-  if (!/^\d+$/.test(trimmed)) {
-    return 8;
+export function generateProductionWorkweeks(
+  mondayAnchor: string,
+  weeks = PRODUCTION_BOARD_WEEK_COUNT,
+): ProductionWorkweek[] {
+  if (getMondayForDate(mondayAnchor) !== mondayAnchor) {
+    throw new Error('Production workweek anchor must be a Monday');
   }
+  return Array.from({ length: weeks }, (_, weekIndex) => {
+    const monday = addDaysToDateOnly(mondayAnchor, weekIndex * 7);
+    return {
+      monday,
+      weekdayDates: [0, 1, 2, 3, 4].map((offset) =>
+        addDaysToDateOnly(monday, offset),
+      ) as ProductionWorkweek['weekdayDates'],
+      weekendDates: [5, 6].map((offset) =>
+        addDaysToDateOnly(monday, offset),
+      ) as ProductionWorkweek['weekendDates'],
+    };
+  });
+}
 
-  const parsed = Number(trimmed);
+export function classifyProductionBoardDay(
+  dateText: string,
+  vancouverToday: string,
+): ProductionBoardDayState {
+  if (dateText < vancouverToday) return 'past';
+  if (dateText > vancouverToday) return 'future';
+  return 'today';
+}
 
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return 8;
-  }
-
-  return Math.min(parsed, 26);
+export function isValidDateOnly(value: string): boolean {
+  if (!DATE_ONLY_PATTERN.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day;
 }
 
 export function addDaysToDateOnly(dateText: string, days: number): string {
@@ -62,19 +114,7 @@ export function formatBoardDateRange(
   startDate: string,
   endDateExclusive: string,
 ): string {
-  const start = parseDateOnly(startDate);
-  const end = parseDateOnly(endDateExclusive);
-
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-
-  const displayEnd = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-
-  return `${formatter.format(start)} – ${formatter.format(displayEnd)}`;
+  return formatFriendlyDateRange(startDate, endDateExclusive);
 }
 
 export function formatFriendlyDateRange(
@@ -84,21 +124,17 @@ export function formatFriendlyDateRange(
   const start = parseDateOnly(startDate);
   const end = parseDateOnly(endDateExclusive);
   const displayEnd = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-
   const formatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     timeZone: 'UTC',
   });
-
   return `${formatter.format(start)} – ${formatter.format(displayEnd)}`;
 }
 
 export function formatFriendlyDateOnly(dateText: string): string {
-  const [year, month, day] = dateText.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
+  const date = parseDateOnly(dateText);
   return new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
     month: 'long',
@@ -115,40 +151,15 @@ export function getCurrentDateInTimeZone(timeZone: string): string {
     month: '2-digit',
     day: '2-digit',
   });
-
   const parts = formatter.formatToParts(new Date());
   const year = parts.find((part) => part.type === 'year')?.value;
   const month = parts.find((part) => part.type === 'month')?.value;
   const day = parts.find((part) => part.type === 'day')?.value;
-
-  if (!year || !month || !day) {
-    return formatDateOnly(new Date());
-  }
-
-  return `${year}-${month}-${day}`;
+  return year && month && day ? `${year}-${month}-${day}` : formatDateOnly(new Date());
 }
 
 function getSingleValue(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) {
-    return value[0];
-  }
-
-  return value;
-}
-
-function isValidDateOnly(value: string): boolean {
-  if (!DATE_ONLY_PATTERN.test(value)) {
-    return false;
-  }
-
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
+  return Array.isArray(value) ? undefined : value;
 }
 
 function parseDateOnly(value: string): Date {

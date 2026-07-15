@@ -1,4 +1,5 @@
 import type { DailyCapacitySource } from './capacity-types';
+import type { ProductionBoardDayState } from './date-utils';
 
 export type ProductionBookingRow = {
   booking_id: string;
@@ -54,6 +55,7 @@ export type ProductionBoardCard = {
 
 export type ProductionBoardDay = {
   date: string;
+  dateState: ProductionBoardDayState;
   totalKnownShopHours: number;
   bookingCount: number;
   missingShopHoursCount: number;
@@ -122,6 +124,7 @@ export type ProductionBoardWeek = {
   weekIndex: number;
   startDate: string;
   endDateExclusive: string;
+  weekdayEndExclusive: string;
   days: ProductionBoardDay[];
   bookingCount: number;
   totalKnownShopHours: number;
@@ -152,6 +155,7 @@ export type ProductionBoardWeek = {
 export type ProductionBoardViewModel = {
   startDate: string;
   endDateExclusive: string;
+  visibleWeekdayEndExclusive: string;
   weeks: number;
   days: ProductionBoardDay[];
   weekGroups: ProductionBoardWeek[];

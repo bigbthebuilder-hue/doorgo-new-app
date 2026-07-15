@@ -57,6 +57,7 @@ export type ProductionBookingMoveErrorCode =
   | 'invalid_booking_id'
   | 'acknowledgement_required'
   | 'not_past_date'
+  | 'closed_date_override_required'
   | 'command_uuid_collision'
   | 'not_found'
   | 'stale_booking'
@@ -267,6 +268,7 @@ const errorMessages: Record<
   invalid_booking_id: 'The production booking ID is invalid.',
   acknowledgement_required: 'Confirm that the whole job was not started.',
   not_past_date: 'Only a past production booking can be moved to today.',
+  closed_date_override_required: 'This production date is marked closed. Use Production Schedule to confirm the closed-date override.',
   command_uuid_collision: 'This command ID was already used for a different move.',
   not_found: 'The production booking was not found.',
   stale_booking: 'The production booking changed. Refresh and try again.',

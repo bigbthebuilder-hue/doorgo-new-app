@@ -102,7 +102,7 @@ const wrongTargetDate = await executeProductionBookingMove(request, {
 assert.equal(wrongTargetDate.ok, false);
 if (!wrongTargetDate.ok) assert.equal(wrongTargetDate.code, 'malformed_response');
 
-for (const code of ['stale_booking', 'already_moved', 'ineligible_booking', 'command_uuid_collision'] as const) {
+for (const code of ['stale_booking', 'already_moved', 'ineligible_booking', 'closed_date_override_required', 'command_uuid_collision'] as const) {
   const result = mapProductionBookingMoveError({ message: `production_booking_move.${code}` });
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.code, code);

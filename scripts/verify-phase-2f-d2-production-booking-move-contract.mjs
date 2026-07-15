@@ -138,7 +138,7 @@ assert.doesNotMatch(contract + service + actions, /calendarEventId\s*:\s*|calend
 for (const marker of [
   "canReadProductionRecovery('none')", "canReadProductionRecovery('view')", "canReadProductionRecovery('use')",
   'whollyUnstartedAcknowledged: false', "booking_kind: 'placeholder'", 'explicitly_completed: true',
-  'stale_booking', 'already_moved', 'ineligible_booking', 'command_uuid_collision',
+  'stale_booking', 'already_moved', 'ineligible_booking', 'closed_date_override_required', 'command_uuid_collision',
   'an idempotent database retry maps to the original success', 'PRODUCTION_RECOVERY_CARRY_WARNING',
   "'actorUserId' in success.move",
 ]) assert.ok(tests.includes(marker), `Missing focused test marker: ${marker}`);
@@ -164,7 +164,10 @@ for (const functionName of [
   const definingMigrations = migrationPaths.filter((path) =>
     new RegExp(`create\\s+or\\s+replace\\s+function\\s+public\\.${functionName}\\s*\\(`, 'i').test(read(path)),
   );
-  assert.deepEqual(definingMigrations, [migrationPath], `Only the exact D2 migration may define ${functionName}`);
+  const expectedDefinitions = functionName === 'move_production_booking_to_today'
+    ? [migrationPath, 'supabase/migrations/20260715000000_extend_production_booking_reschedule_contract.sql']
+    : [migrationPath];
+  assert.deepEqual(definingMigrations, expectedDefinitions, `Only reviewed migrations may define ${functionName}`);
 }
 if (existsSync('app/production-recovery/page.tsx')) {
   assert.ok(existsSync('scripts/verify-phase-2f-d3-production-recovery-ui.mjs'), 'A later production-recovery UI requires its permanent D3 verifier');

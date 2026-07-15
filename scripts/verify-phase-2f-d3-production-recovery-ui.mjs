@@ -95,7 +95,10 @@ assert.match(checkpoints, /hasAtLeastView\(access, 'production_checkpoints'\)/);
 
 const migrationFiles = readdirSync('supabase/migrations').filter((name) => name.endsWith('.sql')).map((name) => `supabase/migrations/${name}`);
 const d2Definitions = migrationFiles.filter((path) => /create\s+or\s+replace\s+function\s+public\.(?:read_recent_production_recovery_bookings|move_production_booking_to_today)\s*\(/i.test(read(path)));
-assert.deepEqual(d2Definitions, [paths.d2Migration]);
+assert.deepEqual(d2Definitions, [
+  paths.d2Migration,
+  'supabase/migrations/20260715000000_extend_production_booking_reschedule_contract.sql',
+]);
 const normalizedMigration = read(paths.d2Migration).replaceAll('\r\n', '\n');
 assert.equal(createHash('sha256').update(normalizedMigration).digest('hex').toUpperCase(), '372D7146EA0E0E921BE2D63E89F3383158C46BFBC9AFCEAAEEF8BD9EFD72A3B0', 'D2 migration must remain unchanged');
 

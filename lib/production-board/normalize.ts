@@ -69,6 +69,9 @@ export function normalizeProductionBoard(
       salesperson: row.salesperson || linkedJob?.salesperson || null,
       source: row.source,
       sourceSystem: row.source_system,
+      bookingKind: row.booking_kind,
+      locked: row.locked === true,
+      completedAt: row.completed_at ?? null,
     };
   });
 
@@ -275,6 +278,7 @@ export function normalizeProductionBoard(
 
     const capacity = capacityByDate.get(date) ?? null;
     const isClosed = Boolean(capacity?.isClosed || capacity?.source === 'closure');
+    const isExplicitlyClosed = capacity?.isClosed === true;
     const availableHours = isClosed ? 0 : capacity?.availableHours ?? null;
     const capacityKnown =
       isClosed ||
@@ -300,6 +304,7 @@ export function normalizeProductionBoard(
       capacitySource: capacity?.source ?? 'unknown',
       capacityKnown,
       isClosed,
+      isExplicitlyClosed,
       capacityNotes: capacity?.notes ?? null,
       remainingHours,
       overloadHours,

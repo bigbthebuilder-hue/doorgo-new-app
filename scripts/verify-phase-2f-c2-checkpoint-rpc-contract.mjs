@@ -162,7 +162,12 @@ const mainPaths = new Set(execFileSync('git', ['ls-tree', '-r', '--name-only', '
 const diffPaths = new Set(execFileSync('git', ['diff', '--name-only', 'main', '--'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).map(normalizePath));
 const changedPaths = [...repositoryPaths].filter((path) => diffPaths.has(path) || !mainPaths.has(path));
 assert.ok(repositoryPaths.has(migrationPath), 'Dirty and clean trees must discover the migration');
-assert.deepEqual(changedPaths.filter((path) => /^lib\/production-board\//.test(path)), [], 'Board calculations must remain unchanged');
+assert.deepEqual(changedPaths.filter((path) => /^lib\/production-board\//.test(path) && ![
+  'lib/production-board/normalize.ts',
+  'lib/production-board/types.ts',
+  'lib/production-board/capacity-normalize.test.ts',
+  'lib/production-board/normalize-capacity.test.ts',
+].includes(path)), [], 'Only E2C read-only Board card metadata files may change');
 const approvedLaterUi = new Set([
   'app/account/page.tsx',
   'app/production-checkpoints/page.tsx',
@@ -174,6 +179,13 @@ const approvedLaterUi = new Set([
   'components/ProductionBoardSummary.tsx',
   'components/ProductionBoardView.tsx',
   'components/ProductionBoardReadOnly.tsx',
+  'app/globals.css',
+  'components/AppConfirmationToast.tsx',
+  'components/ProductionBoardDay.tsx',
+  'components/ProductionBoardWeekSection.tsx',
+  'components/ProductionBookingCard.tsx',
+  'components/ProductionScheduleInteractiveBoard.tsx',
+  'components/production-board-interaction.ts',
 ]);
 assert.deepEqual(changedPaths.filter((path) => /^(?:app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only exact reviewed later-phase UI paths may follow C2');
 assert.deepEqual(changedPaths.filter((path) => /calendar/i.test(path)), [], 'No Calendar mutation file may be added');

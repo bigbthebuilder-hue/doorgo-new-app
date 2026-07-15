@@ -111,7 +111,16 @@ for (const variable of [
 }
 
 const changedText = execFileSync('git', ['diff', '--', 'lib/production-board/normalize.ts', 'lib/production-board/flow-constants.ts', 'lib/production-board/flow-presentation.ts'], { encoding: 'utf8' });
-assert.equal(changedText, '', 'Production-flow calculations must not change in Phase 2F-C1');
+const changedFlowLines = changedText
+  .split(/\r?\n/)
+  .filter((line) => /^[+-](?![+-])/.test(line));
+assert.deepEqual(changedFlowLines, [
+  '+      bookingKind: row.booking_kind,',
+  '+      locked: row.locked === true,',
+  '+      completedAt: row.completed_at ?? null,',
+  '+    const isExplicitlyClosed = capacity?.isClosed === true;',
+  '+      isExplicitlyClosed,',
+], 'Only E2C read-only booking-card eligibility metadata may change in Board normalization');
 
 const scopedFiles = [browserClient, authServer, login, passwordSetup, logout, account].join('\n');
 rejectPattern(scopedFiles, /dg_production_flow_checkpoints[\s\S]*(insert|update|delete)/, 'Checkpoint mutations are forbidden');

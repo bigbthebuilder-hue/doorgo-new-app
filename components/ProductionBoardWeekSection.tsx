@@ -5,6 +5,8 @@ import {
   weeklyFlowStatusLabel,
 } from '@/lib/production-board/flow-presentation';
 import type { ProductionBoardWeek } from '@/lib/production-board/types';
+import type { ProductionBoardInteraction } from './production-board-interaction';
+import { ProductionBookingCard } from './ProductionBookingCard';
 
 function formatHours(value: number): string {
   return value.toFixed(2);
@@ -12,8 +14,10 @@ function formatHours(value: number): string {
 
 export function ProductionBoardWeekSection({
   week,
+  interaction,
 }: {
   week: ProductionBoardWeek;
+  interaction?: ProductionBoardInteraction;
 }) {
   const status = classifyFlowOperationalStatus({
     unresolved: week.unresolvedFlow,
@@ -198,22 +202,14 @@ export function ProductionBoardWeekSection({
               exception.cards.map((card) => (
                 <div
                   key={card.bookingId}
-                  className="rounded-md border border-amber-200 bg-white px-2.5 py-2 text-xs"
+                  className="rounded-md border border-amber-200 bg-white p-2 text-xs"
                 >
                   <p className="font-semibold text-amber-900">
                     {formatWeekendDate(exception.date)} — scheduled on a weekend
                   </p>
-                  <p className="mt-0.5 font-medium text-slate-900">
-                    {card.title}
-                  </p>
-                  {card.customer && card.customer !== card.title ? (
-                    <p className="text-slate-600">{card.customer}</p>
-                  ) : null}
-                  <p className="mt-0.5 text-slate-600">
-                    {card.shopHoursKnown && card.shopHours !== null
-                      ? `${formatHours(card.shopHours)} Shop Hours`
-                      : 'Missing Shop Hours'}
-                  </p>
+                  <div className="mt-1.5">
+                    <ProductionBookingCard card={card} interaction={interaction} />
+                  </div>
                 </div>
               )),
             )}
@@ -225,7 +221,11 @@ export function ProductionBoardWeekSection({
         {week.days.length > 0 ? (
           <div className="grid min-w-[1180px] grid-cols-5 items-start gap-2 2xl:min-w-0">
             {week.days.map((day) => (
-              <ProductionBoardDay key={day.date} day={day} />
+              <ProductionBoardDay
+                key={day.date}
+                day={day}
+                interaction={interaction}
+              />
             ))}
           </div>
         ) : (

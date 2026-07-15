@@ -77,9 +77,21 @@ const approvedLaterUi = new Set([
   'components/ProductionBoardSummary.tsx',
   'components/ProductionBoardView.tsx',
   'components/ProductionBoardReadOnly.tsx',
+  'app/globals.css',
+  'components/AppConfirmationToast.tsx',
+  'components/ProductionBoardDay.tsx',
+  'components/ProductionBoardWeekSection.tsx',
+  'components/ProductionBookingCard.tsx',
+  'components/ProductionScheduleInteractiveBoard.tsx',
+  'components/production-board-interaction.ts',
 ]);
 assert.deepEqual(changed.filter((path) => /^(app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only the exact reviewed C4 UI paths may follow C3');
-assert.deepEqual(changed.filter((path) => path.startsWith('lib/production-board/')), [], 'Public Production Board implementation must remain unchanged');
+assert.deepEqual(changed.filter((path) => path.startsWith('lib/production-board/') && ![
+  'lib/production-board/normalize.ts',
+  'lib/production-board/types.ts',
+  'lib/production-board/capacity-normalize.test.ts',
+  'lib/production-board/normalize-capacity.test.ts',
+].includes(path)), [], 'Only E2C read-only Board card metadata files may change');
 assert.deepEqual(changed.filter((path) => /calendar/i.test(path)), [], 'C3 must not change Calendar behavior');
 
 const sourcePaths = [...repositoryPaths].filter((path) => existsSync(path) && /\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(path) && !path.startsWith('node_modules/') && !path.startsWith('.next/') && !path.startsWith('scripts/') && !path.endsWith('.test.ts'));

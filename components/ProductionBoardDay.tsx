@@ -5,6 +5,7 @@ import {
   startsOnlyBalanceLabel,
 } from '@/lib/production-board/flow-presentation';
 import { ProductionBookingCard } from './ProductionBookingCard';
+import type { ProductionBoardInteraction } from './production-board-interaction';
 
 function formatHours(value: number): string {
   return value.toFixed(2);
@@ -38,7 +39,13 @@ function capacitySourceLabel(day: ProductionBoardDay): string | null {
   return null;
 }
 
-export function ProductionBoardDay({ day }: { day: ProductionBoardDay }) {
+export function ProductionBoardDay({
+  day,
+  interaction,
+}: {
+  day: ProductionBoardDay;
+  interaction?: ProductionBoardInteraction;
+}) {
   const sourceLabel = capacitySourceLabel(day);
   const comparisonIncomplete = day.missingShopHoursCount > 0;
   const overloaded = (day.overloadHours ?? 0) > 0;
@@ -56,6 +63,11 @@ export function ProductionBoardDay({ day }: { day: ProductionBoardDay }) {
 
   return (
     <section
+      data-production-date={interaction ? day.date : undefined}
+      onDragEnter={interaction ? (event) => interaction.onDayDragEnter(day.date, event) : undefined}
+      onDragOver={interaction ? (event) => interaction.onDayDragOver(day.date, event) : undefined}
+      onDragLeave={interaction ? (event) => interaction.onDayDragLeave(day.date, event) : undefined}
+      onDrop={interaction ? (event) => interaction.onDayDrop(day.date, event) : undefined}
       className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
         operationalStatus === 'building'
           ? 'border-rose-400 bg-rose-50/30'
@@ -64,6 +76,7 @@ export function ProductionBoardDay({ day }: { day: ProductionBoardDay }) {
               operationalStatus === 'unresolved'
             ? 'border-amber-300 bg-amber-50/20'
             : 'border-emerald-300'
+      } ${interaction?.hoveredDate === day.date ? 'relative -translate-y-0.5 border-sky-500 shadow-lg ring-2 ring-sky-300' : ''
       }`}
     >
       <div className="border-b border-slate-200 bg-white/80 px-3 py-2.5">
@@ -211,7 +224,11 @@ export function ProductionBoardDay({ day }: { day: ProductionBoardDay }) {
       {day.cards.length > 0 ? (
         <div className="grid gap-2 p-2">
           {day.cards.map((card) => (
-            <ProductionBookingCard key={card.bookingId} card={card} />
+            <ProductionBookingCard
+              key={card.bookingId}
+              card={card}
+              interaction={interaction}
+            />
           ))}
         </div>
       ) : (

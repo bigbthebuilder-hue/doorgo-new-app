@@ -114,7 +114,8 @@ assert.match(actions, /^'use server';/);
 assert.match(actions, /rescheduleProductionBooking/);
 for (const path of ['/production-board', '/production-schedule', '/production-recovery', '/production-checkpoints']) assert.ok(contract.includes(`'${path}'`), `Missing revalidation ${path}`);
 assert.match(actions, /revalidatePath\(path\)/);
-assert.doesNotMatch(schedule, /production-booking-reschedule-actions|rescheduleProductionBooking|<form|<button|drag/i);
+assert.doesNotMatch(schedule, /production-booking-reschedule-actions|<form|<button|onDrag|\.rpc\(/i);
+assert.match(schedule, /canRescheduleProductionBooking\(access\)[\s\S]*ProductionScheduleInteractiveBoard/);
 
 for (const marker of ["access('none')", "access('view')", "access('use')", 'acknowledgement_required', 'backdate_reason_required', 'invalid_backdate_reason', 'closed_date_override_required', 'command_uuid_collision', 'stale_booking', 'secret SQL details', '1.234', 'Vancouver rollover', 'open-to-closed', 'closed-to-open', 'stored action type', 'original closed snapshot', 'materially different acknowledgement', 'materially different normalized reason']) assert.ok(tests.includes(marker), `Missing focused test marker ${marker}`);
 const migrations = readdirSync('supabase/migrations').filter((name) => name.endsWith('.sql')).map((name) => `supabase/migrations/${name}`);

@@ -112,7 +112,8 @@ assert.doesNotMatch(`${publicPage}\n${privatePage}\n${sharedView}`, /normalizePr
 
 const routeAndSharedCode = `${publicPage}\n${privatePage}\n${sharedView}\n${summary}`;
 assert.doesNotMatch(routeAndSharedCode, /\.(?:insert|update|upsert|delete)\s*\(|create_production_flow_checkpoint|revise_production_flow_checkpoint|void_production_flow_checkpoint|move_production_booking_to_today|dg_jobs|shop_date|calendar\.events|events\.(?:insert|update|delete)/i);
-assert.doesNotMatch(routeAndSharedCode, /<form|<button|Confirm checkpoint|Move to today|Reschedule|Create booking/i);
+assert.doesNotMatch(`${publicPage}\n${sharedView}\n${summary}`, /<form|<button|Confirm checkpoint|Move to today|Create booking/i);
+assert.match(privatePage, /canRescheduleProductionBooking\(access\)[\s\S]*ProductionScheduleInteractiveBoard/);
 
 const migrationNames = readdirSync('supabase/migrations').filter((name) => name.endsWith('.sql'));
 assert.deepEqual(

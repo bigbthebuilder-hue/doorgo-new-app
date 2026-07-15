@@ -18,6 +18,7 @@ export type ProductionBookingRow = {
   source: string | null;
   source_system: string | null;
   locked: boolean | null;
+  completed_at?: string | null;
 };
 
 export type DoorGoJobRow = {
@@ -46,6 +47,9 @@ export type ProductionBoardCard = {
   salesperson: string | null;
   source: string | null;
   sourceSystem: string | null;
+  bookingKind: string | null;
+  locked: boolean;
+  completedAt: string | null;
 };
 
 export type ProductionBoardDay = {
@@ -59,6 +63,7 @@ export type ProductionBoardDay = {
   capacitySource: DailyCapacitySource;
   capacityKnown: boolean;
   isClosed: boolean;
+  isExplicitlyClosed: boolean;
   capacityNotes: string | null;
   remainingHours: number | null;
   overloadHours: number | null;

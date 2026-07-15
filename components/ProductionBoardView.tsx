@@ -5,15 +5,18 @@ import {
   type ProductionBoardPresentation,
 } from '@/components/ProductionBoardSummary';
 import type { ProductionBoardViewModel } from '@/lib/production-board/types';
+import type { ProductionBoardInteraction } from './production-board-interaction';
 
 export function ProductionBoardView({
   board,
   presentation,
   headerActions,
+  interaction,
 }: {
   board: ProductionBoardViewModel;
   presentation: ProductionBoardPresentation;
   headerActions?: ReactNode;
+  interaction?: ProductionBoardInteraction;
 }) {
   const hasWeekendExceptions = board.weekGroups.some(
     (week) => week.weekendExceptions.length > 0,
@@ -54,7 +57,11 @@ export function ProductionBoardView({
         ) : null}
         <div className="grid gap-4">
           {board.weekGroups.map((week) => (
-            <ProductionBoardWeekSection key={week.startDate} week={week} />
+            <ProductionBoardWeekSection
+              key={week.startDate}
+              week={week}
+              interaction={interaction}
+            />
           ))}
         </div>
       </div>

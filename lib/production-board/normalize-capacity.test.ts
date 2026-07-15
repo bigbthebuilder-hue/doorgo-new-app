@@ -129,12 +129,33 @@ function run(): void {
   );
   assert.equal(closure.days.length, 1);
   assert.equal(closure.days[0].capacityKnown, true);
+  assert.equal(closure.days[0].isExplicitlyClosed, true);
   assert.equal(closure.days[0].availableHours, 0);
   assert.equal(closure.days[0].remainingHours, 0);
   assert.equal(closure.summary.scheduledDays, 0);
   assert.equal(closure.weekGroups[0].closureCount, 1);
   assert.equal(closure.weekGroups[0].totalAvailableHours, 0);
   assert.equal(closure.weekGroups[0].comparisonComplete, true);
+
+  const displayClosureOnly = normalizeProductionBoard(
+    [],
+    [],
+    [capacity({ availableHours: 0, source: 'closure', isClosed: false })],
+    params,
+  );
+  assert.equal(displayClosureOnly.days[0].isClosed, true);
+  assert.equal(displayClosureOnly.days[0].isExplicitlyClosed, false);
+
+  const explicitClosureWithCalculatedSource = normalizeProductionBoard(
+    [],
+    [],
+    [capacity({ availableHours: 8, source: 'calculated', isClosed: true })],
+    params,
+  );
+  assert.equal(explicitClosureWithCalculatedSource.days[0].isExplicitlyClosed, true);
+
+  const noCapacityRow = normalizeProductionBoard([booking({})], [], [], params);
+  assert.equal(noCapacityRow.days[0].isExplicitlyClosed, false);
 
   const unknown = normalizeProductionBoard(
     [booking({ shop_hours: 4 })],

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ProductionBoardView } from '@/components/ProductionBoardView';
+import { ProductionScheduleInteractiveBoard } from '@/components/ProductionScheduleInteractiveBoard';
 import { hasAtLeastView } from '@/lib/auth/access';
 import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
 import {
@@ -12,6 +13,8 @@ import {
   canViewProductionSchedule,
   PRODUCTION_SCHEDULE_PRESENTATION,
 } from '@/lib/production-schedule/view-access';
+import { canRescheduleProductionBooking } from '@/lib/production-bookings/production-booking-reschedule-contract';
+import { getVancouverDate } from '@/lib/production-bookings/production-booking-move-contract';
 
 export default async function ProductionSchedulePage({
   searchParams,
@@ -47,7 +50,14 @@ export default async function ProductionSchedulePage({
     </nav>
   );
 
-  return (
+  return canRescheduleProductionBooking(access) ? (
+    <ProductionScheduleInteractiveBoard
+      board={board}
+      presentation={PRODUCTION_SCHEDULE_PRESENTATION}
+      headerActions={headerActions}
+      today={getVancouverDate()}
+    />
+  ) : (
     <ProductionBoardView
       board={board}
       presentation={PRODUCTION_SCHEDULE_PRESENTATION}

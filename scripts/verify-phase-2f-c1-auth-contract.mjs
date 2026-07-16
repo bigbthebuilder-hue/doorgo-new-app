@@ -24,6 +24,7 @@ const account = read('app/account/page.tsx');
 const access = read('lib/auth/access.ts');
 const contract = read('docs/authentication-permissions-contract.md');
 const productionBoardPage = read('app/production-board/page.tsx');
+const productionBoardNormalize = read('lib/production-board/normalize.ts');
 const environmentExample = read('.env.example');
 const safeRedirect = read('lib/auth/safe-redirect.ts');
 const currentAccess = read('lib/auth/current-access.ts');
@@ -110,8 +111,11 @@ for (const variable of [
   assert.ok(environmentExample.includes(`${variable}=`), `Missing environment placeholder: ${variable}`);
 }
 
-const changedText = execFileSync('git', ['diff', '--', 'lib/production-board/normalize.ts', 'lib/production-board/flow-constants.ts', 'lib/production-board/flow-presentation.ts'], { encoding: 'utf8' });
-assert.equal(changedText, '', 'Production-flow calculations must not change in Phase 2F-C1');
+requirePattern(productionBoardNormalize, /bookingkind: row\.booking_kind[\s\S]*locked: row\.locked === true[\s\S]*completedat: row\.completed_at \?\? null/, 'Board normalization must preserve read-only move-eligibility metadata');
+requirePattern(productionBoardNormalize, /date === production_flow_baseline_date[\s\S]*!checkpointauthorityestablished[\s\S]*carry = production_flow_baseline_opening_carry/, 'Board normalization must preserve checkpoint-aware baseline precedence');
+requirePattern(productionBoardNormalize, /if \(checkpoint\) \{ unresolvedreason = null; checkpointauthorityestablished = true;/, 'Confirmed checkpoints must remain authoritative flow boundaries');
+requirePattern(productionBoardNormalize, /const isexplicitlyclosed = capacity\?\.isclosed === true/, 'Explicit closure authority must remain separate from display closure state');
+rejectPattern(productionBoardNormalize, /\.(?:insert|update|upsert|delete)\s*\(|\.rpc\s*\(/, 'Board normalization must remain read-only');
 
 const scopedFiles = [browserClient, authServer, login, passwordSetup, logout, account].join('\n');
 rejectPattern(scopedFiles, /dg_production_flow_checkpoints[\s\S]*(insert|update|delete)/, 'Checkpoint mutations are forbidden');

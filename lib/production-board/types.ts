@@ -1,4 +1,5 @@
 import type { DailyCapacitySource } from './capacity-types';
+import type { ProductionBoardDayState } from './date-utils';
 
 export type ProductionBookingRow = {
   booking_id: string;
@@ -18,6 +19,7 @@ export type ProductionBookingRow = {
   source: string | null;
   source_system: string | null;
   locked: boolean | null;
+  completed_at?: string | null;
 };
 
 export type DoorGoJobRow = {
@@ -46,10 +48,14 @@ export type ProductionBoardCard = {
   salesperson: string | null;
   source: string | null;
   sourceSystem: string | null;
+  bookingKind: string | null;
+  locked: boolean;
+  completedAt: string | null;
 };
 
 export type ProductionBoardDay = {
   date: string;
+  dateState: ProductionBoardDayState;
   totalKnownShopHours: number;
   bookingCount: number;
   missingShopHoursCount: number;
@@ -59,6 +65,7 @@ export type ProductionBoardDay = {
   capacitySource: DailyCapacitySource;
   capacityKnown: boolean;
   isClosed: boolean;
+  isExplicitlyClosed: boolean;
   capacityNotes: string | null;
   remainingHours: number | null;
   overloadHours: number | null;
@@ -117,6 +124,7 @@ export type ProductionBoardWeek = {
   weekIndex: number;
   startDate: string;
   endDateExclusive: string;
+  weekdayEndExclusive: string;
   days: ProductionBoardDay[];
   bookingCount: number;
   totalKnownShopHours: number;
@@ -147,6 +155,7 @@ export type ProductionBoardWeek = {
 export type ProductionBoardViewModel = {
   startDate: string;
   endDateExclusive: string;
+  visibleWeekdayEndExclusive: string;
   weeks: number;
   days: ProductionBoardDay[];
   weekGroups: ProductionBoardWeek[];

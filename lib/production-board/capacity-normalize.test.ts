@@ -19,6 +19,23 @@ function run(): void {
   });
   assert.equal(nullCase.availableHours, null);
 
+  const nullClosureCase = normalizeDailyCapacityRow({
+    production_date: '2026-07-06',
+    available_hours: 0,
+    staff_capacity_hours: 0,
+    deduction_hours: 0,
+    capacity_source: 'closure',
+    is_closed: null as unknown as boolean,
+    notes: null,
+    details: {},
+    source_system: 'apps-script-bridge',
+    calculated_at: null,
+    mirrored_at: null,
+    created_at: '2026-07-10T00:00:00Z',
+    updated_at: '2026-07-10T00:00:00Z',
+  });
+  assert.equal(nullClosureCase.isClosed, false);
+
   const malformedCase = normalizeDailyCapacityRow({
     production_date: '2026-07-06',
     available_hours: 'not-a-number',

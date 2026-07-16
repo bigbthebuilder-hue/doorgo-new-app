@@ -33,7 +33,7 @@ export function ProductionBoardSummary({
             </span>
           </div>
           <p className="mt-1 text-sm text-slate-600">
-            {formatFriendlyDateRange(board.startDate, board.endDateExclusive)}
+            {formatFriendlyDateRange(board.startDate, board.visibleWeekdayEndExclusive)}
           </p>
           <p className="text-sm text-slate-500">
             {board.weeks} week{board.weeks === 1 ? '' : 's'} • date-only view

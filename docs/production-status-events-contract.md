@@ -1,9 +1,17 @@
 # Production status events contract
 
-`public.dg_production_status_events` is the immutable audit authority for
-completion confirmation on an individual production booking. Completion belongs
-to a booking, not directly to its parent job, because one job may have multiple
-legitimate production bookings.
+`public.dg_production_status_events` is the earlier Phase 2F-A legacy
+status-event structure. It remains present and unchanged, but it is not the
+native completion/reopen audit authority introduced in Phase 2F-F1.
+
+Native F1 completion and reopen events are stored only in
+`public.dg_production_booking_completion_events`. No runtime workflow writes a
+completion action to both tables. The legacy table must not be used for a new
+completion/reopen implementation without a separate, deliberate migration
+decision.
+
+Completion belongs to a booking, not directly to its parent job, because one
+job may have multiple legitimate production bookings.
 
 ## Authority boundary
 
@@ -21,10 +29,10 @@ legitimate production bookings.
 - `completion_reopened` returns the booking to completion-not-confirmed state.
 - `completion_voided` records that an earlier event is invalid.
 
-Events are append-only. A correction inserts another event and may reference the
-event it supersedes. The database validates that a superseding event belongs to
-the same booking. Direct update and deletion are rejected so the original actor,
-time, source, note, and metadata remain auditable.
+These legacy event rows are append-only. A correction inserts another event and
+may reference the event it supersedes. The database validates that a superseding
+event belongs to the same booking. Direct update and deletion are rejected so
+the original actor, time, source, note, and metadata remain auditable.
 
 `idempotency_key` is unique within `source_system` when present. This supports
 future retry-safe office and tablet writes without merging unrelated sources.

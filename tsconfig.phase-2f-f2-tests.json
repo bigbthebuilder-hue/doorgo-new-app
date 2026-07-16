@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "rootDir": ".",
+    "outDir": ".tmp-production-completion-ui-test",
+    "noEmit": false,
+    "incremental": false
+  },
+  "include": [
+    "lib/production-schedule/completion-ui-contract.test.ts",
+    "lib/production-schedule/completion-ui-render.test.ts",
+    "lib/production-schedule/completion-ui-lifecycle.test.ts",
+    "lib/production-schedule/completion-ui-contract.ts",
+    "components/ProductionBookingCard.tsx",
+    "components/production-board-interaction.ts",
+    "lib/production-schedule/move-ui-contract.ts",
+    "lib/production-bookings/production-booking-completion-contract.ts",
+    "lib/production-bookings/production-booking-reschedule-contract.ts",
+    "lib/production-board/types.ts",
+    "lib/production-board/capacity-types.ts",
+    "lib/auth/access.ts"
+  ],
+  "exclude": ["node_modules", ".next"]
+}

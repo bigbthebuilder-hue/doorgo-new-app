@@ -16,6 +16,7 @@ import {
   PRODUCTION_SCHEDULE_PRESENTATION,
 } from '@/lib/production-schedule/view-access';
 import { canRescheduleProductionBooking } from '@/lib/production-bookings/production-booking-reschedule-contract';
+import { getProductionCompletionAuthorizationError } from '@/lib/production-bookings/production-booking-completion-contract';
 
 export default async function ProductionSchedulePage({
   searchParams,
@@ -62,7 +63,10 @@ export default async function ProductionSchedulePage({
     </nav>
   );
 
-  return canRescheduleProductionBooking(access) ? (
+  const canMoveBookings = canRescheduleProductionBooking(access);
+  const canChangeCompletion = getProductionCompletionAuthorizationError(access) === null;
+
+  return canMoveBookings && canChangeCompletion ? (
     <ProductionScheduleInteractiveBoard
       board={board}
       presentation={PRODUCTION_SCHEDULE_PRESENTATION}

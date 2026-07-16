@@ -226,11 +226,20 @@ const publicEventType = contract.slice(
 );
 assert.doesNotMatch(publicEventType, /commandId|actorUserId|actorDisplayName|reopenReason/);
 
-const applicationUi = [
+const completionActionUiFiles = [
   ...readdirSync('app', { recursive: true }).filter((path) => /\.(?:ts|tsx)$/.test(path)).map((path) => `app/${path}`),
   ...readdirSync('components', { recursive: true }).filter((path) => /\.(?:ts|tsx)$/.test(path)).map((path) => `components/${path}`),
-].map(read).join('\n');
-assert.doesNotMatch(applicationUi, /production-booking-completion-actions|completeProductionBooking|reopenProductionBooking/, 'F1 cannot add visible completion controls');
+].filter((path) => /production-booking-completion-actions|completeProductionBooking|reopenProductionBooking/.test(read(path)));
+assert.deepEqual(
+  completionActionUiFiles,
+  ['components/ProductionScheduleInteractiveBoard.tsx'],
+  'Completion actions must remain isolated to the private Production Schedule client boundary',
+);
+assert.doesNotMatch(
+  read('app/production-board/page.tsx'),
+  /production-booking-completion-actions|completeProductionBooking|reopenProductionBooking/,
+  'The public Production Board cannot expose completion actions',
+);
 
 for (const marker of [
   "access('none')",

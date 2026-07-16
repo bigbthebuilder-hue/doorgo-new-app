@@ -91,7 +91,7 @@ assert.match(interactive, /justDragged[\s\S]*event\.preventDefault\(\)[\s\S]*eve
 assert.match(interactive, /type="date"/);
 assert.doesNotMatch(interactive, /\bmin=/);
 assert.match(interactive, /<dialog/);
-assert.equal((interactive.match(/<dialog/g) ?? []).length, 1, 'Use one combined dialog');
+assert.equal((interactive.match(/aria-labelledby="production-move-title"/g) ?? []).length, 1, 'Use one combined move dialog');
 for (const text of [
   'The whole job was not started.',
   'Reason for moving this booking to a past date',
@@ -102,7 +102,7 @@ for (const text of [
 assert.match(interactive, /review\?\.warnsOverload/);
 assert.match(interactive, /review\?\.warnsUnknownCapacity/);
 assert.match(interactive, /disabled=\{!validation\.valid \|\| active\.submitting\}/);
-assert.match(interactive, /pendingBookingId: active\?\.card\.bookingId \?\? null/);
+assert.match(interactive, /pendingBookingId: active\?\.card\.bookingId \?\? completion\?\.card\.bookingId \?\? null/);
 assert.doesNotMatch(interactive, /pendingBookingId: active\?\.optimistic/);
 assert.match(interactive, /This date is outside the currently visible schedule\./);
 assert.match(interactive, /let optimistic = snapshot\.optimistic/);
@@ -159,7 +159,7 @@ assert.match(day, /day\.dateState === 'past'[\s\S]*bg-slate-200/);
 assert.match(day, /day\.dateState === 'today'[\s\S]*ring-2 ring-sky-400/);
 assert.match(day, /\{day\.dateState === 'today' \? 'Today' : 'Past'\}/);
 assert.match(card, /const completed = card\.completedAt !== null/);
-assert.match(card, />\s*Completed\s*</);
+assert.match(card, /completed \? 'Completed' : 'Ready'/);
 assert.match(card, /completed \? 'bg-slate-200 text-slate-700'/);
 assert.match(capacityTests, /is_closed: null as unknown as boolean[\s\S]*isClosed, false/);
 assert.match(boardTests, /source: 'closure', isClosed: false[\s\S]*isExplicitlyClosed, false/);

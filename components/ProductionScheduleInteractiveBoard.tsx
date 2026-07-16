@@ -7,6 +7,10 @@ import { AppConfirmationToast, type AppConfirmationToastMessage } from './AppCon
 import { ProductionBoardView } from './ProductionBoardView';
 import type { ProductionBoardInteraction } from './production-board-interaction';
 import type { ProductionBoardPresentation } from './ProductionBoardSummary';
+import {
+  completeProductionBooking,
+  reopenProductionBooking,
+} from '@/lib/production-bookings/production-booking-completion-actions';
 import { rescheduleProductionBooking } from '@/lib/production-bookings/production-booking-reschedule-actions';
 import { previewProductionScheduleDestination } from '@/lib/production-schedule/destination-preview-action';
 import {
@@ -23,6 +27,17 @@ import {
   type ProductionScheduleMoveAttempt,
 } from '@/lib/production-schedule/move-ui-contract';
 import type { ProductionBoardCard, ProductionBoardViewModel } from '@/lib/production-board/types';
+import {
+  applyProductionScheduleCompletionOutcome,
+  beginProductionScheduleCompletionAttempt,
+  getProductionScheduleCompletionBlockReason,
+  getNormalizedProductionScheduleReopenReasonLength,
+  isSameProductionScheduleCompletionAttempt,
+  submitProductionScheduleCompletionAttempt,
+  updateProductionScheduleReopenReason,
+  validateProductionScheduleReopenReason,
+  type ProductionScheduleCompletionAttempt,
+} from '@/lib/production-schedule/completion-ui-contract';
 
 type ActiveMove = {
   card: ProductionBoardCard;
@@ -33,6 +48,14 @@ type ActiveMove = {
   submitting: boolean;
   optimistic: boolean;
   destinationOutsideVisibleWindow: boolean;
+  error: string | null;
+  origin: HTMLElement;
+};
+
+type ActiveCompletion = {
+  card: ProductionBoardCard;
+  attempt: ProductionScheduleCompletionAttempt;
+  submitting: boolean;
   error: string | null;
   origin: HTMLElement;
 };
@@ -84,6 +107,7 @@ function ProductionScheduleInteractiveBoardSession({
   const router = useRouter();
   const [displayBoard, setDisplayBoard] = useState(board);
   const [active, setActive] = useState<ActiveMove | null>(null);
+  const [completion, setCompletion] = useState<ActiveCompletion | null>(null);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const desktopDrag = useSyncExternalStore(
     subscribeDesktopDrag,
@@ -94,7 +118,12 @@ function ProductionScheduleInteractiveBoardSession({
   const draggedCard = useRef<{ card: ProductionBoardCard; origin: HTMLElement } | null>(null);
   const justDragged = useRef<{ bookingId: string; endedAt: number } | null>(null);
   const submittingCommandId = useRef<string | null>(null);
+  const currentCompletionAttempt = useRef<ProductionScheduleCompletionAttempt | null>(null);
   const toastId = useRef(0);
+
+  useEffect(() => {
+    currentCompletionAttempt.current = completion?.attempt ?? null;
+  }, [completion]);
 
   const announce = useCallback((tone: 'success' | 'error', text: string) => {
     toastId.current += 1;
@@ -113,6 +142,65 @@ function ProductionScheduleInteractiveBoardSession({
     setHoveredDate(null);
     restoreFocus(active.origin);
   }, [active, board, restoreFocus]);
+
+  const cancelCompletion = useCallback(() => {
+    if (!completion || completion.submitting) return;
+    setCompletion(null);
+    restoreFocus(completion.origin);
+  }, [completion, restoreFocus]);
+
+  const openCompletion = useCallback((card: ProductionBoardCard, origin: HTMLElement) => {
+    if (active || completion || getProductionScheduleCompletionBlockReason(card, false)) return;
+    setCompletion({
+      card,
+      attempt: beginProductionScheduleCompletionAttempt(card, createSecureCommandId),
+      submitting: false,
+      error: null,
+      origin,
+    });
+  }, [active, completion]);
+
+  const submitCompletion = useCallback(async (snapshot: ActiveCompletion) => {
+    if (snapshot.submitting) return;
+    setCompletion({ ...snapshot, submitting: true, error: null });
+    const outcome = await submitProductionScheduleCompletionAttempt({
+      attempt: snapshot.attempt,
+      guard: submittingCommandId,
+      isCurrentAttempt: (captured) => isSameProductionScheduleCompletionAttempt(
+        currentCompletionAttempt.current,
+        captured,
+      ),
+      complete: completeProductionBooking,
+      reopen: reopenProductionBooking,
+    });
+    applyProductionScheduleCompletionOutcome(outcome, {
+      close: (returnFocus) => {
+        setCompletion((current) => isSameProductionScheduleCompletionAttempt(
+          current?.attempt ?? null,
+          snapshot.attempt,
+        ) ? null : current);
+        if (returnFocus) restoreFocus(snapshot.origin);
+      },
+      retry: (message) => {
+        setCompletion((current) => isSameProductionScheduleCompletionAttempt(
+          current?.attempt ?? null,
+          snapshot.attempt,
+        ) ? {
+            ...current!,
+            attempt: { ...current!.attempt, failed: true },
+            submitting: false,
+            error: message,
+          } : current);
+      },
+      announce: (tone, message) => {
+        if (isSameProductionScheduleCompletionAttempt(
+          currentCompletionAttempt.current,
+          snapshot.attempt,
+        )) announce(tone, message);
+      },
+      refresh: () => router.refresh(),
+    });
+  }, [announce, restoreFocus, router]);
 
   const submitAttempt = useCallback(async (snapshot: ActiveMove) => {
     if (!snapshot.attempt || !snapshot.preview || snapshot.submitting || submittingCommandId.current !== null) return;
@@ -262,7 +350,7 @@ function ProductionScheduleInteractiveBoardSession({
   }, [announce, board, displayBoard, restoreFocus, router, submitAttempt, today]);
 
   const openMovePicker = useCallback((card: ProductionBoardCard, origin: HTMLElement) => {
-    if (active || getProductionScheduleCardMoveBlockReason(card, false)) return;
+    if (active || completion || getProductionScheduleCardMoveBlockReason(card, false)) return;
     setActive({
       card,
       attempt: null,
@@ -275,17 +363,25 @@ function ProductionScheduleInteractiveBoardSession({
       error: null,
       origin,
     });
-  }, [active]);
+  }, [active, completion]);
 
   const interaction = useMemo<ProductionBoardInteraction>(() => ({
     mode: 'reschedule',
-    pendingBookingId: active?.card.bookingId ?? null,
+    pendingBookingId: active?.card.bookingId ?? completion?.card.bookingId ?? null,
     hoveredDate,
-    getMoveBlockReason: (card) => getProductionScheduleCardMoveBlockReason(card, active?.card.bookingId === card.bookingId),
-    canDragCard: (card) => desktopDrag && !active && !getProductionScheduleCardMoveBlockReason(card, false),
+    getMoveBlockReason: (card) => getProductionScheduleCardMoveBlockReason(
+      card,
+      active?.card.bookingId === card.bookingId || completion?.card.bookingId === card.bookingId,
+    ),
+    canDragCard: (card) => desktopDrag && !active && !completion && !getProductionScheduleCardMoveBlockReason(card, false),
     onMoveRequest: openMovePicker,
+    getCompletionBlockReason: (card) => getProductionScheduleCompletionBlockReason(
+      card,
+      active?.card.bookingId === card.bookingId || completion?.card.bookingId === card.bookingId,
+    ),
+    onCompletionRequest: openCompletion,
     onCardDragStart: (card, event: DragEvent<HTMLElement>) => {
-      if (active || getProductionScheduleCardMoveBlockReason(card, false)) {
+      if (active || completion || getProductionScheduleCardMoveBlockReason(card, false)) {
         event.preventDefault();
         return;
       }
@@ -328,7 +424,7 @@ function ProductionScheduleInteractiveBoardSession({
       if (date === dragged.card.productionDate) return;
       void beginDestination(dragged.card, date, dragged.origin, true);
     },
-  }), [active, beginDestination, desktopDrag, hoveredDate, openMovePicker]);
+  }), [active, beginDestination, completion, desktopDrag, hoveredDate, openCompletion, openMovePicker]);
 
   const updateAttempt = useCallback((changes: Partial<Omit<ProductionScheduleMoveAttempt, 'commandId'>>) => {
     setActive((current) => current?.attempt
@@ -388,6 +484,24 @@ function ProductionScheduleInteractiveBoardSession({
           onSubmit={() => void submitAttempt(active)}
           onRetryPreview={() => void retryPreview(active)}
           onCancel={cancelActiveMove}
+        />
+      ) : null}
+      {completion ? (
+        <ProductionScheduleCompletionDialog
+          active={completion}
+          onReasonChange={(reason) => {
+            setCompletion((current) => current ? {
+              ...current,
+              attempt: updateProductionScheduleReopenReason(
+                current.attempt,
+                reason,
+                createSecureCommandId,
+              ),
+              error: null,
+            } : current);
+          }}
+          onSubmit={() => void submitCompletion(completion)}
+          onCancel={cancelCompletion}
         />
       ) : null}
       <AppConfirmationToast message={toast} onDismiss={dismissToast} />
@@ -549,6 +663,136 @@ function ProductionScheduleMoveDialog({
           <button type="button" disabled={active.submitting} onClick={onCancel} className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-50">Cancel</button>
           <button type="button" disabled={!validation.valid || active.submitting} onClick={onSubmit} className="min-h-11 rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
             {active.submitting ? 'Moving…' : active.attempt?.failed ? 'Retry move' : 'Move booking'}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+function ProductionScheduleCompletionDialog({
+  active,
+  onReasonChange,
+  onSubmit,
+  onCancel,
+}: {
+  active: ActiveCompletion;
+  onReasonChange: (reason: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    if (!element || element.open) return;
+    if (typeof element.showModal === 'function') {
+      element.showModal();
+      return;
+    }
+    element.setAttribute('open', '');
+    window.requestAnimationFrame(() => {
+      element.querySelector<HTMLElement>('textarea:not([disabled]), button:not([disabled])')?.focus();
+    });
+  }, []);
+
+  const reopening = active.attempt.action === 'reopen';
+  const reasonError = reopening
+    ? validateProductionScheduleReopenReason(active.attempt.reason)
+    : null;
+  const visibleError = active.error ?? reasonError;
+  const describedBy = [
+    'production-completion-description',
+    visibleError ? 'production-completion-error' : null,
+  ].filter(Boolean).join(' ');
+
+  return (
+    <dialog
+      ref={dialog}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="production-completion-title"
+      aria-describedby={describedBy}
+      onCancel={(event) => { event.preventDefault(); onCancel(); }}
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[min(94vw,34rem)] overflow-y-auto rounded-2xl border border-slate-300 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/45"
+    >
+      <div className="p-4 sm:p-5">
+        <h2 id="production-completion-title" className="text-lg font-semibold">
+          {reopening ? 'Reopen production booking?' : 'Mark production complete?'}
+        </h2>
+        <p className="mt-1 text-sm font-medium text-slate-800">{active.card.title}</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Current production date: {formatProductionScheduleDate(active.card.productionDate)}
+        </p>
+
+        <div
+          id="production-completion-description"
+          className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed text-slate-700"
+        >
+          {reopening ? (
+            <p>
+              This returns the booking to Ready on its current production date. Reopening does not move it or restore or alter an archived job. A reason is required for the audit history.
+            </p>
+          ) : (
+            <p>
+              This marks the entire production booking Completed on its current production date. Completed bookings cannot be moved. This does not archive the job or change Shop Hours.
+            </p>
+          )}
+        </div>
+
+        {reopening ? (
+          <div className="mt-4">
+            <label htmlFor="production-reopen-reason" className="text-sm font-semibold">
+              Reason for reopening
+            </label>
+            <textarea
+              id="production-reopen-reason"
+              autoFocus
+              required
+              rows={4}
+              maxLength={500}
+              disabled={active.submitting}
+              aria-invalid={visibleError ? true : undefined}
+              aria-describedby={`production-reopen-reason-count${visibleError ? ' production-completion-error' : ''}`}
+              value={active.attempt.reason}
+              onChange={(event) => onReasonChange(event.target.value)}
+              className="mt-1 w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-base disabled:bg-slate-100"
+            />
+            <p id="production-reopen-reason-count" className="mt-1 text-right text-xs text-slate-500">
+              {getNormalizedProductionScheduleReopenReasonLength(active.attempt.reason)}/500
+            </p>
+          </div>
+        ) : null}
+
+        {visibleError ? (
+          <p
+            id="production-completion-error"
+            className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
+            role="alert"
+          >
+            {visibleError}
+          </p>
+        ) : null}
+
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            disabled={active.submitting}
+            onClick={onCancel}
+            className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={active.submitting || (reopening && reasonError !== null)}
+            onClick={onSubmit}
+            className={`min-h-11 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 ${
+              reopening ? 'bg-amber-700' : 'bg-emerald-700'
+            }`}
+          >
+            {active.submitting
+              ? reopening ? 'Reopening…' : 'Marking complete…'
+              : reopening ? 'Reopen Booking' : 'Mark Complete'}
           </button>
         </div>
       </div>

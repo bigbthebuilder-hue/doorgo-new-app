@@ -64,6 +64,7 @@ const approvedLaterMigrations = new Set([
   'supabase/migrations/20260713000000_create_production_flow_checkpoint_read_rpcs.sql',
   'supabase/migrations/20260714000000_create_production_booking_move_contract.sql',
   'supabase/migrations/20260715000000_extend_production_booking_reschedule_contract.sql',
+  'supabase/migrations/20260716000000_create_production_booking_completion_contract.sql',
 ]);
 assert.deepEqual(changed.filter((path) => path.startsWith('supabase/migrations/') && !approvedLaterMigrations.has(path)), [], 'Only exact reviewed later-phase migrations may follow C3');
 const approvedLaterUi = new Set([

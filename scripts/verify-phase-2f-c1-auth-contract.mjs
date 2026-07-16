@@ -171,6 +171,8 @@ const laterPhaseCheckpointActionBoundary = new Set([
   'lib/production-bookings/production-booking-service.ts',
   'lib/production-bookings/production-booking-reschedule-service.ts',
   'lib/production-bookings/production-booking-reschedule-contract.ts',
+  'lib/production-bookings/production-booking-completion-service.ts',
+  'lib/production-bookings/production-booking-completion-contract.ts',
 ]);
 const applicationPaths = reviewablePaths.filter(
   (path) => !path.startsWith('scripts/') && !path.endsWith('.test.ts') && !laterPhaseCheckpointActionBoundary.has(path),

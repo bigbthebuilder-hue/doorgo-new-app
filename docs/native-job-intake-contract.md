@@ -1,0 +1,407 @@
+# DoorGo native Job Intake contract (Phase J0)
+
+Status: contract capture for review; no native write design is approved by this document.
+
+## 1. Authority and boundaries
+
+### A. Current deployed Apps Script behavior
+
+The authoritative deployed references are `.local-reference/current-deployed-intake/doorgo_intake_reference/Code.gs` and `Index.html`. The current application stores jobs in the `Jobs` sheet and lines in `Door Intake`. `Code.gs` identifiers `JOB_HEADERS`, `DOOR_HEADERS`, `DGData.jobs`, `DGData.jobLines`, `saveJobToSheets_`, and `saveDoorLinesWithoutDeleting_` define the persisted Sheets contract. `Index.html` identifiers `currentJob`, `newJob`, `readJob`, `payload`, `buildLine`, `validateJob`, `saveCurrentJob`, and `openJob` define the active browser contract.
+
+### B. Current hosted Supabase structure
+
+Supplied hosted facts, not independently queried in J0:
+
+- `public.dg_jobs`: primary key `job_id`.
+- `public.dg_job_lines`: primary key `line_id`; `job_id` references `dg_jobs(job_id) ON DELETE CASCADE`; unique constraint `(job_id, line_index)`.
+- RLS is enabled but not forced on both tables. Neither table currently has an RLS policy.
+- The deployed mirror mapping is defined by `dgNormalizeJobForSupabase_` and `dgNormalizeJobLineForSupabase_`.
+- Native hosted writes remain disabled. The Next.js service-role trusted-read client must never be used for intake writes.
+
+### C. Required native Next.js behavior
+
+The native workflow must reproduce the reviewed active behavior deliberately, preserve saved representations needed by work orders, enforce `jobs` permissions on the server and database boundary, and keep J1-J4 persistence local/disposable. Native line identity must be stable and independent of order. A complete job-plus-lines save must eventually be atomic.
+
+#### Approved native identity invariant: pre-BizTrack drafts
+
+- DoorGo jobs will commonly be created before a BizTrack Sales Order exists, and must be saveable without one.
+- On first save, DoorGo assigns a permanent, hidden, immutable internal job identity. That relational identity is never a visible business number and is never a fake, placeholder, or temporary Sales Order number.
+- Before a BizTrack Sales Order exists, DoorGo also assigns a temporary human-readable DoorGo reference. It is the primary visible job identifier only while the Sales Order field is empty.
+- Temporary DoorGo references are permanent audit/traceability attributes even after they stop being normally displayed, and they must never be reused.
+- The later BizTrack Sales Order number is a separate nullable, editable business identifier. Adding or correcting it must not change the internal job identity.
+- Any active user with `jobs = use` may add or correct the BizTrack Sales Order number.
+- Once present, the BizTrack Sales Order becomes the primary visible identifier in job lists, Job Intake, search results, work orders, production-readiness displays, and later scheduling displays. The temporary DoorGo reference then disappears from normal UI and printed documents but remains stored for audit, traceability, recovery, and historical-reference resolution.
+- Every door line has its own permanent identity and remains related to the permanent internal job identity, independent of line order and independent of any Sales Order change.
+- Neither the temporary DoorGo reference nor the BizTrack Sales Order is the native relational primary key.
+- Mere existence of a draft without a Sales Order must not make it Production Board eligible and must not create production, fulfillment, or Calendar records.
+- Hosted `dg_jobs.job_id` is currently both the primary key and the deployed Sales Order / Job ID. It therefore does not properly represent the approved native identity model. Designing the internal-job-ID key and separate nullable Sales Order column is a required J5 migration decision; no migration is designed or approved in J0.
+
+#### Approved confirmation and readiness invariant
+
+- A DoorGo job may become `Confirmed Job` before a BizTrack Sales Order exists. Confirmation records the business/customer commitment; it does not mean that downstream BizTrack entry is complete.
+- BizTrack entry is a separate downstream milestone. The question “Does confirmation require a Sales Order?” is resolved: **No**.
+- Confirmation and production readiness are separate states. Neither saving nor confirming a job automatically creates production, fulfillment, or Calendar records.
+- Production readiness criteria remain subject to later approval and may require a BizTrack Sales Order, salesperson, valid authoritative Shop Hours, complete required intake information, and approved fulfillment requirements.
+- Adding BizTrack information later never changes the permanent DoorGo internal job identity or the identities/ownership of its door lines.
+- DoorGo must remain compatible with a future BizTrack API integration without making BizTrack the primary identity. A future integration may attach a Sales Order number, durable external BizTrack identifier, synchronization state, and last-synchronized timestamp. J0 does not design or create those hosted columns.
+
+#### Approved Draft and Confirmed Job minimum
+
+- A `Draft` may be saved with zero door lines.
+- Changing a job to `Confirmed Job` requires at least one valid door line.
+- For this gate, a valid door line is one that passes the deployed door-line validation contract: mode, configuration, width, height and quantity are present/valid; custom slab dimensions pass when applicable; a RIP jamb has a completed target size; and required RO/glass validation passes when applicable. The detailed authority is `validateDoor_`, `validateCustomSlabLine_`, `validateLineForCommit`, `calculationIsBlocking`, and the rules in §§3, 4 and 7.
+- Confirmation still does **not** require a BizTrack Sales Order, salesperson, Shop Hours, fulfillment date, production booking, or Calendar record. Those are separate production-readiness concerns, not confirmation prerequisites.
+- This intentionally differs from deployed `validatePayload_`/`validateJob`, which require at least one line for every save and whose browser additionally requires Salesperson for a confirmed job. Native code must preserve the deployed **line validity** rules while applying the approved native lifecycle gate at Draft-to-Confirmed transition.
+
+#### Approved salesperson behavior
+
+- A new job defaults Salesperson from the signed-in user's configured sales identity.
+- Any active user with `jobs = use` may edit or reassign Salesperson; this is not restricted to managers or to the initially defaulted user.
+- The saved Salesperson is a job-level historical snapshot. Later changes to user/profile sales identity do not rewrite existing jobs.
+- Missing Salesperson is allowed for both Draft and Confirmed Job. It blocks production readiness but not saving or confirmation.
+- The configured sales-identity source and administration model still require a later contract/schema decision; authentication identity alone must not be silently treated as Salesperson.
+
+### D. Open decisions
+
+The pre-BizTrack identity, confirmation-without-Sales-Order, confirmed-job minimum-line, and salesperson behavior questions are resolved by the invariants above. The remainder of the draft lifecycle, production-readiness gate, sales-identity configuration, internal-ID format, line-ID format, reorder mechanics, concurrency, Phone/Email storage, archive/delete permissions, database grants/RPCs, and hosted activation still require explicit approval (§12). This document records alternatives; it does not silently decide them.
+
+## 2. Job-header contract
+
+The `Jobs` sheet order is fixed by `JOB_HEADERS`. `saveJobToSheets_` trims strings, preserves `Created At` on update, writes `Updated At` on every save, and calculates derived values before writing. In the deployed workflow, `validatePayload_` requires Customer or Site/Address and at least one valid door line, while browser `validateJob` additionally requires Salesperson for a `Confirmed Job`. The approved native workflow changes only the lifecycle gates: Draft may save with no lines; Confirmed requires one deployed-valid line; Salesperson is optional until production readiness.
+
+| UI label | Payload/property | Sheet header | Hosted destination | Type/default | Requirement, validation, normalization | Visibility/editability and work-order use | Gap |
+|---|---|---|---|---|---|---|---|
+| Sales Order / Job ID | `jobId`; `originalJobId` | `Job ID` | currently `dg_jobs.job_id` | text; blank until save | **Deployed:** trimmed; blank generates `JOB-####`; duplicate target rejected; original ID permits update/rename. **Native approved:** separate nullable/editable BizTrack Sales Order; `jobs=use` may add/correct it; never a relational key. | Primary visible identifier in lists, intake, search, work order, readiness and future scheduling once present. | Hosted schema lacks separation from internal identity and temporary DoorGo reference. Required J5 migration decision. |
+| Temporary DoorGo reference | deployed generated `jobId` partly resembles this role but is not separate | no separate header | no suitable separate column in supplied schema | human-readable, assigned before/with first save; immutable and never reused | Visible only while BizTrack Sales Order is blank; hidden from normal UI/print afterward but retained for audit, traceability, recovery and historical lookups. Exact format/allocation is a J1 implementation detail. | **Required J5 schema design.** Must be distinct from relational key and Sales Order. |
+| Internal Job ID | no deployed separate property/header | none | no suitable separate native key in the supplied schema | permanent opaque identity assigned on first native save | Hidden and immutable; never derived from or changed by either visible identifier. All native job/line relationships use it. | Persistence/route identity only; not a normal visible or printed identifier. | **Required J5 schema design.** Current `dg_jobs.job_id` conflates identity with a visible number. |
+| Customer | `customer` | `Customer` | `dg_jobs.customer` | text; `''` | Trimmed; Customer **or** Site required. | `customerInput`; Saved Jobs and work-order header. | None known. |
+| Site / Address | `siteAddress` | `Site/Address` | `dg_jobs.site_address` | text; `''` | Trimmed; Customer **or** Site required. | `siteInput`; ledger and work-order header. | None known. |
+| Phone | `phone` | `Phone` | no dedicated column; `raw_job.phone` | text; `''` | Trimmed; no format validation. | `phoneInput`; ledger contact and work-order Contact line. | **Missing hosted column.** |
+| Email | `email` | `Email` | no dedicated column; `raw_job.email` | text; `''` | Trimmed; no email-format validation. | `customerEmailInput`; ledger contact and work-order Contact line. This is customer contact, not worker recipient. | **Missing hosted column.** |
+| Salesperson | `salesperson` | `Salesperson` | `dg_jobs.salesperson` | text; `''` | **Deployed:** trimmed; browser requires it for confirmed jobs, server does not independently enforce. **Native approved:** default from signed-in user's configured sales identity; optional for Draft/Confirmed; any `jobs=use` user may edit/reassign. | `salespersonInput`; readiness/ledger and work-order Sales line. Saved value is a historical job snapshot and is not rewritten by later profile changes. Missing value blocks production readiness only. | Configured sales-identity source/admin model requires later design. |
+| Job Stage | `jobStage` | `Job Stage` | `dg_jobs.job_stage` | enum-like text; deployed default `Confirmed Job` | `normalizeJobStage_` maps only exact `Quote / Not Confirmed` to quote; everything else becomes `Confirmed Job`. Native Confirmed means business/customer commitment, requires at least one deployed-valid line, but does not require Sales Order, Salesperson, Shop Hours, fulfillment, booking or Calendar record. | `jobStageInput`; quote suppresses deployed production readiness/capacity. Native confirmation alone must not create downstream records or imply readiness. | Native Draft representation, exact database constraint and separate readiness representation remain to design. |
+| Status | `status` | `Status` | `dg_jobs.status` | text; `''` | `Completed`/`Closed` normalize to `Archived`; `Open` normalizes blank. Archive=`Archived`, delete=`Deleted`, restore=blank. | Lifecycle-managed, not a normal intake field; affects ledgers and readiness. | Native lifecycle values need approval. |
+| Active | `active` | `Active` | `dg_jobs.active` | text; new default `Yes` | Archive=`No`, restore=`Yes`, delete=`Deleted`. Existing archived state is preserved during ordinary update in specified cases. | Lifecycle-managed; not printed. | Text rather than boolean; native compatibility rule needed. |
+| Job Notes | `jobNotes` in payload; `notes` when loaded | `Notes` | `dg_jobs.notes` | text; `''` | Trimmed; no length rule in deployed code. | `jobNotesInput`; printed in header. | Native length limit undecided. |
+| Job Hinge Color | `hingeColor`; loaded as `hingeColor` | `Hinge Color` | `dg_jobs.hinge_color` | text; `''` | Trimmed. Work-order normalizer strips legacy `NRP`; choices include L1, C15, C4, 10B, C26, 26D, SS. | `hingeColorInput`; used with each line's hinge choice. | None known. |
+| Shop Hours | `shopHours` | `Shop Hours` | `dg_jobs.shop_hours` | numeric text in Sheets; nullable number in mirror | Manual typed value wins; otherwise derived and rounded to quarter-hour. Unknown estimate clears it. | `shopHoursInput`; editable; header, readiness and scheduling gate. | Native numeric scale/range needs confirmation. |
+| Shop Hours Source | `shopHoursSource` | `Shop Hours Source` | `dg_jobs.shop_hours_source` | `Estimated`, `Estimate incomplete`, `Manual`, or blank | Manual value sets `Manual`; calculated complete sets `Estimated`; unknown rule sets `Estimate incomplete`. | Support text from `refreshShopHoursEstimate`; not printed. | Exact database constraint unknown. |
+| Delivery Date | `deliveryDate` | `Delivery Date` | `dg_jobs.delivery_date` | date-only text; `''` | Mutually exclusive in active UI with pickup. | Selected through `fulfillmentControl`/date picker; printed when active. | None known. |
+| Customer Pickup Date | `customerPickupDate` | `Customer Pickup Date` | `dg_jobs.customer_pickup_date` | date-only text; `''` | Mutually exclusive in active UI with delivery. | Selected through the same progressive control; printed when active. | None known. |
+| Fulfillment Plan | `fulfillmentPlan` | `Fulfillment Plan` | `dg_jobs.fulfillment_plan` | `Delivery`, `Customer Pickup`, or blank | Derived from active selection and date; blank without a chosen dated plan. | `fulfillmentControl`; controls active fulfillment date and auto Shop Date. | Exact enum/constraint unknown. |
+| Scheduling Status | `schedulingStatus` | `Scheduling Status` | `dg_jobs.scheduling_status` | text; usually blank | On read/save, blank Shop Hours forces `Production scheduling blocked - Shop Hours required`; otherwise payload text is retained. | Readiness/status UI; not printed. | Native scheduling remains out of J1-J4. |
+| Shop Date | `shopDate` | `Shop Date` | `dg_jobs.shop_date` | date-only text; `''` | Manual date cannot be later than fulfillment in `shopDateIsAllowed`. Automatic is four eligible shop days before fulfillment. | `shopDateButton`; printed in manual box. | Automatic calculation currently reads Calendar closures. J1-J4 must not write Calendar. |
+| Shop Date Source | `shopDateSource` | `Shop Date Source` | `dg_jobs.shop_date_source` | `Automatic`, `Manual`, `Calendar Sync`, or blank | Entered Calendar Sync is preserved server-side; entered non-Automatic becomes Manual; otherwise recalculated Automatic. | Readiness labels manual dates. | Native source ownership needs approval. |
+| PO Numbers | `poNumbers` | `PO Numbers JSON` | `dg_jobs.po_numbers` | JSON array of digit strings; `[]` | Trim, digits only, drop blanks, de-duplicate preserving first occurrence. | Repeatable `data-po-number` controls; work order sorts and compresses shared prefixes, joining with `/`. | None known. |
+| Created At | `createdAt` in saved/loaded job | `Created At` | `dg_jobs.created_at` | timestamp | Set on creation and preserved from existing row on update. | Not directly editable or printed. | Native actor/audit fields undecided. |
+| Updated At | `updatedAt` | `Updated At` | `dg_jobs.updated_at` | timestamp | Set on every header save and lifecycle action. | Used to sort newest-first; not editable/printed. | Candidate concurrency token, decision open. |
+| Door Type summary | `doorTypeSummary` (derived) | `Door Type` | `dg_jobs.door_type` | text; blank, one type, or `Mixed` | Unique nonblank line door types: none=`''`, one=value, multiple=`Mixed`. | Saved Jobs secondary summary. | Derived, not a header input. |
+
+Traceability: `JOB_HEADERS`, `jobSummaryFromRow_`, `saveJobToSheets_`, `normalizeJobStatus_`, `normalizeJobStage_`, `resolveShopDateForSave_`, `nextJobId_`, `validatePayload_`; UI `currentJob`, `newJob`, `readJob`, `writeJob`, `validateJob`, `payload`, `jobReadinessInfo`, `updateFulfillmentSummary`, `shopDateIsAllowed`, `renderPoNumberFields`.
+
+## 3. Door-line contract
+
+The saved line is constructed by `buildLine`, validated in `validateLineForCommit` and again by server `validateDoor_`, then written in `DOOR_HEADERS` order. `jobLineFromRow_` reconstructs active lines. Values are primarily trimmed strings because the deployed store is Sheets.
+
+| Field | Active UI / payload | Sheet header | `dg_job_lines` destination | Type/default and validation | Conditional/calculation/work-order behavior | Saved representation |
+|---|---|---|---|---|---|---|
+| Interior / Exterior | `modeExterior`, `modeInterior`; `mode` | `Mode` | `mode` | text; new default `Exterior`; required server-side | Selects configs, sizes, material, jamb/sill/weatherstrip/hinge/swing rules and hours table. | `Interior` or `Exterior`. |
+| Door Type | `doorTypeInput`; `doorType` | `Door Type` | `door_type` | trimmed text; default blank; no required rule | Preview, Saved Jobs summary, work-order column. | text/null mirror. |
+| Configuration | `configInput`; `config` | `Config` | `config` | required; default `D`; `DBL` normalized to `DD` server work-order side | Governs all geometry, controls, hours and details (§4). | deployed code such as `D`, `T/SDDS`, `PKT`. |
+| Width | `widthInput`; `width` | `Width` | `width` | required; mode-specific option; default exterior `3'0"`, interior `2'6"` | Nominal slab geometry unless custom wood slab. | display text. |
+| Height | `heightInput`; `height` | `Height` | `height` | required; `6'8"`, `7'0"`, `8'0"`; default sticky/`6'8"` | Exterior 8-foot defaults prep to MULTI; geometry and tall-door details. | display text. |
+| Custom slab mode | `customSlabInput`; `customSlab` | `Custom Slab` | `custom_slab` | `No`, `RO`, `WoodCustom`; legacy `Yes` accepted | WoodCustom available only for wood; RO means custom opening/cut-down, not custom slab dimensions. | text. |
+| Custom slab width/height | `customSlabWidthInput`, `customSlabHeightInput` | `Custom Slab Width`, `Custom Slab Height` | `custom_slab_width`, `custom_slab_height` | positive parseable inches required only for actual custom slab (`Yes`/`WoodCustom`) | Actual work-order size and geometry; hidden otherwise. | dimension strings. |
+| Hand / Swing | `handInput`; `hand` | `Hand` | `hand` | exterior LH/RH/LHOUT/RHOUT; interior D LH/RH; DD optional; PKT/B.P. blank | OUT selects outswing geometry and stainless hinge display. Hidden/cleared where no swing. | text/null. |
+| Prep | `prepInput`; `prep` | `Prep` | `prep` | config/mode-specific; defaults in §4 | MULTI adds hours; labels normalized for work order. | codes or PKT names. |
+| Glass | legacy `glass:''` | `Glass` | `glass` | currently blank in `buildLine` | Active glass terms live in calculated units, not this field. | blank unless legacy row. |
+| Jamb Width | `jambInput`/`ripInput`; `jambWidth` | `Jamb Width` | `jamb_width` | defaults exterior `6-9/16"`, interior `4-9/16"`; literal `RIP` is blocked | Hidden/blank for interior PKT/B.P.; work-order jamb display. | chosen width or entered RIP target. |
+| Jamb Type | `jambTypeInput`; `jambType` | `Jamb Type` | `jamb_type` | default Primed; interior Primed/Fir; exterior also composite choices | Hidden/blank without jamb; combined with width for work order. | text. |
+| Sill | `sillInput`; `sill` | `Sill` | `sill` | exterior default STD; Dark Anodized option | Hidden and saved blank for Interior; work-order column. | text/null. |
+| Weatherstrip | `wsInput`; `weatherstrip` | `Weatherstrip` | `weatherstrip` | exterior default WHT; BRN/BLK/blank | Hidden and saved blank for Interior; work-order W/S column. | text/null. |
+| Hinge Type | `hingeInput`; `hingeType` | `Hinge Type` | `hinge_type` | exterior BB/BOM/REG/NRP; interior BB/REG; defaults BB/REG | Hidden/blank for interior PKT/B.P.; work order combines with job color and outswing rules. | code text. |
+| Notes | `lineNotesInput`; `notes` | `Notes` | `notes` | trimmed; no deployed length limit | Work-order cleans legacy Pocket/Override and redundant Cutdown prefixes. | text/null. |
+| Quantity | `qtyInput`; `qty` | `Qty` | `qty` | number, minimum/default 1; server rejects falsy | Multiplies shop minutes and glass/panel labels; identical lines can merge by summing quantity. | numeric. |
+| Line Status | not normal editor input | `Line Status` | `line_status` | Sheets write `Active`; extra old rows become `Archived` | `listForJob` excludes Archived; work order includes active only. | mirror defaults `Active`; browser-built lines omit it, so raw fallback may omit. |
+| Last Saved At | generated | `Last Saved At` | `last_saved_at` | timestamp | Set on every Sheets line write/archive. | Mirror currently receives browser lines and may get null because generated sheet metadata is not added to payload. |
+| RO Width | `roWInput`; `roWidth` | `RO Width` | `ro_width` | dimension string | Required for glass configurations; blank for PKT/B.P.; strict blockers in §6. | text/null. |
+| RO Height | `roHInput`; `roHeight` | `RO Height` | `ro_height` | dimension string | Required for transom. Optional for ordinary/custom cut-down. B.P. stores only a genuinely cutting Finished Opening height. | text/null. |
+| Material | `materialInput`; `material` | `Material` | `material` | exterior fiberglass/wood, default fiberglass; interior forced wood | Controls actual slab lookup and panel options. | text. |
+| Door Thickness | `thicknessInput`; `doorThickness` | `Door Thickness` | `door_thickness` | blank/Auto, 1-3/8, 1-3/4 | Work order defaults interior 1-3/8 and exterior 1-3/4. | override text/null. |
+| RIP Jamb | derived; `ripJamb` | `RIP Jamb` | `rip_jamb` | `Yes` or blank | RIP selection requires a target; adds 15 minutes. | text/null. |
+| Glass Calc Status | `lastCalc.status`; `glassCalcStatus` | `Glass Calc Status` | `glass_calc_status` | Ready/Complete/Warning/Blocked/Needs RO/Needs Glass Calc | Blocking states and blockers prevent add/save for glass configurations. | text/null. |
+| Glass Workorder Detail | `glassWorkorderDetail` | `Glass Workorder Detail` | `glass_workorder_detail` | generated multiline text | Preserved for edit/preview; work order recalculates much geometry but uses status/units/warnings. | text/null. |
+| Glass Warnings | `glassWarnings` | `Glass Warnings` | `glass_warnings` | newline-delimited text | Nonblocking review output; cut-down base warning is suppressed from printed warning list. | text/null. |
+| Glass Blockers | `glassBlockers` | `Glass Blockers` | `glass_blockers` | newline-delimited text | Any blocker prevents line commit and server save. | text/null. |
+| Glass Override | `glassOverride` | `Glass Override` | `glass_override` | active `buildLine` always saves `No` | No active override control was found; do not infer approval behavior from the field name. | text. |
+| Glass Units JSON | `glassUnits` | `Glass Units JSON` | `glass_units` | JSON array, default `[]` | Feeds printed GLASS rows and vendor copy. | JSON array. |
+| Glass Calc JSON | `glassCalc` | `Glass Calc JSON` | `glass_calc` | JSON object or null | Saves RO/config/swing/slab/header/jamb/final sizes/panel/transom calculations; reload derives panel state from it. | JSON object/null. |
+| Vendor Copy Text | `vendorCopyText` | `Vendor Copy Text` | `vendor_copy_text` | generated text | Shown in progressive details; sealed-unit text uses glass-term templates, sidelights substitute 4mm shorthand. | text/null. |
+| Panel sidelight details | `sidelightType`, `panelSidelightWidth`, `panelSidelights` | embedded in `Glass Calc JSON` | no dedicated columns | defaults type glass; panel width required when panel selected | Panel height matches slab; used in work-order PANELS section and header geometry. | `glass_calc.sidelightType`, `panelWidth`, `panelSidelights`; also `raw_line`. |
+| Raw line | whole browser line | none | `raw_line` | JSON | Compatibility/debug fallback including panel fields. | complete object passed to mirror. |
+
+Traceability: `DOOR_HEADERS`, `jobLineFromRow_`, `saveDoorLinesWithoutDeleting_`, `validateDoor_`; UI `buildLine`, `validateLineForCommit`, `renderLine`, `editLine`, `saveLine`, `renderDoorList`, `activeLineKey`, `mergeIdenticalDoors`.
+
+## 4. Configuration rules
+
+### Mode and option sets
+
+- `EXTERIOR_CONFIGS`: D, DD, SD, DS, SDS, SDDS, T/D, T/DD, T/SD, T/DS, T/SDS, T/SDDS.
+- `INTERIOR_CONFIGS`: D, DD, PKT, B.P.
+- Interior hides Material, Sill and Weatherstrip and forces wood/blank exterior hardware values. Exterior exposes those controls.
+- PKT and B.P. use no jamb, hinge or swing (`isNoJambHingeConfig`, `updateModeSpecificFields`).
+- Interior jamb types exclude composites; interior hinges exclude BOM and NRP (`populateJambTypeOptions`, `populateHingeOptions`).
+
+### Configurations
+
+| Config | Deployed rule summary | Traceability |
+|---|---|---|
+| D | Single door. Exterior header/slab rule; interior header is slab + 7/32. Custom RO non-transom adds 30 minutes. | `isStandardDoorConfig_`, `frameCalcForWorkorder_`, `calculateGlass`, `shopHoursRuleForLine_`. |
+| DD | Double door; `DBL` legacy alias. DD core is two actual slabs + 13/16 meeting allowance + 1/4. Custom RO adds 45 minutes. | `normalizeConfig_`, `ddCoreHeaderCut`, `ddCoreHeaderCutForWorkorder_`. |
+| SD / DS | One sidelight positioned by code; one glass or panel assembly. | `sideCount`, `hasSidelight`, `calculateGlass`. |
+| SDS | Single door plus two sidelights. | `sideCount` returns 2; `isDouble` false. |
+| SDDS | Double-door DD core plus two sidelights. Glass version can derive header from RO; panel version adds two panel assemblies around unchanged DD core. | `isSddsConfig`, `panelUnitHeaderCut`, `calculateGlass`. |
+| T/* | Same core configuration with transom. RO height required. Transom absorbs remaining height; selected slab height is retained. | `hasTransom`, `calculateGlass`, `updateLineRoGuidance`. |
+| PKT | Interior only; no jamb/hinge/swing and no RO. Prep choices Round Weiser, Reg Emtek, LRG Emtek. | `INTERIOR_CONFIGS`, `populatePrepOptions`, `isPocketNoRoConfig`, `buildLine`. |
+| B.P. | Interior bypass; no jamb/hinge/swing. Optional F.O. Height is stored only when `FO - 2.75` cuts below slab height; work order prints F.O. and cut. Prep None or Half drill. | `isBypassConfig`, `buildLine`, `generatedDetailBlock_`. |
+
+### Custom slab, custom RO and restrictions
+
+- `WoodCustom` is available only for wood and requires positive parseable actual width/height. `customSlabValidation` and server `validateCustomSlabLine_` enforce dimensions, though their user messages differ.
+- `RO` means Custom RO / Cut Down. For non-transom D/DD it adds labor; geometry never enlarges a selected slab, and large cut-downs warn.
+- Panel sidelights require a panel width: fiberglass choices 11-3/4 or 13-3/4; wood accepts entered width. Panel height equals slab height. The divider is 1.5; glass divider is 2.25.
+- Glass sidelights require RO width and computed positive dimensions. SD/DS have one; SDS/SDDS have two.
+- Exterior outswing derives from `LHOUT`/`RHOUT`, uses a 2-inch vertical deduction instead of 2.25, and changes work-order hinge display to stainless except BOM retains selected color.
+- Exterior MULTI prep adds 45 minutes for single cores and 90 for double cores (`isDouble` includes DD, T/DD, SDDS, T/SDDS).
+- Exterior prep options are Double drilled/STD, Multipoint/MULTI, Single drilled/SINGLE. Interior D: YES or NO; DD: NO or BOTH; PKT as above; B.P.: NO or HALF.
+- Material choices are exterior fiberglass/wood; interior is forced wood. Custom wood slab is suppressed when material changes away from wood.
+- PKT/B.P. exclude jamb/hinge/swing. Interior excludes composite jambs and BOM/NRP hinges. Exterior includes composite jamb types and BOM/NRP.
+
+Uncertainty rule: no behavior beyond these active identifiers is approved. Comments describing geometry are supporting context only where the active functions implement the same rule. CSS phase comments are not behavioral authority when later CSS or `setupDesktopJobWorkspace` overrides them.
+
+## 5. Shop Hours contract
+
+`shopHoursRuleForLine_` in Code.gs and `shopHoursRuleForLine` in Index.html contain the same table:
+
+| Mode/config | Base minutes per unit |
+|---|---:|
+| Exterior D | 60 |
+| Exterior DD | 90 |
+| Exterior T/D | 90 |
+| Exterior T/DD | 120 |
+| Exterior SD or DS | 180 |
+| Exterior SDS | 240 |
+| Exterior T/SD or T/DS | 240 |
+| Exterior T/SDS | 300 |
+| Interior D | 15 |
+| Interior DD | 30 |
+| Interior PKT | 15 |
+| Interior B.P. | 15 |
+
+There are deliberately no base rules for SDDS or T/SDDS. Those configurations therefore make the estimate unknown even though geometry supports them.
+
+- Multiply each known line's minutes by `max(1, qty)`.
+- MULTI adds 45 minutes, or 90 where `isDouble` is true, before quantity multiplication.
+- Non-transom `customSlab === 'RO'`: D +30, DD +45, before quantity multiplication.
+- `ripJamb` equal to Yes (case-insensitive) adds 15 minutes before quantity multiplication.
+- An unknown mode/config adds no minutes and records `Line N: reason`; any unknown clears Shop Hours and sets source `Estimate incomplete`.
+- A complete estimate is rounded to the nearest 15 minutes then divided by 60 (`Math.round(minutes / 15) / 4`). Zero displays blank.
+- Typing a value sets source `Manual`; manual is not replaced by later line estimates. Clearing it re-enters estimation.
+- Blank hours force Scheduling Status `Production scheduling blocked - Shop Hours required`; readiness is `Needs Shop Hours` and new-job capacity checking is hidden.
+
+Traceability: Code.gs `shopHoursRuleForLine_`, `calculateShopHours_`, `shopHoursText_`, `saveJobToSheets_`; Index.html `shopHoursRuleForLine`, `shopHoursEstimate`, `refreshShopHoursEstimate`, `shopHoursChanged`, `updateFulfillmentSummary`, `jobReadinessInfo`.
+
+## 6. Save, load and lifecycle
+
+### Sheets behavior
+
+1. `saveCurrentJob` commits an open line edit, merges identical lines, runs browser validation, then calls `saveJob(payload())`.
+2. `saveJobToSheets_` repeats aggregate/line validation, calculates derived header values, allocates an ID if blank, and rejects a duplicate target ID.
+3. New jobs append a Jobs row; updates overwrite the located header row and preserve Created At.
+4. `saveDoorLinesWithoutDeleting_` matches existing Door Intake rows only by old Job ID and position. It overwrites matching positions, appends additional positions, and marks surplus old positions `Archived`; it never physically deletes Sheets line rows.
+5. `loadJob` loads the job and active non-Archived lines. `openJob` rebuilds browser state and supports edit/reopen.
+6. Archive sets Status `Archived`, Active `No`; restore clears Status and sets Active `Yes`; delete is soft-delete, setting both to `Deleted`. These operations do not change Door Intake rows.
+7. PO input removes non-digits on input; browser/server normalize digit-only strings and de-duplicate first occurrence.
+
+### Current Supabase mirror
+
+`saveJobToSheets_` calls `dgMirrorSavedJobToSupabase_` only after Sheets saving. Mirror writes are disabled unless an explicit `SUPABASE_WRITES_ENABLED`/`supabaseWritesEnabled` or equivalent approved flag resolves enabled. If enabled:
+
+- Job is upserted on `job_id`.
+- `dgMirrorJobLinesToSupabase_` first deletes every `dg_job_lines` row for the Job ID, then upserts the current array.
+- `dgSupabaseMirrorLineId_` derives `line_id` as `JobID:001`, `JobID:002`, etc. `line_index` is array position + 1.
+- Header `raw_job` and line `raw_line` retain the passed objects.
+- The two mirror calls are not one transaction in the deployed Apps Script.
+- Mirror failure is logged with `DG_SUPABASE_MIRROR_WARNING` and never blocks or reverses the successful Sheets save. `dgMirrorSavedJobToSupabase_` also catches and returns failure, so the outer caller normally continues.
+
+### Required native contrast (recommendation, not finalized)
+
+- Assign the approved permanent hidden internal job identity on first save, including when the BizTrack Sales Order is null. Assign a separate, non-reused human-readable DoorGo reference for pre-BizTrack display. Store Sales Order separately and allow corrections without re-keying the job or its lines. The DoorGo reference is not a fake or temporary Sales Order.
+- Resolve the primary visible identifier as `BizTrack Sales Order ?? temporary DoorGo reference`. Once Sales Order exists, suppress the DoorGo reference from normal UI/print while preserving it in storage and historical lookup paths.
+- Give each logical line a stable `line_id` when it is first created; never derive identity from Job ID plus position.
+- Treat `line_index` only as order/display data.
+- Save header and the complete line diff in one database transaction/RPC with authorization, validation, idempotency and concurrency checks.
+- Do not emulate delete-all/reinsert, because it destroys identity and interacts badly with downstream references/audit.
+- Reordering under immediate `UNIQUE(job_id, line_index)` needs an approved deferrable constraint, two-phase temporary renumber, or sparse-order design.
+- Prohibit Production Board inclusion and creation of production, fulfillment, or Calendar records merely because a job exists or is confirmed. Eligibility must pass the separately approved production-readiness gate.
+
+### Future BizTrack integration boundary
+
+The native aggregate is DoorGo-owned. Its permanent internal job identity and permanent line identities remain authoritative for DoorGo relationships before, during, and after BizTrack synchronization.
+
+A future BizTrack API integration may attach the following optional integration data without re-keying the DoorGo job:
+
+- nullable/editable BizTrack Sales Order number;
+- durable external BizTrack identifier, distinct from the human-facing Sales Order;
+- synchronization state;
+- last synchronized timestamp.
+
+Those fields, their constraints, conflict policy, API directionality, retry/idempotency behavior, and audit history are future J5 design decisions. No hosted columns are designed in J0. BizTrack must not become the primary identity of a DoorGo job, and a BizTrack correction must not cascade into new DoorGo job or line identities.
+
+Traceability: `nextJobId_`, `findJobRowById_`, `saveJobToSheets_`, `saveDoorLinesWithoutDeleting_`, `archiveJobInSheets_`, `restoreJobInSheets_`, `markJobDeletedInSheets_`, `dgSupabaseMirrorWritesEnabled_`, `dgSupabaseMirrorLineId_`, `dgMirrorJobLinesToSupabase_`, `dgMirrorSavedJobToSupabase_`.
+
+## 7. Glass workflow
+
+- `renderLine` reveals `roPanel` for B.P., Custom RO, any glass config, or existing RO input. Its title becomes Finished Opening, Glass Measure, or Custom RO / Cut Down.
+- Glass configs are SD, DS, SDS, SDDS, T/D, T/DD, T/SD, T/DS, T/SDS, T/SDDS. PKT/B.P. bypass glass calculation.
+- RO width is required for every glass config. RO height is required for transoms; otherwise it is optional and used only for short/custom openings.
+- Sidelight type appears only for sidelight configs. Choosing panel progressively shows panel width and hides sidelight glass; transom glass remains visible for a transom.
+- Blocking conditions include missing required RO, invalid slab/panel dimensions, RO narrower than strict glass/DD/T-D/panel minimums, zero/negative sidelight or transom dimensions, nonpositive header/jamb, and too-short transom RO.
+- Warnings include taller-than-standard RO, cut-down, large cut-down, and non-glass D/DD RO below recommendation. Warnings permit save; blockers and Needs states do not.
+- `markGlassNeeded` creates Needs Glass Calc, but deployed `validateDoor_` treats that as unresolved and blocks job save. It is useful for print guidance only if a legacy/saved state bypasses current validation; do not interpret it as an approved save override.
+- Saved values: status, detail, newline warnings/blockers, override (`No`), units array, calc object, vendor copy, and panel state inside calc/raw line.
+- Work order generates frame/detail rows, PANELS, GLASS and WARNINGS; blocker/review text is strongly marked and says not to order.
+- `buildVendorCopy` applies term templates; sidelights change seeded 3mm shorthand to 4mm. Terms come from `door_glass_terms`/`getGlassTerms`.
+- `lineGlassCanvas` draws the calculated unit. `beforeprint` redraws with print colors; `afterprint` restores the terminal theme. Phone and desktop use the same calculation, with phone CSS enlarging controls and changing output layout; standalone Quick Glass is separate and does not save to jobs.
+
+Traceability: `#roPanel`, `#roWInput`, `#roHInput`, `#sidelightTypeInput`, `#panelSidelightWidthField`, `#sidelightGlassField`, `#transomGlassField`, `#glassOutputGrid`, `#lineGlassCanvas`; functions `renderLine`, `updateSidelightControls`, `calculateGlass`, `calculationIsBlocking`, `runGlassCalc`, `markGlassNeeded`, `buildVendorCopy`, `drawLineGlassCanvas`, `validateLineForCommit`.
+
+## 8. Work order, printing and email
+
+`getGeneratedWorkOrderHtml` produces letter landscape (`@page size: letter landscape`, 0.28-inch margin), black-on-white output independent of terminal theme. The deployed output uses `job.jobId`; native output must instead use the approved primary visible identifier: BizTrack Sales Order when present, otherwise the temporary DoorGo reference. Once a Sales Order is assigned, the temporary reference must not appear on normal printed documents.
+
+- First-page header: customer, site, Phone and Email Contact line, salesperson, Shop Hours, active fulfillment type/date, Notes, Sales Order/Job ID, printed date, Shop Date and compressed PO display.
+- Columns: Qty, Config, Size, Thick, Door Type, Drill, Hinge, Swing, Jamb, Sill, W/S, Notes / Glass.
+- Generated detail rows contain jamb legs/header/sill/T-bar, door cut, panel lines, glass units, warnings, B.P. F.O. details, or blocking guidance.
+- Page weighting uses 22 units on page one and 26 later; continuation headers and `Page N of total` footers are generated.
+- PO display sorts by length/lexical order and abbreviates subsequent same-length numbers sharing the first number's prefix except its last two digits.
+- `printWorkOrder` opens a placeholder popup, saves the current aggregate first, loads generated HTML, and invokes print after load.
+- `emailWorkOrder` selects an active worker by exact name from `Workers`, converts generated HTML to a PDF named `WorkOrder_<jobId>.pdf`, and sends it through `MailApp` as an attachment. The customer Email field is not the recipient selector.
+- `sendWorkOrderEmail` also saves before sending.
+
+Traceability: `getGeneratedWorkOrderHtml`, `generatedDetailBlock_`, `notesForWorkorder_`, `glassLinesForWorkorder_`, `panelLinesForWorkorder_`, `formatPoNumbersForWorkorder_`, `buildGeneratedWorkorderPdfBlob_`, `emailWorkOrder`; UI `#emailCard`, `#workerSelect`, `printWorkOrder`, `openGeneratedWorkOrderPrint`, `sendWorkOrderEmail`.
+
+## 9. User-interface contract
+
+### Active rendered behavior
+
+- Home exposes Create Job, Saved Jobs, Glass Calculator, Production Review and Archived Jobs. Intake uses `#job`.
+- Current Job is divided into identity/contact/production/scheduling/notes sections. Later Phase 1.46/1.48 CSS is active; earlier phase comments/rules are historical when overridden.
+- On non-phone layouts, `setupDesktopJobWorkspace` actively moves the Door Line editor and Job Lines card into `#desktopJobWorkspace`, creates a compact Current Job treatment, and moves the persistent Job Actions row into `#desktopJobActionBar` above the editor. This runtime DOM transformation is more authoritative than the original markup order.
+- Compact labels remain within field containers through `.field > label`, `.mini-label`, and later Current Job hierarchy rules.
+- Door editor uses quick buttons backed by hidden/native selects, width buttons/wheel, progressive More Options and progressive glass panel. Job Lines provides quantity, Edit and Remove actions plus Merge Identical.
+- Saved Jobs is a ledger with filters, salesperson selection (including unassigned), sorting, readiness, Open and lifecycle actions (`renderPrevious`). Phone contact text is enlarged.
+- Phone detection is `detectTruePhone`: phone user-agent, or coarse pointer plus screen/visual viewport <=620. `isMobileEntry` also treats <=1100 as mobile entry behavior. Phone CSS enlarges controls/touch targets and changes grids.
+- Theme is terminal-local: `doorgo-terminal-theme` in `localStorage`, default Light. `applyTerminalTheme` toggles body classes. Printing redraws diagrams in print mode and generated work orders are light-only.
+- `exitCurrentJob` confirms before abandoning open edit/editor/header changes. The separate `#unsavedEntryModal` offers Add Door + Continue, Continue Without Adding, or Cancel for flows that call `warnUnsavedEntryIfNeeded`; `prepareJobForSaveAction` currently commits an open edit but does not invoke that modal for a fresh unadded editor line.
+- Actions are Back to Home, Save, Save + Home; saved jobs additionally show Email Work Order, Print Work Order and Delete Job.
+- Loading/feedback uses the transient `#status` toast (`toast`, two seconds), temporary print popup, async success/failure handlers, readiness badges, and capacity/booking status areas.
+
+Retired/no-op behavior must not be copied: `setMobileStep`, `nextMobileStep`, and `prevMobileStep` are empty; old CSS phase blocks and comments do not override later active CSS or runtime DOM movement.
+
+Traceability: `#currentJobCard`, `#desktopJobWorkspace`, `#desktopJobActionBar`, `.quick-intake-card`, `#doorList`, `#previousJobs`, `#unsavedEntryModal`, `#status`; `setupDesktopJobWorkspace`, `setupCompactCurrentJob`, `renderPrevious`, `detectTruePhone`, `applyDeviceMode`, `applyTerminalTheme`, `exitCurrentJob`, `saveCurrentJob`, `toast`.
+
+## 10. Supabase field mapping
+
+This is the exact deployed mirror projection. `raw_job` or `raw_line` means the whole source object is also stored there when mirror writes are enabled.
+
+| Deployed field / header | Code property | `dg_jobs` | `dg_job_lines` | Raw fallback | Missing hosted column / notes |
+|---|---|---|---|---|---|
+| Deployed Sales Order / Job ID | `jobId` | currently `job_id` | currently `job_id` relationship | both | Deployed key conflates visible number and identity. Native model requires separate internal key, DoorGo reference, and nullable BizTrack Sales Order; exact J5 columns are undecided. |
+| Native temporary DoorGo reference | no separate deployed property | no suitable column yet | — | none | Permanent/non-reused stored reference; visible only before Sales Order; required J5 schema design. |
+| Native BizTrack Sales Order | deployed `jobId` role | no separate column yet | — | deployed raw fallback only | Nullable/editable visible business identifier; `jobs=use` may add/correct; required J5 schema design. |
+| Native internal Job ID | no deployed separate property | no suitable separate key yet | future relationship target | none | Approved hidden permanent relational identity on first save. Neither visible identifier may be its primary key. |
+| Customer | `customer` | `customer` | `customer` | both | Line browser objects normally omit copied customer although Sheets rows contain it. |
+| Site/Address | `siteAddress` | `site_address` | `site_address` | both | Same caveat as Customer. |
+| Phone | `phone` | — | — | `raw_job.phone` | **Dedicated hosted column missing.** |
+| Email | `email` | — | — | `raw_job.email` | **Dedicated hosted column missing.** |
+| Status / Active | `status`, `active` | `status`, `active` | — | `raw_job` | Lifecycle. |
+| Created / Updated | `createdAt`, `updatedAt` | `created_at`, `updated_at` | — | `raw_job` | Mirror adds `mirrored_at`. |
+| Door Type summary | `doorTypeSummary` | `door_type` | — | `raw_job` | Derived header. |
+| Notes / Hinge Color | `notes`, `hingeColor` | `notes`, `hinge_color` | — | `raw_job` | Header fields. |
+| Shop Hours / source | `shopHours`, `shopHoursSource` | `shop_hours`, `shop_hours_source` | — | `raw_job` | Number normalization or null. |
+| Fulfillment | `deliveryDate`, `customerPickupDate`, `fulfillmentPlan` | `delivery_date`, `customer_pickup_date`, `fulfillment_plan` | — | `raw_job` | Date-only text in mirror. |
+| Scheduling / Shop Date | `schedulingStatus`, `shopDate`, `shopDateSource` | `scheduling_status`, `shop_date`, `shop_date_source` | — | `raw_job` | Scheduling activation out of scope. |
+| Salesperson / stage | `salesperson`, `jobStage` | `salesperson`, `job_stage` | — | `raw_job` | Header. |
+| PO numbers | `poNumbers` | `po_numbers` | — | `raw_job` | JSON array. |
+| Line identity/order | derived index | — | `line_id`, `line_index` | `raw_line` | Current line ID is positional and unstable. |
+| Mode / Door Type / Config | `mode`, `doorType`, `config` | — | `mode`, `door_type`, `config` | `raw_line` | Direct. |
+| Width / Height | `width`, `height` | — | `width`, `height` | `raw_line` | Direct text. |
+| Custom slab | `customSlab`, `customSlabWidth`, `customSlabHeight` | — | `custom_slab`, `custom_slab_width`, `custom_slab_height` | `raw_line` | Direct. |
+| Hand / Prep / legacy Glass | `hand`, `prep`, `glass` | — | `hand`, `prep`, `glass` | `raw_line` | `glass` active payload blank. |
+| Jamb / Sill / W/S / Hinge | corresponding camelCase | — | `jamb_width`, `jamb_type`, `sill`, `weatherstrip`, `hinge_type`, `rip_jamb` | `raw_line` | Direct. |
+| Line Notes / Qty / status | `notes`, `qty`, `lineStatus` | — | `notes`, `qty`, `line_status` | `raw_line` | Mirror defaults qty 1/status Active. |
+| Timestamp / Last Saved | `timestamp`, `lastSavedAt` | — | `timestamp`, `last_saved_at` | `raw_line` | Often absent from browser mirror input. |
+| RO / material / thickness | corresponding camelCase | — | `ro_width`, `ro_height`, `material`, `door_thickness` | `raw_line` | Direct. |
+| Glass state/detail | corresponding camelCase | — | `glass_calc_status`, `glass_workorder_detail`, `glass_warnings`, `glass_blockers`, `glass_override` | `raw_line` | Direct. |
+| Glass units/calc | `glassUnits`, `glassCalc` | — | `glass_units`, `glass_calc` | `raw_line` | JSON. |
+| Vendor copy | `vendorCopyText` | — | `vendor_copy_text` | `raw_line` | Direct. |
+| Panel sidelight state | `sidelightType`, `panelSidelightWidth`, `panelSidelights` | — | only inside `glass_calc` | `raw_line` | No dedicated columns in mirror projection. |
+
+## 11. Required native security behavior
+
+- Browser controls are not authorization. Every read/write service must resolve authenticated access server-side.
+- Proposed interpretation for review: `jobs:none` no access; `jobs:view` list/open/print only; `jobs:use` create/edit/archive/delete as separately approved. Manager status should not grant fallback because the existing auth contract treats manager as identity, not implicit module access.
+- No choice in the preceding bullet is final until approved.
+- J1-J4 must have no Supabase intake mutation path: no browser table writes, authenticated server writes, service-role writes, mutation RPC, RLS policy, or grant.
+- Eventually, use a narrow authenticated database RPC/transaction with RLS/grant review. Never use `createTrustedReadOnlySupabaseClient` for intake writes.
+- `ON DELETE CASCADE` is a database integrity property, not permission to expose hard deletion.
+
+## 12. Open decisions requiring approval
+
+| Decision | Recommended starting point | Alternatives / approval question |
+|---|---|---|
+| **Resolved: pre-BizTrack draft identity** | A job is saveable without a Sales Order; first save assigns a permanent immutable internal job identity; Sales Order remains separate, nullable and editable; lines stay attached to internal identity; no draft Production Board/production/fulfillment/Calendar effects. | **Approved.** Do not use fake or temporary Sales Order primary keys. J5 must design the hosted schema representation. |
+| **Resolved: visible pre-BizTrack identifier** | Assign a unique, never-reused human-readable DoorGo reference. Show it only while Sales Order is blank; once Sales Order exists, use Sales Order throughout normal UI/print and retain the DoorGo reference only for audit, recovery and historical traceability. | **Approved.** Exact temporary-reference format and allocation mechanism are J1 implementation details unless later evidence requires approval. Neither visible value is a relational key. |
+| Remaining draft lifecycle | Explicit Draft state separate from deployed active/archived/deleted semantics. | Define required fields, abandon/reopen rules, retention and transition to business confirmation. Identity, nullable Sales Order, and the ability to confirm without Sales Order are no longer open. |
+| **Resolved: confirmation requires Sales Order?** | No. `Confirmed Job` represents business/customer commitment; BizTrack entry is a separate downstream milestone. Confirmation must not itself create production, fulfillment, or Calendar records. | **Approved.** Do not couple confirmation to BizTrack identity or production readiness. |
+| **Resolved: confirmed-job minimum lines** | Draft may save with zero lines. Transition to `Confirmed Job` requires at least one line passing the complete deployed line-validation contract. | **Approved.** Sales Order, Salesperson, Shop Hours, fulfillment, booking and Calendar are not confirmation prerequisites. |
+| **Resolved: salesperson behavior** | Default new jobs from the signed-in user's configured sales identity; allow any `jobs=use` user to edit/reassign; save a historical snapshot; allow missing through confirmation but block readiness. | **Approved.** Profile changes do not rewrite jobs. The source/admin model for configured sales identity remains open. |
+| Production-readiness gate | Use an explicit state/decision separate from confirmation and evaluate all approved prerequisites before downstream eligibility. | Approve whether it requires Sales Order, salesperson, authoritative Shop Hours, complete intake, fulfillment information, and any override workflow. |
+| Internal job-ID format | Use a permanent opaque generated identifier that is not a Sales Order. | UUID or ULID remains to be approved; its immutability and first-save allocation are already decided. |
+| Stable line ID | UUID generated at line creation and preserved forever. | ULID or server UUID; whether legacy positional IDs are retained during import. |
+| Reordering | Transactional two-phase renumber initially. | Deferrable unique constraint or sparse ordering; confirm actual hosted constraint definition first. |
+| Aggregate save | One authenticated atomic RPC/transaction for header plus line diff. | Server-held SQL transaction through another trusted backend; separate REST writes are not acceptable. |
+| Optimistic concurrency | Add/use a version token and expected version; return conflict with reload/compare UI. | Conditional `updated_at`; define timestamp precision and legacy edits. |
+| Phone/Email | Add dedicated nullable normalized columns after separate migration review; retain raw JSON during transition. | Keep only raw JSON (not recommended); decide validation and search/index needs. |
+| Archive permission | Likely `jobs:use`, perhaps separate elevated permission later. | Manager-only or dedicated lifecycle permission. |
+| Delete permission | Do not expose hard delete; retain explicit soft-delete with elevated confirmation/audit. | Manager-only mark-deleted; dedicated permission. |
+| Cascade delete | Never expose through ordinary UI initially. | Controlled administrator purge with dependency preview/audit only. |
+| Permission semantics | none=no access, view=read/print, use=create/edit; lifecycle capabilities explicitly reviewed. | Whether printing/email belongs to view or use. |
+| Manager fallback | No implicit fallback, consistent with current auth contract. | Explicitly approve narrowly scoped fallback if business requires it. |
+| Future BizTrack synchronization | Preserve DoorGo internal identity; attach nullable Sales Order, durable external ID, sync state, and last-sync time only after J5 design. | Approve API ownership/direction, conflict rules, retries, idempotency and audit. No columns are designed in J0. |
+| Hosted activation | Only J6, after J1-J4 acceptance and J5 schema/RLS/RPC review, dry run and explicit go-live approval. | No earlier activation. |
+
+## 13. Proposed implementation sequence
+
+1. **J1 — local/disposable header workflow:** pure contracts and validation; create/save/reopen/edit a pre-BizTrack Draft with hidden permanent internal identity, non-reused temporary DoorGo reference, and nullable/editable Sales Order; implement visible-identifier precedence; allow zero-line Draft saves; default/reassign snapshot Salesperson under `jobs=use`; test that identifier edits preserve job/line identity and that Draft/confirmation alone confers no production eligibility; no Supabase mutation. The exact DoorGo-reference format/allocation mechanism is a J1 implementation detail.
+2. **J2 — local/disposable door-line intake:** port active mode/config/geometry/glass rules; stable IDs; enforce at least one deployed-valid line at Draft-to-Confirmed transition; atomic aggregate save; rollback, reorder, retry and concurrency tests.
+3. **J3 — work order, print and email:** reproduce generated content, pagination, light-only landscape print and controlled recipient behavior. Email must use a test adapter until separately approved.
+4. **J4 — complete local verification:** parity fixtures from deployed behavior, responsive/accessibility/browser tests, disposable PostgreSQL integration, failure injection and workflow acceptance. No scheduling writes.
+5. **J5 — hosted schema/security preparation:** read-only schema confirmation; required immutable internal-job-ID key, permanent unique/non-reused DoorGo-reference storage, and separate nullable/editable Sales Order design; line foreign-key transition; optional future BizTrack external ID/sync state/last-sync design; Phone/Email and version migration design; RLS, grants, RPC, rollback and activation plan. Do not apply during planning.
+6. **J6 — controlled hosted activation:** explicitly approved migration application and gated authenticated writes, followed by controlled verification and rollback readiness.
+
+J1-J4 must perform no scheduling or hosted intake writes. Production booking and Calendar behavior are outside the native intake implementation contract.
+
+## 14. Sufficiency and traceability conclusion
+
+The deployed files and approved pre-BizTrack identity, confirmation, minimum-line, and salesperson invariants are sufficient to begin **J1 contract implementation after review** for local/disposable header behavior. The remaining draft-lifecycle details, production-readiness criteria, sales-identity configuration source, and identifier formats must be resolved or represented behind replaceable interfaces. The sources are also detailed enough to build J2 parity tests, but the supplied hosted facts are not sufficient to activate hosted writes: the current primary-key model does not represent the approved identity separation, future BizTrack synchronization fields are intentionally undesigned, and exact column types/defaults/nullability, all constraints, grants, RLS posture at activation time, and migration history must be re-inspected read-only in J5.
+
+Major identifier index:
+
+- Code.gs storage/lifecycle: `JOB_HEADERS`, `DOOR_HEADERS`, `DGData.jobs`, `DGData.jobLines`, `saveJobToSheets_`, `saveDoorLinesWithoutDeleting_`, `archiveJobInSheets_`, `restoreJobInSheets_`, `markJobDeletedInSheets_`.
+- Code.gs mirror: `dgSupabaseMirrorWritesEnabled_`, `dgSupabaseMirrorLineId_`, `dgNormalizeJobForSupabase_`, `dgNormalizeJobLineForSupabase_`, `dgMirrorJobLinesToSupabase_`, `dgMirrorSavedJobToSupabase_`.
+- Code.gs output: `getGeneratedWorkOrderHtml`, `generatedDetailBlock_`, `buildGeneratedWorkorderPdfBlob_`, `emailWorkOrder`.
+- Index.html header/lifecycle: `newJob`, `readJob`, `writeJob`, `validateJob`, `payload`, `saveCurrentJob`, `openJob`, `renderPrevious`, `exitCurrentJob`.
+- Index.html lines/glass: `renderLine`, `buildLine`, `validateLineForCommit`, `calculateGlass`, `runGlassCalc`, `editLine`, `saveLine`, `renderDoorList`.
+- Index.html active UI: `#currentJobCard`, `#desktopJobWorkspace`, `#desktopJobActionBar`, `#doorList`, `#previousJobs`, `#roPanel`, `#unsavedEntryModal`, `#status`; `setupDesktopJobWorkspace`, `detectTruePhone`, `applyTerminalTheme`.

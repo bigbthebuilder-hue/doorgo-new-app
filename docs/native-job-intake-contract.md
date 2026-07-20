@@ -53,6 +53,17 @@ The native workflow must reproduce the reviewed active behavior deliberately, pr
 - Confirmation still does **not** require a BizTrack Sales Order, salesperson, Shop Hours, fulfillment date, production booking, or Calendar record. Those are separate production-readiness concerns, not confirmation prerequisites.
 - This intentionally differs from deployed `validatePayload_`/`validateJob`, which require at least one line for every save and whose browser additionally requires Salesperson for a confirmed job. Native code must preserve the deployed **line validity** rules while applying the approved native lifecycle gate at Draft-to-Confirmed transition.
 
+#### Approved J2 door-line and transition permissions
+
+- `jobs = view` may open jobs and inspect every active and archived door line. It may not add, edit, duplicate, merge, reorder, archive, restore or remove lines, and it may not change lifecycle state.
+- `jobs = use` may add and edit door lines; duplicate lines; merge equivalent lines where the deployed contract permits; reorder lines; reversibly archive/remove lines; and restore archived lines.
+- `jobs = use` may change `Draft` to `Confirmed Job` when at least one valid **active** door line exists, and may return `Confirmed Job` to `Draft` for corrections. Returning to Draft preserves the permanent job identity and every line identity.
+- Manager status grants no fallback for either door-line operations or lifecycle transitions. The explicit `jobs` permission remains authoritative.
+- J2 removal is reversible/archive-style. The J2 user interface must not permanently delete a door-line record.
+- Archived lines never satisfy the confirmation minimum. A Confirmed Job may remain confirmed only while at least one valid active line exists.
+- If archiving/removing a line would leave a Confirmed Job with no valid active door lines, J2 must block that action. If editing the final valid active line would make it invalid, J2 must block the save. The app must not automatically return the job to Draft; it must clearly explain that the user must first return the job to Draft or add another valid active door line. The blocked operation preserves every job and line identity.
+- No door-line operation or Draft/Confirmed transition creates a production booking, fulfillment record, Calendar record or scheduling mutation.
+
 #### Approved salesperson behavior
 
 - A new job defaults Salesperson from the signed-in user's configured sales identity.
@@ -63,7 +74,7 @@ The native workflow must reproduce the reviewed active behavior deliberately, pr
 
 ### D. Open decisions
 
-The pre-BizTrack identity, confirmation-without-Sales-Order, confirmed-job minimum-line, and salesperson behavior questions are resolved by the invariants above. The remainder of the draft lifecycle, production-readiness gate, sales-identity configuration, internal-ID format, line-ID format, reorder mechanics, concurrency, Phone/Email storage, archive/delete permissions, database grants/RPCs, and hosted activation still require explicit approval (§12). This document records alternatives; it does not silently decide them.
+The pre-BizTrack identity, confirmation-without-Sales-Order, confirmed-job minimum-line, salesperson behavior, J2 door-line permission model, Draft/Confirmed transition permissions, last-valid-active-line behavior, and J2 local aggregate identity/order/atomicity/concurrency/retention choices are resolved by the invariants above. Remaining decisions include later draft abandonment/purge policy, production-readiness gate, sales-identity configuration, hosted internal-ID and line-ID representation, hosted reorder mechanics, Phone/Email storage, job-level archive permissions, database grants/RPCs, and hosted activation (§12). This document records alternatives; it does not silently decide them.
 
 ## 2. Job-header contract
 
@@ -234,6 +245,26 @@ Traceability: Code.gs `shopHoursRuleForLine_`, `calculateShopHours_`, `shopHours
 - The two mirror calls are not one transaction in the deployed Apps Script.
 - Mirror failure is logged with `DG_SUPABASE_MIRROR_WARNING` and never blocks or reverses the successful Sheets save. `dgMirrorSavedJobToSupabase_` also catches and returns failure, so the outer caller normally continues.
 
+### Approved J2 lifecycle behavior
+
+1. Drafts may contain zero active lines. Confirmation requires at least one active line that passes the complete deployed door-line validation contract.
+2. Archived lines remain inspectable to `jobs = view` and `jobs = use`, but do not count toward confirmation.
+3. `jobs = use` owns the reversible line actions and both `Draft` → `Confirmed Job` and `Confirmed Job` → `Draft` transitions. `jobs = view` owns none of those mutations.
+4. Removing a line in J2 archives it; restoring makes that same permanent line identity active again. No J2 user-interface action permanently deletes a line.
+5. Returning a job to Draft, editing its BizTrack Sales Order, reordering lines, archiving lines and restoring lines never replace the job identity or any line identity.
+6. A Confirmed Job must retain at least one valid active line. Archiving/removing its final valid active line is blocked, as is saving an edit that makes that final valid line invalid. J2 never automatically returns the job to Draft; the explanation directs the user to first return it to Draft or add another valid active line. All identities remain unchanged.
+7. These lifecycle and line actions are intake-only. They must not create production bookings, fulfillment records, Calendar records or scheduling mutations.
+
+### Approved J2 local aggregate technical contract
+
+- Each door line receives an immutable UUID `lineId` when first created. Duplicate creates a new logical line with a new UUID; edit, reorder, archive/remove and restore preserve the existing `lineId`.
+- `lineIndex` is display/order data only. It may change during reordering and must never be used as line identity.
+- The local aggregate stores the job header and every active and archived door line together in the same local record.
+- Each J2 aggregate save writes the complete job header and line collection in one atomic local-file operation. A partially saved header/line state must not become visible.
+- The job `revision` is the optimistic-concurrency token for the whole aggregate: both header and door-line changes advance it, and a save with a stale expected revision is rejected.
+- J2 exposes no permanent deletion for either jobs or door lines. Door-line removal is archive-style, and abandoned Draft jobs remain retained in local disposable storage for now.
+- These are J2 local/disposable implementation choices only. They do not define or activate the later hosted schema, transaction/RPC or reorder mechanism.
+
 ### Required native contrast (recommendation, not finalized)
 
 - Assign the approved permanent hidden internal job identity on first save, including when the BizTrack Sales Order is null. Assign a separate, non-reused human-readable DoorGo reference for pre-BizTrack display. Store Sales Order separately and allow corrections without re-keying the job or its lines. The DoorGo reference is not a fake or temporary Sales Order.
@@ -351,8 +382,11 @@ This is the exact deployed mirror projection. `raw_job` or `raw_line` means the 
 ## 11. Required native security behavior
 
 - Browser controls are not authorization. Every read/write service must resolve authenticated access server-side.
-- Proposed interpretation for review: `jobs:none` no access; `jobs:view` list/open/print only; `jobs:use` create/edit/archive/delete as separately approved. Manager status should not grant fallback because the existing auth contract treats manager as identity, not implicit module access.
-- No choice in the preceding bullet is final until approved.
+- `jobs:none` has no Job Intake access.
+- `jobs:view` may list/open jobs and inspect active and archived door lines. It may not mutate lines or lifecycle state.
+- `jobs:use` may create/edit jobs; add, edit, duplicate, permitted-merge and reorder lines; reversibly archive/remove and restore lines; confirm a Draft with at least one valid active line; and return a Confirmed Job to Draft.
+- Manager status provides no implicit permission fallback. Server enforcement must use the explicit `jobs` access level for every line action and lifecycle transition.
+- J2 exposes no permanent door-line delete. Archive/remove and restore operate on the same stable line identity.
 - J1-J4 must have no Supabase intake mutation path: no browser table writes, authenticated server writes, service-role writes, mutation RPC, RLS policy, or grant.
 - Eventually, use a narrow authenticated database RPC/transaction with RLS/grant review. Never use `createTrustedReadOnlySupabaseClient` for intake writes.
 - `ON DELETE CASCADE` is a database integrity property, not permission to expose hard deletion.
@@ -363,22 +397,24 @@ This is the exact deployed mirror projection. `raw_job` or `raw_line` means the 
 |---|---|---|
 | **Resolved: pre-BizTrack draft identity** | A job is saveable without a Sales Order; first save assigns a permanent immutable internal job identity; Sales Order remains separate, nullable and editable; lines stay attached to internal identity; no draft Production Board/production/fulfillment/Calendar effects. | **Approved.** Do not use fake or temporary Sales Order primary keys. J5 must design the hosted schema representation. |
 | **Resolved: visible pre-BizTrack identifier** | Assign a unique, never-reused human-readable DoorGo reference. Show it only while Sales Order is blank; once Sales Order exists, use Sales Order throughout normal UI/print and retain the DoorGo reference only for audit, recovery and historical traceability. | **Approved.** Exact temporary-reference format and allocation mechanism are J1 implementation details unless later evidence requires approval. Neither visible value is a relational key. |
-| Remaining draft lifecycle | Explicit Draft state separate from deployed active/archived/deleted semantics. | Define required fields, abandon/reopen rules, retention and transition to business confirmation. Identity, nullable Sales Order, and the ability to confirm without Sales Order are no longer open. |
+| Remaining draft lifecycle | Explicit Draft state separate from deployed active/archived/deleted semantics. | Abandoned Drafts remain retained in J2 local disposable storage. Later purge/retention policy remains open. Transition authority and last-valid-active-line behavior are resolved: `jobs=use` may confirm with one valid active line and may return Confirmed Job to Draft; an edit/archive that would leave a Confirmed Job without a valid active line is blocked until the user first returns it to Draft or adds another valid active line. |
 | **Resolved: confirmation requires Sales Order?** | No. `Confirmed Job` represents business/customer commitment; BizTrack entry is a separate downstream milestone. Confirmation must not itself create production, fulfillment, or Calendar records. | **Approved.** Do not couple confirmation to BizTrack identity or production readiness. |
 | **Resolved: confirmed-job minimum lines** | Draft may save with zero lines. Transition to `Confirmed Job` requires at least one line passing the complete deployed line-validation contract. | **Approved.** Sales Order, Salesperson, Shop Hours, fulfillment, booking and Calendar are not confirmation prerequisites. |
+| **Resolved: J2 door-line permissions** | `jobs=view` may inspect active/archived lines but perform no line mutation. `jobs=use` may add, edit, duplicate, permitted-merge, reorder, archive/remove and restore lines. | **Approved.** Removal is reversible/archive-style; J2 UI exposes no permanent line deletion. Manager provides no fallback. |
+| **Resolved: Draft/Confirmed transition permissions and last-valid-active-line behavior** | `jobs=use` may confirm when one valid active line exists and may return Confirmed Job to Draft while preserving all identities. `jobs=view` may not transition lifecycle. | **Approved.** Archived lines do not count. Removing/invalidating the final valid active line of a Confirmed Job is blocked with instructions to first return to Draft or add another valid active line; no automatic transition occurs. No transition or line action creates production, fulfillment, Calendar or scheduling records. |
 | **Resolved: salesperson behavior** | Default new jobs from the signed-in user's configured sales identity; allow any `jobs=use` user to edit/reassign; save a historical snapshot; allow missing through confirmation but block readiness. | **Approved.** Profile changes do not rewrite jobs. The source/admin model for configured sales identity remains open. |
 | Production-readiness gate | Use an explicit state/decision separate from confirmation and evaluate all approved prerequisites before downstream eligibility. | Approve whether it requires Sales Order, salesperson, authoritative Shop Hours, complete intake, fulfillment information, and any override workflow. |
 | Internal job-ID format | Use a permanent opaque generated identifier that is not a Sales Order. | UUID or ULID remains to be approved; its immutability and first-save allocation are already decided. |
-| Stable line ID | UUID generated at line creation and preserved forever. | ULID or server UUID; whether legacy positional IDs are retained during import. |
-| Reordering | Transactional two-phase renumber initially. | Deferrable unique constraint or sparse ordering; confirm actual hosted constraint definition first. |
-| Aggregate save | One authenticated atomic RPC/transaction for header plus line diff. | Server-held SQL transaction through another trusted backend; separate REST writes are not acceptable. |
-| Optimistic concurrency | Add/use a version token and expected version; return conflict with reload/compare UI. | Conditional `updated_at`; define timestamp precision and legacy edits. |
+| **Resolved: J2 local line identity/order** | Generate immutable UUID `lineId` at first line creation; treat `lineIndex` as mutable display/order data and preserve `lineId` through reorder/archive/restore. | **Approved for J2 local storage.** Hosted representation, import handling and hosted reorder mechanics remain J5 decisions. |
+| **Resolved: J2 local aggregate save** | Store header plus all active/archived lines together and write the complete aggregate in one atomic local-file operation. | **Approved for J2.** Later hosted implementation still requires one authenticated database transaction/RPC. |
+| **Resolved: J2 aggregate concurrency** | One job `revision` covers header and line changes; every aggregate change advances it and stale expected revisions are rejected. | **Approved for J2.** Hosted token representation remains a J5 decision. |
 | Phone/Email | Add dedicated nullable normalized columns after separate migration review; retain raw JSON during transition. | Keep only raw JSON (not recommended); decide validation and search/index needs. |
-| Archive permission | Likely `jobs:use`, perhaps separate elevated permission later. | Manager-only or dedicated lifecycle permission. |
-| Delete permission | Do not expose hard delete; retain explicit soft-delete with elevated confirmation/audit. | Manager-only mark-deleted; dedicated permission. |
+| **Resolved: line archive/restore permission** | `jobs=use` may archive/remove and restore door lines; `jobs=view` may inspect both states. | **Approved for J2.** These operations preserve line identity. Job-level archive permission remains separate and open. |
+| Line deletion | Do not expose permanent line deletion through J2 UI. | **Resolved for J2.** Any future administrative purge requires separate approval, dependency review and audit design. |
+| **Resolved: J2 job deletion/abandoned Drafts** | Expose no permanent job deletion and retain abandoned Drafts in local disposable storage for now. | **Approved for J2.** Later retention, archive and purge policy remains open. |
 | Cascade delete | Never expose through ordinary UI initially. | Controlled administrator purge with dependency preview/audit only. |
-| Permission semantics | none=no access, view=read/print, use=create/edit; lifecycle capabilities explicitly reviewed. | Whether printing/email belongs to view or use. |
-| Manager fallback | No implicit fallback, consistent with current auth contract. | Explicitly approve narrowly scoped fallback if business requires it. |
+| **Resolved: J2 permission semantics** | none=no access; view=read jobs and active/archived lines; use=J2 job/line edits and approved lifecycle transitions. | **Approved for J2.** Printing/email permissions remain a later J3 decision. |
+| **Resolved: manager fallback** | No implicit fallback, consistent with the current auth contract. | **Approved.** Explicit `jobs` access is authoritative. |
 | Future BizTrack synchronization | Preserve DoorGo internal identity; attach nullable Sales Order, durable external ID, sync state, and last-sync time only after J5 design. | Approve API ownership/direction, conflict rules, retries, idempotency and audit. No columns are designed in J0. |
 | Hosted activation | Only J6, after J1-J4 acceptance and J5 schema/RLS/RPC review, dry run and explicit go-live approval. | No earlier activation. |
 

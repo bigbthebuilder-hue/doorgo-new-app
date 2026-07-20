@@ -87,6 +87,11 @@ const approvedLaterUi = new Set([
   'components/ProductionScheduleInteractiveBoard.tsx',
   'components/ProductionScheduleNavigation.tsx',
   'components/production-board-interaction.ts',
+  'app/jobs/page.tsx',
+  'app/jobs/new/page.tsx',
+  'app/jobs/[internalJobId]/edit/page.tsx',
+  'components/jobs/JobHeaderForm.tsx',
+  'components/jobs/JobsList.tsx',
 ]);
 assert.deepEqual(changed.filter((path) => /^(app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only the exact reviewed C4 UI paths may follow C3');
 assert.deepEqual(changed.filter((path) => path.startsWith('lib/production-board/') && ![

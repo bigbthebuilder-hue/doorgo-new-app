@@ -158,7 +158,8 @@ async function main() {
     const bp = normalizeDoorLineInput(validLine({ mode: 'Interior', config: 'B.P.', width: `2'6"`, prep: 'HALF', material: 'wood', roWidth: '40', roHeight: '80' }));
     assert.equal(bp.ok && bp.value.roWidth, null, 'B.P. excludes F.O. width');
     assert.equal(bp.ok && bp.value.roHeight, '80', 'B.P. preserves cutting F.O. height');
-    assert.equal(normalizeDoorLineInput(validLine({ config: 'SD' })).ok, false, 'J2B glass configs are rejected');
+    const j2bPartial = normalizeDoorLineInput(validLine({ config: 'SD' }));
+    assert.equal(j2bPartial.ok && j2bPartial.value.glassCalcStatus, 'Glass Detail Needed', 'J2B glass configs are now save-valid when detail is incomplete');
     assert.equal(normalizeDoorLineInput(validLine({ customSlab: 'WoodCustom', material: 'wood', customSlabWidth: '', customSlabHeight: '80' })).ok, false);
     assert.equal(normalizeDoorLineInput(validLine({ ripJamb: 'Yes', jambWidth: 'RIP' })).ok, false);
 

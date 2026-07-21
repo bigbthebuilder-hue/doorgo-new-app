@@ -4,6 +4,8 @@ import {
   type DoorLineMode,
   type NativeDoorLine,
 } from './job-intake-types';
+import { DIMENSION_FORMAT_HELP, parseDimension } from './dimension-contract';
+import { isGlassConfiguration, normalizeGlassDomainFields } from './glass-geometry-contract';
 
 export const INTERIOR_WIDTHS = [
   `1'6"`, `2'0"`, `2'2"`, `2'4"`, `2'6"`, `2'8"`, `2'10"`, `3'0"`,
@@ -34,16 +36,6 @@ function text(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const trimmed = String(value).trim();
   return trimmed || null;
-}
-
-function jsonArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? structuredClone(value) : [];
-}
-
-function jsonObject(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? structuredClone(value as Record<string, unknown>)
-    : null;
 }
 
 export function parseDoorInches(value: unknown): number {
@@ -97,9 +89,11 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
     notes: '', qty: 1, material: mode === 'Exterior' ? 'fiberglass' : 'wood',
     doorThickness: '', ripJamb: '', roWidth: '', roHeight: '',
     glass: '', glassCalcStatus: 'Ready', glassWorkorderDetail: '',
-    glassWarnings: '', glassBlockers: '', glassOverride: 'No',
+    glassWarnings: [], glassBlockers: [], glassOverride: null,
     glassUnits: [], glassCalc: null, vendorCopyText: '',
-    sidelightType: 'glass', panelSidelightWidth: '', panelSidelights: [],
+    sidelightType: 'Glass', sidelightGlass: '', transomGlass: '',
+    sidelightMeasurementLeft: '', sidelightMeasurementRight: '',
+    panelSidelightWidth: '', panelSidelights: [],
   };
 }
 
@@ -112,10 +106,9 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
 
   if (mode !== 'Interior' && mode !== 'Exterior') errors.mode = 'Choose Interior or Exterior.';
   const supported = mode && config
-    ? (J2A_CONFIGS[mode] as readonly string[]).includes(config)
+    ? (J2A_CONFIGS[mode] as readonly string[]).includes(config) || (mode === 'Exterior' && isGlassConfiguration(config))
     : false;
   if (!config) errors.config = 'Choose a configuration.';
-  else if ((J2B_CONFIGS as readonly string[]).includes(config)) errors.config = 'Glass measurement support is coming in J2B; this configuration cannot be saved yet.';
   else if (!supported) errors.config = 'That configuration is not available for the selected mode.';
   const allowedWidths = mode === 'Interior' ? INTERIOR_WIDTHS : EXTERIOR_WIDTHS;
   if (!width || !(allowedWidths as readonly string[]).includes(width)) errors.width = 'Choose a deployed width for this mode.';
@@ -134,8 +127,8 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   if (!['No', 'RO', 'WoodCustom'].includes(customSlab)) errors.customSlab = 'Choose Standard, Custom RO / Cut Down, or Custom Wood Slab.';
   if (customSlab === 'WoodCustom') {
     if (material !== 'wood') errors.customSlab = 'Custom slab dimensions are available for Wood only.';
-    if (!(parseDoorInches(input.customSlabWidth) > 0)) errors.customSlabWidth = 'Enter a positive custom slab width.';
-    if (!(parseDoorInches(input.customSlabHeight) > 0)) errors.customSlabHeight = 'Enter a positive custom slab height.';
+    if (!parseDimension(input.customSlabWidth).ok) errors.customSlabWidth = `Enter a valid custom slab width. ${DIMENSION_FORMAT_HELP}`;
+    if (!parseDimension(input.customSlabHeight).ok) errors.customSlabHeight = `Enter a valid custom slab height. ${DIMENSION_FORMAT_HELP}`;
   }
 
   const allowedPreps = mode && config ? prepChoices(mode, config) : [];
@@ -164,6 +157,13 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
     else if (finishedOpening - 2.75 >= slabHeight - 0.001) roHeight = null;
   }
 
+  const glassDomain = mode === 'Exterior' && config && isGlassConfiguration(config)
+    ? normalizeGlassDomainFields(input)
+    : null;
+  if (glassDomain?.glassCalcStatus === 'Blocked' || glassDomain?.glassCalcStatus === 'Unsupported') {
+    errors.glass = glassDomain.glassBlockers.map((entry) => entry.message).join(' ');
+  }
+
   if (Object.keys(errors).length) return { ok: false, message: 'Review the highlighted door-line fields.', fieldErrors: errors };
 
   return {
@@ -180,12 +180,12 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       hingeType: noJamb ? null : text(input.hingeType), notes: text(input.notes), qty: quantity,
       roWidth: noJamb ? null : text(input.roWidth), roHeight: config === 'PKT' ? null : roHeight,
       material, doorThickness: text(input.doorThickness),
-      glassCalcStatus: text(input.glassCalcStatus) ?? 'Ready',
-      glassWorkorderDetail: text(input.glassWorkorderDetail), glassWarnings: text(input.glassWarnings),
-      glassBlockers: text(input.glassBlockers), glassOverride: text(input.glassOverride) ?? 'No',
-      glassUnits: jsonArray(input.glassUnits), glassCalc: jsonObject(input.glassCalc),
-      vendorCopyText: text(input.vendorCopyText), sidelightType: text(input.sidelightType) ?? 'glass',
-      panelSidelightWidth: text(input.panelSidelightWidth), panelSidelights: jsonArray(input.panelSidelights),
+      ...(glassDomain ?? {
+        glassCalcStatus: 'Ready' as const, glassWorkorderDetail: null, glassWarnings: [], glassBlockers: [],
+        glassOverride: null, glassUnits: [], glassCalc: null, vendorCopyText: null, sidelightType: null,
+        sidelightGlass: null, transomGlass: null, sidelightMeasurementLeft: null,
+        sidelightMeasurementRight: null, panelSidelightWidth: null, panelSidelights: [],
+      }),
     },
   };
 }
@@ -217,7 +217,7 @@ export function calculateJ2AShopHours(lines: DoorLineInput[]): {
     const config = String(line.config ?? '').trim();
     const base: Record<string, Record<string, number>> = {
       Interior: { D: 15, DD: 30, PKT: 15, 'B.P.': 15 },
-      Exterior: { D: 60, DD: 90 },
+      Exterior: { D: 60, DD: 90, SD: 180, DS: 180, SDS: 240, SDDS: 270, 'T/D': 90, 'T/DD': 120, 'T/SD': 240, 'T/DS': 240, 'T/SDS': 300, 'T/SDDS': 330 },
     };
     const baseMinutes = base[mode]?.[config];
     if (!baseMinutes) {
@@ -225,7 +225,7 @@ export function calculateJ2AShopHours(lines: DoorLineInput[]): {
       return;
     }
     let unitMinutes = baseMinutes;
-    if (String(line.prep ?? '').toUpperCase() === 'MULTI') unitMinutes += config === 'DD' ? 90 : 45;
+    if (String(line.prep ?? '').toUpperCase() === 'MULTI') unitMinutes += ['DD', 'SDDS', 'T/DD', 'T/SDDS'].includes(config) ? 90 : 45;
     if (line.customSlab === 'RO') unitMinutes += config === 'D' ? 30 : config === 'DD' ? 45 : 0;
     if (String(line.ripJamb ?? '').toLowerCase() === 'yes') unitMinutes += 15;
     minutes += unitMinutes * Math.max(1, Number(line.qty) || 1);
@@ -240,7 +240,8 @@ const DEPLOYED_MERGE_FIELDS = [
   'customSlabHeight', 'hand', 'prep', 'glass', 'jambWidth', 'ripJamb', 'jambType',
   'sill', 'weatherstrip', 'hingeType', 'notes', 'roWidth', 'roHeight', 'material',
   'doorThickness', 'glassCalcStatus', 'glassWorkorderDetail', 'glassWarnings',
-  'glassBlockers', 'glassOverride', 'vendorCopyText',
+  'vendorCopyText', 'sidelightType', 'sidelightGlass', 'transomGlass',
+  'sidelightMeasurementLeft', 'sidelightMeasurementRight', 'panelSidelightWidth',
 ] as const;
 
 export function doorLineEquivalenceKey(line: DoorLineInput): string {
@@ -248,8 +249,12 @@ export function doorLineEquivalenceKey(line: DoorLineInput): string {
   for (const field of DEPLOYED_MERGE_FIELDS) comparable[field] = String(line[field] ?? '').trim();
   return JSON.stringify({
     ...comparable,
+    glassWarnings: JSON.stringify(line.glassWarnings ?? []),
+    glassBlockers: JSON.stringify(line.glassBlockers ?? []),
+    glassOverride: JSON.stringify(line.glassOverride ?? null),
     glassUnits: JSON.stringify(line.glassUnits ?? []),
     glassCalc: JSON.stringify(line.glassCalc ?? null),
+    panelSidelights: JSON.stringify(line.panelSidelights ?? []),
   });
 }
 

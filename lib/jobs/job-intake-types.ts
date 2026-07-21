@@ -2,6 +2,43 @@ export type JobLifecycleStage = 'Draft' | 'Confirmed Job';
 export type DoorLineMode = 'Interior' | 'Exterior';
 export type DoorLineStatus = 'Active' | 'Archived' | 'Merged';
 
+export type GlassCalculationStatus =
+  | 'Complete'
+  | 'Glass Detail Needed'
+  | 'Warning'
+  | 'Blocked'
+  | 'Manual Override'
+  | 'Unsupported'
+  | 'Ready'
+  | 'Not Needed';
+
+export type GlassIssue = { code: string; message: string };
+export type SidelightType = 'Glass' | 'Panel';
+export type GlassUnit = {
+  position: string;
+  width: string;
+  height: string;
+  glassType: string;
+  termCode: string;
+  qty: number;
+};
+export type PanelSidelight = {
+  position: string;
+  material: 'Wood' | 'Fiberglass';
+  width: string;
+  height: string;
+  qty: number;
+};
+export type GlassGeometryValues = Record<string, string | number | boolean | null | PanelSidelight[]>;
+export type GlassOverrideApproval = {
+  calculatedValues: GlassGeometryValues;
+  acceptedValues: GlassGeometryValues;
+  reason: string;
+  appliedByUserId: string;
+  appliedByDisplayName: string | null;
+  appliedAt: string;
+};
+
 export type NativeDoorLine = {
   lineId: string;
   lineIndex: number;
@@ -29,17 +66,21 @@ export type NativeDoorLine = {
   material: string | null;
   doorThickness: string | null;
   ripJamb: string | null;
-  glassCalcStatus: string | null;
+  glassCalcStatus: GlassCalculationStatus | null;
   glassWorkorderDetail: string | null;
-  glassWarnings: string | null;
-  glassBlockers: string | null;
-  glassOverride: string | null;
-  glassUnits: unknown[];
-  glassCalc: Record<string, unknown> | null;
+  glassWarnings: GlassIssue[];
+  glassBlockers: GlassIssue[];
+  glassOverride: GlassOverrideApproval | null;
+  glassUnits: GlassUnit[];
+  glassCalc: GlassGeometryValues | null;
   vendorCopyText: string | null;
-  sidelightType: string | null;
+  sidelightType: SidelightType | null;
+  sidelightGlass: string | null;
+  transomGlass: string | null;
+  sidelightMeasurementLeft: string | null;
+  sidelightMeasurementRight: string | null;
   panelSidelightWidth: string | null;
-  panelSidelights: unknown[];
+  panelSidelights: PanelSidelight[];
   createdAt: string;
   updatedAt: string;
   createdByUserId: string;

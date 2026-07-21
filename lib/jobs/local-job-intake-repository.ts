@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { assertConfirmedJobActiveLineInvariant, calculateJ2AShopHours, normalizeDoorLineInput } from './door-line-contract';
+import { geometryChanged } from './glass-geometry-contract';
 import { formatDoorGoReference, isUuid, normalizeJobHeaderInput } from './job-intake-contract';
 import {
   JobIntakeFailure,
@@ -134,15 +135,18 @@ function normalizeAggregateLines(inputLines: DoorLineInput[], existing: NativeDo
   }
 
   const prepared = inputLines.map((input, inputIndex) => {
-    const normalized = normalizeDoorLineInput(input);
-    if (normalized.ok === false) {
-      throw new JobIntakeFailure('validation_failed', `Door line ${inputIndex + 1}: ${normalized.message}`, Object.fromEntries(Object.entries(normalized.fieldErrors).map(([key, value]) => [`lines.${inputIndex}.${key}`, value])));
-    }
     const submittedLineId = typeof input.lineId === 'string' ? input.lineId : '';
     const prior = submittedLineId ? existingById.get(submittedLineId) : undefined;
     if (submittedLineId && !prior && !isUuid(submittedLineId)) throw new JobIntakeFailure('validation_failed', 'A new door line must have a valid UUID identity.');
     if (prior?.lineStatus === 'Merged' && input.lineStatus !== 'Merged') {
       throw new JobIntakeFailure('validation_failed', 'A merged-away door line is retained for audit and cannot be restored.');
+    }
+    const normalizedInput = (!prior || geometryChanged(prior, input)) && input.glassOverride
+      ? { ...input, glassOverride: null }
+      : input;
+    const normalized = normalizeDoorLineInput(normalizedInput);
+    if (normalized.ok === false) {
+      throw new JobIntakeFailure('validation_failed', `Door line ${inputIndex + 1}: ${normalized.message}`, Object.fromEntries(Object.entries(normalized.fieldErrors).map(([key, value]) => [`lines.${inputIndex}.${key}`, value])));
     }
     const lineStatus = input.lineStatus === 'Archived' || input.lineStatus === 'Merged' ? input.lineStatus : 'Active';
     return {

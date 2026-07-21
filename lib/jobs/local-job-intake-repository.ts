@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { assertConfirmedJobActiveLineInvariant, calculateJ2AShopHours, normalizeDoorLineInput } from './door-line-contract';
 import { geometryChanged } from './glass-geometry-contract';
-import { formatDoorGoReference, isUuid, normalizeJobHeaderInput } from './job-intake-contract';
+import { formatDoorGoReference, isUuid, normalizeJobHeaderInput, normalizePoNumbers } from './job-intake-contract';
 import {
   JobIntakeFailure,
   type CreateJobHeaderCommand,
@@ -54,7 +54,9 @@ function emptyStore(): LocalJobStore {
 }
 
 function compatibleAggregate(job: NativeJobHeader & { lines?: unknown }): NativeJobAggregate {
-  return { ...job, lines: Array.isArray(job.lines) ? job.lines as NativeDoorLine[] : [] };
+  const poNumbers = normalizePoNumbers((job as NativeJobHeader & { poNumbers?: unknown }).poNumbers);
+  if (poNumbers.ok === false) throw new Error(`Invalid local intake data: ${poNumbers.message}`);
+  return { ...job, poNumbers: poNumbers.value, lines: Array.isArray(job.lines) ? job.lines as NativeDoorLine[] : [] };
 }
 
 function parseStore(raw: string): LocalJobStore {

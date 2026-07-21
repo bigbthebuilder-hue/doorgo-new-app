@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createDraftJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine } from '@/lib/jobs/door-line-contract';
+import { jobAggregateDirtySnapshot, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
 import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggregate } from '@/lib/jobs/job-intake-types';
 import { DoorLineWorkspace } from './DoorLineWorkspace';
 
@@ -18,6 +19,7 @@ type FormValues = {
   hingeColor: string;
   shopHours: string;
   shopHoursSource: string;
+  poNumbers: string[];
   fulfillmentPlan: string;
   deliveryDate: string;
   customerPickupDate: string;
@@ -36,6 +38,7 @@ function initialValues(job: NativeJobAggregate | null, defaultSalesperson: strin
     hingeColor: job?.hingeColor ?? '',
     shopHours: job?.shopHours === null || job?.shopHours === undefined ? '' : String(job.shopHours),
     shopHoursSource: job?.shopHoursSource ?? '',
+    poNumbers: job?.poNumbers ?? [],
     fulfillmentPlan: job?.fulfillmentPlan ?? '',
     deliveryDate: job?.deliveryDate ?? '',
     customerPickupDate: job?.customerPickupDate ?? '',
@@ -72,8 +75,9 @@ export function JobHeaderForm({
   const [values, setValues] = useState(() => initialValues(initialJob, defaultSalesperson));
   const [lines, setLines] = useState<DoorLineInput[]>(() => initialJob?.lines ?? []);
   const [lifecycleStage, setLifecycleStage] = useState<JobLifecycleStage>(initialJob?.lifecycleStage ?? 'Draft');
-  const snapshot = (nextValues = values, nextLines = lines, nextStage = lifecycleStage) => JSON.stringify({ values: nextValues, lines: nextLines, lifecycleStage: nextStage });
-  const [baseline, setBaseline] = useState(() => JSON.stringify({ values: initialValues(initialJob, defaultSalesperson), lines: initialJob?.lines ?? [], lifecycleStage: initialJob?.lifecycleStage ?? 'Draft' }));
+  const [pendingPoNumber, setPendingPoNumber] = useState('');
+  const snapshot = (nextValues = values, nextLines = lines, nextStage = lifecycleStage, nextPendingPo = pendingPoNumber) => jobAggregateDirtySnapshot({ values: nextValues, lines: nextLines, lifecycleStage: nextStage, pendingPoNumber: nextPendingPo });
+  const [baseline, setBaseline] = useState(() => jobAggregateDirtySnapshot({ values: initialValues(initialJob, defaultSalesperson), lines: initialJob?.lines ?? [], lifecycleStage: initialJob?.lifecycleStage ?? 'Draft', pendingPoNumber: '' }));
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
@@ -110,8 +114,33 @@ export function JobHeaderForm({
     if (!dirty || window.confirm('Exit without saving your changes?')) router.push('/jobs');
   }
 
+  function addPoNumber() {
+    if (!canEdit) return;
+    const normalized = normalizePoNumbers([...values.poNumbers, pendingPoNumber]);
+    if (!pendingPoNumber.trim() || !normalized.ok) {
+      setFieldErrors((current) => ({ ...current, poNumbers: normalized.ok ? 'Enter a PO Number before adding it.' : normalized.message }));
+      return;
+    }
+    setValues((current) => ({ ...current, poNumbers: normalized.value }));
+    setPendingPoNumber('');
+    setFieldErrors((current) => ({ ...current, poNumbers: '' }));
+    setMessage(null);
+  }
+
+  function removePoNumber(poNumber: string) {
+    if (!canEdit) return;
+    setValues((current) => ({ ...current, poNumbers: current.poNumbers.filter((value) => value !== poNumber) }));
+    setFieldErrors((current) => ({ ...current, poNumbers: '' }));
+    setMessage(null);
+  }
+
   function save(exitAfterSave: boolean) {
     if (!canEdit || isPending) return;
+    if (pendingPoNumber.trim()) {
+      setFieldErrors((current) => ({ ...current, poNumbers: 'Add the pending PO Number or clear the entry before saving.' }));
+      setMessage({ kind: 'error', text: 'Review the PO Numbers entry.' });
+      return;
+    }
     if (lifecycleStage === 'Confirmed Job' && !hasValidActiveDoorLine(lines)) {
       setMessage({ kind: 'error', text: CONFIRMED_JOB_LINE_MESSAGE });
       return;
@@ -133,7 +162,8 @@ export function JobHeaderForm({
       setValues(savedValues);
       setLines(result.job.lines);
       setLifecycleStage(result.job.lifecycleStage);
-      setBaseline(JSON.stringify({ values: savedValues, lines: result.job.lines, lifecycleStage: result.job.lifecycleStage }));
+      setPendingPoNumber('');
+      setBaseline(jobAggregateDirtySnapshot({ values: savedValues, lines: result.job.lines, lifecycleStage: result.job.lifecycleStage, pendingPoNumber: '' }));
       setMessage({ kind: 'success', text: `${result.job.doorGoReference} saved.` });
       if (exitAfterSave) router.push('/jobs');
       else if (!job) router.replace(`/jobs/${result.job.internalJobId}/edit`);
@@ -178,8 +208,8 @@ export function JobHeaderForm({
           </div>
         </section>
 
-        <details className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" open={Boolean(values.hingeColor || values.shopHours || values.fulfillmentPlan || values.shopDate)}>
-          <summary className="cursor-pointer font-semibold">Production details (optional in Draft)</summary>
+        <details className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" open={Boolean(values.hingeColor || values.shopHours || values.fulfillmentPlan || values.shopDate || values.poNumbers.length)}>
+          <summary className="cursor-pointer font-semibold">Production Setup (optional in Draft)</summary>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <Field label="Hinge Color" name="hingeColor"><input className={inputClass} disabled={!canEdit} id="hingeColor" onChange={(e) => update('hingeColor', e.target.value)} value={values.hingeColor}/></Field>
             <Field error={fieldErrors.shopHours} label="Shop Hours" name="shopHours"><input className={inputClass} disabled={!canEdit} id="shopHours" min="0" onChange={(e) => update('shopHours', e.target.value)} step="0.25" type="number" value={values.shopHours}/></Field>
@@ -187,6 +217,12 @@ export function JobHeaderForm({
             {values.fulfillmentPlan === 'Delivery' ? <Field label="Delivery Date" name="deliveryDate"><input className={inputClass} disabled={!canEdit} id="deliveryDate" onChange={(e) => update('deliveryDate', e.target.value)} type="date" value={values.deliveryDate}/></Field> : null}
             {values.fulfillmentPlan === 'Customer Pickup' ? <Field label="Customer Pickup Date" name="customerPickupDate"><input className={inputClass} disabled={!canEdit} id="customerPickupDate" onChange={(e) => update('customerPickupDate', e.target.value)} type="date" value={values.customerPickupDate}/></Field> : null}
             <Field label="Shop Date" name="shopDate"><input className={inputClass} disabled={!canEdit} id="shopDate" onChange={(e) => update('shopDate', e.target.value)} type="date" value={values.shopDate}/></Field>
+          </div>
+          <div className="mt-4" aria-labelledby="po-numbers-label">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" id="po-numbers-label">PO Numbers</p>
+            {values.poNumbers.length ? <ul className="mt-2 flex flex-wrap gap-2">{values.poNumbers.map((poNumber) => <li className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" key={poNumber}><span>{poNumber}</span>{canEdit ? <button aria-label={`Remove PO ${poNumber}`} className="min-h-10 rounded-lg px-3 font-semibold text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950" onClick={() => removePoNumber(poNumber)} type="button">Remove</button> : null}</li>)}</ul> : <p className="mt-2 text-sm text-slate-500">No PO Numbers saved.</p>}
+            {canEdit ? <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input aria-describedby={fieldErrors.poNumbers ? 'poNumbers-error' : undefined} aria-label="PO Number" className={`${inputClass} rounded-xl border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-950`} inputMode="numeric" onChange={(event) => { setPendingPoNumber(event.target.value); setFieldErrors((current) => ({ ...current, poNumbers: '' })); }} placeholder="Digits only" value={pendingPoNumber}/><button className="min-h-12 rounded-xl bg-sky-700 px-5 font-semibold text-white" onClick={addPoNumber} type="button">Add PO</button></div> : null}
+            {fieldErrors.poNumbers ? <p className="mt-2 text-sm text-rose-700 dark:text-rose-300" id="poNumbers-error">{fieldErrors.poNumbers}</p> : null}
           </div>
         </details>
 

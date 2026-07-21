@@ -43,7 +43,7 @@ assert.ok(workspace.includes('clearMessageTimer();\n      setMessage({ error: tr
 assert.equal(/useEffect\s*\(\s*\(\)\s*=>\s*\{[\s\S]{0,300}setMessage\s*\(/.test(workspace), false, 'effects must not synchronously update message state');
 assert.ok(form.includes("onClick={() => setLifecycleStage('Draft')}"));
 assert.ok(form.includes("onClick={() => setLifecycleStage('Confirmed Job')}"));
-assert.ok(form.includes("JSON.stringify({ values: nextValues, lines: nextLines, lifecycleStage: nextStage })"), 'dirty snapshot must include header, lines, and lifecycle');
+assert.ok(form.includes('jobAggregateDirtySnapshot({ values: nextValues, lines: nextLines, lifecycleStage: nextStage, pendingPoNumber: nextPendingPo })'), 'dirty snapshot must include header, lines, lifecycle, and pending PO input');
 assert.ok(form.includes('expectedRevision: job.revision, input, lines'));
 assert.ok(form.includes('commandId: commandId.current as string, input, lines'));
 console.log('Native Job Intake J2A verifier: PASS');

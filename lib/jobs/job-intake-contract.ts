@@ -25,6 +25,33 @@ function optionalHours(value: unknown): number | null | typeof Number.NaN {
   return Number.isFinite(result) && result >= 0 ? result : Number.NaN;
 }
 
+export type NormalizedPoNumbers =
+  | { ok: true; value: string[] }
+  | { ok: false; message: string };
+
+export function normalizePoNumbers(value: unknown): NormalizedPoNumbers {
+  if (value === undefined || value === null) return { ok: true, value: [] };
+  if (!Array.isArray(value)) return { ok: false, message: 'PO Numbers must be provided as a list.' };
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const item of value) {
+    const po = String(item ?? '').trim();
+    if (!po) continue;
+    if (!/^\d+$/.test(po)) return { ok: false, message: 'PO Numbers must contain digits only.' };
+    if (!seen.has(po)) { seen.add(po); normalized.push(po); }
+  }
+  return { ok: true, value: normalized };
+}
+
+export function jobAggregateDirtySnapshot(input: {
+  values: unknown;
+  lines: unknown;
+  lifecycleStage: unknown;
+  pendingPoNumber?: unknown;
+}): string {
+  return JSON.stringify(input);
+}
+
 export function normalizeJobHeaderInput(
   input: JobHeaderInput,
   fallbackSalesperson: string | null = null,
@@ -33,6 +60,7 @@ export function normalizeJobHeaderInput(
   const siteAddress = optionalText(input.siteAddress);
   const email = optionalText(input.email)?.toLowerCase() ?? null;
   const shopHours = optionalHours(input.shopHours);
+  const poNumbers = normalizePoNumbers(input.poNumbers);
   const fieldErrors: Record<string, string> = {};
 
   if (!customer && !siteAddress) {
@@ -45,6 +73,7 @@ export function normalizeJobHeaderInput(
   if (Number.isNaN(shopHours)) {
     fieldErrors.shopHours = 'Shop Hours must be a non-negative number.';
   }
+  if (poNumbers.ok === false) fieldErrors.poNumbers = poNumbers.message;
   if (input.lifecycleStage !== undefined && input.lifecycleStage !== 'Draft' && input.lifecycleStage !== 'Confirmed Job') {
     fieldErrors.lifecycleStage = 'Choose Draft or Confirmed Job.';
   }
@@ -69,6 +98,7 @@ export function normalizeJobHeaderInput(
       hingeColor: optionalText(input.hingeColor),
       shopHours: shopHours as number | null,
       shopHoursSource: optionalText(input.shopHoursSource),
+      poNumbers: poNumbers.ok ? poNumbers.value : [],
       fulfillmentPlan: optionalText(input.fulfillmentPlan),
       deliveryDate: optionalText(input.deliveryDate),
       customerPickupDate: optionalText(input.customerPickupDate),

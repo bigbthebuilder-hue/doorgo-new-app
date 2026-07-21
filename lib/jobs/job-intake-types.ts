@@ -106,6 +106,7 @@ export type NativeJobHeader = {
   hingeColor: string | null;
   shopHours: number | null;
   shopHoursSource: string | null;
+  poNumbers: string[];
   fulfillmentPlan: string | null;
   deliveryDate: string | null;
   customerPickupDate: string | null;
@@ -123,6 +124,7 @@ export type NativeJobAggregate = NativeJobHeader & { lines: NativeDoorLine[] };
 export type JobHeaderFields = Pick<NativeJobHeader,
   'bizTrackSalesOrder' | 'customer' | 'siteAddress' | 'phone' | 'email' |
   'salesperson' | 'notes' | 'hingeColor' | 'shopHours' | 'shopHoursSource' |
+  'poNumbers' |
   'fulfillmentPlan' | 'deliveryDate' | 'customerPickupDate' | 'shopDate' |
   'shopDateSource'
 >;

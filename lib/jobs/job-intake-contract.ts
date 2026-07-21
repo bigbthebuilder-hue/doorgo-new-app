@@ -45,8 +45,8 @@ export function normalizeJobHeaderInput(
   if (Number.isNaN(shopHours)) {
     fieldErrors.shopHours = 'Shop Hours must be a non-negative number.';
   }
-  if (input.lifecycleStage !== undefined && input.lifecycleStage !== 'Draft') {
-    fieldErrors.lifecycleStage = 'J1 supports Draft jobs only.';
+  if (input.lifecycleStage !== undefined && input.lifecycleStage !== 'Draft' && input.lifecycleStage !== 'Confirmed Job') {
+    fieldErrors.lifecycleStage = 'Choose Draft or Confirmed Job.';
   }
 
   if (Object.keys(fieldErrors).length) {

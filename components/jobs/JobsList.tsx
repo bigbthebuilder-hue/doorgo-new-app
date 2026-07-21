@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { visibleJobIdentifier } from '@/lib/jobs/job-intake-contract';
-import type { NativeJobHeader } from '@/lib/jobs/job-intake-types';
+import type { NativeJobAggregate } from '@/lib/jobs/job-intake-types';
 
 function formattedUpdatedAt(value: string): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -12,7 +12,7 @@ function formattedUpdatedAt(value: string): string {
   }).format(new Date(value));
 }
 
-export function JobsList({ jobs }: { jobs: NativeJobHeader[] }) {
+export function JobsList({ jobs }: { jobs: NativeJobAggregate[] }) {
   const [filter, setFilter] = useState('');
   const normalizedFilter = filter.trim().toLocaleLowerCase();
   const filteredJobs = useMemo(
@@ -51,12 +51,14 @@ export function JobsList({ jobs }: { jobs: NativeJobHeader[] }) {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="truncate text-lg font-semibold">{visibleJobIdentifier(job)}</h3>
-                <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900 dark:bg-amber-950 dark:text-amber-100">Draft</span>
+                <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900 dark:bg-amber-950 dark:text-amber-100">{job.lifecycleStage}</span>
               </div>
               <dl className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
                 <div><dt className="inline text-slate-500 dark:text-slate-400">Customer: </dt><dd className="inline">{job.customer ?? 'Not entered'}</dd></div>
                 <div><dt className="inline text-slate-500 dark:text-slate-400">Site: </dt><dd className="inline">{job.siteAddress ?? 'Not entered'}</dd></div>
                 <div><dt className="inline text-slate-500 dark:text-slate-400">Salesperson: </dt><dd className="inline">{job.salesperson ?? 'Not assigned'}</dd></div>
+                <div><dt className="inline text-slate-500 dark:text-slate-400">Active lines: </dt><dd className="inline">{job.lines.filter((line) => line.lineStatus === 'Active').length}</dd></div>
+                <div><dt className="inline text-slate-500 dark:text-slate-400">Shop Hours: </dt><dd className="inline">{job.shopHours ?? 'Not estimated'}</dd></div>
                 <div><dt className="inline text-slate-500 dark:text-slate-400">Updated: </dt><dd className="inline">{formattedUpdatedAt(job.updatedAt)}</dd></div>
               </dl>
             </div>

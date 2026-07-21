@@ -65,7 +65,7 @@ async function main() {
       'customer and site cannot both be blank',
     );
     assert.equal(normalizeJobHeaderInput({ customer: 'A', email: 'bad address' }).ok, false);
-    assert.equal(normalizeJobHeaderInput({ customer: 'A', lifecycleStage: 'Confirmed Job' }).ok, false, 'J1 cannot confirm');
+    assert.equal(normalizeJobHeaderInput({ customer: 'A', lifecycleStage: 'Confirmed Job' }).ok, true, 'J2 accepts the lifecycle value; aggregate validation enforces the active-line gate');
 
     const identity = customerOnly.internalJobId;
     const reference = customerOnly.doorGoReference;

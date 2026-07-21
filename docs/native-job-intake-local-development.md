@@ -1,6 +1,6 @@
 # Native Job Intake J1 local development
 
-J1 persists draft job headers only to `.local-data/native-job-intake-j1.json`. The adapter is fail-closed and is available only when `DOORGO_LOCAL_INTAKE_ENABLED=true` in a non-production runtime. Do not put credentials in this setting.
+J1/J2 persists complete local job aggregates to `.local-data/native-job-intake-j1.json`. J2 reads existing J1 header-only records as aggregates with no lines, then stores the header plus active/archived lines in one revision-checked atomic write. The adapter is fail-closed and is available only when `DOORGO_LOCAL_INTAKE_ENABLED=true` in a non-production runtime. Do not put credentials in this setting.
 
 To clear disposable J1 data, stop the development server and delete only `.local-data/native-job-intake-j1.json`. The directory is repository-locally excluded from Git.
 

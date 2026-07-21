@@ -92,6 +92,7 @@ const approvedLaterUi = new Set([
   'app/jobs/[internalJobId]/edit/page.tsx',
   'components/jobs/JobHeaderForm.tsx',
   'components/jobs/JobsList.tsx',
+  'components/jobs/DoorLineWorkspace.tsx',
 ]);
 assert.deepEqual(changed.filter((path) => /^(app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only the exact reviewed C4 UI paths may follow C3');
 assert.deepEqual(changed.filter((path) => path.startsWith('lib/production-board/') && ![

@@ -4,9 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { getPermissionAccess } from '@/lib/auth/access';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { canWriteJobs, jobFailureMessage } from './job-intake-contract';
+import { assertConfirmedJobActiveLineInvariant } from './door-line-contract';
 import { createJobWithAccess, updateJobWithAccess } from './job-intake-service';
 import {
   JobIntakeFailure,
+  type DoorLineInput,
   type JobHeaderInput,
   type JobIntakeActionResult,
 } from './job-intake-types';
@@ -38,10 +40,12 @@ function actionWriteCheck(access: Awaited<ReturnType<typeof getCurrentDoorGoAcce
 export async function createDraftJobAction(request: {
   commandId: string;
   input: JobHeaderInput;
+  lines?: DoorLineInput[];
 }): Promise<JobIntakeActionResult> {
   try {
     const access = await getCurrentDoorGoAccess();
     actionWriteCheck(access);
+    assertConfirmedJobActiveLineInvariant(request.input.lifecycleStage, request.lines ?? []);
     const job = await createJobWithAccess(access, request);
     revalidatePath('/jobs');
     return { ok: true, job };
@@ -54,10 +58,12 @@ export async function updateDraftJobAction(request: {
   internalJobId: string;
   expectedRevision: number;
   input: JobHeaderInput;
+  lines?: DoorLineInput[];
 }): Promise<JobIntakeActionResult> {
   try {
     const access = await getCurrentDoorGoAccess();
     actionWriteCheck(access);
+    assertConfirmedJobActiveLineInvariant(request.input.lifecycleStage, request.lines ?? []);
     const job = await updateJobWithAccess(access, request);
     revalidatePath('/jobs');
     revalidatePath(`/jobs/${job.internalJobId}/edit`);

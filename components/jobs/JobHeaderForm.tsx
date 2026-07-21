@@ -3,7 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createDraftJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
-import type { JobHeaderInput, NativeJobHeader } from '@/lib/jobs/job-intake-types';
+import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine } from '@/lib/jobs/door-line-contract';
+import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggregate } from '@/lib/jobs/job-intake-types';
+import { DoorLineWorkspace } from './DoorLineWorkspace';
 
 type FormValues = {
   bizTrackSalesOrder: string;
@@ -15,13 +17,14 @@ type FormValues = {
   notes: string;
   hingeColor: string;
   shopHours: string;
+  shopHoursSource: string;
   fulfillmentPlan: string;
   deliveryDate: string;
   customerPickupDate: string;
   shopDate: string;
 };
 
-function initialValues(job: NativeJobHeader | null, defaultSalesperson: string): FormValues {
+function initialValues(job: NativeJobAggregate | null, defaultSalesperson: string): FormValues {
   return {
     bizTrackSalesOrder: job?.bizTrackSalesOrder ?? '',
     customer: job?.customer ?? '',
@@ -32,6 +35,7 @@ function initialValues(job: NativeJobHeader | null, defaultSalesperson: string):
     notes: job?.notes ?? '',
     hingeColor: job?.hingeColor ?? '',
     shopHours: job?.shopHours === null || job?.shopHours === undefined ? '' : String(job.shopHours),
+    shopHoursSource: job?.shopHoursSource ?? '',
     fulfillmentPlan: job?.fulfillmentPlan ?? '',
     deliveryDate: job?.deliveryDate ?? '',
     customerPickupDate: job?.customerPickupDate ?? '',
@@ -59,19 +63,22 @@ export function JobHeaderForm({
   canEdit,
   defaultSalesperson,
 }: {
-  initialJob: NativeJobHeader | null;
+  initialJob: NativeJobAggregate | null;
   canEdit: boolean;
   defaultSalesperson: string;
 }) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
   const [values, setValues] = useState(() => initialValues(initialJob, defaultSalesperson));
-  const [baseline, setBaseline] = useState(() => JSON.stringify(initialValues(initialJob, defaultSalesperson)));
+  const [lines, setLines] = useState<DoorLineInput[]>(() => initialJob?.lines ?? []);
+  const [lifecycleStage, setLifecycleStage] = useState<JobLifecycleStage>(initialJob?.lifecycleStage ?? 'Draft');
+  const snapshot = (nextValues = values, nextLines = lines, nextStage = lifecycleStage) => JSON.stringify({ values: nextValues, lines: nextLines, lifecycleStage: nextStage });
+  const [baseline, setBaseline] = useState(() => JSON.stringify({ values: initialValues(initialJob, defaultSalesperson), lines: initialJob?.lines ?? [], lifecycleStage: initialJob?.lifecycleStage ?? 'Draft' }));
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
   const commandId = useRef<string | null>(null);
-  const dirty = JSON.stringify(values) !== baseline;
+  const dirty = snapshot() !== baseline;
   const visibleIdentifier = values.bizTrackSalesOrder.trim() || job?.doorGoReference || 'New Draft';
 
   useEffect(() => {
@@ -86,15 +93,15 @@ export function JobHeaderForm({
 
   const input = useMemo<JobHeaderInput>(() => ({
     ...values,
-    lifecycleStage: 'Draft',
-    shopHoursSource: values.shopHours.trim() ? 'Manual' : null,
+    lifecycleStage,
+    shopHoursSource: values.shopHoursSource || null,
     deliveryDate: values.fulfillmentPlan === 'Delivery' ? values.deliveryDate : null,
     customerPickupDate: values.fulfillmentPlan === 'Customer Pickup' ? values.customerPickupDate : null,
     shopDateSource: values.shopDate.trim() ? 'Manual' : null,
-  }), [values]);
+  }), [values, lifecycleStage]);
 
   function update(name: keyof FormValues, value: string) {
-    setValues((current) => ({ ...current, [name]: value }));
+    setValues((current) => ({ ...current, [name]: value, ...(name === 'shopHours' ? { shopHoursSource: value.trim() ? 'Manual' : '' } : {}) }));
     setFieldErrors((current) => ({ ...current, [name]: '' }));
     setMessage(null);
   }
@@ -105,13 +112,17 @@ export function JobHeaderForm({
 
   function save(exitAfterSave: boolean) {
     if (!canEdit || isPending) return;
+    if (lifecycleStage === 'Confirmed Job' && !hasValidActiveDoorLine(lines)) {
+      setMessage({ kind: 'error', text: CONFIRMED_JOB_LINE_MESSAGE });
+      return;
+    }
     setMessage(null);
     setFieldErrors({});
     commandId.current ??= globalThis.crypto.randomUUID();
     startTransition(async () => {
       const result = job
-        ? await updateDraftJobAction({ internalJobId: job.internalJobId, expectedRevision: job.revision, input })
-        : await createDraftJobAction({ commandId: commandId.current as string, input });
+        ? await updateDraftJobAction({ internalJobId: job.internalJobId, expectedRevision: job.revision, input, lines })
+        : await createDraftJobAction({ commandId: commandId.current as string, input, lines });
       if (!result.ok) {
         setMessage({ kind: 'error', text: result.message });
         setFieldErrors(result.fieldErrors ?? {});
@@ -120,7 +131,9 @@ export function JobHeaderForm({
       setJob(result.job);
       const savedValues = initialValues(result.job, defaultSalesperson);
       setValues(savedValues);
-      setBaseline(JSON.stringify(savedValues));
+      setLines(result.job.lines);
+      setLifecycleStage(result.job.lifecycleStage);
+      setBaseline(JSON.stringify({ values: savedValues, lines: result.job.lines, lifecycleStage: result.job.lifecycleStage }));
       setMessage({ kind: 'success', text: `${result.job.doorGoReference} saved.` });
       if (exitAfterSave) router.push('/jobs');
       else if (!job) router.replace(`/jobs/${result.job.internalJobId}/edit`);
@@ -134,16 +147,23 @@ export function JobHeaderForm({
           <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Current Job</p>
           <h1 className="mt-1 text-2xl font-semibold sm:text-3xl">{visibleIdentifier}</h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Draft · {job ? `Revision ${job.revision}` : 'Not saved yet'}
+            {lifecycleStage} · {job ? `Revision ${job.revision}` : 'Not saved yet'}
           </p>
         </div>
         <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-900 dark:bg-amber-950 dark:text-amber-100">
-          {canEdit ? 'Draft' : 'Draft · Read only'}
+          {canEdit ? lifecycleStage : `${lifecycleStage} · Read only`}
         </span>
       </div>
 
       {!canEdit ? <p className="mt-4 rounded-xl bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-100">You have jobs = view access. This draft is read-only.</p> : null}
-      <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">Confirmation becomes available in J2 after at least one valid door line exists. Saving this Draft does not schedule production or create fulfillment or Calendar records.</p>
+      <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">Confirmation requires at least one valid active door line. Saving or confirming does not schedule production or create fulfillment or Calendar records.</p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+        <span className="font-semibold">Lifecycle</span>
+        <button className={`min-h-11 rounded-xl px-4 font-semibold ${lifecycleStage === 'Draft' ? 'bg-amber-600 text-white' : 'border border-slate-300 dark:border-slate-600'}`} disabled={!canEdit} onClick={() => setLifecycleStage('Draft')} type="button">Draft</button>
+        <button className={`min-h-11 rounded-xl px-4 font-semibold ${lifecycleStage === 'Confirmed Job' ? 'bg-emerald-700 text-white' : 'border border-slate-300 dark:border-slate-600'}`} disabled={!canEdit || !hasValidActiveDoorLine(lines)} onClick={() => setLifecycleStage('Confirmed Job')} type="button">Confirmed Job</button>
+        {!hasValidActiveDoorLine(lines) ? <span className="text-sm text-slate-500">Add a valid active line before confirming.</span> : null}
+      </div>
 
       <div className="mt-5 grid gap-4">
         <section aria-labelledby="job-identity-heading">
@@ -172,6 +192,8 @@ export function JobHeaderForm({
 
         <Field label="Job Notes" name="notes"><textarea className={`${inputClass} min-h-24 resize-y`} disabled={!canEdit} id="notes" onChange={(e) => update('notes', e.target.value)} placeholder="Job notes" value={values.notes}/></Field>
       </div>
+
+      <div className="mt-6"><DoorLineWorkspace canEdit={canEdit} lifecycleStage={lifecycleStage} lines={lines} onChange={setLines}/></div>
 
       {message ? <p className={`mt-5 rounded-xl p-3 text-sm ${message.kind === 'success' ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100'}`} role="status">{message.text}</p> : null}
 

@@ -1,4 +1,54 @@
-export type JobLifecycleStage = 'Draft';
+export type JobLifecycleStage = 'Draft' | 'Confirmed Job';
+export type DoorLineMode = 'Interior' | 'Exterior';
+export type DoorLineStatus = 'Active' | 'Archived' | 'Merged';
+
+export type NativeDoorLine = {
+  lineId: string;
+  lineIndex: number;
+  lineStatus: DoorLineStatus;
+  mode: DoorLineMode;
+  doorType: string | null;
+  config: string;
+  width: string;
+  height: string;
+  customSlab: string | null;
+  customSlabWidth: string | null;
+  customSlabHeight: string | null;
+  hand: string | null;
+  prep: string | null;
+  glass: string | null;
+  jambWidth: string | null;
+  jambType: string | null;
+  sill: string | null;
+  weatherstrip: string | null;
+  hingeType: string | null;
+  notes: string | null;
+  qty: number;
+  roWidth: string | null;
+  roHeight: string | null;
+  material: string | null;
+  doorThickness: string | null;
+  ripJamb: string | null;
+  glassCalcStatus: string | null;
+  glassWorkorderDetail: string | null;
+  glassWarnings: string | null;
+  glassBlockers: string | null;
+  glassOverride: string | null;
+  glassUnits: unknown[];
+  glassCalc: Record<string, unknown> | null;
+  vendorCopyText: string | null;
+  sidelightType: string | null;
+  panelSidelightWidth: string | null;
+  panelSidelights: unknown[];
+  createdAt: string;
+  updatedAt: string;
+  createdByUserId: string;
+  updatedByUserId: string;
+};
+
+export type DoorLineInput = Partial<Omit<NativeDoorLine,
+  'createdAt' | 'updatedAt' | 'createdByUserId' | 'updatedByUserId'
+>> & Record<string, unknown>;
 
 export type NativeJobHeader = {
   internalJobId: string;
@@ -26,23 +76,13 @@ export type NativeJobHeader = {
   updatedByUserId: string;
 };
 
-export type JobHeaderFields = Pick<
-  NativeJobHeader,
-  | 'bizTrackSalesOrder'
-  | 'customer'
-  | 'siteAddress'
-  | 'phone'
-  | 'email'
-  | 'salesperson'
-  | 'notes'
-  | 'hingeColor'
-  | 'shopHours'
-  | 'shopHoursSource'
-  | 'fulfillmentPlan'
-  | 'deliveryDate'
-  | 'customerPickupDate'
-  | 'shopDate'
-  | 'shopDateSource'
+export type NativeJobAggregate = NativeJobHeader & { lines: NativeDoorLine[] };
+
+export type JobHeaderFields = Pick<NativeJobHeader,
+  'bizTrackSalesOrder' | 'customer' | 'siteAddress' | 'phone' | 'email' |
+  'salesperson' | 'notes' | 'hingeColor' | 'shopHours' | 'shopHoursSource' |
+  'fulfillmentPlan' | 'deliveryDate' | 'customerPickupDate' | 'shopDate' |
+  'shopDateSource'
 >;
 
 export type JobHeaderInput = Partial<Record<keyof JobHeaderFields, unknown>> & {
@@ -54,6 +94,7 @@ export type CreateJobHeaderCommand = {
   actorUserId: string;
   defaultSalesperson: string | null;
   input: JobHeaderInput;
+  lines?: DoorLineInput[];
 };
 
 export type UpdateJobHeaderCommand = {
@@ -61,26 +102,20 @@ export type UpdateJobHeaderCommand = {
   expectedRevision: number;
   actorUserId: string;
   input: JobHeaderInput;
+  lines?: DoorLineInput[];
 };
 
 export type JobIntakeRepository = {
-  list(): Promise<NativeJobHeader[]>;
-  findById(internalJobId: string): Promise<NativeJobHeader | null>;
-  create(command: CreateJobHeaderCommand): Promise<NativeJobHeader>;
-  update(command: UpdateJobHeaderCommand): Promise<NativeJobHeader>;
+  list(): Promise<NativeJobAggregate[]>;
+  findById(internalJobId: string): Promise<NativeJobAggregate | null>;
+  create(command: CreateJobHeaderCommand): Promise<NativeJobAggregate>;
+  update(command: UpdateJobHeaderCommand): Promise<NativeJobAggregate>;
 };
 
 export type JobIntakeFailureCode =
-  | 'authentication_required'
-  | 'active_profile_required'
-  | 'permission_required'
-  | 'validation_failed'
-  | 'duplicate_biztrack_sales_order'
-  | 'stale_revision'
-  | 'not_found'
-  | 'idempotency_conflict'
-  | 'local_intake_disabled'
-  | 'unavailable';
+  | 'authentication_required' | 'active_profile_required' | 'permission_required'
+  | 'validation_failed' | 'duplicate_biztrack_sales_order' | 'stale_revision'
+  | 'not_found' | 'idempotency_conflict' | 'local_intake_disabled' | 'unavailable';
 
 export class JobIntakeFailure extends Error {
   constructor(
@@ -94,10 +129,5 @@ export class JobIntakeFailure extends Error {
 }
 
 export type JobIntakeActionResult =
-  | { ok: true; job: NativeJobHeader }
-  | {
-      ok: false;
-      code: JobIntakeFailureCode;
-      message: string;
-      fieldErrors?: Record<string, string>;
-    };
+  | { ok: true; job: NativeJobAggregate }
+  | { ok: false; code: JobIntakeFailureCode; message: string; fieldErrors?: Record<string, string> };

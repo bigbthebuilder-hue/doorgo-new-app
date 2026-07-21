@@ -6,6 +6,7 @@ import {
 } from './job-intake-types';
 import { SHOP_DIMENSION_FORMAT_HELP, parseStoredShopDimension } from './dimension-contract';
 import { isGlassConfiguration, normalizeGlassDomainFields } from './glass-geometry-contract';
+import { calculateNonGlassFrameCut } from './non-glass-frame-cut-contract';
 
 export const INTERIOR_WIDTHS = [
   `1'6"`, `2'0"`, `2'2"`, `2'4"`, `2'6"`, `2'8"`, `2'10"`, `3'0"`,
@@ -202,6 +203,11 @@ export function assertConfirmedJobActiveLineInvariant(lifecycleStage: unknown, l
 
 export function isValidActiveDoorLine(line: DoorLineInput): boolean {
   return normalizeDoorLineInput(line).ok;
+}
+
+/** Shared J2 consumer for the authoritative non-glass frame/cut domain result. */
+export function calculateJ2NonGlassFrameCut(line: NativeDoorLine) {
+  return calculateNonGlassFrameCut(line);
 }
 
 export function calculateJ2AShopHours(lines: DoorLineInput[]): {

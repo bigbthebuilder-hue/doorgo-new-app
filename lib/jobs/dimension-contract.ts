@@ -3,6 +3,7 @@ export type DimensionParseResult =
   | { ok: false; code: 'required' | 'units_required' | 'malformed' | 'nonpositive' | 'unsupported_precision'; message: string };
 
 export const DIMENSION_FORMAT_HELP = `Use explicit shop units, for example 3', 3'0", 36", 35 3/4", 35-3/4", or 35.75".`;
+export const SHOP_DIMENSION_FORMAT_HELP = 'Enter inches, for example 54, 54 1/2, 54-1/2, or 54.5.';
 
 function gcd(left: number, right: number): number {
   return right ? gcd(right, left % right) : left;
@@ -22,6 +23,20 @@ export function formatDimension(inches: number): string {
     : '';
   const inchText = fraction ? `${wholeInches ? `${wholeInches} ` : ''}${fraction}` : String(wholeInches);
   return feet ? `${sign}${feet}' ${inchText}"` : `${sign}${inchText}"`;
+}
+
+export function formatShopDimension(inches: number): string {
+  if (!Number.isFinite(inches)) return '';
+  const rounded = Math.round(inches * 16) / 16;
+  const sign = rounded < 0 ? '-' : '';
+  const absolute = Math.abs(rounded);
+  const whole = Math.floor(absolute + 1e-9);
+  const sixteenths = Math.round((absolute - whole) * 16);
+  if (sixteenths === 16) return `${sign}${whole + 1}"`;
+  if (!sixteenths) return `${sign}${whole}"`;
+  const divisor = gcd(sixteenths, 16);
+  const fraction = `${sixteenths / divisor}/${16 / divisor}`;
+  return `${sign}${whole ? `${whole} ` : ''}${fraction}"`;
 }
 
 function parseInchPart(source: string): number | null {
@@ -68,4 +83,27 @@ export function parseDimension(value: unknown): DimensionParseResult {
     return { ok: false, code: 'unsupported_precision', message: `Use precision no finer than 1/16 inch. ${DIMENSION_FORMAT_HELP}` };
   }
   return { ok: true, inches: normalized, formatted: formatDimension(normalized) };
+}
+
+/** Parses a shop-geometry input. The UI supplies the permanent inch suffix. */
+export function parseShopDimension(value: unknown): DimensionParseResult {
+  const source = String(value ?? '').trim();
+  if (!source) return { ok: false, code: 'required', message: `Enter a dimension. ${SHOP_DIMENSION_FORMAT_HELP}` };
+  if (source.includes("'") || source.includes('"')) return { ok: false, code: 'malformed', message: `Enter only the numeric inches; the inch mark is provided. ${SHOP_DIMENSION_FORMAT_HELP}` };
+  if (source.startsWith('-')) return { ok: false, code: 'nonpositive', message: `Dimensions must be greater than zero. ${SHOP_DIMENSION_FORMAT_HELP}` };
+  const inches = parseInchPart(source);
+  if (inches === null) return { ok: false, code: 'malformed', message: `Enter valid inches. ${SHOP_DIMENSION_FORMAT_HELP}` };
+  if (!(inches > 0)) return { ok: false, code: 'nonpositive', message: `Dimensions must be greater than zero. ${SHOP_DIMENSION_FORMAT_HELP}` };
+  const normalized = Math.round(inches * 16) / 16;
+  if (Math.abs(normalized - inches) > 1e-9) return { ok: false, code: 'unsupported_precision', message: `Use precision no finer than 1/16 inch. ${SHOP_DIMENSION_FORMAT_HELP}` };
+  return { ok: true, inches: normalized, formatted: formatShopDimension(normalized) };
+}
+
+/** Read compatibility for geometry saved before the inches-only UI contract. */
+export function parseStoredShopDimension(value: unknown): DimensionParseResult {
+  if (typeof value === 'number') return parseShopDimension(String(value));
+  const shop = parseShopDimension(value);
+  if (shop.ok) return shop;
+  const legacy = parseDimension(value);
+  return legacy.ok ? { ...legacy, formatted: formatShopDimension(legacy.inches) } : shop;
 }

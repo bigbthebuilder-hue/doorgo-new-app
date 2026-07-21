@@ -7,11 +7,14 @@ import {
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { canReadJobs, canWriteJobs, jobFailureMessage } from './job-intake-contract';
 import { assertConfirmedJobActiveLineInvariant } from './door-line-contract';
+import { applyManualGeometryOverride, removeManualGeometryOverride } from './glass-geometry-contract';
 import { createJobIntakeRepository } from './job-intake-repository';
 import {
   JobIntakeFailure,
   type CreateJobHeaderCommand,
   type DoorLineInput,
+  type GlassGeometryValues,
+  type GlassOverrideApproval,
   type JobHeaderInput,
   type JobIntakeRepository,
   type NativeJobAggregate,
@@ -88,4 +91,23 @@ export async function loadCurrentJobs(): Promise<NativeJobAggregate[]> {
 
 export async function loadCurrentJob(internalJobId: string): Promise<NativeJobAggregate | null> {
   return findJobWithAccess(await getCurrentDoorGoAccess(), internalJobId);
+}
+
+export function prepareGlassOverrideWithAccess(
+  access: CurrentDoorGoAccess,
+  request: { line: DoorLineInput; acceptedValues: GlassGeometryValues; reason: string; appliedAt: string },
+): GlassOverrideApproval {
+  assertJobsWriteAccess(access);
+  if (access.state !== 'active') throw accessFailure(access);
+  return applyManualGeometryOverride({
+    ...request,
+    accessLevel: getPermissionAccess(access, 'jobs'),
+    actorUserId: access.user.id,
+    actorDisplayName: access.profile.displayName,
+  });
+}
+
+export function removeGlassOverrideWithAccess(access: CurrentDoorGoAccess): null {
+  assertJobsWriteAccess(access);
+  return removeManualGeometryOverride(getPermissionAccess(access, 'jobs'));
 }

@@ -5,13 +5,19 @@ import { getPermissionAccess } from '@/lib/auth/access';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { canWriteJobs, jobFailureMessage } from './job-intake-contract';
 import { assertConfirmedJobActiveLineInvariant } from './door-line-contract';
-import { createJobWithAccess, updateJobWithAccess } from './job-intake-service';
+import { createJobWithAccess, prepareGlassOverrideWithAccess, removeGlassOverrideWithAccess, updateJobWithAccess } from './job-intake-service';
 import {
   JobIntakeFailure,
   type DoorLineInput,
+  type GlassGeometryValues,
+  type GlassOverrideApproval,
   type JobHeaderInput,
   type JobIntakeActionResult,
 } from './job-intake-types';
+
+export type GlassOverrideActionResult =
+  | { ok: true; approval: GlassOverrideApproval | null }
+  | { ok: false; message: string };
 
 function failureResult(error: unknown): JobIntakeActionResult {
   if (error instanceof JobIntakeFailure) {
@@ -70,5 +76,36 @@ export async function updateDraftJobAction(request: {
     return { ok: true, job };
   } catch (error) {
     return failureResult(error);
+  }
+}
+
+export async function prepareGlassOverrideAction(request: {
+  line: DoorLineInput;
+  acceptedValues: GlassGeometryValues;
+  reason: string;
+}): Promise<GlassOverrideActionResult> {
+  try {
+    const access = await getCurrentDoorGoAccess();
+    actionWriteCheck(access);
+    if (access.state !== 'active') throw new JobIntakeFailure('permission_required', jobFailureMessage('permission_required'));
+    return {
+      ok: true,
+      approval: prepareGlassOverrideWithAccess(access, {
+        line: request.line, acceptedValues: request.acceptedValues, reason: request.reason,
+        appliedAt: new Date().toISOString(),
+      }),
+    };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : 'Manual override could not be applied.' };
+  }
+}
+
+export async function removeGlassOverrideAction(): Promise<GlassOverrideActionResult> {
+  try {
+    const access = await getCurrentDoorGoAccess();
+    actionWriteCheck(access);
+    return { ok: true, approval: removeGlassOverrideWithAccess(access) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : 'Manual override could not be removed.' };
   }
 }

@@ -141,7 +141,8 @@ function normalizeAggregateLines(inputLines: DoorLineInput[], existing: NativeDo
     if (prior?.lineStatus === 'Merged' && input.lineStatus !== 'Merged') {
       throw new JobIntakeFailure('validation_failed', 'A merged-away door line is retained for audit and cannot be restored.');
     }
-    const normalizedInput = (!prior || geometryChanged(prior, input)) && input.glassOverride
+    const overrideBelongsToLine = input.glassOverride?.approvedLineId === submittedLineId;
+    const normalizedInput = input.glassOverride && (!overrideBelongsToLine || (prior && geometryChanged(prior, input)))
       ? { ...input, glassOverride: null }
       : input;
     const normalized = normalizeDoorLineInput(normalizedInput);

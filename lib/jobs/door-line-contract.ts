@@ -4,7 +4,7 @@ import {
   type DoorLineMode,
   type NativeDoorLine,
 } from './job-intake-types';
-import { DIMENSION_FORMAT_HELP, parseDimension } from './dimension-contract';
+import { SHOP_DIMENSION_FORMAT_HELP, parseStoredShopDimension } from './dimension-contract';
 import { isGlassConfiguration, normalizeGlassDomainFields } from './glass-geometry-contract';
 
 export const INTERIOR_WIDTHS = [
@@ -127,8 +127,8 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   if (!['No', 'RO', 'WoodCustom'].includes(customSlab)) errors.customSlab = 'Choose Standard, Custom RO / Cut Down, or Custom Wood Slab.';
   if (customSlab === 'WoodCustom') {
     if (material !== 'wood') errors.customSlab = 'Custom slab dimensions are available for Wood only.';
-    if (!parseDimension(input.customSlabWidth).ok) errors.customSlabWidth = `Enter a valid custom slab width. ${DIMENSION_FORMAT_HELP}`;
-    if (!parseDimension(input.customSlabHeight).ok) errors.customSlabHeight = `Enter a valid custom slab height. ${DIMENSION_FORMAT_HELP}`;
+    if (!parseStoredShopDimension(input.customSlabWidth).ok) errors.customSlabWidth = `Enter a valid custom slab width. ${SHOP_DIMENSION_FORMAT_HELP}`;
+    if (!parseStoredShopDimension(input.customSlabHeight).ok) errors.customSlabHeight = `Enter a valid custom slab height. ${SHOP_DIMENSION_FORMAT_HELP}`;
   }
 
   const allowedPreps = mode && config ? prepChoices(mode, config) : [];

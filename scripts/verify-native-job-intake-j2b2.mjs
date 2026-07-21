@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+const files = [
+  'components/jobs/DoorLineWorkspace.tsx', 'components/jobs/GlassUnitDiagram.tsx',
+  'lib/jobs/glass-diagram-contract.ts',
+  'lib/jobs/job-intake-actions.ts', 'lib/jobs/job-intake-service.ts', 'lib/jobs/glass-geometry-contract.ts',
+  'lib/jobs/door-line-contract.ts', 'lib/jobs/local-job-intake-repository.ts',
+];
+const source = (await Promise.all(files.map((file) => readFile(file, 'utf8')))).join('\n');
+for (const [label, pattern] of [
+  ['browser Supabase write', /lib\/supabase\/client|createBrowserClient/],
+  ['trusted/service-role write', /trusted-read-server|service[_-]?role/i],
+  ['hosted mutation', /\.from\s*\([^)]*\)[\s\S]{0,300}\.(?:insert|update|upsert|delete)\s*\(/],
+  ['intake RPC', /\.rpc\s*\(/],
+  ['production mutation', /createProductionBooking|production-booking-actions|createFulfillment|CalendarApp/],
+]) assert.equal(pattern.test(source), false, `J2B2 must not contain ${label}`);
+
+const workspace = await readFile('components/jobs/DoorLineWorkspace.tsx', 'utf8');
+for (const required of [
+  "mode === 'Exterior' ? J2B_CONFIGS", 'retainCompatibleGlassFields', 'calculateGlassGeometry',
+  'Leave Glass Detail Needed', 'Apply Manual Override', 'Remove Override', 'Copy Vendor Text',
+  'GlassUnitDiagram', 'Needs Attention', '54, 54 1/2, 54-1/2, or 54.5', 'aria-label={`${label}, inches`',
+]) assert.ok(workspace.includes(required), `J2B2 workspace missing ${required}`);
+assert.equal(/left.*sidelight.*type|right.*sidelight.*type/i.test(workspace), false, 'UI must not expose independent left/right sidelight type controls');
+assert.equal(workspace.includes('onChange((current)'), false, 'workspace must not update child state from a parent updater');
+
+const diagram = await readFile('components/jobs/GlassUnitDiagram.tsx', 'utf8');
+for (const required of ['preserveAspectRatio="xMidYMid meet"', 'calculateGlassDiagramLayout(line)', 'layout.parts.map', 'data-kind', 'diagram-background']) assert.ok(diagram.includes(required));
+assert.equal(/sideWidth\s*=\s*\d|transomHeight\s*=\s*\d|viewBox="0 0 100 100"/.test(diagram), false, 'React must not independently approximate physical diagram geometry');
+assert.equal(/https?:\/\//.test(diagram), false, 'diagram must not depend on external images');
+const css = await readFile('app/globals.css', 'utf8');
+for (const required of ['.glass-unit-diagram', '.diagram-background { fill: rgb(241 245 249)', '.diagram-frame { fill: none', '@media (prefers-color-scheme: dark)', '@media print']) assert.ok(css.includes(required));
+assert.equal(/diagram-background[^}]*fill:\s*(?:black|#000|rgb\(0\s+0\s+0\))/i.test(css), false, 'light diagram background must not be solid black');
+const actions = await readFile('lib/jobs/job-intake-actions.ts', 'utf8');
+const service = await readFile('lib/jobs/job-intake-service.ts', 'utf8');
+assert.ok(actions.includes('prepareGlassOverrideWithAccess(access'));
+assert.ok(actions.includes('removeGlassOverrideWithAccess(access)'));
+assert.ok(service.includes('assertJobsWriteAccess(access)'));
+console.log('Native Job Intake J2B2 hosted-write and UI verifier: PASS');

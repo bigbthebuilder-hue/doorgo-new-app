@@ -31,6 +31,7 @@ export type PanelSidelight = {
 };
 export type GlassGeometryValues = Record<string, string | number | boolean | null | PanelSidelight[]>;
 export type GlassOverrideApproval = {
+  approvedLineId: string;
   calculatedValues: GlassGeometryValues;
   acceptedValues: GlassGeometryValues;
   reason: string;

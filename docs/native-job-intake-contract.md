@@ -441,3 +441,186 @@ Major identifier index:
 - Index.html header/lifecycle: `newJob`, `readJob`, `writeJob`, `validateJob`, `payload`, `saveCurrentJob`, `openJob`, `renderPrevious`, `exitCurrentJob`.
 - Index.html lines/glass: `renderLine`, `buildLine`, `validateLineForCommit`, `calculateGlass`, `runGlassCalc`, `editLine`, `saveLine`, `renderDoorList`.
 - Index.html active UI: `#currentJobCard`, `#desktopJobWorkspace`, `#desktopJobActionBar`, `#doorList`, `#previousJobs`, `#roPanel`, `#unsavedEntryModal`, `#status`; `setupDesktopJobWorkspace`, `detectTruePhone`, `applyTerminalTheme`.
+
+## 15. J2B deployed glass and geometry contract
+
+Status: deployed behavior extracted for native J2B design. This section is authoritative for parity where the browser and backend agree. Items in the open-decisions table are not approved implementation choices and must not be guessed.
+
+### A. Configuration topology and availability
+
+All deployed glass configurations are **Exterior only**. `INTERIOR_CONFIGS` contains only D, DD, PKT and B.P.; `EXTERIOR_CONFIGS` additionally contains every configuration below. “Left” and “right” describe the deployed diagram viewed from the same orientation as the displayed unit. Mirrored single-sidelight configurations are distinct.
+
+| Config | Doors | Sidelights | Transom | Required entry | Calculated/stored output and work-order meaning |
+|---|---:|---|---|---|---|
+| SD | 1 | one on the left | no | RO width; sidelight type; panel width when panel, otherwise sidelight glass | Header/sill, jamb legs, one sidelight glass unit or one panel. Diagram is sidelight-divider-door. |
+| DS | 1 | one on the right | no | Same as SD | Same math as SD, but diagram is door-divider-sidelight and the mirrored configuration remains distinct. |
+| SDS | 1 | left and right | no | RO width; one shared sidelight type; one shared panel width or glass type | Two equal sidelights/panels surrounding one door; glass output is `2 @`. |
+| SDDS | 2 | left and right | no | Same shared sidelight inputs as SDS plus RO width | Two equal sidelights around the unchanged DD core. Glass-side width is derived from RO; panel-side header is derived from selected panel width. Native provisional Shop Hours base: 270 minutes. |
+| T/D | 1 | none | yes | RO width, RO height, transom glass | Single door with transom; header width is door slab plus 1/4 inch; transom width is header less 1/8 inch. |
+| T/DD | 2 | none | yes | RO width, RO height, transom glass | Double-door core with transom; transom width is DD header less 1/8 inch. |
+| T/SD | 1 | one left | yes | RO width/height; sidelight type; panel width or sidelight glass; transom glass | SD lower assembly with transom across the calculated unit. |
+| T/DS | 1 | one right | yes | Same as T/SD | Mirrored DS lower assembly; not silently normalized to T/SD. |
+| T/SDS | 1 | left and right | yes | RO width/height; one shared sidelight type/width or glass; transom glass | SDS lower assembly with transom. |
+| T/SDDS | 2 | left and right | yes | RO width/height; shared sidelight type/width or glass; transom glass | SDDS lower assembly with transom. Native provisional Shop Hours base: 330 minutes. |
+
+Every active glass line requires the ordinary J2A identity and door fields: mode, config, nominal width/height, positive quantity, completed RIP size when selected, valid custom wood slab dimensions when selected, and the applicable jamb/swing/material/prep values. Required glass measurements may remain incomplete only under the approved `Glass Detail Needed` workflow below. There are no user-entered unit-width, unit-height, individual left/right glass-width, transom-height or mull/post fields. Those values are calculated.
+
+### B. Progressive glass workflow and state clearing
+
+1. Selecting an Exterior glass configuration makes the `#roPanel` Glass Measure card visible. Plain D/DD show it only for Custom RO or existing RO values; PKT clears RO; B.P. uses the same card as Finished Opening.
+2. RO width appears for every glass configuration and is mandatory. RO height appears and is mandatory for transom configurations. For non-transom glass configurations it is optional and normally hidden until already populated; guidance shows the standard height and asks for it only for a short/custom opening.
+3. A sidelight configuration reveals one Sidelight Type selector. `glass` reveals one shared Sidelight Glass selector. `panel` hides sidelight glass and reveals one shared panel-width control. Fiberglass widths are 11-3/4 or 13-3/4 inches; Wood accepts a measurement. Two-sided configs use the same type and width on both sides.
+4. A transom configuration reveals a separate Transom Glass selector. With panel sidelights the label becomes “Transom Glass Type”; a panel-only non-transom quick calculation hides the general glass selector.
+5. Calculate Glass / Cut validates and calculates, then reveals compact result text, vendor copy when glass units exist, and the diagram when `calc` exists. The approved native “Leave Detail Needed” action instead saves the active line with status `Glass Detail Needed`, preserving its stable identity, configuration, quantity, ordinary door details, unit-level sidelight type, and every measurement/selection already entered. Reopen/edit must restore those partial values so work can continue. The deployed browser constructs a Needs Glass Calc result but its browser/backend validators then reject save; that contradiction is a deployed defect and must not be reproduced.
+6. Every native free-entry geometry control must visibly require explicit shop units and show examples containing `'` and `"`. Structured selectors and separately labelled Feet and Inches controls remain unambiguous and do not require typed unit symbols. Validation occurs without substituting a selected standard dimension for invalid custom input.
+
+Configuration change sets `lastCalc` to null and hides prior result/vendor output. It preserves hand, prep, jamb width/type and hinge only if still valid. PKT clears RO width and height unless Custom RO is active. Mode change resets the glass selectors to shared glass, fiberglass panel width 11-3/4, blank wood panel width, default glass terms, clears `lastCalc`, and selects D. The deployed browser does not explicitly clear every hidden glass input on compatible config changes; it excludes inapplicable values when `buildLine` constructs the saved line. Native J2B must correct that ambiguity using the approved retention rules below. Validation must accept only unit-level `Glass` or `Panel` and reject legacy or malformed mixed-type state.
+
+#### Approved configuration-change field retention
+
+- Preserve a value only when it still describes the same physical component with the same meaning. Clear it when it no longer applies or its physical meaning changes; matching field names alone do not establish compatibility.
+- Switching between SD and DS must not transfer a sidelight measurement from one physical side to the other. Clear the side-specific measurement that no longer represents the same component. Preserve common RO dimensions, unit height, glass type, unit-level sidelight type and compatible frame selections when they retain the same meaning.
+- Switching the unit-level sidelight type from Glass to Panel preserves shared sidelight widths that retain the same physical meaning, clears glass-only dimensions, and clears completed glass calculation output, warnings, blockers, vendor copy and any geometry override that no longer applies. Panel to Glass follows the same rule and requires entry of every newly applicable glass-only measurement.
+- Changing from a glass, sidelight or transom configuration to a non-glass configuration clears glass measurements; sidelight/transom calculation output; glass calculation status, warnings and blockers; vendor-copy text; glass work-order calculation detail; all manual-override values, reason, applying user and timestamp; and panel-sidelight state that no longer applies.
+- Any change to configuration or another field used by geometry clears the completed calculation and manual geometry override and requires recalculation before production readiness. Unrelated nongeometry edits preserve a valid calculation and override.
+- Compatible configuration changes may preserve measurements only under the physical-component rule above. The UI must not display stale hidden state from a prior configuration, and cleared state must remain cleared through edit, save and reopen. These transitions never change the stable job or line identity.
+
+### C. Field inventory and native mapping
+
+| Deployed UI/property | Meaning, units/default | Native J2B representation |
+|---|---|---|
+| `sidelightGlassInput`, `transomGlassInput` | Glass term code; defaults from `DEFAULT_TERMS`/deployed settings. Defaults are Clear (`CLR_SB60_K4SG`) and Satin Etch (`SAT_SB60_K4SG`). | `glassUnits[].termCode/glassType`; `glass` remains a legacy blank field. |
+| `roWInput` / `roWidth` | Rough-opening width, measurement text; mandatory for glass. | `roWidth`; free-entry text requires explicit feet/inches notation and normalizes to inches at 1/16-inch precision. |
+| `roHInput` / `roHeight` | RO height; mandatory for transom, optional non-transom cut-down reference. | `roHeight`; the same explicit-unit rule applies to free entry. |
+| nominal width/height and custom slab fields | Select slab; fiberglass actual slab deductions apply, Wood/Interior use full nominal dimensions, custom Wood uses entered actual dimensions. | Existing width, height, material, custom-slab fields. Both Custom Slab dimensions require explicit units; normalized inches are retained in `glassCalc.slab`. Invalid custom values never fall back to the selected standard size. |
+| `sidelightType` | One authoritative unit-level enum: `Glass` or `Panel`. It applies to every sidelight in the unit, including a single sidelight. Mixed types are invalid; side-specific position/dimensions may still differ. | Persist one authoritative unit-level sidelight type in the local aggregate and retain it in `glassCalc.sidelightType`. Do not create independent left/right type fields and do not rely only on current hosted columns. |
+| `panelSidelightWidth` / `panelWidth` | One shared actual panel width; fiberglass enum above, Wood free measurement. Panel height equals slab height. | Structured panel-sidelight state and `glassCalc.panelWidth/panelHeight`. |
+| `panelSidelights` | Calculated array with position, material, formatted width/height and qty. | Preserve in panel-sidelight state and/or `glassCalc.panelSidelights`; do not lose it on reopen. |
+| calculated sidelights/transom | Position, formatted width/height, term/shop text and qty. | `glassUnits`; numeric/formatted dependencies in `glassCalc`. |
+| status/detail/messages | Complete, Warning, Blocked or Needs states; work-order detail and newline-separated messages. | `glassCalcStatus`, `glassWorkorderDetail`, `glassWarnings`, `glassBlockers`. |
+| `glassOverride` | Deployed builder always writes `No`; native approved model is a structured manual-geometry approval containing calculated values, accepted manual values, reason, applying user and applied timestamp. | `glassOverride`; preserve complete audit state locally without designing hosted columns. |
+| vendor output | Generated from calculated units and deployed glass-term templates. | `vendorCopyText`. |
+
+There are no independent left/right sidelight measurements, explicit unit-size inputs, explicit transom-height input, or mull/post inputs. Dividers are fixed calculation constants: 2-1/4 inches for glass-side assemblies and 1-1/2 inches for panel-side assemblies. Each side assembly also includes 1/8 inch operating allowance. Sill, threshold/weatherstrip and jamb selection are ordinary exterior fields but do not vary the deployed glass formulas; swing affects vertical deductions.
+
+The native aggregate must persist only fields applicable to the selected configuration and type. Configuration switching applies the approved physical-meaning retention rules before validation and persistence, so hidden stale values cannot survive merely because an earlier configuration used the same storage property. Save/reopen must reproduce the cleared or retained state exactly.
+
+### D. Panel-sidelight model
+
+Panel sidelights are available for SD, DS, SDS, SDDS, T/SD, T/DS, T/SDS and T/SDDS. SD/T-SD places the side assembly left; DS/T-DS places it right; SDS/SDDS transom variants place assemblies on both sides. Sidelight type is selected once for the entire door unit and every sidelight in that unit must use the same type: `Glass` or `Panel`. Mixed Glass/Panel units are prohibited. This unit-level rule applies equally to one-sidelight configurations and to future configurations with additional sidelights, including DSSS. Side-specific position and dimensions may still be stored independently where geometry requires them, but type may not differ by side.
+
+Panel selection changes the divider from 2-1/4 to 1-1/2 inches, replaces calculated glass-side width with selected actual panel width, sets panel height to actual slab height, changes diagram fill/label from glass to door-panel, emits a PANELS work-order section, and omits sidelight vendor glass. A transom remains glass and still emits vendor copy. Panel state affects minimum RO and header formulas.
+
+The browser constructs top-level `sidelightType`, `panelSidelightWidth` and `panelSidelights`, and nests `sidelightType`, panel dimensions and `panelSidelights` in `glassCalc`. However, deployed `DOOR_HEADERS`/`saveDoorLinesWithoutDeleting_` do not persist the three top-level panel properties. After reopen, `editLine` looks for those missing top-level properties instead of restoring them from `glassCalc`, and work-order panel fallback also depends on them. This is a deployed persistence defect that native J2B must correct, not reproduce. Native persistence must preserve one authoritative unit-level sidelight type plus the required side-specific geometry and calculated panels as part of the local aggregate, while retaining the complete `glassCalc` for traceability. Save, reopen, edit and duplicate must preserve that unit-level selection. A hosted-column design is out of scope.
+
+### E. Measurement parsing and formatting
+
+- Native free-entry dimensions require explicit units. A bare value such as `36` is invalid, and the application must never guess whether it means feet or inches. Feet use `'`; inches use `"`.
+- Accepted equivalent shop notation includes `3'`, `3'0"`, `36"`, `35 3/4"`, `35-3/4"` and `35.75"`. Feet may be entered alone and imply zero additional inches. Inches, fractions and decimal inches are accepted only with the inch mark. Thus `3'`, `3'0"` and `36"` normalize to the same value.
+- Accepted values normalize to inches at 1/16-inch precision. Display uses one consistent feet/inches/fraction form, carries 16/16 correctly and reduces fractions by GCD.
+- Blank, unitless, malformed, zero, negative, unsupported-fraction and unsupported-precision inputs are invalid. Validation must not coerce malformed tokens, assume units or silently replace an invalid custom dimension with a standard selection.
+- When Custom Slab is selected, both width and height are required and each must pass this explicit-unit contract. The validation message must explain accepted notation and include examples using both `'` and `"`, such as `3'`, `3'0"`, `36"`, `35 3/4"`, `35-3/4"` and `35.75"`.
+- The same explicit-unit principle applies to every other free-entry geometry measurement unless the UI supplies a structured selector or separately labelled Feet and Inches controls. Those structured controls are already unambiguous and do not require typed symbols.
+- The deployed parser accepted ambiguous bare values and the deployed custom-slab message contradicted its actual parsing. Native J2B must implement this approved strict contract rather than reproduce either deployed behavior.
+
+### F. Authoritative calculation order and formulas
+
+All dimensions below are inches. Calculations operate on numeric values and format outputs only at the end to 1/16 inch.
+
+1. **Actual slab:** Fiberglass width is nominal minus 1/4, except 36→35-3/4 and 42→41-3/4; fiberglass height is 80→79, 96→95, otherwise nominal minus 1. Wood uses nominal full size. Custom Wood uses entered actual width/height.
+2. **DD core header:** `2 × slab width + 13/16 + 1/4`. SDDS/T-SDDS retain this exact core.
+3. **Glass divider:** 2-1/4 per sidelight. **Panel divider:** 1-1/2 per sidelight. Each sidelight/panel assembly also uses 1/8 operating allowance.
+4. **Header width:** panel unit = selected panel side assemblies plus either single slab + final 1/4 or unchanged DD core; glass SDDS/T-SDDS = `RO width − 2`; DD/T-DD = DD core; D/T-D = `slab width + 1/4`; other glass-side units = `RO width − 2`.
+5. **Minimum RO width:** `header width + 2`. Too narrow is blocking for glass double/T-D and for panel assemblies. SDDS glass width is derived from the RO and becomes blocking if nonpositive.
+6. **Glass sidelight width:** SD/DS/SDS family = `(RO width − 2 − divider × side count − slab width − 1/4 − 1/8 × side count) ÷ side count`. SDDS/T-SDDS = `(header width − DD core − 2 × divider − 2 × 1/8) ÷ 2`.
+7. **Non-transom vertical:** swing deduction is 2 for outswing or 2-1/4 for inswing. Standard jamb leg = slab height + deduction; standard RO height = jamb leg + 1/2. If RO height is entered, jamb leg = RO height − 1/2; requested door height = jamb leg − deduction; final door height is the lesser of slab and requested height; cut-down is slab minus final. Glass sidelight height = final door height + 1/8.
+8. **Transom vertical:** jamb leg = RO height − 1/2 and selected slab height is not cut down. T/D transom height = `RO height − slab height − 4-3/8` inswing or `− 4-1/8` outswing. Other transom configs use `− 5-1/8` inswing or `− 4-7/8` outswing. Panel-sidelight transoms add 3/4 back to that result.
+9. **Transom width:** panel assemblies, T/DD and T/D use `header width − 1/8`; remaining transom configs use `RO width − 2-1/8`.
+10. **Panel output:** selected panel width × slab height, qty equal to side count. There is no glass unit for a panel sidelight.
+
+Blockers are evaluated before units are emitted. A blocked calculation stores no glass/panel units and no valid diagram calculation for early missing-input returns. A complete/warning calculation stores formatted RO, config, swing, slab, header, jamb leg, final door height, sidelight/panel/transom dimensions, divider, required panel RO, standard RO height, optional-height flag and cut-down in `glassCalc`.
+
+### G. Status, saving, warnings and blockers
+
+| State | Deployed meaning and save behavior |
+|---|---|
+| `Complete` | No blockers or warnings; active line may save. |
+| `Warning` | Geometry is calculable but has a reviewable warning/mismatch. It may save for intake. A `jobs=use` user may apply a reasoned Manual Override only when every required measurement exists and the condition is not a hard blocker. Production readiness follows the warning classification unless a valid override accepts it. |
+| `Blocked` | Impossible/invalid geometry or invalid custom slab; browser blocks Add/Update and backend rejects. |
+| `Needs RO` | Required RO width or transom height missing; blocks browser and backend save. |
+| `Glass Detail Needed` | Approved native incomplete-intake state. The active line may save with all partial values and identity preserved. It is not a complete calculation, requires no override/reason, appears in Needs Attention, and blocks production readiness/scheduling until completed. A valid recalculation clears it. |
+| deployed `Needs Glass Calc` | Deployed “Leave Detail Needed” state that browser/backend validation incorrectly rejects. Treat as a legacy/import alias for native `Glass Detail Needed`, preserving partial data; do not reproduce the rejection. |
+| `Ready` / `Not Needed` | Non-glass/no-RO line state; no glass detail required. |
+| `Manual Override` | Approved native state for a fully measured, reviewable warning/mismatch accepted by `jobs=use` with reason and audit metadata. It is visibly badged and auditable but is not actionable Needs Attention; it may become production-ready when no other blocker remains. |
+| unsupported | Not a valid deployed Exterior config; there is no glass calculation contract for it. |
+
+Exact deployed warnings are: RO taller than the standard full-height unit (verify jamb/extensions); door will be cut down by the calculated amount; cut-down greater than 2-1/2 inches (confirm before cutting); and, for non-glass D/DD custom RO only, RO below recommendation (verify fit). The ordinary cut-down line is retained in `glassWarnings` but intentionally filtered from visible/work-order warning sections because the detail already prints the final cut height. Native classification must distinguish a reviewable warning/mismatch from a hard blocker before offering override.
+
+Exact blocker groups are:
+
+- missing/invalid custom Wood slab width or height;
+- missing RO width for any glass config;
+- missing RO height for transom;
+- RO narrower than the calculated minimum for applicable double/T-D or panel assemblies;
+- invalid/nonpositive panel width;
+- zero/negative sidelight width or height;
+- zero/negative transom width;
+- transom height zero/negative because the RO is too short;
+- zero/negative header length or jamb-leg length.
+
+Hard blockers may never be overridden. They include missing required measurements, impossible geometry, nonpositive calculated dimensions, unsupported configurations, invalid measurements and every other state explicitly classified as blocking. Missing required glass measurements use `Glass Detail Needed`, not Manual Override. Custom Slab width and height are both required when selected; blank, unitless, malformed, zero, negative, unsupported-fraction or unsupported-precision values are blocking editor errors. The message must explain the accepted explicit-unit formats with `'` and `"` examples. Action calculation blockers are also displayed in the result area and toast.
+
+No deployed warning exists specifically for unusually small/large glass beyond nonpositive geometry. No deployed dimension-mismatch tolerance or override workflow exists; the native rules below supply the approved behavior independently of the resolved strict parser and field-retention contracts. Native `Glass Detail Needed` is neither a warning acknowledgement nor a blocker against saving the intake line: it is a persistent Needs Attention condition. It blocks production readiness and scheduling, not Draft/Confirmed intake persistence. Archiving the line removes its Needs Attention contribution; restoring it restores the same incomplete status and partial data. A properly approved Manual Override retains a visible audit indication but is not actionable Needs Attention.
+
+#### Manual geometry override permission and audit contract
+
+- Override is offered only when all required measurements are present and calculation produces a reviewable warning or mismatch. It cannot bypass `Glass Detail Needed` or any hard blocker.
+- `jobs=use` may apply or remove an override. `jobs=view` may inspect it but cannot change it. Manager status provides no fallback.
+- Applying an override requires a nonblank reason and stores the calculator's values, accepted manual values, reason, applying authenticated user and applied timestamp. Applying/removing it preserves the stable line identity and advances the aggregate revision.
+- A later change to configuration or any measurement/dependency used by geometry automatically clears the completed calculation and effective override. The line must be recalculated and, if acceptance is still needed, receive a new reasoned approval. Unrelated nongeometry edits clear neither a valid calculation nor its override.
+- The UI shows a Manual Override badge and presents calculated versus accepted values, reason, actor and time clearly. The override remains auditable after it ceases to be actionable.
+
+### H. Diagram, work-order detail and vendor copy
+
+The canvas is a derived visual and never participates in calculation. It draws the RO envelope, transom, fixed divider gaps, left/right glass or panels, single or paired doors, and a visible DD meeting gap. Labels show entered RO, door nominal/final height, calculated glass dimensions, and panel material/dimensions. SD and DS orientation is distinct. Blockers replace the assembly with a blocked frame/message; missing RO shows an entry prompt.
+
+Dark mode uses dark surfaces and light labels; Light uses a white canvas and dark labels with equivalent information. Responsive CSS reduces canvas height and stacks results on phone. Quick Glass print redraws with `theme='print'`, a white background and light print stylesheet. Generated work orders are likewise light-only. Obsolete earlier CSS phases are not contract authority.
+
+`glassWorkorderDetail` is stored browser result text, but generated work orders recalculate authoritative frame cuts from the saved line and then append PANELS, GLASS and filtered WARNINGS sections. The main row prints entered RO, a compact Glass marker, or a review/detail-needed marker. A native `Glass Detail Needed` line must remain visibly marked as incomplete and must never be presented as order-ready glass. A Manual Override line/detail and work order must show the badge/indicator, calculated and accepted values, and override reason; actor/timestamp remain available in audit detail. `glassUnits` supplies position, qty, dimensions, shop glass text and term code. `panelSidelights` supplies analogous panel lines when preserved.
+
+`vendorCopyText` is generated at calculation/save time from `glassUnits`. Each unit prints its position and optional qty, then substitutes width/height into the deployed term template and optional second line. Sidelights change vendor tokens `3mcltmp→4mcltmp` and `3msatmp→4msatmp`; transoms retain the base template. Panels generate no vendor glass line. Vendor copy is stored, while generated work-order detail may be regenerated from structured saved fields.
+
+### I. Shop Hours and line operations
+
+| Exterior config | Base minutes |
+|---|---:|
+| SD, DS | 180 |
+| SDS | 240 |
+| SDDS | **270 (4.5 hours; approved provisional native rule)** |
+| T/D | 90 |
+| T/DD | 120 |
+| T/SD, T/DS | 240 |
+| T/SDS | 300 |
+| T/SDDS | **330 (5.5 hours; approved provisional native rule)** |
+
+The SDDS 270-minute and T/SDDS 330-minute bases are authoritative for native J2B for now even though the deployed source omitted them. The base is multiplied by line quantity. MULTI adds 45 minutes per single unit or 90 per double unit before quantity multiplication. Custom RO adds 30 for D or 45 for DD only when non-transom; the deployed table therefore adds no custom-cut minutes to glass configurations. RIP adds 15 minutes per unit. There is no separate glass addition beyond each configuration's base. SDDS and T/SDDS no longer produce `Estimate incomplete` solely because the deployed base was missing. Manual Shop Hours remain authoritative. These provisional bases may be revisited later if real shop timing demonstrates a better estimate.
+
+All J2B fields are part of line validity, duplication, editing, aggregate revision and save/reopen persistence. An active `Glass Detail Needed` line is save-valid for intake and satisfies the confirmed-job active-line minimum when its ordinary door fields are valid, because confirmation is separate from production readiness. It is never production-ready. Merge equivalence must include the deployed `activeLineKey` fields plus exact `glassUnits`, `glassCalc`, unit-level sidelight type, every partial measurement/selection, calculation status, calculated values, accepted manual values and reason-relevant business state. A complete line and a `Glass Detail Needed` line must not merge; incomplete lines may merge only when every persisted business field and status is equivalent. Overridden lines may merge only when all of those fields match exactly. Duplicate receives a new identity and copies only business/calculation/accepted values and partial data that remain applicable under the same physical-meaning rules; it must not represent the original actor/timestamp as a new approval. If an effective override is needed on the duplicate, it requires a new application by the acting user with a new timestamp. Edit and configuration switching apply retention and clearing before save; save/reopen must preserve the resulting state, including cleared values. Save/reopen and edit otherwise preserve valid override audit state. Reorder preserves identity and state. Archive/restore preserves an override unless a geometry-relevant field changed; such a change clears it under the normal invalidation rule. Archived and hidden Merged lines do not contribute to active counts, Shop Hours or Needs Attention. Restoring an incomplete archived line restores its Needs Attention contribution. Configuration or geometry-input edits invalidate prior calculation and clear the override; unrelated edits do neither. The UI must not reveal hidden values from an earlier configuration. No retention or invalidation action changes the job or line identity. Validation must reject any imported, legacy or malformed aggregate that assigns different sidelight types within one unit rather than silently choosing one.
+
+### J. Security and side-effect boundary
+
+J2B retains J2A permissions: `jobs=view` may inspect all glass/panel and override detail but cannot mutate; `jobs=use` may perform approved line/lifecycle mutations and apply/remove reasoned manual geometry overrides; manager status grants no fallback. Persistence remains local/disposable. A job containing `Glass Detail Needed` may remain Draft or Confirmed Job, but the condition must block production readiness and production scheduling until every required glass detail is completed and a valid calculation clears the status. A properly approved Manual Override may satisfy the geometry portion of production readiness and allow scheduling only when no other readiness blocker remains. Saving, confirming or overriding the job creates no production or scheduling record. J2B adds no browser or trusted-client Supabase write, migration, booking, fulfillment record, scheduling mutation or Calendar mutation, and does not make native intake operational.
+
+### K. J2B open decisions
+
+| Configuration/field | Deployed UI | Deployed backend/persistence | Ambiguity and safest native options | Stop? |
+|---|---|---|---|---|
+| **Resolved: SDDS and T/SDDS Shop Hours** | Configs are selectable and calculable. | Deployed `shopHoursRuleForLine` omits both. | **Approved provisional native rule:** SDDS = 270 minutes (4.5 hours); T/SDDS = 330 minutes (5.5 hours). Quantity and every existing applicable addition still apply. Revisit only if real shop timing supports a better estimate. | **No. Resolved for native J2B.** |
+| Panel sidelight persistence | Builds shared panel type/width and calculated panel output; edit expects top-level state. | Sheet writer omits top-level `sidelightType`, `panelSidelightWidth`, `panelSidelights`; only nested `glassCalc` survives, and reopen does not reconstruct from it. | Native should preserve a structured shared panel state plus full calc. Approval is needed only if left/right independence or a hosted shape is desired. | **No for local fidelity using the deployed shared model; yes before changing it or hosted design.** |
+| **Resolved: unit-level sidelight type / no independent panel sides** | One selector controls the unit. | Deployed calculation applies one sidelight type to every side, although top-level persistence is defective. | **Approved:** persist exactly one authoritative unit-level `Glass` or `Panel` type for all current and future sidelights, including DSSS. Side geometry may differ, but type may not. Reject mixed legacy/malformed state and correct rather than reproduce the deployed persistence defect. | **No. Resolved for native J2B.** |
+| **Resolved: “Leave Detail Needed” / incomplete glass intake** | Button creates Needs Glass Calc output. | Deployed `calculationIsBlocking` and `validateDoor_` reject save, contradicting the displayed control. | **Approved native behavior:** save as active `Glass Detail Needed`, retain identity and all partial data, show in Needs Attention, allow Draft/Confirmed lifecycle, and block only production readiness/scheduling until valid recalculation clears it. No override or reason is required. The deployed rejection is a defect not to reproduce. | **No. Resolved for native J2B.** |
+| **Resolved: manual geometry override** | Badge recognizes Manual Override, but no active deployed workflow produces it. | Builder always writes `glassOverride='No'`; deployed persistence has no reason, actor, timestamp or invalidation logic. | **Approved native behavior:** `jobs=use` may apply/remove only for fully measured reviewable warnings/mismatches, with calculated/accepted values, required reason, actor and timestamp. Hard blockers and missing measurements cannot be overridden. Geometry changes clear it; unrelated edits do not. Valid override can satisfy geometry readiness, remains auditable, and follows the duplicate/merge/archive rules above. | **No. Resolved for native J2B.** |
+| **Resolved: configuration-change field retention** | Deployed UI clears `lastCalc` but may retain hidden inputs while changing configurations. | Builder excludes some inapplicable values but does not provide a complete persisted clearing contract. | **Approved native behavior:** retain values only when they describe the same physical component with unchanged meaning. Clear inapplicable or meaning-changed state, prevent SD/DS side transfer, clear all glass/panel/calculation/override output when leaving that domain, invalidate calculation and override for every geometry dependency change, and preserve unrelated valid state. Apply identically across switching, edit, duplicate, save and reopen. | **No. Resolved for native J2B.** |
+| **Resolved: explicit dimension units and Custom Slab parser** | Deployed browser accepts ambiguous bare values and several explicit formats. | Backend parser is more permissive for malformed tokens, while its Custom Slab message contradicts actual acceptance. | **Approved native behavior:** every free-entry geometry value requires explicit `'` or `"` units; accept the listed equivalent shop formats, normalize to inches at 1/16-inch precision and display consistently. Custom Slab requires valid explicit-unit width and height and never falls back to a standard size. Structured selectors or separately labelled Feet/Inches controls remain unambiguous. | **No. Resolved for native J2B.** |
+
+No other unresolved configuration formula was found: the deployed geometry explicitly covers all ten listed configurations, including distinct mirrored layout and the DD core rules.

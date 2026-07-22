@@ -47,6 +47,10 @@
 }
 
 @media print {
+  :root { color-scheme: light; }
+  body { background: white !important; color: black !important; }
+  .work-order-preview-controls { display: none !important; }
+  .work-order-pdf-frame { height: 100vh !important; min-height: 0 !important; border: 0 !important; box-shadow: none !important; }
   .glass-unit-diagram { color: black !important; }
   .glass-unit-diagram .diagram-background { fill: white !important; }
   .glass-unit-diagram .diagram-frame { fill: none !important; }

@@ -1,6 +1,8 @@
 import { parseStoredShopDimension } from './dimension-contract';
 import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-glass-frame-cut-contract';
 import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate } from './job-intake-types';
+import { normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
+import { calculatePersistedGlassDiagramLayout, type GlassDiagramLayout } from './glass-diagram-contract';
 
 export const WORK_ORDER_COLUMNS = ['Qty', 'Config', 'Size', 'Thick', 'Door Type', 'Drill', 'Hinge', 'Swing', 'Jamb', 'Sill', 'W/S', 'Notes/Glass'] as const;
 export const FIRST_PAGE_WEIGHT_CAPACITY = 22;
@@ -32,6 +34,7 @@ export type WorkOrderRowGroup = {
   primaryRow: WorkOrderPrimaryRow;
   detailRows: WorkOrderDetailRow[];
   weightedUnits: number;
+  diagram: GlassDiagramLayout | null;
 };
 
 export type WorkOrderHeader = {
@@ -74,6 +77,13 @@ export type WorkOrderDocument = {
   header: WorkOrderHeader;
   rowGroups: WorkOrderRowGroup[];
   pages: WorkOrderPage[];
+  validationIssues: WorkOrderValidationIssue[];
+};
+
+export type WorkOrderValidationIssue = {
+  field: 'hingeColor' | 'hingeType';
+  lineIndex: number | null;
+  message: string;
 };
 
 export type WorkOrderGenerationInput = { generatedAt: string; generatedDate: string };
@@ -137,17 +147,6 @@ function prepDisplay(prep: string | null): string {
   return raw;
 }
 
-function hingeDisplay(line: NativeDoorLine, jobColor: string | null): string {
-  if (isNoJamb(line)) return '';
-  const raw = text(line.hingeType).toUpperCase();
-  const hinge = raw.includes('BOM') ? 'BOM' : /\bNRP\b/.test(raw) ? 'NRP' : /\bBB\b/.test(raw) ? 'BB' : 'REG';
-  const color = text(jobColor).toUpperCase().replace(/\s*NRP\b/g, '').trim();
-  const outswing = line.mode === 'Exterior' && text(line.hand).includes('OUT');
-  if (hinge === 'BOM') return [hinge, color].filter(Boolean).join(' ');
-  if (hinge === 'REG') return outswing ? 'SS' : color;
-  return [hinge, outswing ? 'SS' : color].filter(Boolean).join(' ');
-}
-
 function jambDisplay(line: NativeDoorLine): string {
   if (isNoJamb(line)) return '';
   const type = text(line.jambType) || 'Primed';
@@ -160,6 +159,7 @@ function sizeDisplay(line: NativeDoorLine): string {
   if ((line.customSlab === 'WoodCustom' || line.customSlab === 'Yes') && line.customSlabWidth && line.customSlabHeight) {
     return `${canonicalStoredDimension(line.customSlabWidth)} × ${canonicalStoredDimension(line.customSlabHeight)}`;
   }
+  if (text(line.height) === `6'8"`) return text(line.width);
   return `${text(line.width)} × ${text(line.height)}`;
 }
 
@@ -180,24 +180,49 @@ function nonGlassDetailRows(result: NonGlassFrameCutResult): WorkOrderDetailRow[
   if (result.status === 'Incomplete') return [{ kind: 'detail-needed', lines: result.missingFields.map((field) => `Missing ${field}.`) }];
   if (result.status === 'Blocked') return [{ kind: 'blocker', lines: result.blockers.map((entry) => entry.message) }];
   const rows: WorkOrderDetailRow[] = [];
-  if (result.detailLines.length) rows.push({ kind: 'frame', lines: result.detailLines });
-  if (result.warnings.length) rows.push({ kind: 'warning', lines: result.warnings.map((entry) => entry.message) });
+  const productionLines = result.configuration === 'B.P.'
+    ? [
+      ...result.detailLines.filter((line) => line.startsWith('F.O. Height:')),
+      ...(result.values && result.values.cutDown.inches > 0 ? [`Door cut to: ${result.values.finalSlabHeight.display}`] : []),
+    ]
+    : result.detailLines;
+  if (productionLines.length) rows.push({ kind: 'frame', lines: [productionLines.join(' | ')] });
+  if (result.warnings.length) rows.push({ kind: 'warning', lines: [result.warnings.map((entry) => entry.message).join(' | ')] });
   return rows;
+}
+
+function calculatedGlassProductionLine(line: NativeDoorLine): string {
+  const calc = line.glassCalc ?? {};
+  const parts: string[] = [];
+  if (text(calc.jambLeg)) parts.push(`Jamb legs: ${text(calc.jambLeg)}`);
+  if (text(calc.headerWidth)) parts.push(`${line.config.startsWith('T/') ? 'Header/Sill/T-bar' : 'Header/Sill'}: ${text(calc.headerWidth)}`);
+  const cutDown = canonicalStoredDimension(calc.cutDown);
+  if (cutDown && cutDown !== '0"' && text(calc.finalDoorHeight)) parts.push(`Door cut to: ${text(calc.finalDoorHeight)}`);
+  return parts.join(' | ');
+}
+
+function overrideProductionLine(line: NativeDoorLine): string {
+  const override = line.glassOverride;
+  if (!override) return '';
+  const changes = Object.entries(override.acceptedValues).flatMap(([key, accepted]) => {
+    const calculated = override.calculatedValues[key];
+    if (!text(accepted) || text(accepted) === text(calculated)) return [];
+    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase());
+    return [`${label}: ${text(calculated)} -> ${text(accepted)}`];
+  });
+  return [...changes, `Reason: ${override.reason}`].join(' | ');
 }
 
 function glassDetailRows(line: NativeDoorLine): WorkOrderDetailRow[] {
   const status = presentationStatus(line);
   const rows: WorkOrderDetailRow[] = [];
   if (status === 'Glass Detail Needed') {
-    const known = [`Configuration: ${line.config}`];
-    if (line.roWidth) known.push(`RO Width: ${canonicalStoredDimension(line.roWidth)}`);
-    if (line.roHeight) known.push(`RO Height: ${canonicalStoredDimension(line.roHeight)}`);
-    rows.push({ kind: 'detail-needed', lines: ['GLASS DETAIL NEEDED', ...known] });
+    const known: string[] = [];
+    if (line.roWidth || line.roHeight) known.push(`RO: ${[canonicalStoredDimension(line.roWidth), canonicalStoredDimension(line.roHeight)].filter(Boolean).join(' x ')}`);
+    rows.push({ kind: 'detail-needed', lines: [known.join(' | ')] });
   } else if (status !== 'Blocked' && line.glassCalc) {
-    const calculated = Object.entries(line.glassCalc)
-      .filter(([, value]) => (typeof value === 'string' || typeof value === 'number') && text(value))
-      .map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1')}: ${String(value)}`);
-    if (calculated.length) rows.push({ kind: 'frame', lines: calculated });
+    const production = calculatedGlassProductionLine(line);
+    if (production) rows.push({ kind: 'frame', lines: [production] });
   }
   if (status !== 'Blocked' && status !== 'Glass Detail Needed' && line.panelSidelights.length) {
     rows.push({ kind: 'panel', lines: line.panelSidelights.map((panel) => `${panel.position}: ${panel.qty > 1 ? `${panel.qty} @ ` : ''}${panel.material} ${canonicalStoredDimension(panel.width)} × ${canonicalStoredDimension(panel.height)}`) });
@@ -206,16 +231,25 @@ function glassDetailRows(line: NativeDoorLine): WorkOrderDetailRow[] {
     rows.push({ kind: 'glass', lines: line.glassUnits.map((unit) => `${unit.position}: ${unit.qty > 1 ? `${unit.qty} @ ` : ''}${canonicalStoredDimension(unit.width)} × ${canonicalStoredDimension(unit.height)} ${unit.glassType}`.trim()) });
   }
   const warningLines = issues(line.glassWarnings);
-  if (warningLines.length) rows.push({ kind: 'warning', lines: warningLines });
+  if (warningLines.length) rows.push({ kind: 'warning', lines: [warningLines.join(' | ')] });
   const blockerLines = issues(line.glassBlockers);
-  if (blockerLines.length) rows.push({ kind: 'blocker', lines: blockerLines });
+  if (blockerLines.length) rows.push({ kind: 'blocker', lines: [blockerLines.join(' | ')] });
   if (line.glassOverride) rows.push({
-    kind: 'manual-override', lines: ['MANUAL OVERRIDE', `Reason: ${line.glassOverride.reason}`],
+    kind: 'manual-override', lines: [overrideProductionLine(line)],
     calculatedValues: line.glassOverride.calculatedValues,
     acceptedValues: line.glassOverride.acceptedValues,
     overrideReason: line.glassOverride.reason,
   });
   return rows;
+}
+
+export function formatWorkOrderNotesGlass(value: string): string {
+  const normalized = text(value);
+  return normalized
+    .split(/\s*(?:\||·)\s*|\s+-\s+/)
+    .map(text)
+    .filter((part) => part && !/^Glass$/i.test(part))
+    .join(' | ');
 }
 
 function notesGlass(line: NativeDoorLine, status: WorkOrderPresentationStatus): string {
@@ -224,7 +258,17 @@ function notesGlass(line: NativeDoorLine, status: WorkOrderPresentationStatus): 
   else if (status === 'Blocked') values.push('RO / GLASS NEEDS REVIEW');
   else if (line.glassUnits.length && !values.some((value) => /glass/i.test(value))) values.push('Glass');
   if (line.roWidth && line.roHeight && line.config !== 'PKT' && line.config !== 'B.P.') values.push(`RO ${canonicalStoredDimension(line.roWidth)} × ${canonicalStoredDimension(line.roHeight)}`);
-  return [...new Map(values.map((value) => [value.toLowerCase(), value])).values()].join(' | ');
+  return formatWorkOrderNotesGlass([...new Map(values.map((value) => [value.toLowerCase(), value])).values()].join(' | '));
+}
+
+function compactWorkOrderDetails(details: WorkOrderDetailRow[]): WorkOrderDetailRow[] {
+  const production = details.filter((row) => row.kind === 'frame' || row.kind === 'glass' || row.kind === 'panel');
+  const exceptions = details.filter((row) => row.kind !== 'frame' && row.kind !== 'glass' && row.kind !== 'panel');
+  const compactProduction = production.length ? [{
+    kind: 'frame' as const,
+    lines: [production.flatMap((row) => row.lines).filter(Boolean).join(' | ')],
+  }] : [];
+  return [...compactProduction, ...exceptions].slice(0, 3);
 }
 
 export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string | null): WorkOrderRowGroup {
@@ -235,7 +279,7 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
     : nonGlassResult?.status === 'Blocked' || nonGlassResult?.status === 'Incomplete'
       ? 'Blocked'
       : 'Complete';
-  const details = glassConfiguration ? glassDetailRows(line) : nonGlassDetailRows(nonGlassResult!);
+  const details = compactWorkOrderDetails(glassConfiguration ? glassDetailRows(line) : nonGlassDetailRows(nonGlassResult!));
   const detailLineCount = details.flatMap((row) => row.lines).filter(Boolean).length;
   return {
     primaryRow: {
@@ -243,13 +287,14 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
       cells: {
         quantity: String(line.qty), configuration: text(line.config), size: sizeDisplay(line),
         thickness: text(line.doorThickness) || (line.mode === 'Interior' ? '1-3/8' : '1-3/4'),
-        doorType: text(line.doorType), drill: prepDisplay(line.prep), hinge: hingeDisplay(line, hingeColor),
+        doorType: text(line.doorType), drill: prepDisplay(line.prep), hinge: workOrderHingeDisplay({ ...line, hingeColor }),
         swing: isNoJamb(line) ? '' : text(line.hand), jamb: jambDisplay(line), sill: text(line.sill),
         weatherstrip: text(line.weatherstrip), notesGlass: notesGlass(line, status),
       },
     },
     detailRows: details,
     weightedUnits: 1 + (detailLineCount ? Math.max(2, Math.ceil(detailLineCount / 3)) : 0),
+    diagram: glassConfiguration && line.includeDiagramOnWorkOrder !== false ? calculatePersistedGlassDiagramLayout(line) : null,
   };
 }
 
@@ -291,11 +336,18 @@ export function generateWorkOrderDocument(aggregate: NativeJobAggregate, input: 
     generatedDate: input.generatedDate, shopDate: text(aggregate.shopDate), poNumbers: po.values, poDisplay: po.display,
   };
   const activeLines = aggregate.lines.filter((line) => line.lineStatus === 'Active').slice().sort((left, right) => left.lineIndex - right.lineIndex);
-  const rowGroups = activeLines.map((line) => createWorkOrderRowGroup(line, aggregate.hingeColor));
+  const hingeColor = normalizeHingeColor(aggregate.hingeColor);
+  const validationIssues: WorkOrderValidationIssue[] = [];
+  if (hingeColor.ok === false) validationIssues.push({ field: 'hingeColor', lineIndex: null, message: hingeColor.message });
+  for (const line of activeLines) {
+    const hingeType = normalizeHingeType(line.mode, line.config, line.hingeType);
+    if (hingeType.ok === false) validationIssues.push({ field: 'hingeType', lineIndex: line.lineIndex, message: `Door line ${line.lineIndex}: ${hingeType.message}` });
+  }
+  const rowGroups = activeLines.map((line) => createWorkOrderRowGroup(line, hingeColor.ok ? hingeColor.value : null));
   return {
     internalCorrelation: { internalJobId: aggregate.internalJobId, sourceAggregateRevision: aggregate.revision },
     visibleIdentifier, pdfFilename: createWorkOrderPdfFilename(visibleIdentifier), generatedAt: generatedAt.toISOString(),
     generatedDate: input.generatedDate, columns: WORK_ORDER_COLUMNS, header, rowGroups,
-    pages: paginateWorkOrder(rowGroups, header),
+    pages: paginateWorkOrder(rowGroups, header), validationIssues,
   };
 }

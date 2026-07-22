@@ -4,6 +4,7 @@ import type {
   JobIntakeFailureCode,
   NativeJobHeader,
 } from './job-intake-types';
+import { normalizeHingeColor } from './hinge-contract';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -61,6 +62,7 @@ export function normalizeJobHeaderInput(
   const email = optionalText(input.email)?.toLowerCase() ?? null;
   const shopHours = optionalHours(input.shopHours);
   const poNumbers = normalizePoNumbers(input.poNumbers);
+  const hingeColor = normalizeHingeColor(input.hingeColor);
   const fieldErrors: Record<string, string> = {};
 
   if (!customer && !siteAddress) {
@@ -74,6 +76,7 @@ export function normalizeJobHeaderInput(
     fieldErrors.shopHours = 'Shop Hours must be a non-negative number.';
   }
   if (poNumbers.ok === false) fieldErrors.poNumbers = poNumbers.message;
+  if (hingeColor.ok === false) fieldErrors.hingeColor = hingeColor.message;
   if (input.lifecycleStage !== undefined && input.lifecycleStage !== 'Draft' && input.lifecycleStage !== 'Confirmed Job') {
     fieldErrors.lifecycleStage = 'Choose Draft or Confirmed Job.';
   }
@@ -95,7 +98,7 @@ export function normalizeJobHeaderInput(
         ? optionalText(input.salesperson)
         : optionalText(fallbackSalesperson),
       notes: optionalText(input.notes),
-      hingeColor: optionalText(input.hingeColor),
+      hingeColor: hingeColor.ok ? hingeColor.value : null,
       shopHours: shopHours as number | null,
       shopHoursSource: optionalText(input.shopHoursSource),
       poNumbers: poNumbers.ok ? poNumbers.value : [],

@@ -1,6 +1,6 @@
 import { parseStoredShopDimension } from './dimension-contract';
 import { calculateGlassGeometry, glassConfigurationTopology, isGlassConfiguration, normalizeSidelightType } from './glass-geometry-contract';
-import type { DoorLineInput } from './job-intake-types';
+import type { DoorLineInput, GlassGeometryValues } from './job-intake-types';
 
 export type GlassDiagramPart = {
   id: string;
@@ -27,9 +27,18 @@ function inches(value: unknown): number {
 /** Authoritative physical layout. All coordinates are inches from calculated geometry. */
 export function calculateGlassDiagramLayout(line: DoorLineInput): GlassDiagramLayout | null {
   if (!isGlassConfiguration(line.config)) return null;
-  const result = calculateGlassGeometry(line);
-  if (!result.glassCalc) return null;
-  const calc = result.glassCalc;
+  const calculated = calculateGlassGeometry(line);
+  return calculated.glassCalc ? diagramLayoutFromValues(line, calculated.glassCalc) : null;
+}
+
+/** Saved-output path: consumes persisted J2 values and never recalculates geometry. */
+export function calculatePersistedGlassDiagramLayout(line: DoorLineInput): GlassDiagramLayout | null {
+  if (!isGlassConfiguration(line.config) || !line.glassCalc) return null;
+  return diagramLayoutFromValues(line, line.glassCalc);
+}
+
+function diagramLayoutFromValues(line: DoorLineInput, calc: GlassGeometryValues): GlassDiagramLayout | null {
+  if (!isGlassConfiguration(line.config)) return null;
   const topology = glassConfigurationTopology(line.config);
   const type = normalizeSidelightType(calc.sidelightType) ?? 'Glass';
   const width = inches(calc.headerWidth);

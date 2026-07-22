@@ -7,6 +7,7 @@ import {
 import { SHOP_DIMENSION_FORMAT_HELP, parseStoredShopDimension } from './dimension-contract';
 import { isGlassConfiguration, normalizeGlassDomainFields } from './glass-geometry-contract';
 import { calculateNonGlassFrameCut } from './non-glass-frame-cut-contract';
+import { normalizeHingeType } from './hinge-contract';
 
 export const INTERIOR_WIDTHS = [
   `1'6"`, `2'0"`, `2'2"`, `2'4"`, `2'6"`, `2'8"`, `2'10"`, `3'0"`,
@@ -95,6 +96,7 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
     sidelightType: 'Glass', sidelightGlass: '', transomGlass: '',
     sidelightMeasurementLeft: '', sidelightMeasurementRight: '',
     panelSidelightWidth: '', panelSidelights: [],
+    includeDiagramOnWorkOrder: false,
   };
 }
 
@@ -148,7 +150,8 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
     errors.jambWidth = 'Enter the completed RIP jamb size before saving.';
   }
   if (!noJamb && !text(input.jambType)) errors.jambType = 'Choose a jamb type.';
-  if (!noJamb && !text(input.hingeType)) errors.hingeType = 'Choose a hinge type.';
+  const hingeType = normalizeHingeType(mode, config, input.hingeType);
+  if (hingeType.ok === false) errors.hingeType = hingeType.message;
 
   let roHeight = text(input.roHeight);
   if (config === 'B.P.' && roHeight && height) {
@@ -178,9 +181,10 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       jambType: noJamb ? null : text(input.jambType),
       sill: mode === 'Interior' ? null : text(input.sill),
       weatherstrip: mode === 'Interior' ? null : text(input.weatherstrip),
-      hingeType: noJamb ? null : text(input.hingeType), notes: text(input.notes), qty: quantity,
+      hingeType: hingeType.ok ? hingeType.value : null, notes: text(input.notes), qty: quantity,
       roWidth: noJamb ? null : text(input.roWidth), roHeight: config === 'PKT' ? null : roHeight,
       material, doorThickness: text(input.doorThickness),
+      includeDiagramOnWorkOrder: Boolean(mode === 'Exterior' && config && isGlassConfiguration(config) && input.includeDiagramOnWorkOrder !== false),
       ...(glassDomain ?? {
         glassCalcStatus: 'Ready' as const, glassWorkorderDetail: null, glassWarnings: [], glassBlockers: [],
         glassOverride: null, glassUnits: [], glassCalc: null, vendorCopyText: null, sidelightType: null,
@@ -277,6 +281,7 @@ export function mergeEquivalentActiveLines(lines: NativeDoorLine[]): {
     if (!keeper) keepers.set(key, line);
     else {
       keeper.qty += line.qty;
+      keeper.includeDiagramOnWorkOrder = keeper.includeDiagramOnWorkOrder !== false || line.includeDiagramOnWorkOrder !== false;
       line.lineStatus = 'Merged';
       mergedCount += 1;
     }

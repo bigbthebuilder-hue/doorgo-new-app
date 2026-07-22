@@ -82,6 +82,7 @@ export type NativeDoorLine = {
   sidelightMeasurementRight: string | null;
   panelSidelightWidth: string | null;
   panelSidelights: PanelSidelight[];
+  includeDiagramOnWorkOrder: boolean;
   createdAt: string;
   updatedAt: string;
   createdByUserId: string;

@@ -8,7 +8,7 @@ import { JobIntakeFailure, type NativeDoorLine, type NativeJobAggregate } from '
 import { generateSavedWorkOrderWithAccess } from './work-order-generation-service-contract';
 import {
   createWorkOrderPdfFilename, createWorkOrderRowGroup, formatWorkOrderPoNumbers,
-  generateWorkOrderDocument, paginateWorkOrder, type WorkOrderHeader, type WorkOrderRowGroup,
+  formatWorkOrderNotesGlass, generateWorkOrderDocument, paginateWorkOrder, type WorkOrderHeader, type WorkOrderRowGroup,
 } from './work-order-document-contract';
 
 function line(overrides: Partial<NativeDoorLine> = {}): NativeDoorLine {
@@ -23,7 +23,7 @@ function line(overrides: Partial<NativeDoorLine> = {}): NativeDoorLine {
     sidelightGlass: null, transomGlass: null, sidelightMeasurementLeft: null, sidelightMeasurementRight: null,
     panelSidelightWidth: null, panelSidelights: [], createdAt: '2026-07-22T10:00:00.000Z',
     updatedAt: '2026-07-22T10:00:00.000Z', createdByUserId: 'user-1', updatedByUserId: 'user-1',
-    ...overrides,
+    ...overrides, includeDiagramOnWorkOrder: overrides.includeDiagramOnWorkOrder ?? false,
   };
 }
 
@@ -100,7 +100,13 @@ async function main() {
   assert.deepEqual(ordered.rowGroups.map((group) => group.primaryRow.lineId), ['b', 'a']);
 
   const interiorD = createWorkOrderRowGroup(line(), 'C15');
-  assert.equal(interiorD.primaryRow.cells.size, `3'0" × 6'8"`);
+  assert.equal(interiorD.primaryRow.cells.size, `3'0"`);
+  assert.equal(createWorkOrderRowGroup(line({ width: `2'6"`, height: `6'8"` }), null).primaryRow.cells.size, `2'6"`);
+  assert.equal(createWorkOrderRowGroup(line({ width: `3'6"`, height: `6'8"` }), null).primaryRow.cells.size, `3'6"`);
+  assert.equal(createWorkOrderRowGroup(line({ height: `7'0"` }), null).primaryRow.cells.size, `3'0" × 7'0"`);
+  assert.equal(createWorkOrderRowGroup(line({ height: `8'0"` }), null).primaryRow.cells.size, `3'0" × 8'0"`);
+  assert.equal(createWorkOrderRowGroup(line({ height: `7'6"` }), null).primaryRow.cells.size, `3'0" × 7'6"`);
+  assert.equal(createWorkOrderRowGroup(line({ customSlab: 'WoodCustom', customSlabWidth: `39"`, customSlabHeight: `92"` }), null).primaryRow.cells.size, `39" × 92"`);
   assert.equal(interiorD.primaryRow.cells.drill, 'Single drilled');
   assert.match(interiorD.detailRows.flatMap((row) => row.lines).join('\n'), /Jamb legs|Header/);
   const interiorDd = createWorkOrderRowGroup(line({ config: 'DD', prep: 'BOTH', hand: null }), null);
@@ -114,6 +120,9 @@ async function main() {
   const bp = createWorkOrderRowGroup(line({ config: 'B.P.', prep: 'NO', hand: null, jambWidth: null, jambType: null, hingeType: null, roHeight: null }), null);
   assert.match(bp.detailRows.flatMap((row) => row.lines).join('\n'), /F\.O\. Height: 82 3\/4"/);
   assert.equal(bp.detailRows.flatMap((row) => row.lines).join('\n').includes('F.O. Width'), false);
+  assert.equal(bp.detailRows.flatMap((row) => row.lines).join('\n').includes('Door cut to'), false);
+  const cutBp = createWorkOrderRowGroup(line({ config: 'B.P.', prep: 'NO', hand: null, jambWidth: null, jambType: null, hingeType: null, roHeight: `80"` }), null);
+  assert.match(cutBp.detailRows.flatMap((row) => row.lines).join('\n'), /F\.O\. Height: 80" \| Door cut to: 77 1\/4"/);
   const exterior = createWorkOrderRowGroup(line({ mode: 'Exterior', material: 'fiberglass', hand: 'LH', prep: 'STD', sill: 'STD', weatherstrip: 'WHT', jambWidth: `6-9/16"`, hingeType: 'BB' }), 'C15');
   assert.match(exterior.detailRows.flatMap((row) => row.lines).join('\n'), /Header\/Sill: 36"/);
   assert.equal(exterior.primaryRow.cells.thickness, '1-3/4');
@@ -123,8 +132,9 @@ async function main() {
   for (const config of ['SD', 'DS', 'SDS', 'SDDS', 'T/SD', 'T/DS', 'T/SDS', 'T/SDDS'] as const) {
     const glass = createWorkOrderRowGroup(line({ mode: 'Exterior', config, material: 'fiberglass', glassCalcStatus: 'Complete', roWidth: '96', roHeight: config.startsWith('T/') ? '100' : null, sidelightType: 'Glass', glassCalc: { jambLeg: `97 1/2"`, headerWidth: `94"`, divider: `2 1/4"`, transomWidth: config.startsWith('T/') ? `91 7/8"` : '' }, glassUnits: [{ position: config === 'DS' ? 'Right Sidelight' : 'Left Sidelight', width: `12"`, height: `80"`, glassType: 'Clear', termCode: 'CLR', qty: 1 }] }), null);
     assert.equal(glass.primaryRow.status, 'Complete');
-    assert.ok(glass.detailRows.some((row) => row.kind === 'glass'));
-    assert.match(glass.detailRows.flatMap((row) => row.lines).join('\n'), /divider: 2 1\/4"/i);
+    assert.match(glass.detailRows.flatMap((row) => row.lines).join('\n'), /Left Sidelight|Right Sidelight/);
+    assert.equal(/divider/i.test(glass.detailRows.flatMap((row) => row.lines).join('\n')), false);
+    assert.ok(glass.detailRows.length <= 3);
   }
   for (const config of ['T/D', 'T/DD'] as const) {
     const transom = createWorkOrderRowGroup(line({ mode: 'Exterior', config, material: 'fiberglass', glassCalcStatus: 'Complete', roWidth: '75', roHeight: '100', glassCalc: { transomWidth: `72 7/16"`, transomHeight: `15"`, headerWidth: `72 9/16"` }, glassUnits: [{ position: 'Transom', width: `72 7/16"`, height: `15"`, glassType: 'Clear', termCode: 'CLR', qty: 1 }] }), null);
@@ -134,6 +144,28 @@ async function main() {
   assert.match(fiberglassPanel.detailRows.flatMap((row) => row.lines).join('\n'), /Fiberglass 11 3\/4" × 79"/);
   const woodPanel = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'DS', material: 'wood', glassCalcStatus: 'Complete', sidelightType: 'Panel', glassCalc: { divider: `1 1/2"`, panelWidth: `15 1/8"` }, panelSidelights: [{ position: 'Right Panel', material: 'Wood', width: `15.125`, height: `80`, qty: 1 }] }), null);
   assert.match(woodPanel.detailRows.flatMap((row) => row.lines).join('\n'), /Wood 15 1\/8" × 80"/);
+
+  assert.equal(formatWorkOrderNotesGlass('Glass'), '');
+  assert.equal(formatWorkOrderNotesGlass('Glass | RO 75" × 99"'), 'RO 75" × 99"');
+  assert.equal(formatWorkOrderNotesGlass('Glass | Verify exterior trim'), 'Verify exterior trim');
+  assert.equal(formatWorkOrderNotesGlass('Glass · RO 75" × 99"'), 'RO 75" × 99"');
+  assert.equal(formatWorkOrderNotesGlass('Glass - RO 75" × 99"'), 'RO 75" × 99"');
+  for (const meaningfulNote of ['Match existing glass', 'Customer supplying glass', 'Glass colour confirmed']) {
+    assert.equal(formatWorkOrderNotesGlass(meaningfulNote), meaningfulNote);
+  }
+  const cleanedGlass = createWorkOrderRowGroup(line({
+    mode: 'Exterior', config: 'T/SD', material: 'fiberglass', notes: 'Verify exterior trim',
+    glassCalcStatus: 'Complete', roWidth: '75', roHeight: '99', includeDiagramOnWorkOrder: false,
+    glassCalc: { transomWidth: `72 7/16"`, transomHeight: `15 1/8"`, sidelightWidth: `14 5/8"`, sidelightHeight: `95 1/8"` },
+    glassUnits: [
+      { position: 'Transom', width: `72 7/16"`, height: `15 1/8"`, glassType: 'Clear', termCode: 'CLR', qty: 1 },
+      { position: 'Left Sidelight', width: `14 5/8"`, height: `95 1/8"`, glassType: 'Satin Etch', termCode: 'SAT', qty: 1 },
+    ],
+  }), null);
+  assert.equal(cleanedGlass.primaryRow.cells.notesGlass, 'Verify exterior trim | RO 75" × 99"');
+  assert.match(cleanedGlass.detailRows.flatMap((row) => row.lines).join('\n'), /Transom: 72 7\/16" × 15 1\/8" Clear/);
+  assert.match(cleanedGlass.detailRows.flatMap((row) => row.lines).join('\n'), /Left Sidelight: 14 5\/8" × 95 1\/8" Satin Etch/);
+  assert.equal(cleanedGlass.diagram, null, 'cleaning is independent of the saved diagram preference');
 
   const needed = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'SD', glassCalcStatus: 'Glass Detail Needed', roWidth: '60', glassCalc: null }), null);
   assert.equal(needed.primaryRow.status, 'Glass Detail Needed');
@@ -161,7 +193,7 @@ async function main() {
     { code: 'five', message: 'Five.' }, { code: 'six', message: 'Six.' },
     { code: 'seven', message: 'Seven.' },
   ], glassCalc: null }), null);
-  assert.equal(sevenDetailLines.weightedUnits, 4, 'seven detail lines add ceil(7 / 3) units');
+  assert.equal(sevenDetailLines.weightedUnits, 3, 'compact blocker text occupies one attached detail line');
 
   assert.equal(paginateWorkOrder([weighted(1, 21)], pageHeader()).length, 1, 'below first-page capacity');
   assert.equal(paginateWorkOrder([weighted(1, 22)], pageHeader()).length, 1, 'exact first-page capacity');

@@ -6,6 +6,8 @@ import { createDraftJobAction, updateDraftJobAction } from '@/lib/jobs/job-intak
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine } from '@/lib/jobs/door-line-contract';
 import { jobAggregateDirtySnapshot, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
 import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggregate } from '@/lib/jobs/job-intake-types';
+import { workOrderOutputDecision, type WorkOrderOutputIntent } from '@/lib/jobs/work-order-preview-contract';
+import { HINGE_COLOR_OPTIONS, normalizeHingeColor } from '@/lib/jobs/hinge-contract';
 import { DoorLineWorkspace } from './DoorLineWorkspace';
 
 type FormValues = {
@@ -76,6 +78,7 @@ export function JobHeaderForm({
   const [lines, setLines] = useState<DoorLineInput[]>(() => initialJob?.lines ?? []);
   const [lifecycleStage, setLifecycleStage] = useState<JobLifecycleStage>(initialJob?.lifecycleStage ?? 'Draft');
   const [pendingPoNumber, setPendingPoNumber] = useState('');
+  const [hasUnappliedLineChanges, setHasUnappliedLineChanges] = useState(false);
   const snapshot = (nextValues = values, nextLines = lines, nextStage = lifecycleStage, nextPendingPo = pendingPoNumber) => jobAggregateDirtySnapshot({ values: nextValues, lines: nextLines, lifecycleStage: nextStage, pendingPoNumber: nextPendingPo });
   const [baseline, setBaseline] = useState(() => jobAggregateDirtySnapshot({ values: initialValues(initialJob, defaultSalesperson), lines: initialJob?.lines ?? [], lifecycleStage: initialJob?.lifecycleStage ?? 'Draft', pendingPoNumber: '' }));
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
@@ -114,6 +117,56 @@ export function JobHeaderForm({
     if (!dirty || window.confirm('Exit without saving your changes?')) router.push('/jobs');
   }
 
+  function outputPath(internalJobId: string, intent: WorkOrderOutputIntent) {
+    const query = intent === 'preview' ? '' : `?action=${intent}`;
+    return `/jobs/${internalJobId}/work-order${query}`;
+  }
+
+  function validateAggregateBeforeSave(): boolean {
+    if (pendingPoNumber.trim()) {
+      setFieldErrors((current) => ({ ...current, poNumbers: 'Add the pending PO Number or clear the entry before saving.' }));
+      setMessage({ kind: 'error', text: 'Review the PO Numbers entry.' });
+      return false;
+    }
+    if (lifecycleStage === 'Confirmed Job' && !hasValidActiveDoorLine(lines)) {
+      setMessage({ kind: 'error', text: CONFIRMED_JOB_LINE_MESSAGE });
+      return false;
+    }
+    return true;
+  }
+
+  async function persistAggregate() {
+    if (!validateAggregateBeforeSave()) return null;
+    setMessage(null); setFieldErrors({}); commandId.current ??= globalThis.crypto.randomUUID();
+    const result = job
+      ? await updateDraftJobAction({ internalJobId: job.internalJobId, expectedRevision: job.revision, input, lines })
+      : await createDraftJobAction({ commandId: commandId.current as string, input, lines });
+    if (!result.ok) {
+      setMessage({ kind: 'error', text: result.message });
+      setFieldErrors(result.fieldErrors ?? {});
+      return null;
+    }
+    setJob(result.job);
+    const savedValues = initialValues(result.job, defaultSalesperson);
+    setValues(savedValues); setLines(result.job.lines); setLifecycleStage(result.job.lifecycleStage); setPendingPoNumber('');
+    setBaseline(jobAggregateDirtySnapshot({ values: savedValues, lines: result.job.lines, lifecycleStage: result.job.lifecycleStage, pendingPoNumber: '' }));
+    return result.job;
+  }
+
+  function openWorkOrder(intent: WorkOrderOutputIntent) {
+    if (isPending) return;
+    const decision = workOrderOutputDecision({ hasSavedJob: Boolean(job), dirty, canEdit, hasUnappliedLineChanges });
+    if (!decision.ok) {
+      setMessage({ kind: 'error', text: decision.message });
+      return;
+    }
+    if (!decision.saveRequired) { router.push(outputPath(job!.internalJobId, intent)); return; }
+    startTransition(async () => {
+      const saved = await persistAggregate();
+      if (saved) router.push(outputPath(saved.internalJobId, intent));
+    });
+  }
+
   function addPoNumber() {
     if (!canEdit) return;
     const normalized = normalizePoNumbers([...values.poNumbers, pendingPoNumber]);
@@ -136,37 +189,12 @@ export function JobHeaderForm({
 
   function save(exitAfterSave: boolean) {
     if (!canEdit || isPending) return;
-    if (pendingPoNumber.trim()) {
-      setFieldErrors((current) => ({ ...current, poNumbers: 'Add the pending PO Number or clear the entry before saving.' }));
-      setMessage({ kind: 'error', text: 'Review the PO Numbers entry.' });
-      return;
-    }
-    if (lifecycleStage === 'Confirmed Job' && !hasValidActiveDoorLine(lines)) {
-      setMessage({ kind: 'error', text: CONFIRMED_JOB_LINE_MESSAGE });
-      return;
-    }
-    setMessage(null);
-    setFieldErrors({});
-    commandId.current ??= globalThis.crypto.randomUUID();
     startTransition(async () => {
-      const result = job
-        ? await updateDraftJobAction({ internalJobId: job.internalJobId, expectedRevision: job.revision, input, lines })
-        : await createDraftJobAction({ commandId: commandId.current as string, input, lines });
-      if (!result.ok) {
-        setMessage({ kind: 'error', text: result.message });
-        setFieldErrors(result.fieldErrors ?? {});
-        return;
-      }
-      setJob(result.job);
-      const savedValues = initialValues(result.job, defaultSalesperson);
-      setValues(savedValues);
-      setLines(result.job.lines);
-      setLifecycleStage(result.job.lifecycleStage);
-      setPendingPoNumber('');
-      setBaseline(jobAggregateDirtySnapshot({ values: savedValues, lines: result.job.lines, lifecycleStage: result.job.lifecycleStage, pendingPoNumber: '' }));
-      setMessage({ kind: 'success', text: `${result.job.doorGoReference} saved.` });
+      const saved = await persistAggregate();
+      if (!saved) return;
+      setMessage({ kind: 'success', text: `${saved.doorGoReference} saved.` });
       if (exitAfterSave) router.push('/jobs');
-      else if (!job) router.replace(`/jobs/${result.job.internalJobId}/edit`);
+      else if (!job) router.replace(`/jobs/${saved.internalJobId}/edit`);
     });
   }
 
@@ -211,7 +239,7 @@ export function JobHeaderForm({
         <details className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" open={Boolean(values.hingeColor || values.shopHours || values.fulfillmentPlan || values.shopDate || values.poNumbers.length)}>
           <summary className="cursor-pointer font-semibold">Production Setup (optional in Draft)</summary>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <Field label="Hinge Color" name="hingeColor"><input className={inputClass} disabled={!canEdit} id="hingeColor" onChange={(e) => update('hingeColor', e.target.value)} value={values.hingeColor}/></Field>
+            <Field label="Hinge Color" name="hingeColor"><select className={inputClass} disabled={!canEdit} id="hingeColor" onChange={(e) => update('hingeColor', e.target.value)} value={values.hingeColor}>{!normalizeHingeColor(values.hingeColor).ok ? <option disabled value={values.hingeColor}>Invalid saved value — choose a valid finish</option> : null}{HINGE_COLOR_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
             <Field error={fieldErrors.shopHours} label="Shop Hours" name="shopHours"><input className={inputClass} disabled={!canEdit} id="shopHours" min="0" onChange={(e) => update('shopHours', e.target.value)} step="0.25" type="number" value={values.shopHours}/></Field>
             <Field label="Fulfillment Plan" name="fulfillmentPlan"><select className={inputClass} disabled={!canEdit} id="fulfillmentPlan" onChange={(e) => update('fulfillmentPlan', e.target.value)} value={values.fulfillmentPlan}><option value="">Not selected</option><option value="Delivery">Delivery</option><option value="Customer Pickup">Customer Pickup</option></select></Field>
             {values.fulfillmentPlan === 'Delivery' ? <Field label="Delivery Date" name="deliveryDate"><input className={inputClass} disabled={!canEdit} id="deliveryDate" onChange={(e) => update('deliveryDate', e.target.value)} type="date" value={values.deliveryDate}/></Field> : null}
@@ -229,12 +257,13 @@ export function JobHeaderForm({
         <Field label="Job Notes" name="notes"><textarea className={`${inputClass} min-h-24 resize-y`} disabled={!canEdit} id="notes" onChange={(e) => update('notes', e.target.value)} placeholder="Job notes" value={values.notes}/></Field>
       </div>
 
-      <div className="mt-6"><DoorLineWorkspace canEdit={canEdit} lifecycleStage={lifecycleStage} lines={lines} onChange={setLines}/></div>
+      <div className="mt-6"><DoorLineWorkspace canEdit={canEdit} lifecycleStage={lifecycleStage} lines={lines} onChange={setLines} onUnappliedChange={setHasUnappliedLineChanges}/></div>
 
       {message ? <p className={`mt-5 rounded-xl p-3 text-sm ${message.kind === 'success' ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100'}`} role="status">{message.text}</p> : null}
 
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap">
         <button className="min-h-12 rounded-xl border border-slate-300 px-5 font-semibold dark:border-slate-600" onClick={leave} type="button">Back / Exit</button>
+        {job ? <><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print Work Order</button></> : null}
         {canEdit ? <>
           <button className="min-h-12 rounded-xl bg-sky-700 px-5 font-semibold text-white disabled:opacity-60" disabled={isPending} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : 'Save'}</button>
           <button className="min-h-12 rounded-xl bg-slate-900 px-5 font-semibold text-white disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button>

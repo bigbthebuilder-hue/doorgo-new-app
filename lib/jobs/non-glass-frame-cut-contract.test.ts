@@ -19,7 +19,7 @@ function line(overrides: Partial<NativeDoorLine> = {}): NativeDoorLine {
     vendorCopyText: null, sidelightType: null, sidelightGlass: null, transomGlass: null,
     sidelightMeasurementLeft: null, sidelightMeasurementRight: null, panelSidelightWidth: null,
     panelSidelights: [], createdAt: '2026-07-21T10:00:00.000Z', updatedAt: '2026-07-21T10:00:00.000Z',
-    createdByUserId: 'user-1', updatedByUserId: 'user-1', ...overrides,
+    createdByUserId: 'user-1', updatedByUserId: 'user-1', ...overrides, includeDiagramOnWorkOrder: overrides.includeDiagramOnWorkOrder ?? false,
   };
 }
 

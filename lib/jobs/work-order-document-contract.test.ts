@@ -6,6 +6,7 @@ import { resolveCurrentDoorGoAccess } from '../auth/access';
 import { createLocalJobIntakeRepository } from './local-job-intake-repository';
 import { JobIntakeFailure, type NativeDoorLine, type NativeJobAggregate } from './job-intake-types';
 import { generateSavedWorkOrderWithAccess } from './work-order-generation-service-contract';
+import { calculateGlassGeometry } from './glass-geometry-contract';
 import {
   createWorkOrderPdfFilename, createWorkOrderRowGroup, formatWorkOrderPoNumbers,
   formatWorkOrderNotesGlass, generateWorkOrderDocument, paginateWorkOrder, type WorkOrderHeader, type WorkOrderRowGroup,
@@ -144,6 +145,64 @@ async function main() {
   assert.match(fiberglassPanel.detailRows.flatMap((row) => row.lines).join('\n'), /Fiberglass 11 3\/4" × 79"/);
   const woodPanel = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'DS', material: 'wood', glassCalcStatus: 'Complete', sidelightType: 'Panel', glassCalc: { divider: `1 1/2"`, panelWidth: `15 1/8"` }, panelSidelights: [{ position: 'Right Panel', material: 'Wood', width: `15.125`, height: `80`, qty: 1 }] }), null);
   assert.match(woodPanel.detailRows.flatMap((row) => row.lines).join('\n'), /Wood 15 1\/8" × 80"/);
+  const repeatedGlass = createWorkOrderRowGroup(line({
+    mode: 'Exterior', config: 'DSS', material: 'fiberglass', glassCalcStatus: 'Complete',
+    roWidth: '96', sidelightType: 'Glass', includeDiagramOnWorkOrder: true,
+    glassCalc: { headerWidth: `94"`, slabWidth: `35 3/4"`, finalDoorHeight: `79"`, divider: `2 1/4"`, sidelightWidth: `26 5/8"`, sidelightHeight: `79 1/8"`, sidelightType: 'Glass' },
+    glassUnits: [
+      { position: 'Right sidelight 1', width: `26 5/8"`, height: `79 1/8"`, glassType: 'Clear', termCode: 'CLR', qty: 1 },
+      { position: 'Right sidelight 2', width: `26 5/8"`, height: `79 1/8"`, glassType: 'Clear', termCode: 'CLR', qty: 1 },
+    ],
+  }), null);
+  assert.equal(repeatedGlass.primaryRow.cells.configuration, 'DSS');
+  assert.match(repeatedGlass.detailRows.flatMap((row) => row.lines).join('\n'), /2 sidelights @ 26 5\/8" × 79 1\/8" Clear/);
+  assert.doesNotMatch(repeatedGlass.detailRows.flatMap((row) => row.lines).join('\n'), /Right sidelight 2/);
+  assert.equal(repeatedGlass.diagram?.parts.filter((part) => part.kind === 'glass').length, 2);
+  const threeRepeated = createWorkOrderRowGroup(line({
+    mode: 'Exterior', config: 'DSSS', material: 'fiberglass', glassCalcStatus: 'Complete',
+    sidelightType: 'Glass', glassUnits: Array.from({ length: 3 }, (_, index) => ({
+      position: `Right sidelight ${index + 1}`, width: `11 5/8"`, height: `79 1/8"`,
+      glassType: 'Clear', termCode: 'CLR', qty: 1,
+    })),
+  }), null);
+  assert.match(threeRepeated.detailRows.flatMap((row) => row.lines).join('\n'), /3 sidelights @ 11 5\/8" × 79 1\/8" Clear/);
+  const correctedTallGeometry = calculateGlassGeometry({
+    mode: 'Exterior', config: 'DSSS', width: `3'0"`, height: `8'0"`, material: 'fiberglass',
+    customSlab: 'No', hand: 'LH', roWidth: '80', roHeight: '104',
+    sidelightType: 'Glass', sidelightGlass: 'CLR_SB60_K4SG',
+  });
+  const correctedTallWorkOrder = createWorkOrderRowGroup(line({
+    mode: 'Exterior', config: 'DSSS', width: `3'0"`, height: `8'0"`, material: 'fiberglass',
+    customSlab: 'No', hand: 'LH', roWidth: '80', roHeight: '104', sidelightType: 'Glass',
+    glassCalcStatus: correctedTallGeometry.status, glassCalc: correctedTallGeometry.glassCalc,
+    glassUnits: correctedTallGeometry.glassUnits, glassWarnings: correctedTallGeometry.warnings,
+  }), null);
+  assert.match(correctedTallWorkOrder.detailRows.flatMap((row) => row.lines).join('\n'), /Jamb legs: 97 1\/4"/, 'J3A detail consumes the corrected saved jamb-leg result');
+  const fourRepeated = createWorkOrderRowGroup(line({
+    mode: 'Exterior', config: 'SSDSS', material: 'fiberglass', glassCalcStatus: 'Complete',
+    sidelightType: 'Glass', glassCalc: { headerWidth: `94"` },
+    glassUnits: ['Left 1', 'Left 2', 'Right 1', 'Right 2'].map((position) => ({ position: `${position} sidelight`, width: `8 1/8"`, height: `79 1/8"`, glassType: 'Clear', termCode: 'CLR', qty: 1 })),
+  }), null);
+  assert.match(fourRepeated.detailRows.flatMap((row) => row.lines).join('\n'), /4 sidelights @ 8 1\/8" × 79 1\/8" Clear/);
+  const mixedRepeated = createWorkOrderRowGroup(line({
+    mode: 'Exterior', config: 'DSSS', material: 'fiberglass', glassCalcStatus: 'Complete',
+    sidelightType: 'Glass', glassUnits: [
+      { position: 'Right sidelight 1', width: `12"`, height: `79"`, glassType: 'Clear', termCode: 'CLR', qty: 1 },
+      { position: 'Right sidelight 2', width: `12"`, height: `79"`, glassType: 'Clear', termCode: 'CLR', qty: 1 },
+      { position: 'Right sidelight 3', width: `14"`, height: `79"`, glassType: 'Satin Etch', termCode: 'SAT', qty: 1 },
+    ],
+  }), null);
+  const mixedText = mixedRepeated.detailRows.flatMap((row) => row.lines).join('\n');
+  assert.match(mixedText, /2 sidelights @ 12" × 79" Clear/);
+  assert.match(mixedText, /Right sidelight 3: 14" × 79" Satin Etch/);
+  const groupedPanels = createWorkOrderRowGroup(line({
+    mode: 'Exterior', config: 'SDS', material: 'fiberglass', glassCalcStatus: 'Complete',
+    sidelightType: 'Panel', panelSidelights: [
+      { position: 'Left Panel', material: 'Fiberglass', width: `11 3/4"`, height: `79"`, qty: 1 },
+      { position: 'Right Panel', material: 'Fiberglass', width: `11 3/4"`, height: `79"`, qty: 1 },
+    ],
+  }), null);
+  assert.match(groupedPanels.detailRows.flatMap((row) => row.lines).join('\n'), /2 sidelight panels @ Fiberglass 11 3\/4" × 79"/);
 
   assert.equal(formatWorkOrderNotesGlass('Glass'), '');
   assert.equal(formatWorkOrderNotesGlass('Glass | RO 75" × 99"'), 'RO 75" × 99"');

@@ -37,8 +37,8 @@ const glassCalc = {
 const diagramLine = { ...mergeOn, config: 'T/SDS', glassCalc, glassCalcStatus: 'Complete' as const, glassUnits: [], glassWarnings: [], glassBlockers: [] };
 const diagram = calculatePersistedGlassDiagramLayout(diagramLine);
 assert.ok(diagram);
-assert.ok(diagram?.parts.some((part) => part.id === 'left-sidelight'));
-assert.ok(diagram?.parts.some((part) => part.id === 'right-sidelight'));
+assert.ok(diagram?.parts.some((part) => part.id === 'left-sidelight-1'));
+assert.ok(diagram?.parts.some((part) => part.id === 'right-sidelight-1'));
 assert.ok(diagram?.parts.some((part) => part.id === 'transom'));
 assert.equal(diagram?.parts.some((part) => /\d|glass/i.test(part.label ?? '')), false, 'resolved print diagram labels contain no dimensions or glass type');
 for (const config of ['SD', 'DS', 'SDS', 'T/D', 'T/SDS']) {

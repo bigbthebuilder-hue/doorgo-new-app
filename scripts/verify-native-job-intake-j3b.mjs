@@ -69,8 +69,9 @@ assert.equal(/label="Hinge Color"[\s\S]{0,160}<input/.test(form), false, 'job hi
 const lineEditor = await readFile('components/jobs/DoorLineWorkspace.tsx', 'utf8');
 assert.ok(lineEditor.includes('hingeTypeOptions(mode)'));
 assert.ok(lineEditor.includes('hingeTypeAfterModeChange(nextMode'));
-assert.ok(lineEditor.includes('Include diagram on work order'));
-assert.ok(lineEditor.includes("set('includeDiagramOnWorkOrder', event.target.checked)"), 'diagram preference must remain explicit unsaved editor state');
+const glassBuilder = await readFile('components/jobs/GlassUnitBuilder.tsx', 'utf8');
+assert.ok(glassBuilder.includes('Include diagram on work order'));
+assert.ok(glassBuilder.includes("setField('includeDiagramOnWorkOrder', event.target.checked)"), 'diagram preference must remain explicit unsaved builder state');
 assert.ok(lineEditor.includes('nextApplicable ? (previouslyApplicable ? editor.includeDiagramOnWorkOrder !== false : true) : false'), 'new applicable configurations default on');
 assert.ok(lineEditor.includes('structuredClone(line)'), 'edit and duplicate flows preserve saved line fields');
 const documentContract = await readFile('lib/jobs/work-order-document-contract.ts', 'utf8');

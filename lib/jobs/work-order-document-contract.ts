@@ -3,6 +3,7 @@ import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-gl
 import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate } from './job-intake-types';
 import { normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
 import { calculatePersistedGlassDiagramLayout, type GlassDiagramLayout } from './glass-diagram-contract';
+import { isFrameGlassConfiguration } from './glass-unit-composition-contract';
 
 export const WORK_ORDER_COLUMNS = ['Qty', 'Config', 'Size', 'Thick', 'Door Type', 'Drill', 'Hinge', 'Swing', 'Jamb', 'Sill', 'W/S', 'Notes/Glass'] as const;
 export const FIRST_PAGE_WEIGHT_CAPACITY = 22;
@@ -225,10 +226,37 @@ function glassDetailRows(line: NativeDoorLine): WorkOrderDetailRow[] {
     if (production) rows.push({ kind: 'frame', lines: [production] });
   }
   if (status !== 'Blocked' && status !== 'Glass Detail Needed' && line.panelSidelights.length) {
-    rows.push({ kind: 'panel', lines: line.panelSidelights.map((panel) => `${panel.position}: ${panel.qty > 1 ? `${panel.qty} @ ` : ''}${panel.material} ${canonicalStoredDimension(panel.width)} × ${canonicalStoredDimension(panel.height)}`) });
+    const grouped = new Map<string, { count: number; material: string; width: string; height: string; position: string }>();
+    for (const panel of line.panelSidelights) {
+      const width = canonicalStoredDimension(panel.width);
+      const height = canonicalStoredDimension(panel.height);
+      const key = `${panel.material}\u0000${width}\u0000${height}`;
+      const existing = grouped.get(key);
+      if (existing) existing.count += Number(panel.qty) || 1;
+      else grouped.set(key, { count: Number(panel.qty) || 1, material: panel.material, width, height, position: panel.position });
+    }
+    rows.push({ kind: 'panel', lines: [...grouped.values()].map((panel) => panel.count > 1
+      ? `${panel.count} sidelight panels @ ${panel.material} ${panel.width} × ${panel.height}`
+      : `${panel.position}: ${panel.material} ${panel.width} × ${panel.height}`) });
   }
   if (status !== 'Blocked' && status !== 'Glass Detail Needed' && line.glassUnits.length) {
-    rows.push({ kind: 'glass', lines: line.glassUnits.map((unit) => `${unit.position}: ${unit.qty > 1 ? `${unit.qty} @ ` : ''}${canonicalStoredDimension(unit.width)} × ${canonicalStoredDimension(unit.height)} ${unit.glassType}`.trim()) });
+    const fixed = line.glassUnits.filter((unit) => !/sidelight/i.test(unit.position));
+    const sides = line.glassUnits.filter((unit) => /sidelight/i.test(unit.position));
+    const grouped = new Map<string, { count: number; width: string; height: string; glassType: string; position: string }>();
+    for (const unit of sides) {
+      const width = canonicalStoredDimension(unit.width);
+      const height = canonicalStoredDimension(unit.height);
+      const key = `${width}\u0000${height}\u0000${unit.glassType}`;
+      const existing = grouped.get(key);
+      if (existing) existing.count += Number(unit.qty) || 1;
+      else grouped.set(key, { count: Number(unit.qty) || 1, width, height, glassType: unit.glassType, position: unit.position });
+    }
+    rows.push({ kind: 'glass', lines: [
+      ...fixed.map((unit) => `${unit.position}: ${unit.qty > 1 ? `${unit.qty} @ ` : ''}${canonicalStoredDimension(unit.width)} × ${canonicalStoredDimension(unit.height)} ${unit.glassType}`.trim()),
+      ...[...grouped.values()].map((unit) => unit.count > 1
+        ? `${unit.count} sidelights @ ${unit.width} × ${unit.height} ${unit.glassType}`.trim()
+        : `${unit.position}: ${unit.width} × ${unit.height} ${unit.glassType}`.trim()),
+    ] });
   }
   const warningLines = issues(line.glassWarnings);
   if (warningLines.length) rows.push({ kind: 'warning', lines: [warningLines.join(' | ')] });
@@ -272,7 +300,7 @@ function compactWorkOrderDetails(details: WorkOrderDetailRow[]): WorkOrderDetail
 }
 
 export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string | null): WorkOrderRowGroup {
-  const glassConfiguration = ['SD', 'DS', 'SDS', 'SDDS', 'T/D', 'T/DD', 'T/SD', 'T/DS', 'T/SDS', 'T/SDDS'].includes(line.config);
+  const glassConfiguration = isFrameGlassConfiguration(line.config);
   const nonGlassResult = glassConfiguration ? null : calculateNonGlassFrameCut(line);
   const status = glassConfiguration
     ? presentationStatus(line)

@@ -107,12 +107,15 @@ export type WorkOrderGroupLayout = {
   detailLayouts: DetailLayout[];
   detailHeight: number;
   totalHeight: number;
+  diagramReservedWidth: number;
+  detailTextWidth: number;
 };
 
 export function measureWorkOrderGroup(row: WorkOrderPrimaryRow, details: readonly WorkOrderDetailRow[], regular: PDFFont, diagram: WorkOrderRowGroup['diagram'] = null): WorkOrderGroupLayout {
-  const primaryLines = primaryCells(row).map((value, index) => wrapText(regular, value, WORK_ORDER_PDF_TEXT_SIZES.primary, WORK_ORDER_PDF_COLUMN_WIDTHS[index] - 6 - (diagram && index === WORK_ORDER_PDF_COLUMN_WIDTHS.length - 1 ? DIAGRAM_MAX_WIDTH + 4 : 0)));
+  const diagramReservedWidth = diagram ? DIAGRAM_MAX_WIDTH + 12 : 0;
+  const primaryLines = primaryCells(row).map((value, index) => wrapText(regular, value, WORK_ORDER_PDF_TEXT_SIZES.primary, Math.max(12, WORK_ORDER_PDF_COLUMN_WIDTHS[index] - 6 - (diagram && index === WORK_ORDER_PDF_COLUMN_WIDTHS.length - 1 ? diagramReservedWidth : 0))));
   const primaryHeight = Math.max(26, Math.max(...primaryLines.map((lines) => lines.length)) * 12 + 10);
-  const detailWidth = CONTENT_WIDTH - 38 - (diagram ? DIAGRAM_MAX_WIDTH + 12 : 0);
+  const detailWidth = CONTENT_WIDTH - 38 - diagramReservedWidth;
   const detailLayouts = details.map((detail): DetailLayout => {
     const exception = detail.kind === 'warning' || detail.kind === 'blocker' || detail.kind === 'detail-needed' || detail.kind === 'manual-override';
     const label = detail.kind === 'warning' ? 'WARNING: ' : detail.kind === 'manual-override' ? 'MANUAL OVERRIDE: ' : detail.kind === 'detail-needed' ? 'GLASS DETAIL NEEDED: ' : detail.kind === 'blocker' ? 'BLOCKED: ' : '';
@@ -126,16 +129,21 @@ export function measureWorkOrderGroup(row: WorkOrderPrimaryRow, details: readonl
   });
   const physicalDetailLines = detailLayouts.reduce((sum, detail) => sum + detail.lines.length, 0);
   const detailHeight = physicalDetailLines ? physicalDetailLines * 11 + 10 : 0;
-  return { primaryLines, primaryHeight, detailLayouts, detailHeight, totalHeight: primaryHeight + detailHeight };
+  return { primaryLines, primaryHeight, detailLayouts, detailHeight, totalHeight: primaryHeight + detailHeight, diagramReservedWidth, detailTextWidth: detailWidth };
 }
 
-function drawDiagram(page: PDFPage, diagram: NonNullable<WorkOrderRowGroup['diagram']>, top: number, groupHeight: number) {
+export function calculateWorkOrderDiagramBounds(diagram: NonNullable<WorkOrderRowGroup['diagram']>, top: number, groupHeight: number) {
   const availableHeight = Math.max(8, Math.min(DIAGRAM_MAX_HEIGHT, groupHeight - 8));
   const scale = Math.min(DIAGRAM_MAX_WIDTH / diagram.width, availableHeight / diagram.height);
   const width = diagram.width * scale;
   const height = diagram.height * scale;
   const left = MARGIN + CONTENT_WIDTH - width - 8;
   const diagramBottom = top - 4 - height;
+  return { left, bottom: diagramBottom, width, height, scale };
+}
+
+function drawDiagram(page: PDFPage, diagram: NonNullable<WorkOrderRowGroup['diagram']>, top: number, groupHeight: number) {
+  const { left, bottom: diagramBottom, scale } = calculateWorkOrderDiagramBounds(diagram, top, groupHeight);
   for (const part of diagram.parts) {
     const x = left + part.x * scale;
     const y = diagramBottom + (diagram.height - part.y - part.height) * scale;

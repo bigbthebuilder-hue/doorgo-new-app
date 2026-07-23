@@ -122,10 +122,63 @@ const incompleteNormalized = normalizeDoorLineInput(line({ roWidth: '' }));
 assert.equal(incompleteNormalized.ok && incompleteNormalized.value.glassCalcStatus, 'Glass Detail Needed', 'partial glass line is save-valid');
 assert.equal(normalizeDoorLineInput(line({ roWidth: '12' })).ok, false, 'hard-blocked geometry is rejected');
 
+for (const config of ['DSS', 'DSSS', 'SSD', 'SSSD', 'T/DSS', 'T/DSSS']) {
+  const repeated = calculateGlassGeometry(line({
+    config, roWidth: '96', roHeight: config.startsWith('T/') ? '100' : '',
+    sidelightGlass: 'CLR_SB60_K4SG', transomGlass: config.startsWith('T/') ? 'CLR_SB60_K4SG' : '',
+  }));
+  assert.equal(repeated.status, 'Complete', config);
+  const count = config.replace(/^T\//, '').replace('D', '').length;
+  assert.equal(repeated.glassUnits.filter((unit) => /sidelight/i.test(unit.position)).length, count);
+  assert.deepEqual(repeated.glassUnits.filter((unit) => /sidelight/i.test(unit.position)).map((unit) => unit.qty), Array(count).fill(1));
+  assert.equal(repeated.glassCalc?.headerWidth, `94"`);
+  assert.equal(repeated.glassCalc?.sidelightHeight, `79 1/8"`);
+  if (config.startsWith('T/')) assert.ok(repeated.glassUnits.some((unit) => unit.position === 'Transom'));
+}
+const dss = calculateGlassGeometry(line({ config: 'DSS', roWidth: '96', sidelightGlass: 'CLR_SB60_K4SG' }));
+assert.equal(dss.glassCalc?.sidelightWidth, `26 5/8"`);
+assert.deepEqual(dss.glassUnits.map((unit) => unit.position), ['Right sidelight 1', 'Right sidelight 2']);
+const sssd = calculateGlassGeometry(line({ config: 'SSSD', roWidth: '96', sidelightGlass: 'CLR_SB60_K4SG' }));
+assert.deepEqual(sssd.glassUnits.map((unit) => unit.position), ['Left sidelight 1', 'Left sidelight 2', 'Left sidelight 3']);
+const dssPanel = calculateGlassGeometry(line({ config: 'DSS', roWidth: '96', sidelightType: 'Panel', panelSidelightWidth: '11.75' }));
+assert.equal(dssPanel.glassCalc?.headerWidth, `62 3/4"`);
+assert.deepEqual(dssPanel.panelSidelights.map((panel) => panel.position), ['Right sidelight 1', 'Right sidelight 2']);
+assert.equal(calculateGlassGeometry(line({ config: 'DSSS', roWidth: '60', sidelightType: 'Panel', panelSidelightWidth: '13.75' })).status, 'Blocked');
+const fullHeightRepeated = calculateGlassGeometry(line({
+  config: 'DSSS', height: `8'0"`, roWidth: '80', roHeight: '98.75',
+}));
+const tallRoRepeated = calculateGlassGeometry(line({
+  config: 'DSSS', height: `8'0"`, roWidth: '80', roHeight: '104',
+}));
+assert.equal(fullHeightRepeated.glassCalc?.jambLeg, tallRoRepeated.glassCalc?.jambLeg, 'excess non-transom RO height does not lengthen jamb legs');
+assert.equal(fullHeightRepeated.glassCalc?.sidelightHeight, tallRoRepeated.glassCalc?.sidelightHeight, 'excess non-transom RO height does not lengthen sidelights');
+assert.ok(tallRoRepeated.warnings.some((warning) => warning.code === 'ro_taller_than_standard'), 'taller non-transom RO retains the existing extension warning');
+const standardTransomRepeated = calculateGlassGeometry(line({
+  config: 'T/DSSS', height: `8'0"`, roWidth: '80', roHeight: '106',
+}));
+const tallTransomRepeated = calculateGlassGeometry(line({
+  config: 'T/DSSS', height: `8'0"`, roWidth: '80', roHeight: '112',
+}));
+assert.equal(standardTransomRepeated.glassCalc?.jambLeg, tallTransomRepeated.glassCalc?.jambLeg, 'transom RO height does not lengthen jamb legs');
+assert.equal(standardTransomRepeated.glassCalc?.sidelightHeight, tallTransomRepeated.glassCalc?.sidelightHeight, 'transom RO height does not lengthen sidelights');
+assert.notEqual(standardTransomRepeated.glassCalc?.transomHeight, tallTransomRepeated.glassCalc?.transomHeight, 'additional transom RO height changes only the transom height');
+const repeatedGlassMissingTransom = calculateGlassGeometry(line({
+  config: 'T/DSSS', roWidth: '96', roHeight: '100', sidelightType: 'Glass',
+  sidelightGlass: 'CLR_SB60_K4SG', transomGlass: '',
+}));
+assert.deepEqual(repeatedGlassMissingTransom.incompleteDetails.map((issue) => issue.code), ['transom_glass_required']);
+assert.equal(repeatedGlassMissingTransom.incompleteDetails.some((issue) => issue.code === 'sidelight_type_required'), false);
+const repeatedPanelMissingTransom = calculateGlassGeometry(line({
+  config: 'T/DSSS', roWidth: '96', roHeight: '100', sidelightType: 'Panel',
+  panelSidelightWidth: '11.75', sidelightGlass: '', transomGlass: '',
+}));
+assert.equal(repeatedPanelMissingTransom.incompleteDetails.some((issue) => issue.code === 'sidelight_type_required'), false);
+
 const hours = calculateJ2AShopHours(GLASS_CONFIGS.map((config, index) => line({ config, lineId: String(index), qty: 1 })));
 assert.equal(hours.shopHours, 36.5, 'all ten J2B base rules total 2,190 minutes');
 assert.equal(calculateJ2AShopHours([line({ config: 'SDDS' })]).shopHours, 4.5);
 assert.equal(calculateJ2AShopHours([line({ config: 'T/SDDS' })]).shopHours, 5.5);
+assert.deepEqual(calculateJ2AShopHours([line({ config: 'DSS' })]).unknown, ['Line 1: Exterior DSS']);
 assert.equal(calculateJ2AShopHours([line({ config: 'SD', qty: 2, prep: 'MULTI', ripJamb: 'Yes' })]).shopHours, 8, 'quantity, multipoint and RIP additions apply');
 
 const complete = normalizeDoorLineInput(line());

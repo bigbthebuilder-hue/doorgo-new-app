@@ -8,6 +8,7 @@ import { SHOP_DIMENSION_FORMAT_HELP, parseStoredShopDimension } from './dimensio
 import { isGlassConfiguration, normalizeGlassDomainFields } from './glass-geometry-contract';
 import { calculateNonGlassFrameCut } from './non-glass-frame-cut-contract';
 import { normalizeHingeType } from './hinge-contract';
+import { parseGlassUnitConfiguration } from './glass-unit-composition-contract';
 
 export const INTERIOR_WIDTHS = [
   `1'6"`, `2'0"`, `2'2"`, `2'4"`, `2'6"`, `2'8"`, `2'10"`, `3'0"`,
@@ -75,6 +76,18 @@ export function prepChoices(mode: DoorLineMode, config: string): readonly string
   return [];
 }
 
+export function prepAfterHeightChange(
+  mode: DoorLineMode,
+  config: string,
+  currentPrep: unknown,
+  nextHeight: unknown,
+): string {
+  const choices = prepChoices(mode, config);
+  const current = String(currentPrep ?? '');
+  if (mode === 'Exterior' && [`7'0"`, `8'0"`].includes(String(nextHeight))) return choices.includes('MULTI') ? 'MULTI' : (choices[0] ?? '');
+  return choices.includes(current) ? current : (choices[0] ?? '');
+}
+
 export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput {
   return {
     mode,
@@ -102,7 +115,9 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
 
 export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation {
   const mode = text(input.mode) as DoorLineMode | null;
-  const config = text(input.config);
+  const submittedConfig = text(input.config);
+  const parsedConfig = mode === 'Exterior' ? parseGlassUnitConfiguration(submittedConfig) : null;
+  const config = parsedConfig?.ok ? parsedConfig.canonicalConfig : submittedConfig;
   const width = text(input.width);
   const height = text(input.height);
   const errors: Record<string, string> = {};
@@ -137,6 +152,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const allowedPreps = mode && config ? prepChoices(mode, config) : [];
   let prep = text(input.prep);
   if (prep === 'Round') prep = 'Round Weiser';
+  if (mode && config && height) prep = prepAfterHeightChange(mode, config, prep, height);
   if (!prep || !allowedPreps.includes(prep)) errors.prep = 'Choose a deployed prep option.';
 
   const hand = noJamb ? null : text(input.hand);
@@ -257,6 +273,8 @@ const DEPLOYED_MERGE_FIELDS = [
 export function doorLineEquivalenceKey(line: DoorLineInput): string {
   const comparable: Record<string, string> = {};
   for (const field of DEPLOYED_MERGE_FIELDS) comparable[field] = String(line[field] ?? '').trim();
+  const parsedConfig = parseGlassUnitConfiguration(line.config);
+  if (parsedConfig.ok) comparable.config = parsedConfig.canonicalConfig;
   return JSON.stringify({
     ...comparable,
     glassWarnings: JSON.stringify(line.glassWarnings ?? []),

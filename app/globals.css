@@ -83,6 +83,12 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.glass-unit-builder { grid-template-rows: auto minmax(0, 1fr) auto; }
+
+@media (max-width: 640px) {
+  .glass-unit-builder { max-height: 100vh; border-radius: 0; }
+}
+
 @keyframes app-toast {
   0% {
     opacity: 0;

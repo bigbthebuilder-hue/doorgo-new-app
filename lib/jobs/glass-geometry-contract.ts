@@ -11,10 +11,16 @@ import type {
   PanelSidelight,
   SidelightType,
 } from './job-intake-types';
+import {
+  isFrameGlassConfiguration,
+  orderedGlassUnitComponents,
+  parseGlassUnitConfiguration,
+  type GlassUnitComposition,
+} from './glass-unit-composition-contract';
 
 export const GLASS_CONFIGS = ['SD', 'DS', 'SDS', 'SDDS', 'T/D', 'T/DD', 'T/SD', 'T/DS', 'T/SDS', 'T/SDDS'] as const;
 export const FIBERGLASS_PANEL_WIDTHS = [11.75, 13.75] as const;
-export type GlassConfiguration = (typeof GLASS_CONFIGS)[number];
+export type GlassConfiguration = string;
 export type SidelightPosition = 'left' | 'right';
 export type GlassConfigurationTopology = {
   config: GlassConfiguration;
@@ -24,18 +30,18 @@ export type GlassConfigurationTopology = {
   hasTransom: boolean;
 };
 
-const TOPOLOGY: Record<GlassConfiguration, GlassConfigurationTopology> = {
-  SD: { config: 'SD', doorCount: 1, doorPosition: 'single', sidelightPositions: ['left'], hasTransom: false },
-  DS: { config: 'DS', doorCount: 1, doorPosition: 'single', sidelightPositions: ['right'], hasTransom: false },
-  SDS: { config: 'SDS', doorCount: 1, doorPosition: 'single', sidelightPositions: ['left', 'right'], hasTransom: false },
-  SDDS: { config: 'SDDS', doorCount: 2, doorPosition: 'double', sidelightPositions: ['left', 'right'], hasTransom: false },
-  'T/D': { config: 'T/D', doorCount: 1, doorPosition: 'single', sidelightPositions: [], hasTransom: true },
-  'T/DD': { config: 'T/DD', doorCount: 2, doorPosition: 'double', sidelightPositions: [], hasTransom: true },
-  'T/SD': { config: 'T/SD', doorCount: 1, doorPosition: 'single', sidelightPositions: ['left'], hasTransom: true },
-  'T/DS': { config: 'T/DS', doorCount: 1, doorPosition: 'single', sidelightPositions: ['right'], hasTransom: true },
-  'T/SDS': { config: 'T/SDS', doorCount: 1, doorPosition: 'single', sidelightPositions: ['left', 'right'], hasTransom: true },
-  'T/SDDS': { config: 'T/SDDS', doorCount: 2, doorPosition: 'double', sidelightPositions: ['left', 'right'], hasTransom: true },
-};
+function compositionTopology(config: string, composition: GlassUnitComposition): GlassConfigurationTopology {
+  return {
+    config,
+    doorCount: composition.door === 'DD' ? 2 : 1,
+    doorPosition: composition.door === 'DD' ? 'double' : 'single',
+    sidelightPositions: [
+      ...Array.from({ length: composition.leftSidelightCount }, () => 'left' as const),
+      ...Array.from({ length: composition.rightSidelightCount }, () => 'right' as const),
+    ],
+    hasTransom: composition.hasTransom,
+  };
+}
 
 export const DEFAULT_GLASS_TERMS = {
   CLR_SB60_K4SG: { label: 'Clear', shopText: 'Clear', vendorLine1: '{W} x {H} 3mcltmp/3mcltmp', vendorLine2: 'sb60 k4sg' },
@@ -62,11 +68,13 @@ const text = (value: unknown): string | null => {
 };
 
 export function isGlassConfiguration(value: unknown): value is GlassConfiguration {
-  return (GLASS_CONFIGS as readonly string[]).includes(String(value ?? '').trim());
+  return isFrameGlassConfiguration(value);
 }
 
 export function glassConfigurationTopology(config: GlassConfiguration): GlassConfigurationTopology {
-  return structuredClone(TOPOLOGY[config]);
+  const parsed = parseGlassUnitConfiguration(config);
+  if (!parsed.ok || !isFrameGlassConfiguration(config)) throw new Error('Unsupported frame-glass configuration.');
+  return compositionTopology(parsed.canonicalConfig, parsed.value);
 }
 
 export function normalizeSidelightType(value: unknown): SidelightType | null {
@@ -152,7 +160,10 @@ function overrideApproval(value: unknown): GlassOverrideApproval | null {
 export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResult {
   const config = text(input.config);
   if (!isGlassConfiguration(config)) return { status: 'Unsupported', warnings: [], blockers: [issue('unsupported_configuration', 'This glass configuration is unsupported.')], incompleteDetails: [], workorderDetail: '', glassUnits: [], panelSidelights: [], glassCalc: null, vendorCopyText: '', override: null };
-  const topology = TOPOLOGY[config];
+  const parsedComposition = parseGlassUnitConfiguration(config);
+  if ('message' in parsedComposition) return blocked([issue('unsupported_configuration', parsedComposition.message)]);
+  const composition = parsedComposition.value;
+  const topology = compositionTopology(parsedComposition.canonicalConfig, composition);
   const slab = slabFor(input);
   if (slab.ok === false) return blocked([issue('invalid_custom_slab', slab.message)]);
   const roWidth = numericDimension(input.roWidth);
@@ -186,7 +197,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   const roH = roHeight.ok ? roHeight.inches : null;
   const sides = topology.sidelightPositions.length;
   const panel = sidelightType === 'Panel' && sides > 0;
-  const doubleCore = config === 'SDDS' || config === 'T/SDDS';
+  const doubleCore = topology.doorCount === 2 && sides > 0;
   const divider = panel ? 1.5 : 2.25;
   const outswing = String(input.hand ?? '').includes('OUT');
   const swing = outswing ? 'outswing' : 'inswing';
@@ -196,17 +207,19 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   let finalDoorHeight: number;
   let standardRoHeight: number | null = null;
   let cutDown = 0;
+  const deduction = outswing ? 2 : 2.25;
+  const fullHeightJambLeg = slab.height + deduction;
   if (topology.hasTransom) {
-    jambLeg = (roH as number) - 0.5;
+    jambLeg = fullHeightJambLeg;
     finalDoorHeight = slab.height;
   } else {
-    const deduction = outswing ? 2 : 2.25;
     standardRoHeight = slab.height + deduction + 0.5;
-    jambLeg = roH === null ? slab.height + deduction : roH - 0.5;
+    jambLeg = roH === null ? fullHeightJambLeg : Math.min(fullHeightJambLeg, roH - 0.5);
     const requestedDoorHeight = jambLeg - deduction;
+    const roRequestedDoorHeight = roH === null ? slab.height : roH - 0.5 - deduction;
     finalDoorHeight = Math.min(slab.height, requestedDoorHeight);
     cutDown = Math.max(0, slab.height - finalDoorHeight);
-    if (roH !== null && requestedDoorHeight > slab.height + 0.001) warnings.push(issue('ro_taller_than_standard', 'RO is taller than the standard full-height unit; verify jamb/extension requirements.'));
+    if (roH !== null && roRequestedDoorHeight > slab.height + 0.001) warnings.push(issue('ro_taller_than_standard', 'RO is taller than the standard full-height unit; verify jamb/extension requirements.'));
     if (roH !== null && cutDown > 0.001) warnings.push(issue('door_cut_down', `Door will be cut down ${formatShopDimension(cutDown)}.`));
     if (roH !== null && cutDown > 2.5) warnings.push(issue('large_cut_down', 'Door cut-down is large. Confirm before cutting.'));
   }
@@ -214,7 +227,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   const parsedPanelWidth = panel && panelWidth?.ok ? panelWidth.inches : null;
   const headerWidth = panel && parsedPanelWidth !== null
     ? panelHeaderWidth(slab.width, parsedPanelWidth, sides, doubleCore)
-    : doubleCore ? roW - 2
+    : sides > 0 ? roW - 2
       : topology.doorCount === 2 ? ddCoreHeaderWidth(slab.width)
         : config === 'T/D' ? slab.width + 0.25 : roW - 2;
   const minimumRoWidth = headerWidth + 2;
@@ -245,11 +258,20 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   if (!(jambLeg > 0)) blockers.push(issue('nonpositive_jamb_leg', 'Jamb leg length is zero or negative.'));
   if (blockers.length) return blocked(blockers);
 
-  const panels: PanelSidelight[] = panel && parsedPanelWidth !== null ? [{ position: sides === 2 ? 'Each sidelight panel' : `${topology.sidelightPositions[0]} sidelight panel`, material: String(input.material ?? '').toLowerCase() === 'wood' ? 'Wood' : 'Fiberglass', width: formatShopDimension(parsedPanelWidth), height: formatShopDimension(slab.height), qty: sides }] : [];
+  const sideComponents = orderedGlassUnitComponents(composition).filter((component) => component.kind === 'sidelight');
+  const panels: PanelSidelight[] = panel && parsedPanelWidth !== null ? sideComponents.map((component) => ({
+    position: `${component.side === 'left' ? 'Left' : 'Right'} sidelight ${component.index}`,
+    material: String(input.material ?? '').toLowerCase() === 'wood' ? 'Wood' : 'Fiberglass',
+    width: formatShopDimension(parsedPanelWidth), height: formatShopDimension(slab.height), qty: 1,
+  })) : [];
   const units: GlassUnit[] = [];
   if (sides && !panel && sidelightWidth !== null && sidelightHeight !== null) {
     const term = glassTerm(input.sidelightGlass ?? input.glass);
-    units.push({ position: sides === 2 ? 'Sidelights' : `${topology.sidelightPositions[0]} sidelight`, width: formatShopDimension(sidelightWidth), height: formatShopDimension(sidelightHeight), glassType: term.shopText, termCode: term.code, qty: sides });
+    units.push(...sideComponents.map((component) => ({
+      position: `${component.side === 'left' ? 'Left' : 'Right'} sidelight ${component.index}`,
+      width: formatShopDimension(sidelightWidth), height: formatShopDimension(sidelightHeight),
+      glassType: term.shopText, termCode: term.code, qty: 1,
+    })));
   }
   if (topology.hasTransom && transomWidth !== null && transomHeight !== null) {
     const term = glassTerm(input.transomGlass ?? input.glass);

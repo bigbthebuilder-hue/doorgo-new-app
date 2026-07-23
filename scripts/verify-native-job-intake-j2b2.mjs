@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const files = [
-  'components/jobs/DoorLineWorkspace.tsx', 'components/jobs/GlassUnitDiagram.tsx',
+  'components/jobs/DoorLineWorkspace.tsx', 'components/jobs/GlassUnitBuilder.tsx', 'components/jobs/GlassUnitDiagram.tsx',
   'lib/jobs/glass-diagram-contract.ts',
   'lib/jobs/job-intake-actions.ts', 'lib/jobs/job-intake-service.ts', 'lib/jobs/glass-geometry-contract.ts',
   'lib/jobs/door-line-contract.ts', 'lib/jobs/local-job-intake-repository.ts',
@@ -18,12 +18,27 @@ for (const [label, pattern] of [
 
 const workspace = await readFile('components/jobs/DoorLineWorkspace.tsx', 'utf8');
 for (const required of [
-  "mode === 'Exterior' ? J2B_CONFIGS", 'retainCompatibleGlassFields', 'calculateGlassGeometry',
-  'Leave Glass Detail Needed', 'Apply Manual Override', 'Remove Override', 'Copy Vendor Text',
-  'GlassUnitDiagram', 'Needs Attention', '54, 54 1/2, 54-1/2, or 54.5', 'aria-label={`${label}, inches`',
+  'retainCompatibleGlassFields', 'calculateGlassGeometry', 'Configure Glass Unit', 'Edit Glass Unit',
+  'Apply Manual Override', 'Remove Override', 'GlassUnitBuilder', 'Needs Attention',
+  '54, 54 1/2, 54-1/2, or 54.5', 'aria-label={`${label}, inches`',
+  'explicitGlassDetailNeeded', 'commitEditor()', 'setExplicitGlassDetailNeeded(explicitDetailNeeded)',
+  'resolvedConfiguration(config)', 'prepAfterHeightChange',
 ]) assert.ok(workspace.includes(required), `J2B2 workspace missing ${required}`);
 assert.equal(/left.*sidelight.*type|right.*sidelight.*type/i.test(workspace), false, 'UI must not expose independent left/right sidelight type controls');
 assert.equal(workspace.includes('onChange((current)'), false, 'workspace must not update child state from a parent updater');
+const builder = await readFile('components/jobs/GlassUnitBuilder.tsx', 'utf8');
+for (const required of [
+  'Use Configuration', 'Leave Glass Detail Needed', 'Cancel', 'calculateGlassGeometry',
+  'calculateGlassCompositionSchematic', 'nextGlassBuilderDraft', 'GlassUnitDiagram',
+  'Choose type', 'Copy Vendor Text', 'includeDiagramOnWorkOrder',
+  'EXTERIOR_WIDTHS', 'DOOR_HEIGHTS', 'Slab Width', 'Slab Height', 'prepAfterHeightChange',
+]) assert.ok(builder.includes(required), `Glass Unit Builder missing ${required}`);
+assert.equal(builder.includes("normalizeSidelightType(draft.sidelightType) ?? 'Glass'"), false, 'builder must not display a sidelight type absent from the authoritative draft');
+assert.ok(builder.includes("calculation.status === 'Glass Detail Needed'"), 'progressive action must be limited to incomplete detail');
+assert.ok(builder.includes("['Complete', 'Warning', 'Manual Override'].includes(calculation.status)"), 'normal use must be limited to applicable calculated states');
+assert.ok(builder.includes('tabIndex={-1}'), 'header Cancel must not interrupt normal forward tab order');
+assert.ok(builder.includes('}, []);'), 'modal focus management must initialize only once, not after each draft update');
+assert.equal(/repository\.|createBrowserClient|\.rpc\s*\(/.test(builder), false, 'builder must only update its isolated client draft');
 
 const diagram = await readFile('components/jobs/GlassUnitDiagram.tsx', 'utf8');
 for (const required of ['preserveAspectRatio="xMidYMid meet"', 'calculateGlassDiagramLayout(line)', 'layout.parts.map', 'data-kind', 'diagram-background']) assert.ok(diagram.includes(required));

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { defaultDoorLine } from './door-line-contract';
-import { EXTERIOR_GLASS_EDITOR_CONFIGS, calculationPresentation, canCommitGlassCalculation, diagramSemanticLayout, glassEditorVisibility } from './glass-editor-contract';
+import { EXTERIOR_GLASS_EDITOR_CONFIGS, calculationPresentation, canCommitGlassCalculation, diagramSemanticLayout, glassEditorVisibility, nextGlassBuilderDraft } from './glass-editor-contract';
 import { calculateGlassDiagramLayout, type GlassDiagramPart } from './glass-diagram-contract';
-import { GLASS_CONFIGS, glassConfigurationTopology, retainCompatibleGlassFields } from './glass-geometry-contract';
+import { calculateGlassGeometry, GLASS_CONFIGS, glassConfigurationTopology, retainCompatibleGlassFields } from './glass-geometry-contract';
 
 assert.deepEqual(EXTERIOR_GLASS_EDITOR_CONFIGS, ['SD', 'DS', 'SDS', 'SDDS', 'T/D', 'T/DD', 'T/SD', 'T/DS', 'T/SDS', 'T/SDDS']);
 const exterior = { ...defaultDoorLine('Exterior'), config: 'SD', sidelightType: 'Glass' as const };
@@ -34,9 +34,9 @@ for (const config of GLASS_CONFIGS) {
   const topology = glassConfigurationTopology(config);
   assert.equal(resolvedLayout.parts.filter((part) => part.kind === 'divider').length, topology.sidelightPositions.length, `${config} renders every vertical divider`);
   assert.equal(resolvedLayout.parts.filter((part) => part.kind === 'transom-divider').length, topology.hasTransom ? 1 : 0, `${config} renders its transom bar`);
-  for (const side of topology.sidelightPositions) {
-    const lite: GlassDiagramPart | undefined = resolvedLayout.parts.find((part) => part.id === `${side}-sidelight`);
-    const divider: GlassDiagramPart | undefined = resolvedLayout.parts.find((part) => part.id === `${side}-divider`);
+  for (const side of new Set(topology.sidelightPositions)) {
+    const lite: GlassDiagramPart | undefined = resolvedLayout.parts.find((part) => part.id === `${side}-sidelight-1`);
+    const divider: GlassDiagramPart | undefined = resolvedLayout.parts.find((part) => part.id === `${side}-divider-1`);
     assert.ok(lite && divider);
     assert.equal(side === 'left' ? lite.x + lite.width : divider.x + divider.width, side === 'left' ? divider.x : lite.x, `${config} ${side} edges align at the divider boundary`);
   }
@@ -54,11 +54,24 @@ const panelLayout = calculateGlassDiagramLayout(calculatedLine('SD', 'Panel'))!;
 assert.equal(glassLayout.dividerWidth, 2.25);
 assert.equal(panelLayout.dividerWidth, 1.5);
 assert.notEqual(glassLayout.parts.find((part) => part.kind === 'divider')?.width, panelLayout.parts.find((part) => part.kind === 'divider')?.width, 'calculated divider sizes render at visibly different physical widths');
-const rightLabel = calculateGlassDiagramLayout(calculatedLine('DS'))!.parts.find((part) => part.id === 'right-sidelight')!;
+const rightLabel = calculateGlassDiagramLayout(calculatedLine('DS'))!.parts.find((part) => part.id === 'right-sidelight-1')!;
 assert.equal(rightLabel.label, 'R', 'narrow DS label is shortened within its own calculated region');
-assert.equal(rightLabel.x > calculateGlassDiagramLayout(calculatedLine('SD'))!.parts.find((part) => part.id === 'left-sidelight')!.x, true, 'SD and DS labels remain mirrored');
+assert.equal(rightLabel.x > calculateGlassDiagramLayout(calculatedLine('SD'))!.parts.find((part) => part.id === 'left-sidelight-1')!.x, true, 'SD and DS labels remain mirrored');
 assert.deepEqual(calculationPresentation('Ready', 'Glass Detail Needed'), { displayStatus: 'Incomplete', persistedStatus: 'Ready' }, 'calculation does not persist Glass Detail Needed without explicit leave');
 for (const status of ['Complete', 'Warning', 'Blocked'] as const) assert.deepEqual(calculationPresentation('Glass Detail Needed', status), { displayStatus: status, persistedStatus: status }, `recalculation clears prior detail-needed state to ${status}`);
 assert.equal(canCommitGlassCalculation('Glass Detail Needed', false), false);
 assert.equal(canCommitGlassCalculation('Glass Detail Needed', true), true, 'explicit Leave Glass Detail Needed permits incomplete persistence');
+const nextType = nextGlassBuilderDraft({ sidelightType: null, glassOverride: { reason: 'old' } } as never, 'sidelightType', 'Glass');
+assert.equal(nextType.sidelightType, 'Glass');
+assert.equal(nextType.glassOverride, null);
+assert.equal(nextType.glassCalcStatus, 'Ready');
+const nextTransom = nextGlassBuilderDraft({ transomGlass: null } as never, 'transomGlass', 'CLR_SB60_K4SG');
+assert.equal(nextTransom.transomGlass, 'CLR_SB60_K4SG');
+const incompleteTransom = calculatedLine('T/SD');
+incompleteTransom.transomGlass = '';
+assert.deepEqual(calculateGlassGeometry(incompleteTransom).incompleteDetails.map((issue) => issue.code), ['transom_glass_required']);
+const completedTransom = nextGlassBuilderDraft(incompleteTransom, 'transomGlass', 'CLR_SB60_K4SG');
+assert.equal(calculateGlassGeometry(completedTransom).status, 'Complete', 'the next draft clears the transom need immediately');
+assert.equal(canCommitGlassCalculation('Glass Detail Needed', false), false, 'normal use cannot silently bypass progressive validation');
+assert.equal(canCommitGlassCalculation('Blocked', true), true, 'the UI/domain blocker boundary, not progressive acceptance, remains responsible for blocked geometry');
 console.log('J2B2 progressive editor contract: PASS');

@@ -52,3 +52,19 @@ export function calculationPresentation(previous: GlassCalculationStatus | undef
 export function canCommitGlassCalculation(status: GlassCalculationStatus, explicitLeaveDetailNeeded: boolean): boolean {
   return status !== 'Glass Detail Needed' || explicitLeaveDetailNeeded;
 }
+
+const MATERIAL_GLASS_FIELDS = new Set([
+  'config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand',
+  'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'panelSidelightWidth',
+  'transomGlass',
+]);
+
+export function nextGlassBuilderDraft(line: DoorLineInput, field: string, value: unknown): DoorLineInput {
+  const next = { ...structuredClone(line), [field]: value };
+  if (!MATERIAL_GLASS_FIELDS.has(field)) return next;
+  return {
+    ...next, glassCalcStatus: 'Ready', glassWorkorderDetail: null, glassWarnings: [],
+    glassBlockers: [], glassOverride: null, glassUnits: [], panelSidelights: [],
+    glassCalc: null, vendorCopyText: null,
+  };
+}

@@ -3,7 +3,7 @@ import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { resolveCurrentDoorGoAccess } from '../auth/access';
 import { JobIntakeFailure, type NativeDoorLine, type NativeJobAggregate } from './job-intake-types';
 import { createWorkOrderRowGroup, generateWorkOrderDocument, type WorkOrderDocument, type WorkOrderRowGroup } from './work-order-document-contract';
-import { measureWorkOrderGroup, printedWorkOrderStatusLabel, renderWorkOrderPdf, WORK_ORDER_PDF_COLUMN_WIDTHS, WORK_ORDER_PDF_TEXT_SIZES, workOrderPdfHeaders } from './work-order-pdf-contract';
+import { calculateWorkOrderDiagramBounds, measureWorkOrderGroup, printedWorkOrderStatusLabel, renderWorkOrderPdf, WORK_ORDER_PDF_COLUMN_WIDTHS, WORK_ORDER_PDF_TEXT_SIZES, workOrderPdfHeaders } from './work-order-pdf-contract';
 import { generateSavedWorkOrderPdfWithAccess } from './work-order-pdf-service-contract';
 import { APPLY_LINE_BEFORE_OUTPUT_MESSAGE, buildWorkOrderPdfUrl, workOrderOutputDecision } from './work-order-preview-contract';
 import { assertWorkOrderPreflight, evaluateWorkOrderPreflight } from './work-order-preflight-contract';
@@ -72,6 +72,18 @@ async function main() {
   const diagramLayout = measureWorkOrderGroup(diagramGroup.primaryRow, diagramGroup.detailRows, measurementFont, diagramGroup.diagram);
   const diagramlessLayout = measureWorkOrderGroup(diagramGroup.primaryRow, diagramGroup.detailRows, measurementFont, null);
   assert.equal(diagramLayout.detailHeight, diagramlessLayout.detailHeight, 'diagram reuses existing group height instead of creating a diagram row');
+  assert.equal(diagramLayout.diagramReservedWidth, 122, 'diagram column is reserved before text layout');
+  assert.ok(diagramLayout.detailTextWidth < diagramlessLayout.detailTextWidth, 'detail text wraps inside the left-side region');
+  const longDiagramLayout = measureWorkOrderGroup(
+    { ...diagramGroup.primaryRow, cells: { ...diagramGroup.primaryRow.cells, notesGlass: 'A very long saved detail note that must wrap without displacing the diagram from its reserved upper-right region' } },
+    [{ kind: 'glass', lines: ['3 sidelights @ 11 5/8" × 79 1/8" Clear with a deliberately long saved production detail'] }],
+    measurementFont,
+    diagramGroup.diagram,
+  );
+  assert.equal(longDiagramLayout.diagramReservedWidth, 122);
+  assert.ok(longDiagramLayout.primaryLines.at(-1)!.length > 1, 'long notes wrap beside the reserved diagram');
+  const diagramBounds = calculateWorkOrderDiagramBounds(diagramGroup.diagram!, 400, longDiagramLayout.totalHeight);
+  assert.ok(diagramBounds.left >= 24 + 744 - 122, 'diagram remains inside the reserved upper-right region');
   const diagramOffGroup = { ...diagramGroup, diagram: null };
   assert.ok(measureWorkOrderGroup(diagramOffGroup.primaryRow, [], measurementFont, null).detailHeight === 0, 'diagram-off group reserves no diagram space');
   const statuses = ['Complete', 'Glass Detail Needed', 'Warning', 'Blocked', 'Manual Override'] as const;

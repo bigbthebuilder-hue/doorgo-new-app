@@ -1,12 +1,12 @@
-import { calculateGlassDiagramLayout } from '@/lib/jobs/glass-diagram-contract';
+import { calculateGlassDiagramLayout, type GlassDiagramLayout } from '@/lib/jobs/glass-diagram-contract';
 import { isGlassConfiguration, normalizeSidelightType } from '@/lib/jobs/glass-geometry-contract';
 import type { DoorLineInput } from '@/lib/jobs/job-intake-types';
 
-export function GlassUnitDiagram({ line, compact = false }: { line: DoorLineInput; compact?: boolean }) {
+export function GlassUnitDiagram({ line, compact = false, layout: suppliedLayout }: { line: DoorLineInput; compact?: boolean; layout?: GlassDiagramLayout | null }) {
   if (!isGlassConfiguration(line.config)) return null;
   const type = normalizeSidelightType(line.sidelightType) ?? 'Glass';
   const calc = line.glassCalc;
-  const layout = calculateGlassDiagramLayout(line);
+  const layout = suppliedLayout ?? calculateGlassDiagramLayout(line);
   if (!layout) return null;
   const pad = Math.max(layout.width, layout.height) * 0.025;
 

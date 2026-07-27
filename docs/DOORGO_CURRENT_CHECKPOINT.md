@@ -2,11 +2,10 @@
 
 ## Development state
 - Branch: `feature/native-job-intake-glass-unit-builder`
-- Latest local checkpoint: `d7e2f6fcc64fccadda5b191be2e756fbe58a177a`
-- Commit subject: `Install DoorGo governance baseline`
-- Working tree was clean after the checkpoint commit.
+- Previous governance checkpoint: `d7e2f6fcc64fccadda5b191be2e756fbe58a177a`
+- This document records the documentation checkpoint with commit subject `Record J3C hosted recipient acceptance`.
 - Nothing has been pushed, merged, deployed, migrated, or written to hosted systems.
-- J3C Send is implemented locally with mocked runtime coverage and a production-isolated Playwright React component harness. Headless and headed Chromium scenarios passed, and human visual acceptance passed for desktop/narrow layout, Preview/Download/Print/Send controls, the compact Send panel, recipient selection and confirmation, dirty-state blocking, warning/blocker handling, loading, success/failure/partial/retry feedback, toast clarity, remaining on the current work order, and overflow safety. Real provider credentials and a verified sender remain unconfigured, no real email has been delivered or accepted, hosted recipient-directory acceptance and enablement are pending, and no production send workflow is active.
+- J3C Send is implemented locally with mocked runtime coverage and a production-isolated Playwright React component harness. Headless and headed Chromium scenarios passed, and human visual acceptance passed for desktop/narrow layout, Preview/Download/Print/Send controls, the compact Send panel, recipient selection and confirmation, dirty-state blocking, warning/blocker handling, loading, success/failure/partial/retry feedback, toast clarity, remaining on the current work order, and overflow safety. Hosted recipient-directory acceptance passed through the local application using read-only access to Supabase project `lwhrhnfnuutpisfpkadb` for the single existing active `jobs=use` manager account. No provider request or email occurred. Real-delivery acceptance and all hosted/production enablement remain pending; no production send workflow is active.
 
 Codex must verify all of the above against the repository before relying on it.
 
@@ -34,12 +33,22 @@ Codex must verify all of the above against the repository before relying on it.
 - J3C human visual acceptance through the headed Playwright component harness
   - minor non-blocking polish deferred: simplify user-facing saved-revision wording
   - minor non-blocking polish deferred: consider adjusting the mobile toast position to reduce overlap
+- J3C hosted recipient-directory acceptance through the local DoorGo application
+  - normal authentication, active profile and explicit `jobs=use` access passed
+  - manager status was present but did not provide permission authority
+  - Preview, Download, Print and Send controls were available
+  - exactly one expected active login recipient appeared with the correct display name and authoritative login email
+  - no unexpected recipient, manual email entry, browser-visible service-role value, unrestricted Auth Admin data or environment secret appeared
+  - no hosted application-data write, provider request or email occurred
+  - the ignored synthetic local fixture includes `NON-PRODUCTION TEST – DO NOT BUILD OR SCHEDULE` and is not part of this checkpoint
+  - `jobs=view`, `jobs=none`, manager-only, inactive requester/recipient, email-less recipient, multiple-recipient and hosted multi-page cases were not reproducible with the single-account directory; existing runtime and Playwright coverage remains their evidence
 
 Manual acceptance passed. Minor visual polish is deferred.
 
 ## Immediate product direction
 - Close complete native workflows before opening broad new feature areas.
-- J3C local human visual acceptance is complete. Hosted recipient-directory acceptance, verified company sender/domain configuration, controlled real Resend delivery, received attachment filename/byte comparison, and hosted/production enablement remain unfinished.
+- J3C local human visual acceptance and single-account hosted recipient-directory acceptance are complete. Controlled one-message real-delivery acceptance, provider-controlled test-sender eligibility and setup, received attachment filename/byte comparison, a permanent DoorGo-owned sender-domain decision, and all push/Preview/merge/hosted-configuration/Production boundaries remain unfinished.
+- DoorGo email identity must remain independent from Central Builders. Do not require an `@centralbuilders.ca` sender, Central Builders DNS changes or an Outlook mailbox connection. Prefer a provider-controlled test sender for the first controlled real-delivery acceptance when the provider permits it. A permanent DoorGo-owned domain or subdomain and optional customer-branded sender domains are future work.
 - Keep hosted writes disabled until the relevant end-to-end replacement workflow is approved and verified.
 - Add durable repository guidance and automated regression coverage before substantial new domain work.
 

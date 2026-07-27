@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-J3C Send is implemented locally for automated and mocked validation, and human visual acceptance passed using the headed Playwright component harness. No production send workflow is active: hosted recipient-directory acceptance, verified company sender/domain configuration, controlled real Resend delivery, received attachment filename and byte comparison, and hosted/production enablement remain pending.
+J3C Send is implemented locally for automated and mocked validation, and human visual acceptance passed using the headed Playwright component harness. Hosted recipient-directory acceptance also passed through the local DoorGo application using read-only access to Supabase project `lwhrhnfnuutpisfpkadb` for the single existing active `jobs=use` manager account. No production send workflow is active: provider-controlled test-sender eligibility and setup, controlled one-message real delivery, received attachment filename and byte/hash comparison, a permanent DoorGo-owned sender-domain decision, and all push/Preview/merge/hosted-configuration/Production boundaries remain pending.
 
 J3C sends only the existing generated work-order PDF from the current order. Glass measure sheets, picking tickets, other document types and sending from the main Jobs list remain future work.
 
@@ -33,7 +33,7 @@ Required server-only configuration for a future controlled acceptance and enable
 - `RESEND_API_KEY`
 - `DOORGO_EMAIL_FROM`
 
-The visible sender name is `DoorGo`. The sender address will use a separately configured verified company-owned domain. J3C requires no reply-to value. Missing or invalid provider configuration produces a controlled failure and never false success.
+The visible sender name is `DoorGo`. DoorGo email identity must remain independent from Central Builders: do not use or require an `@centralbuilders.ca` sender, Central Builders DNS changes or an Outlook mailbox connection. The first controlled real-delivery test should use a provider-controlled test sender when available and eligible. A permanent DoorGo-owned sending domain or subdomain and optional customer-branded sender domains are future work. J3C requires no reply-to value. Missing or invalid provider configuration produces a controlled failure and never false success.
 
 Subject: `DoorGo Work Order – <Sales Order or DoorGo Reference>`
 
@@ -75,4 +75,14 @@ Human visual acceptance passed on 2026-07-27 using the headed Playwright compone
 
 Two minor polish items are deferred and non-blocking: simplify the user-facing saved-revision wording, and consider a small mobile toast-position adjustment to reduce overlap.
 
-Production-isolation verification passed, and all Playwright artifacts are directed outside the repository. Hosted recipient-directory acceptance, verified company sender/domain configuration, controlled real Resend delivery, received attachment filename and byte comparison, and hosted/production enablement remain pending.
+Production-isolation verification passed, and all Playwright artifacts are directed outside the repository. Hosted recipient-directory acceptance is complete for the current single-account directory. Provider-controlled test-sender eligibility and setup, controlled real delivery, received attachment filename and byte/hash comparison, a permanent DoorGo-owned sender-domain decision, and hosted/production enablement remain pending.
+
+## Hosted recipient-directory acceptance
+
+Hosted recipient-directory acceptance passed using the local DoorGo application connected read-only to Supabase project `lwhrhnfnuutpisfpkadb`. The single existing controlled account authenticated normally, had an active profile and explicit `jobs=use` permission, and also had manager status; `jobs=use`, not manager status, authorized access. Preview, Download, Print and Send were available. Real hosted recipient resolution returned exactly the one expected active DoorGo login with the correct display name and authoritative login email. No unexpected recipient or manual email-address entry appeared, and no service-role key, unrestricted Auth Admin data or environment secret appeared in browser-visible output.
+
+The acceptance performed no hosted application-data write, provider request or email delivery. The synthetic ignored local fixture was corrected to include `NON-PRODUCTION TEST – DO NOT BUILD OR SCHEDULE` and is not repository content.
+
+Because the hosted directory contains only that account, `jobs=view`, `jobs=none`, manager-only, inactive requester, inactive recipient, email-less recipient, multiple-recipient and hosted pagination-beyond-current-count cases were not reproducible. Existing automated runtime and Playwright coverage remains their acceptance evidence.
+
+Provider-controlled test-sender eligibility and setup, one controlled real-delivery message, received attachment filename and byte/hash comparison, a permanent DoorGo-owned sender-domain decision, optional customer-branded sender domains, push, Preview, merge, hosted configuration and Production enablement remain pending. Completion of recipient-directory acceptance authorizes none of those later boundaries.

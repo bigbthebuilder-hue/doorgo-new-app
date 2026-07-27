@@ -6,7 +6,7 @@
 - Commit subject: `Install DoorGo governance baseline`
 - Working tree was clean after the checkpoint commit.
 - Nothing has been pushed, merged, deployed, migrated, or written to hosted systems.
-- The J3C Send contract is approved and documented. Implementation remains pending; no production send workflow is active.
+- J3C Send is implemented locally with mocked runtime coverage and a production-isolated Playwright React component harness. Headless and headed Chromium scenarios passed for desktop/narrow layout, permissions, dirty entry, recipients, warning/blocker handling, loading lock, keyboard use, result feedback and retry; production-isolation verification also passed. Real provider credentials and a verified sender remain unconfigured, no real email has been delivered or accepted, hosted recipient-directory acceptance and enablement are pending, and no production send workflow is active.
 
 Codex must verify all of the above against the repository before relying on it.
 
@@ -36,7 +36,7 @@ Manual acceptance passed. Minor visual polish is deferred.
 
 ## Immediate product direction
 - Close complete native workflows before opening broad new feature areas.
-- J3C Send remains genuine unfinished implementation work. Its approved contract uses active DoorGo login recipients, server-side recipient revalidation, the existing J3B PDF renderer and a replaceable server-only Resend adapter.
+- J3C Send manual acceptance and controlled provider enablement remain unfinished. The local implementation uses active DoorGo login recipients, server-side recipient revalidation, the existing J3B PDF renderer and a replaceable server-only Resend adapter.
 - Keep hosted writes disabled until the relevant end-to-end replacement workflow is approved and verified.
 - Add durable repository guidance and automated regression coverage before substantial new domain work.
 

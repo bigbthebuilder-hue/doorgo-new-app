@@ -9,6 +9,7 @@ import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggrega
 import { workOrderOutputDecision, type WorkOrderOutputIntent } from '@/lib/jobs/work-order-preview-contract';
 import { HINGE_COLOR_OPTIONS, normalizeHingeColor } from '@/lib/jobs/hinge-contract';
 import { DoorLineWorkspace } from './DoorLineWorkspace';
+import { WorkOrderSendEntryButton } from './WorkOrderSendEntryButton';
 
 type FormValues = {
   bizTrackSalesOrder: string;
@@ -153,7 +154,7 @@ export function JobHeaderForm({
     return result.job;
   }
 
-  function openWorkOrder(intent: WorkOrderOutputIntent) {
+  function openWorkOrder(intent: Exclude<WorkOrderOutputIntent, 'send'>) {
     if (isPending) return;
     const decision = workOrderOutputDecision({ hasSavedJob: Boolean(job), dirty, canEdit, hasUnappliedLineChanges });
     if (!decision.ok) {
@@ -263,7 +264,7 @@ export function JobHeaderForm({
 
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap">
         <button className="min-h-12 rounded-xl border border-slate-300 px-5 font-semibold dark:border-slate-600" onClick={leave} type="button">Back / Exit</button>
-        {job ? <><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print Work Order</button></> : null}
+        {job ? <><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print Work Order</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></> : null}
         {canEdit ? <>
           <button className="min-h-12 rounded-xl bg-sky-700 px-5 font-semibold text-white disabled:opacity-60" disabled={isPending} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : 'Save'}</button>
           <button className="min-h-12 rounded-xl bg-slate-900 px-5 font-semibold text-white disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button>

@@ -15,7 +15,6 @@ for (const [label, pattern] of [
   ['repository write', /repository\.(?:create|update)\s*\(/],
   ['production, fulfillment, or scheduling mutation', /createProductionBooking|createFulfillment|production-booking-actions|reschedule/i],
   ['Calendar mutation', /CalendarApp|createCalendar|updateCalendar|deleteCalendar/],
-  ['email or outbox implementation', /sendEmail|nodemailer|smtp|resend|sendgrid|test-outbox|work-order-test-outbox/i],
   ['network request', /\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b|node:https?|axios/i],
 ]) assert.equal(pattern.test(source), false, `J3B must not contain ${label}`);
 
@@ -54,8 +53,8 @@ assert.ok(preview.includes('<iframe'));
 assert.ok(preview.includes('Download PDF'));
 assert.ok(preview.includes('contentWindow?.print()'));
 assert.ok(preview.includes('Acknowledge and Preview'));
-assert.equal(/email/i.test(preview), false, 'J3B preview must not add email controls');
 assert.ok(preview.includes("initialAction === 'download'") && preview.includes("initialAction === 'print'"));
+assert.equal(/resend|RESEND_API_KEY|DOORGO_EMAIL_FROM/i.test(pdf + route), false, 'J3B renderer and PDF route remain provider-independent');
 const form = await readFile('components/jobs/JobHeaderForm.tsx', 'utf8');
 assert.ok(form.includes('workOrderOutputDecision({ hasSavedJob: Boolean(job), dirty, canEdit, hasUnappliedLineChanges })'));
 assert.ok(form.includes('const saved = await persistAggregate()') && form.includes('router.push(outputPath(saved.internalJobId, intent))'), 'dirty output must wait for save and use its returned identity');

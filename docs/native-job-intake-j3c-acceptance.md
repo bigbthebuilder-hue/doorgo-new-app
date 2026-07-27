@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document records the approved J3C contract only. J3C Send is not implemented, no production send workflow is active, and no provider credential, verified sender domain, hosted configuration or email delivery is authorized by this documentation task.
+J3C Send is implemented locally for automated and mocked validation. No production send workflow is active: real provider credentials and a verified sender remain unconfigured, no real email delivery has been accepted, hosted enablement remains pending, and manual acceptance remains pending.
 
 J3C sends only the existing generated work-order PDF from the current order. Glass measure sheets, picking tickets, other document types and sending from the main Jobs list remain future work.
 
@@ -26,9 +26,9 @@ Immediately before delivery, the server independently re-resolves every selected
 
 ## Provider and message
 
-Delivery uses Resend through a small replaceable server-only provider adapter. A later implementation task may add the official Resend Node.js dependency. Provider calls never originate in browser code.
+Delivery uses the official Resend Node.js package through a small replaceable server-only provider adapter. Provider calls never originate in browser code.
 
-Required later server-only configuration:
+Required server-only configuration for a future controlled acceptance and enablement pass:
 
 - `RESEND_API_KEY`
 - `DOORGO_EMAIL_FROM`
@@ -53,6 +53,8 @@ No user-facing send history, audit UI or substantial send-audit database subsyst
 
 ## Automated acceptance
 
+The local suite now executes authenticated orchestration, recipient validation and Auth pagination, safe action-result conversion, injected provider success/failure/throw behavior, and the repository-saved aggregate through the authoritative J3A document and J3B PDF path. A production-isolated Playwright React component harness mounts the real work-order preview, toast and dirty-state Send entry with typed in-memory delivery behavior. Its desktop, narrow-layout, keyboard, permission, warning, error, loading and result scenarios pass both headlessly and in headed Chromium. Provider and hosted clients remain mocked or replaced by instrumented dependencies; this automated/component acceptance is not hosted or real-delivery acceptance.
+
 Tests must cover:
 
 - `jobs=view` and `jobs=use` allowed; `jobs=none` and manager-only denied;
@@ -68,5 +70,7 @@ Tests must cover:
 - existing J3A and J3B regression suites continue to pass.
 
 ## Manual acceptance
+
+The headed automated component run passed on 2026-07-27; no human visual sign-off is claimed. Production-isolation verification passed, and all Playwright artifacts are directed outside the repository. Human visual review, hosted recipient-directory acceptance, verified-sender configuration, attachment receipt through a real provider, and real delivery remain pending.
 
 Verify `jobs=view`, `jobs=use` and `jobs=none`; active and inactive recipient visibility; one and multiple selections; dirty and stale blocking; warnings; confirmation details; success, failure and partial-result toasts; remaining on the current order; downloaded and emailed attachment equality; and deliberate resend.

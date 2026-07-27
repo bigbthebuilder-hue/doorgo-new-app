@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-J3C Send is implemented locally for automated and mocked validation. No production send workflow is active: real provider credentials and a verified sender remain unconfigured, no real email delivery has been accepted, hosted enablement remains pending, and manual acceptance remains pending.
+J3C Send is implemented locally for automated and mocked validation, and human visual acceptance passed using the headed Playwright component harness. No production send workflow is active: hosted recipient-directory acceptance, verified company sender/domain configuration, controlled real Resend delivery, received attachment filename and byte comparison, and hosted/production enablement remain pending.
 
 J3C sends only the existing generated work-order PDF from the current order. Glass measure sheets, picking tickets, other document types and sending from the main Jobs list remain future work.
 
@@ -69,8 +69,10 @@ Tests must cover:
 - no job, document, revision, lifecycle, booking, scheduling, fulfillment, Calendar or paperwork mutation;
 - existing J3A and J3B regression suites continue to pass.
 
-## Manual acceptance
+## Human visual acceptance
 
-The headed automated component run passed on 2026-07-27; no human visual sign-off is claimed. Production-isolation verification passed, and all Playwright artifacts are directed outside the repository. Human visual review, hosted recipient-directory acceptance, verified-sender configuration, attachment receipt through a real provider, and real delivery remain pending.
+Human visual acceptance passed on 2026-07-27 using the headed Playwright component harness. The accepted scope covered desktop and narrow/mobile layouts; Preview, Download PDF, Print and Send controls; the compact Send panel; one and multiple recipients with clear names and login emails; subject and attachment confirmation; dirty-state blocking without silent save; blocker and warning behavior; success, complete-failure, partial-success, loading and retry behavior; clear toast notifications; remaining on the current work order; and no clipped controls or horizontal overflow.
 
-Verify `jobs=view`, `jobs=use` and `jobs=none`; active and inactive recipient visibility; one and multiple selections; dirty and stale blocking; warnings; confirmation details; success, failure and partial-result toasts; remaining on the current order; downloaded and emailed attachment equality; and deliberate resend.
+Two minor polish items are deferred and non-blocking: simplify the user-facing saved-revision wording, and consider a small mobile toast-position adjustment to reduce overlap.
+
+Production-isolation verification passed, and all Playwright artifacts are directed outside the repository. Hosted recipient-directory acceptance, verified company sender/domain configuration, controlled real Resend delivery, received attachment filename and byte comparison, and hosted/production enablement remain pending.

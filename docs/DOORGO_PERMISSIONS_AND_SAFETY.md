@@ -20,12 +20,14 @@ Permission keys use `none`, `view`, or `use`:
 - User profiles include active state, manager state, company location, and initial-password state.
 
 ## Native intake and documents
-- `jobs=view` may preview and print work orders.
-- `jobs=use` may preview, print, and save edits through currently implemented workflows.
-- Future test-email or send behavior is governed by its approved detailed contract and must enforce its specified permissions, recipient controls, saved-source rules, and no-fallback boundaries when implemented.
-- Current implementation status: J3C Send has not been implemented, no production send workflow is active, and this governance baseline authorizes neither email delivery nor hosted changes.
+- `jobs=view` may preview, download, print and, when J3C is implemented and separately enabled, send saved work orders.
+- `jobs=use` has the same document-output access and may save edits through currently implemented workflows.
+- `jobs=none` has no work-order output access. Manager status provides no fallback, and J3C does not introduce a separate `documents` permission.
+- J3C recipients are one or more active DoorGo login users resolved server-side by stable user ID. Arbitrary, customer and external addresses are prohibited.
+- J3C uses the existing J3B renderer and sends one separate Resend message per recipient. Unsaved, stale or blocked jobs cannot be sent, and warnings require acknowledgement.
+- Current implementation status: the J3C contract is approved and documented, but Send has not been implemented. No production send workflow is active, and documentation does not authorize provider credentials, domain verification, email delivery or hosted changes.
 - Printing is read-only.
-- Output is blocked when unsaved changes cannot be saved.
+- J3C Send is blocked by any unsaved changes and never auto-saves. Preview, download and print retain their existing J3B saved-output behavior.
 - Draft may save without a Sales Order.
 - Confirmed requires at least one valid door line but does not require a Sales Order.
 - Production readiness is a separate later state.

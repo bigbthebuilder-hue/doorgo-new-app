@@ -1,0 +1,72 @@
+# Native Job Intake J3C Send contract
+
+## Status and scope
+
+This document records the approved J3C contract only. J3C Send is not implemented, no production send workflow is active, and no provider credential, verified sender domain, hosted configuration or email delivery is authorized by this documentation task.
+
+J3C sends only the existing generated work-order PDF from the current order. Glass measure sheets, picking tickets, other document types and sending from the main Jobs list remain future work.
+
+## Access and saved-source boundary
+
+- `jobs=view` and `jobs=use` may preview, download, print and send the work-order PDF.
+- `jobs=none` has no work-order output access. Manager status provides no fallback, and J3C introduces no separate `documents` permission.
+- Unsaved changes block Send; Send never saves automatically.
+- The server reloads the saved aggregate by immutable job ID, verifies the expected revision, regenerates the J3A document model and renders the PDF through the single authoritative J3B renderer.
+- Existing PDF blockers block Send. Existing non-blocking warnings require acknowledgement.
+- Missing recipients, invalid recipients, stale revision, PDF failure or insufficient access blocks Send.
+- The browser cannot provide an authoritative aggregate, document model, PDF, filename, subject, body or email address.
+
+## Recipient directory
+
+The user may select one or more active DoorGo users with logins. Arbitrary, manually entered, customer and external recipients are prohibited.
+
+The browser submits stable recipient user IDs only. A dedicated narrowly scoped server-only module first authenticates the requester through DoorGo's normal server path and requires at least `jobs=view`. Only then may it use the existing server-only Supabase service-role/Auth Admin capability to combine active `dg_user_profiles` state with authoritative Auth login email. It returns only the recipient fields needed by the UI.
+
+Immediately before delivery, the server independently re-resolves every selected ID. Missing, unknown, inactive, duplicate and email-less users are rejected. Client-supplied email addresses are never authoritative. The service-role credential, Auth Admin client and unrestricted directory never reach browser code. J3C adds no recipient table, schema migration or RLS change.
+
+## Provider and message
+
+Delivery uses Resend through a small replaceable server-only provider adapter. A later implementation task may add the official Resend Node.js dependency. Provider calls never originate in browser code.
+
+Required later server-only configuration:
+
+- `RESEND_API_KEY`
+- `DOORGO_EMAIL_FROM`
+
+The visible sender name is `DoorGo`. The sender address will use a separately configured verified company-owned domain. J3C requires no reply-to value. Missing or invalid provider configuration produces a controlled failure and never false success.
+
+Subject: `DoorGo Work Order – <Sales Order or DoorGo Reference>`
+
+Body: `Please find document attached.`
+
+The body is fixed and not editable. The attachment is the exact PDF produced by the authoritative J3B renderer, with `Work_Order_<SalesOrder>.pdf` precedence and `Work_Order_<DoorGoReference>.pdf` fallback.
+
+## Confirmation, delivery and feedback
+
+Before sending, show selected recipient names, the fixed subject, attachment filename and existing warnings. The action label is `Send Email`.
+
+Send one separate email per independently validated recipient so recipients never see one another's email addresses. Attempt every validated recipient. All success uses the normal small success toast; no success uses the normal error toast; partial success uses concise wording such as `Sent to 2 of 3 recipients. 1 failed.` The user remains on the current order for every outcome. Deliberate resends, including failed-recipient retries, are permitted.
+
+Sending does not modify or navigate away from the job or document. It does not change revision, lifecycle, identities, production bookings, fulfillment, scheduling, Calendar data or paperwork-complete state.
+
+No user-facing send history, audit UI or substantial send-audit database subsystem is required. Minimal server/provider error logging and provider message identifiers may support troubleshooting. Logs must exclude PDF contents, credentials and service-role values.
+
+## Automated acceptance
+
+Tests must cover:
+
+- `jobs=view` and `jobs=use` allowed; `jobs=none` and manager-only denied;
+- active-login recipient filtering, independent ID re-resolution and rejection of client-supplied addresses;
+- one and multiple recipients, one separate email per recipient and no cross-recipient address disclosure;
+- dirty, stale, blocked, invalid-recipient and PDF-failure rejection;
+- warning acknowledgement;
+- exact subject, body, filename and J3B renderer reuse;
+- missing/invalid provider configuration;
+- complete success, complete failure and partial success;
+- deliberate resend;
+- no job, document, revision, lifecycle, booking, scheduling, fulfillment, Calendar or paperwork mutation;
+- existing J3A and J3B regression suites continue to pass.
+
+## Manual acceptance
+
+Verify `jobs=view`, `jobs=use` and `jobs=none`; active and inactive recipient visibility; one and multiple selections; dirty and stale blocking; warnings; confirmation details; success, failure and partial-result toasts; remaining on the current order; downloaded and emailed attachment equality; and deliberate resend.

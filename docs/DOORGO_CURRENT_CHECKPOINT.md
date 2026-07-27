@@ -2,11 +2,11 @@
 
 ## Development state
 - Branch: `feature/native-job-intake-glass-unit-builder`
-- Latest local checkpoint: `63e0f60a12ca4a568ecce87bd4ad6c9b2a47e153`
-- Commit subject: `Native Job Intake exterior glass unit builder`
+- Latest local checkpoint: `d7e2f6fcc64fccadda5b191be2e756fbe58a177a`
+- Commit subject: `Install DoorGo governance baseline`
 - Working tree was clean after the checkpoint commit.
 - Nothing has been pushed, merged, deployed, migrated, or written to hosted systems.
-- J3C Send has not been implemented.
+- The J3C Send contract is approved and documented. Implementation remains pending; no production send workflow is active.
 
 Codex must verify all of the above against the repository before relying on it.
 
@@ -36,7 +36,7 @@ Manual acceptance passed. Minor visual polish is deferred.
 
 ## Immediate product direction
 - Close complete native workflows before opening broad new feature areas.
-- J3C Send remains genuine unfinished work.
+- J3C Send remains genuine unfinished implementation work. Its approved contract uses active DoorGo login recipients, server-side recipient revalidation, the existing J3B PDF renderer and a replaceable server-only Resend adapter.
 - Keep hosted writes disabled until the relevant end-to-end replacement workflow is approved and verified.
 - Add durable repository guidance and automated regression coverage before substantial new domain work.
 

@@ -32,7 +32,7 @@ named_dependency_collisions AS (
 ),
 legacy_dg AS (
   SELECT job_id,
-    CASE WHEN job_id ~ '^DG-[0-9]{6}$' THEN pg_catalog.substring(job_id FROM 4)::integer END AS suffix
+    CASE WHEN job_id ~ '^DG-[0-9]{6}$' THEN pg_catalog.substring(job_id, 4)::integer END AS suffix
   FROM public.dg_jobs WHERE job_id LIKE 'DG-%'
 ),
 legacy_schema AS (

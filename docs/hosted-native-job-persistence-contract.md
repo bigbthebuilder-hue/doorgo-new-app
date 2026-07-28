@@ -2,7 +2,7 @@
 
 ## Status and boundary
 
-This document is the authoritative design contract for hosted native-job persistence. It does not authorize or contain a migration. No native job may be stored in `dg_jobs` or `dg_job_lines`; those tables remain legacy Google Sheets mirrors. No native save or transfer may write production bookings, capacity, Calendar, fulfillment execution, documents, email, or the legacy system.
+This document is the authoritative design contract for hosted native-job persistence. Migration `supabase/migrations/20260728000000_create_native_job_persistence.sql` now implements this contract in the repository with sequence start 7. Static verification is recorded at its unapplied checkpoint; disposable PostgreSQL behavioral verification, hosted application, and the application repository adapter remain incomplete. This contract and migration do not authorize application to hosted Supabase. No native job may be stored in `dg_jobs` or `dg_job_lines`; those tables remain legacy Google Sheets mirrors. No native save or transfer may write production bookings, capacity, Calendar, fulfillment execution, documents, email, or the legacy system.
 
 The independent native objects are:
 

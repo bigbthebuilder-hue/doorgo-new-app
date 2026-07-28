@@ -16,16 +16,31 @@ export function printedWorkOrderStatusLabel(status: WorkOrderPrimaryRow['status'
   return status === 'Complete' ? '' : status.toUpperCase();
 }
 
-function pdfText(value: unknown): string {
-  return String(value ?? '').replace(/[^\x20-\x7e\u00a0-\u00ff]/g, '?');
+export const WORK_ORDER_PDF_UNSUPPORTED_CHARACTER_FALLBACK = '?';
+
+const supportedCodePointsByFont = new WeakMap<PDFFont, ReadonlySet<number>>();
+
+/** Preserves every printable character supported by the active PDF font and explicitly falls back otherwise. */
+export function normalizeWorkOrderPdfText(font: PDFFont, value: unknown): string {
+  let supported = supportedCodePointsByFont.get(font);
+  if (!supported) {
+    supported = new Set(font.getCharacterSet());
+    supportedCodePointsByFont.set(font, supported);
+  }
+  return Array.from(String(value ?? ''), (character) => {
+    const codePoint = character.codePointAt(0)!;
+    if (codePoint === 0x09 || codePoint === 0x0a || codePoint === 0x0d) return ' ';
+    if (codePoint < 0x20 || codePoint === 0x7f) return WORK_ORDER_PDF_UNSUPPORTED_CHARACTER_FALLBACK;
+    return supported.has(codePoint) ? character : WORK_ORDER_PDF_UNSUPPORTED_CHARACTER_FALLBACK;
+  }).join('');
 }
 
 function drawText(page: PDFPage, font: PDFFont, value: unknown, x: number, y: number, size = 8, color = rgb(0.08, 0.11, 0.16)) {
-  page.drawText(pdfText(value), { x, y, size, font, color });
+  page.drawText(normalizeWorkOrderPdfText(font, value), { x, y, size, font, color });
 }
 
 function wrapText(font: PDFFont, value: string, size: number, maxWidth: number): string[] {
-  const safe = pdfText(value);
+  const safe = normalizeWorkOrderPdfText(font, value);
   if (!safe) return [''];
   const lines: string[] = [];
   let current = '';

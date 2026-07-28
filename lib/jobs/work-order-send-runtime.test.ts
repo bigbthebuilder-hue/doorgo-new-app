@@ -30,27 +30,27 @@ async function main() {
   const base = aggregate();
   const before = JSON.stringify(base);
   const reloads: string[] = [];
-  const fallback = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 7, generation, repository(base, reloads), false);
+  const fallback = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 7, repository(base, reloads), false);
   assert.deepEqual(reloads, [JOB_ID], 'saved aggregate reload uses immutable job ID');
   assert.equal(fallback.document.pdfFilename, 'Work_Order_DG-000123.pdf');
   assert.deepEqual(Array.from(fallback.bytes.slice(0, 4)), [37, 80, 68, 70], 'authoritative J3B renderer returns PDF bytes');
   assert.equal(JSON.stringify(base), before, 'generation does not mutate the aggregate');
 
-  const salesOrder = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 7, generation, repository(aggregate({ bizTrackSalesOrder: 'SO-900' }), []), false);
+  const salesOrder = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 7, repository(aggregate({ bizTrackSalesOrder: 'SO-900' }), []), false);
   assert.equal(salesOrder.document.pdfFilename, 'Work_Order_SO-900.pdf', 'Sales Order filename takes precedence');
-  await assert.rejects(generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 6, generation, repository(base, []), false), WorkOrderPdfServiceFailure);
+  await assert.rejects(generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 6, repository(base, []), false), WorkOrderPdfServiceFailure);
   const warningLine = line({ mode: 'Exterior', config: 'SD', glassCalcStatus: 'Warning', glassWarnings: [{ code: 'review', message: 'Review.' }] });
-  await assert.rejects(generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 7, generation, repository(aggregate({ lines: [warningLine] }), []), false), /acknowledged/);
-  const acknowledged = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 7, generation, repository(aggregate({ lines: [warningLine] }), []), true);
+  await assert.rejects(generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 7, repository(aggregate({ lines: [warningLine] }), []), false), /acknowledged/);
+  const acknowledged = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 7, repository(aggregate({ lines: [warningLine] }), []), true);
   assert.ok(acknowledged.bytes.length > 4);
-  await assert.rejects(generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 7, generation, repository(aggregate({ lines: [line({ mode: 'Exterior', config: 'SD', glassCalcStatus: 'Blocked', glassBlockers: [{ code: 'blocked', message: 'Blocked.' }] })] }), []), true), /blocked door lines/);
+  await assert.rejects(generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, JOB_ID, 7, repository(aggregate({ lines: [line({ mode: 'Exterior', config: 'SD', glassCalcStatus: 'Blocked', glassBlockers: [{ code: 'blocked', message: 'Blocked.' }] })] }), []), true), /blocked door lines/);
 
   const authoritativeResults: Awaited<ReturnType<typeof generateRevisionPinnedSavedWorkOrderPdfWithAccess>>[] = [];
   const deliveredMessages: WorkOrderEmailMessage[] = [];
   const result = await sendSavedWorkOrder(access, { internalJobId: JOB_ID, expectedRevision: 7, acknowledged: false, recipientUserIds: [USER_ID] }, {
     resolveRecipients: async () => [{ userId: USER_ID, displayName: 'Recipient', email: 'recipient@example.com' }],
     generatePdf: async (input) => {
-      const authoritative = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, input.internalJobId, input.expectedRevision, generation, repository(base, []), input.acknowledged);
+      const authoritative = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access, input.internalJobId, input.expectedRevision, repository(base, []), input.acknowledged);
       authoritativeResults.push(authoritative);
       return { visibleIdentifier: authoritative.document.visibleIdentifier, pdfFilename: authoritative.document.pdfFilename, bytes: authoritative.bytes };
     },

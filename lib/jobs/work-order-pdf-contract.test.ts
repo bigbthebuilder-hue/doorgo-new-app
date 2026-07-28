@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { createHash } from 'node:crypto';
+import { decodePDFRawStream, PDFArray, PDFDocument, PDFRawStream, StandardFonts } from 'pdf-lib';
 import { resolveCurrentDoorGoAccess } from '../auth/access';
 import { JobIntakeFailure, type NativeDoorLine, type NativeJobAggregate } from './job-intake-types';
 import { createWorkOrderRowGroup, generateWorkOrderDocument, type WorkOrderDocument, type WorkOrderRowGroup } from './work-order-document-contract';
-import { calculateWorkOrderDiagramBounds, measureWorkOrderGroup, printedWorkOrderStatusLabel, renderWorkOrderPdf, WORK_ORDER_PDF_COLUMN_WIDTHS, WORK_ORDER_PDF_TEXT_SIZES, workOrderPdfHeaders } from './work-order-pdf-contract';
-import { generateSavedWorkOrderPdfWithAccess } from './work-order-pdf-service-contract';
+import { calculateWorkOrderDiagramBounds, measureWorkOrderGroup, normalizeWorkOrderPdfText, printedWorkOrderStatusLabel, renderWorkOrderPdf, WORK_ORDER_PDF_COLUMN_WIDTHS, WORK_ORDER_PDF_TEXT_SIZES, WORK_ORDER_PDF_UNSUPPORTED_CHARACTER_FALLBACK, workOrderPdfHeaders } from './work-order-pdf-contract';
+import { generateRevisionPinnedSavedWorkOrderPdfWithAccess, generateSavedWorkOrderPdfWithAccess } from './work-order-pdf-service-contract';
 import { APPLY_LINE_BEFORE_OUTPUT_MESSAGE, buildWorkOrderPdfUrl, workOrderOutputDecision } from './work-order-preview-contract';
 import { assertWorkOrderPreflight, evaluateWorkOrderPreflight } from './work-order-preflight-contract';
 
@@ -26,12 +27,31 @@ function aggregate(overrides: Partial<NativeJobAggregate> = {}): NativeJobAggreg
 
 const generation = { generatedAt: '2026-07-22T18:00:00.000Z', generatedDate: '2026-07-22' };
 
+function extractedWinAnsiText(bytes: Uint8Array): Promise<string> {
+  return PDFDocument.load(bytes).then((pdf) => {
+    const decoder = new TextDecoder('windows-1252');
+    return pdf.getPages().flatMap((page) => {
+      const contents = page.node.Contents();
+      const references = contents instanceof PDFArray ? contents.asArray() : contents ? [contents] : [];
+      return references.flatMap((reference) => {
+        const stream = pdf.context.lookup(reference);
+        assert.ok(stream instanceof PDFRawStream, 'page content is a decodable raw PDF stream');
+        const decoded = new TextDecoder('latin1').decode(decodePDFRawStream(stream).decode());
+        return [...decoded.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)].map((match) => {
+          const pairs = match[1].match(/.{2}/g) ?? [];
+          return decoder.decode(Uint8Array.from(pairs, (pair) => Number.parseInt(pair, 16)));
+        });
+      });
+    }).join('\n');
+  });
+}
+
 async function main() {
   assert.deepEqual(workOrderOutputDecision({ hasSavedJob: true, dirty: false, canEdit: false, hasUnappliedLineChanges: false }), { ok: true, saveRequired: false });
   assert.deepEqual(workOrderOutputDecision({ hasSavedJob: true, dirty: true, canEdit: true, hasUnappliedLineChanges: false }), { ok: true, saveRequired: true });
   assert.deepEqual(workOrderOutputDecision({ hasSavedJob: true, dirty: true, canEdit: false, hasUnappliedLineChanges: false }), { ok: false, message: 'You do not have permission to save pending job changes.' });
   assert.deepEqual(workOrderOutputDecision({ hasSavedJob: true, dirty: true, canEdit: true, hasUnappliedLineChanges: true }), { ok: false, message: APPLY_LINE_BEFORE_OUTPUT_MESSAGE });
-  const url = buildWorkOrderPdfUrl({ internalJobId: 'job/id', sourceRevision: 4, generatedAt: generation.generatedAt, mode: 'attachment' });
+  const url = buildWorkOrderPdfUrl({ internalJobId: 'job/id', sourceRevision: 4, mode: 'attachment' });
   assert.match(url, /job%2Fid\/work-order\/pdf/);
   assert.match(url, /revision=4/);
   assert.match(url, /download=1/);
@@ -49,6 +69,9 @@ async function main() {
   const measurementPdf = await PDFDocument.create();
   const measurementFont = await measurementPdf.embedFont(StandardFonts.Helvetica);
   const measurementBold = await measurementPdf.embedFont(StandardFonts.HelveticaBold);
+  const supportedPunctuation = '–—‘’“”°¼½¾';
+  assert.equal(normalizeWorkOrderPdfText(measurementFont, supportedPunctuation), supportedPunctuation, 'required WinAnsi punctuation remains intact');
+  assert.equal(normalizeWorkOrderPdfText(measurementFont, 'unsupported 😀'), `unsupported ${WORK_ORDER_PDF_UNSUPPORTED_CHARACTER_FALLBACK}`, 'unsupported font characters use the explicit fallback');
   const detailedLayout = measureWorkOrderGroup(base.rowGroups[0].primaryRow, base.rowGroups[0].detailRows, measurementFont);
   assert.ok(detailedLayout.detailHeight > 0);
   assert.equal(detailedLayout.totalHeight, detailedLayout.primaryHeight + detailedLayout.detailHeight, 'primary and details share one measured physical group');
@@ -121,36 +144,56 @@ async function main() {
   let reads = 0;
   const repository = { findById: async () => { reads += 1; return aggregate(); } };
   for (const level of ['view', 'use'] as const) {
-    const rendered = await generateSavedWorkOrderPdfWithAccess(access(level), 'id', generation, 'inline', repository);
+    const rendered = await generateSavedWorkOrderPdfWithAccess(access(level), 'id', 'inline', repository);
     assert.equal(rendered.document.internalCorrelation.sourceAggregateRevision, 4);
     assert.ok(rendered.bytes.length > 500);
   }
   assert.equal(reads, 2);
-  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('none'), 'id', generation, 'inline', repository), JobIntakeFailure);
-  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('none', true), 'id', generation, 'inline', repository), JobIntakeFailure);
-  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('none', false, false), 'id', generation, 'inline', repository), JobIntakeFailure);
+  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('none'), 'id', 'inline', repository), JobIntakeFailure);
+  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('none', true), 'id', 'inline', repository), JobIntakeFailure);
+  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('none', false, false), 'id', 'inline', repository), JobIntakeFailure);
   assert.equal(reads, 2, 'unauthorized generation does not read the repository');
 
   const warningRepository = { findById: async () => aggregate({ lines: [line({ mode: 'Exterior', config: 'SD', glassCalcStatus: 'Warning', glassWarnings: [{ code: 'review', message: 'Review opening.' }], glassCalc: { headerWidth: `58"` } })] }) };
-  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('view'), 'id', generation, 'inline', warningRepository), /acknowledged/);
-  assert.ok((await generateSavedWorkOrderPdfWithAccess(access('view'), 'id', generation, 'inline', warningRepository, true)).bytes.length > 500);
+  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('view'), 'id', 'inline', warningRepository), /acknowledged/);
+  assert.ok((await generateSavedWorkOrderPdfWithAccess(access('view'), 'id', 'inline', warningRepository, true)).bytes.length > 500);
   const blockedRepository = { findById: async () => aggregate({ lines: [line({ mode: 'Exterior', config: 'SD', glassCalcStatus: 'Blocked', glassBlockers: [{ code: 'blocked', message: 'Impossible geometry.' }] })] }) };
-  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('use'), 'id', generation, 'inline', blockedRepository, true), /blocked door lines/);
+  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('use'), 'id', 'inline', blockedRepository, true), /blocked door lines/);
 
   const invalidColorAggregate = aggregate({ hingeColor: 'Long arbitrary black hinge description' });
   const invalidColorDocument = generateWorkOrderDocument(invalidColorAggregate, generation);
   assert.equal(evaluateWorkOrderPreflight(invalidColorDocument).blocked, true);
   assert.equal(invalidColorDocument.rowGroups.some((group) => group.primaryRow.cells.hinge.includes('arbitrary')), false);
-  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('view'), 'id', generation, 'inline', { findById: async () => invalidColorAggregate }), /blocked door lines/);
+  await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('view'), 'id', 'inline', { findById: async () => invalidColorAggregate }), /blocked door lines/);
   const invalidInteriorDocument = generateWorkOrderDocument(aggregate({ lines: [line({ mode: 'Interior', config: 'D', hand: 'LH', jambWidth: `4-9/16"`, jambType: 'Primed', hingeType: 'NRP' })] }), generation);
   assert.equal(evaluateWorkOrderPreflight(invalidInteriorDocument).blocked, true);
   assert.match(evaluateWorkOrderPreflight(invalidInteriorDocument).issues[0]?.message ?? '', /Interior doors may use REG or BB/);
 
   const dirtyBrowserAggregate = aggregate({ customer: 'Unsaved Browser Customer' });
   const savedRepository = { findById: async () => aggregate({ customer: 'Saved Customer' }) };
-  const savedResult = await generateSavedWorkOrderPdfWithAccess(access('view'), dirtyBrowserAggregate.internalJobId, generation, 'inline', savedRepository);
+  const savedResult = await generateSavedWorkOrderPdfWithAccess(access('view'), dirtyBrowserAggregate.internalJobId, 'inline', savedRepository);
   assert.equal(savedResult.document.header.customer, 'Saved Customer');
   assert.equal(savedResult.document.header.customer.includes('Unsaved Browser'), false);
+
+  const punctuationAggregate = aggregate({
+    updatedAt: '2026-07-28T14:56:57.698Z',
+    revision: 5,
+    notes: 'NON-PRODUCTION TEST – DO NOT BUILD OR SCHEDULE — ‘single’ “double” ° ¼ ½ ¾',
+  });
+  const punctuationRepository = { findById: async () => structuredClone(punctuationAggregate) };
+  const download = await generateSavedWorkOrderPdfWithAccess(access('view'), punctuationAggregate.internalJobId, 'attachment', punctuationRepository);
+  const sendAttachment = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access('view'), punctuationAggregate.internalJobId, 5, punctuationRepository);
+  assert.equal(download.document.pdfFilename, sendAttachment.document.pdfFilename, 'Download and Send use the same authoritative filename');
+  assert.deepEqual(download.bytes, sendAttachment.bytes, 'Download and Send are byte-for-byte identical independent of wall-clock time');
+  assert.equal(createHash('sha256').update(download.bytes).digest('hex'), createHash('sha256').update(sendAttachment.bytes).digest('hex'), 'Download and Send SHA-256 values match');
+  const loadedDeterministic = await PDFDocument.load(download.bytes, { updateMetadata: false });
+  const pdfMetadataTimestamp = punctuationAggregate.updatedAt.replace(/\.\d{3}Z$/, '.000Z');
+  assert.equal(loadedDeterministic.getCreationDate()?.toISOString(), pdfMetadataTimestamp, 'PDF CreationDate uses the saved revision timestamp at PDF date precision');
+  assert.equal(loadedDeterministic.getModificationDate()?.toISOString(), pdfMetadataTimestamp, 'PDF ModDate uses the saved revision timestamp at PDF date precision');
+  const extracted = await extractedWinAnsiText(download.bytes);
+  assert.ok(extracted.includes(punctuationAggregate.notes!), 'final PDF text extraction preserves required punctuation');
+  assert.ok(extracted.includes('NON-PRODUCTION TEST – DO NOT BUILD OR SCHEDULE'));
+  assert.equal(extracted.includes('NON-PRODUCTION TEST ? DO NOT BUILD OR SCHEDULE'), false, 'the saved en dash is never replaced with U+003F');
   console.log('Native Job Intake J3B saved PDF workflow: PASS');
 }
 

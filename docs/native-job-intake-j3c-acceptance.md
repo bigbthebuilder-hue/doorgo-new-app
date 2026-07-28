@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-J3C Send is implemented locally for automated and mocked validation, and human visual acceptance passed using the headed Playwright component harness. Hosted recipient-directory acceptance also passed through the local DoorGo application using read-only access to Supabase project `lwhrhnfnuutpisfpkadb` for the single existing active `jobs=use` manager account. No production send workflow is active: provider-controlled test-sender eligibility and setup, controlled one-message real delivery, received attachment filename and byte/hash comparison, a permanent DoorGo-owned sender-domain decision, and all push/Preview/merge/hosted-configuration/Production boundaries remain pending.
+J3C Send is implemented locally for automated and mocked validation, and human visual acceptance passed using the headed Playwright component harness. Hosted recipient-directory acceptance also passed through the local DoorGo application using read-only access to Supabase project `lwhrhnfnuutpisfpkadb` for the single existing active `jobs=use` manager account. The first controlled provider-sender delivery was sent and received without operational or hosted-data mutation, but final real-email reacceptance remains pending after the deterministic-PDF and punctuation repair recorded below. No production send workflow is active, and all push/Preview/merge/hosted-configuration/Production boundaries remain pending.
 
 J3C sends only the existing generated work-order PDF from the current order. Glass measure sheets, picking tickets, other document types and sending from the main Jobs list remain future work.
 
@@ -39,7 +39,13 @@ The visible sender name is `DoorGo`. DoorGo email identity must remain independe
 
 Provider credentials are configured locally only in `.env.local`, which remains ignored and untracked. `.env.example` contains blank placeholders only. Secret-safety inspection confirmed that credentials and the configured sender are absent from tracked files and relevant Git history. The originally exposed key was deleted in the Resend dashboard; its replacement exists only in ignored local configuration.
 
-Controlled real-email delivery remains pending explicit acceptance. Preview and Production environment configuration remain unconfigured, and Production Send remains disabled. Central Builders email, Outlook, mailbox and DNS infrastructure remain completely separate and are not authorized for DoorGo sending.
+The first controlled real-email delivery was received, but final real-email reacceptance remains pending after the PDF repair. Preview and Production environment configuration remain unconfigured, and Production Send remains disabled. Central Builders email, Outlook, mailbox and DNS infrastructure remain completely separate and are not authorized for DoorGo sending.
+
+### Controlled delivery diagnosis and PDF repair checkpoint
+
+The first controlled delivery succeeded and caused no job, line, document, production, fulfillment, scheduling, Calendar, paperwork, operational or hosted-data mutation. Initial byte acceptance failed because J3B Download and J3C Send separately used current-clock generation timestamps for PDF `/CreationDate` and `/ModDate`; the otherwise identical PDFs therefore had different hashes. The saved U+2013 en dash also rendered and extracted as `?` because the PDF sanitizer replaced characters outside its narrow range before font encoding.
+
+The shared saved-work-order path now derives its authoritative generation timestamp and visible generated date from the saved aggregate revision's persisted `updatedAt`. Preview, Download, Print and Send therefore render the same stable bytes for that saved revision. PDF text normalization now preserves printable characters supported by the active font, including the required WinAnsi punctuation, and uses an explicit `?` fallback only for unsupported characters. Automated byte, metadata and extracted-text coverage records this repair. Final controlled real-email reacceptance remains pending and this checkpoint does not enable Preview or Production Send.
 
 Subject: `DoorGo Work Order – <Sales Order or DoorGo Reference>`
 
@@ -81,7 +87,7 @@ Human visual acceptance passed on 2026-07-27 using the headed Playwright compone
 
 Two minor polish items are deferred and non-blocking: simplify the user-facing saved-revision wording, and consider a small mobile toast-position adjustment to reduce overlap.
 
-Production-isolation verification passed, and all Playwright artifacts are directed outside the repository. Hosted recipient-directory acceptance is complete for the current single-account directory. Provider-controlled test-sender eligibility and setup, controlled real delivery, received attachment filename and byte/hash comparison, a permanent DoorGo-owned sender-domain decision, and hosted/production enablement remain pending.
+Production-isolation verification passed, and all Playwright artifacts are directed outside the repository. Hosted recipient-directory acceptance is complete for the current single-account directory. The first controlled delivery exposed and led to repair of deterministic-byte and punctuation defects; final controlled real-email reacceptance, a permanent DoorGo-owned sender-domain decision, and hosted/production enablement remain pending.
 
 ## Hosted recipient-directory acceptance
 
@@ -91,4 +97,4 @@ The acceptance performed no hosted application-data write, provider request or e
 
 Because the hosted directory contains only that account, `jobs=view`, `jobs=none`, manager-only, inactive requester, inactive recipient, email-less recipient, multiple-recipient and hosted pagination-beyond-current-count cases were not reproducible. Existing automated runtime and Playwright coverage remains their acceptance evidence.
 
-Provider-controlled test-sender eligibility and setup, one controlled real-delivery message, received attachment filename and byte/hash comparison, a permanent DoorGo-owned sender-domain decision, optional customer-branded sender domains, push, Preview, merge, hosted configuration and Production enablement remain pending. Completion of recipient-directory acceptance authorizes none of those later boundaries.
+Final controlled real-email reacceptance after the PDF repair, a permanent DoorGo-owned sender-domain decision, optional customer-branded sender domains, push, Preview, merge, hosted configuration and Production enablement remain pending. Completion of recipient-directory acceptance or the initial delivery authorizes none of those later boundaries.

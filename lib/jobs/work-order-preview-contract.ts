@@ -16,13 +16,11 @@ export function workOrderOutputDecision(input: { hasSavedJob: boolean; dirty: bo
 export function buildWorkOrderPdfUrl(input: {
   internalJobId: string;
   sourceRevision: number;
-  generatedAt: string;
   mode: WorkOrderOutputMode;
   acknowledged?: boolean;
 }): string {
   const query = new URLSearchParams({
     revision: String(input.sourceRevision),
-    generatedAt: input.generatedAt,
   });
   if (input.mode === 'attachment') query.set('download', '1');
   if (input.acknowledged) query.set('acknowledged', '1');

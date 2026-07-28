@@ -4,19 +4,13 @@ import { assertWorkOrderPreflight } from '@/lib/jobs/work-order-preflight-contra
 
 export const dynamic = 'force-dynamic';
 
-function generationInput(value: string | null) {
-  const now = value ? new Date(value) : new Date();
-  if (Number.isNaN(now.getTime())) throw new Error('Invalid generation time.');
-  return { generatedAt: now.toISOString(), generatedDate: now.toISOString().slice(0, 10) };
-}
-
 export async function GET(request: Request, context: { params: Promise<{ internalJobId: string }> }) {
   try {
     const { internalJobId } = await context.params;
     const url = new URL(request.url);
     const expectedRevision = Number(url.searchParams.get('revision'));
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) return new Response('A valid saved revision is required.', { status: 400 });
-    const document = await generateCurrentSavedWorkOrder(internalJobId, generationInput(url.searchParams.get('generatedAt')));
+    const document = await generateCurrentSavedWorkOrder(internalJobId);
     if (document.internalCorrelation.sourceAggregateRevision !== expectedRevision) {
       return new Response('This saved job changed after the preview was opened. Return to the job and open a new work-order preview.', { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
     }

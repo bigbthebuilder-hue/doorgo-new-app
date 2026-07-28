@@ -10,10 +10,9 @@ import { workOrderEmailSubject } from '@/lib/jobs/work-order-send-contract';
 
 export type WorkOrderSendCallback = (request: { internalJobId: string; expectedRevision: number; acknowledged: boolean; recipientUserIds: string[] }) => Promise<{ ok: true; outcome: 'success' | 'partial' | 'failure'; message: string; failedRecipientUserIds: string[] } | { ok: false; message: string }>;
 
-export function WorkOrderPreview({ internalJobId, sourceRevision, generatedAt, visibleIdentifier, pdfFilename, preflight, recipients, recipientDirectoryError, sendWorkOrder, initialAction = 'preview' }: {
+export function WorkOrderPreview({ internalJobId, sourceRevision, visibleIdentifier, pdfFilename, preflight, recipients, recipientDirectoryError, sendWorkOrder, initialAction = 'preview' }: {
   internalJobId: string;
   sourceRevision: number;
-  generatedAt: string;
   visibleIdentifier: string;
   pdfFilename: string;
   preflight: WorkOrderPreflight;
@@ -31,8 +30,8 @@ export function WorkOrderPreview({ internalJobId, sourceRevision, generatedAt, v
   const [toast, setToast] = useState<AppConfirmationToastMessage | null>(null);
   const [sending, startSending] = useTransition();
   const allowed = !preflight.blocked && acknowledged;
-  const inlineUrl = buildWorkOrderPdfUrl({ internalJobId, sourceRevision, generatedAt, mode: 'inline', acknowledged });
-  const downloadUrl = buildWorkOrderPdfUrl({ internalJobId, sourceRevision, generatedAt, mode: 'attachment', acknowledged });
+  const inlineUrl = buildWorkOrderPdfUrl({ internalJobId, sourceRevision, mode: 'inline', acknowledged });
+  const downloadUrl = buildWorkOrderPdfUrl({ internalJobId, sourceRevision, mode: 'attachment', acknowledged });
   const subject = workOrderEmailSubject(visibleIdentifier);
   const automaticActionHandled = useRef(false);
   const dismissToast = useCallback(() => setToast(null), []);

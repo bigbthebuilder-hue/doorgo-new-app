@@ -269,21 +269,25 @@ async function main() {
   assert.deepEqual(paginateWorkOrder([], pageHeader()).map((page) => page.rowGroups.length), [0], 'empty model has one non-trailing page');
 
   const repository = { findById: async () => aggregate() };
-  assert.equal((await generateSavedWorkOrderWithAccess(activeAccess('view'), 'id', generation, repository)).internalCorrelation.sourceAggregateRevision, 7);
-  assert.equal((await generateSavedWorkOrderWithAccess(activeAccess('use'), 'id', generation, repository)).internalCorrelation.sourceAggregateRevision, 7);
-  await assert.rejects(generateSavedWorkOrderWithAccess(activeAccess('none'), 'id', generation, repository), (error) => error instanceof JobIntakeFailure && error.code === 'permission_required');
-  await assert.rejects(generateSavedWorkOrderWithAccess(activeAccess('none', true), 'id', generation, repository), (error) => error instanceof JobIntakeFailure && error.code === 'permission_required');
+  const savedView = await generateSavedWorkOrderWithAccess(activeAccess('view'), 'id', repository);
+  assert.equal(savedView.internalCorrelation.sourceAggregateRevision, 7);
+  assert.equal(savedView.generatedAt, aggregate().updatedAt, 'saved revision timestamp is authoritative');
+  assert.equal(savedView.generatedDate, '2026-07-22');
+  assert.equal((await generateSavedWorkOrderWithAccess(activeAccess('use'), 'id', repository)).internalCorrelation.sourceAggregateRevision, 7);
+  await assert.rejects(generateSavedWorkOrderWithAccess(activeAccess('none'), 'id', repository), (error) => error instanceof JobIntakeFailure && error.code === 'permission_required');
+  await assert.rejects(generateSavedWorkOrderWithAccess(activeAccess('none', true), 'id', repository), (error) => error instanceof JobIntakeFailure && error.code === 'permission_required');
 
   const directory = await mkdtemp(path.join(os.tmpdir(), 'doorgo-j3a-'));
   const filePath = path.join(directory, 'store.json');
   const local = createLocalJobIntakeRepository({ filePath, enabled: true, runtime: 'test', uuid: () => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', now: () => new Date('2026-07-22T12:00:00.000Z') });
   try {
-    const saved = await local.create({ commandId: 'j3a', actorUserId: 'user-1', defaultSalesperson: null, input: { customer: 'Saved', poNumbers: ['1234500', '1234501'] }, lines: [line({ lineId: '' })] });
+    const saved = await local.create({ commandId: 'j3a', actorUserId: 'user-1', defaultSalesperson: null, input: { customer: 'Saved', notes: 'NON-PRODUCTION TEST – DO NOT BUILD OR SCHEDULE', poNumbers: ['1234500', '1234501'] }, lines: [line({ lineId: '' })] });
     const before = await readFile(filePath, 'utf8');
-    const model = await generateSavedWorkOrderWithAccess(activeAccess('view'), saved.internalJobId, generation, local);
+    const model = await generateSavedWorkOrderWithAccess(activeAccess('view'), saved.internalJobId, local);
     assert.equal(await readFile(filePath, 'utf8'), before, 'generation does not change repository bytes');
     assert.equal(model.internalCorrelation.sourceAggregateRevision, saved.revision);
     assert.equal(model.internalCorrelation.internalJobId, saved.internalJobId);
+    assert.equal(model.header.notes, 'NON-PRODUCTION TEST – DO NOT BUILD OR SCHEDULE', 'persisted UTF-8 en dash survives aggregate parsing and document projection');
     const reopened = await local.findById(saved.internalJobId);
     assert.equal(reopened?.revision, saved.revision);
     assert.equal(reopened?.lifecycleStage, saved.lifecycleStage);

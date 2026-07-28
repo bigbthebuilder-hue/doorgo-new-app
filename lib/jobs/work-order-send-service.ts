@@ -16,7 +16,6 @@ export async function sendCurrentSavedWorkOrder(
   options: {
     directorySource?: WorkOrderRecipientDirectorySource;
     provider?: WorkOrderEmailProvider;
-    now?: Date;
   } = {},
 ): Promise<WorkOrderSendResult> {
   let provider = options.provider;
@@ -26,12 +25,10 @@ export async function sendCurrentSavedWorkOrder(
     createSendDependencies: () => ({
       resolveRecipients: (userIds) => resolveWorkOrderRecipientsWithAccess(access, userIds, options.directorySource ?? createSupabaseWorkOrderRecipientDirectorySource()),
       async generatePdf(input) {
-      const now = options.now ?? new Date();
       const generated = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(
         access,
         input.internalJobId,
         input.expectedRevision,
-        { generatedAt: now.toISOString(), generatedDate: now.toISOString().slice(0, 10) },
         createJobIntakeRepository(),
         input.acknowledged,
       );

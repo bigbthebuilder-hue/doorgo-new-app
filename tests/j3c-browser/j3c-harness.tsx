@@ -22,7 +22,7 @@ export function J3CBrowserHarness({ accessLevel = 'view', manager = false, prefl
     if (outcome === 'partial') return { ok: true, outcome: 'partial', message: `Sent to 1 of ${request.recipientUserIds.length} recipients. 1 failed.`, failedRecipientUserIds: [request.recipientUserIds.at(-1)!] };
     return { ok: true, outcome: 'success', message: `Sent to ${request.recipientUserIds.length} ${request.recipientUserIds.length === 1 ? 'recipient' : 'recipients'}.`, failedRecipientUserIds: [] };
   };
-  return <div data-testid={J3C_HARNESS_ONLY_MARKER}><WorkOrderPreview generatedAt="2026-07-27T12:00:00.000Z" internalJobId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" pdfFilename={pdfFilename} preflight={preflight} recipientDirectoryError={directoryError} recipients={recipients} sendWorkOrder={sendWorkOrder} sourceRevision={7} visibleIdentifier={visibleIdentifier}/></div>;
+  return <div data-testid={J3C_HARNESS_ONLY_MARKER}><WorkOrderPreview internalJobId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" pdfFilename={pdfFilename} preflight={preflight} recipientDirectoryError={directoryError} recipients={recipients} sendWorkOrder={sendWorkOrder} sourceRevision={7} visibleIdentifier={visibleIdentifier}/></div>;
 }
 
 export function DirtySendEntryHarness({ dirty }: { dirty: boolean }) {

@@ -209,6 +209,7 @@ assert.deepEqual(
   [
     '.env.example',
     'lib/supabase/trusted-read-server.ts',
+    'scripts/verify-native-job-intake-j3c.mjs',
     'scripts/verify-phase-2f-c1-auth-contract.mjs',
   ],
   'Service-role references must remain limited to approved runtime, placeholder, and verifier files',

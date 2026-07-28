@@ -2,10 +2,10 @@
 
 ## Development state
 - Branch: `feature/native-job-intake-glass-unit-builder`
-- Previous governance checkpoint: `d7e2f6fcc64fccadda5b191be2e756fbe58a177a`
-- This document records the documentation checkpoint with commit subject `Record J3C hosted recipient acceptance`.
-- Nothing has been pushed, merged, deployed, migrated, or written to hosted systems.
-- J3C Send is implemented locally with mocked runtime coverage and a production-isolated Playwright React component harness. Headless and headed Chromium scenarios passed, and human visual acceptance passed for desktop/narrow layout, Preview/Download/Print/Send controls, the compact Send panel, recipient selection and confirmation, dirty-state blocking, warning/blocker handling, loading, success/failure/partial/retry feedback, toast clarity, remaining on the current work order, and overflow safety. Hosted recipient-directory acceptance passed through the local application using read-only access to Supabase project `lwhrhnfnuutpisfpkadb` for the single existing active `jobs=use` manager account. No provider request or email occurred. Real-delivery acceptance and all hosted/production enablement remain pending; no production send workflow is active.
+- Previous governance checkpoint: `e06f2fcc6658a8d643ae4c73bda3a43574079d5f`
+- This document records the documentation checkpoint with commit subject `Record J3C controlled email acceptance`.
+- Nothing has been pushed, merged, deployed or migrated, and no hosted operational data was written.
+- J3C Send is implemented locally with mocked runtime coverage and a production-isolated Playwright React component harness. Headless and headed Chromium scenarios passed, and human visual acceptance passed for desktop/narrow layout, Preview/Download/Print/Send controls, the compact Send panel, recipient selection and confirmation, dirty-state blocking, warning/blocker handling, loading, success/failure/partial/retry feedback, toast clarity, remaining on the current work order, and overflow safety. Hosted recipient-directory acceptance passed through the local application using read-only access to Supabase project `lwhrhnfnuutpisfpkadb` for the single existing active `jobs=use` manager account. J3C controlled local real-email acceptance is complete after the deterministic-PDF and punctuation repair in `e06f2fcc6658a8d643ae4c73bda3a43574079d5f` and one successful controlled reacceptance. Preview/Production configuration and all production enablement remain pending; no production send workflow is active.
 
 Codex must verify all of the above against the repository before relying on it.
 
@@ -42,13 +42,22 @@ Codex must verify all of the above against the repository before relying on it.
   - no hosted application-data write, provider request or email occurred
   - the ignored synthetic local fixture includes `NON-PRODUCTION TEST – DO NOT BUILD OR SCHEDULE` and is not part of this checkpoint
   - `jobs=view`, `jobs=none`, manager-only, inactive requester/recipient, email-less recipient, multiple-recipient and hosted multi-page cases were not reproducible with the single-account directory; existing runtime and Playwright coverage remains their evidence
+- J3C controlled local real-email acceptance
+  - the first controlled delivery succeeded but exposed differing PDF metadata timestamps and destructive U+2013 sanitization
+  - commit `e06f2fcc6658a8d643ae4c73bda3a43574079d5f` made saved-revision PDF generation deterministic and punctuation-safe
+  - exactly one repaired reacceptance email was sent to the sole controlled DoorGo account through Resend's provider-controlled test sender
+  - DoorGo displayed `Sent to 1 recipient.` and remained on DG-000006's work-order screen
+  - sender, subject, fixed body and attachment filename matched the J3C contract; no warnings or blockers were present
+  - the fresh J3B Download, local revision-pinned J3C attachment and received attachment were each 4,413 bytes with SHA-256 `EEE945F6FFE482023003441E249B32CBB549FDBAE6A6E24A11721FBB47777520`
+  - `NON-PRODUCTION TEST – DO NOT BUILD OR SCHEDULE` rendered visibly with the correct U+2013 en dash
+  - DG-000006 remained revision 5 and no job, line, production, fulfillment, scheduling, Calendar, document, paperwork or hosted operational data changed
 
 Manual acceptance passed. Minor visual polish is deferred.
 
 ## Immediate product direction
 - Close complete native workflows before opening broad new feature areas.
-- J3C local human visual acceptance and single-account hosted recipient-directory acceptance are complete. Controlled one-message real-delivery acceptance, provider-controlled test-sender eligibility and setup, received attachment filename/byte comparison, a permanent DoorGo-owned sender-domain decision, and all push/Preview/merge/hosted-configuration/Production boundaries remain unfinished.
-- DoorGo email identity must remain independent from Central Builders. Do not require an `@centralbuilders.ca` sender, Central Builders DNS changes or an Outlook mailbox connection. Prefer a provider-controlled test sender for the first controlled real-delivery acceptance when the provider permits it. A permanent DoorGo-owned domain or subdomain and optional customer-branded sender domains are future work.
+- J3C local human visual acceptance, single-account hosted recipient-directory acceptance and controlled local real-email acceptance are complete. A permanent DoorGo-owned sender-domain decision and all push/Preview/merge/hosted-configuration/Production boundaries remain unfinished.
+- DoorGo email identity must remain independent from Central Builders. The controlled acceptance used Resend's provider-controlled test sender and did not use an `@centralbuilders.ca` sender, Central Builders DNS changes or an Outlook mailbox connection. A permanent DoorGo-owned domain or subdomain and optional customer-branded sender domains are future work.
 - Keep hosted writes disabled until the relevant end-to-end replacement workflow is approved and verified.
 - Add durable repository guidance and automated regression coverage before substantial new domain work.
 

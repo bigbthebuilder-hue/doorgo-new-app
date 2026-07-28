@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 
 const read = (path) => readFile(path, 'utf8');
+const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+const gitHasNoMatches = (...args) => {
+  try {
+    git(...args);
+    return false;
+  } catch (error) {
+    if (error?.status === 1) return true;
+    throw error;
+  }
+};
 const [directory, provider, service, action, preview, form, page, pdfService, contract, envExample, acceptance] = await Promise.all([
   read('lib/jobs/work-order-recipient-directory.ts'),
   read('lib/jobs/work-order-email-provider.ts'),
@@ -32,6 +43,16 @@ assert.ok(provider.includes('Buffer.from(input.attachment.bytes)'));
 assert.equal(/resend|RESEND_API_KEY|DOORGO_EMAIL_FROM|process\.env/i.test(preview), false, 'provider and environment remain outside client code');
 assert.match(envExample, /^RESEND_API_KEY=$/m);
 assert.match(envExample, /^DOORGO_EMAIL_FROM=$/m);
+assert.equal(git('ls-files', '.env.local'), '', '.env.local must remain untracked');
+assert.doesNotThrow(() => git('check-ignore', '.env.local'), '.env.local must remain ignored');
+for (const pattern of [
+  '(^|[^A-Za-z0-9_])re_[A-Za-z0-9_-]{24,}',
+  '^[[:space:]]*RESEND_API_KEY=[^[:space:]]+',
+  '^[[:space:]]*DOORGO_EMAIL_FROM=[^[:space:]]+',
+]) {
+  assert.ok(gitHasNoMatches('grep', '-Il', '-E', pattern, 'HEAD', '--', '.'), 'tracked repository content must not contain Resend credentials or a configured sender');
+  assert.equal(git('log', '--format=%H', `-G${pattern}`, 'HEAD', '--', '.'), '', 'reachable Git history must not introduce Resend credentials or a configured sender');
+}
 
 assert.ok(service.includes('generateRevisionPinnedSavedWorkOrderPdfWithAccess'));
 assert.ok(service.includes('sendAuthenticatedSavedWorkOrder'));
@@ -65,5 +86,13 @@ for (const [label, pattern] of [
 ]) assert.equal(pattern.test(j3cRuntime), false, `J3C must not contain ${label}`);
 
 assert.match(acceptance, /implemented locally/i);
-assert.match(acceptance, /real provider credentials.*remain unconfigured/i);
+assert.match(acceptance, /provider credentials are configured locally only/i);
+assert.match(acceptance, /\.env\.local.*ignored.*untracked/i);
+assert.match(acceptance, /\.env\.example.*blank placeholders/i);
+assert.match(acceptance, /credentials.*absent from tracked files.*history/i);
+assert.match(acceptance, /controlled.*delivery.*pending/i);
+assert.match(acceptance, /Preview and Production.*remain unconfigured/i);
+assert.match(acceptance, /Production Send remains disabled/i);
+assert.match(acceptance, /Central Builders.*email.*Outlook.*mailbox.*DNS.*separate/i);
+assert.doesNotMatch(acceptance, /Production (?:Send|credentials) (?:is|are) (?:active|configured)/i);
 console.log('Native Job Intake J3C architecture and no-side-effect verifier: PASS');

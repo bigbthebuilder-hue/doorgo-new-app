@@ -35,6 +35,12 @@ Required server-only configuration for a future controlled acceptance and enable
 
 The visible sender name is `DoorGo`. DoorGo email identity must remain independent from Central Builders: do not use or require an `@centralbuilders.ca` sender, Central Builders DNS changes or an Outlook mailbox connection. The first controlled real-delivery test should use a provider-controlled test sender when available and eligible. A permanent DoorGo-owned sending domain or subdomain and optional customer-branded sender domains are future work. J3C requires no reply-to value. Missing or invalid provider configuration produces a controlled failure and never false success.
 
+### Local provider pre-send security checkpoint
+
+Provider credentials are configured locally only in `.env.local`, which remains ignored and untracked. `.env.example` contains blank placeholders only. Secret-safety inspection confirmed that credentials and the configured sender are absent from tracked files and relevant Git history. The originally exposed key was deleted in the Resend dashboard; its replacement exists only in ignored local configuration.
+
+Controlled real-email delivery remains pending explicit acceptance. Preview and Production environment configuration remain unconfigured, and Production Send remains disabled. Central Builders email, Outlook, mailbox and DNS infrastructure remain completely separate and are not authorized for DoorGo sending.
+
 Subject: `DoorGo Work Order – <Sales Order or DoorGo Reference>`
 
 Body: `Please find document attached.`

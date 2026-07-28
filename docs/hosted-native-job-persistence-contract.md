@@ -26,7 +26,7 @@ The reviewed live catalog found no collision with any planned name. Both `pgcryp
 
 The authoritative visible identifier is stored explicitly as `visible_identifier` plus `visible_identifier_kind`. At least one of `biztrack_sales_order` or `door_go_reference` must exist, and the selected visible value must equal its corresponding field after normalization. All identifier values are normalized with `btrim`; blanks are stored as null. Comparisons and uniqueness use `lower(btrim(value))`. No identifier may be silently rewritten.
 
-For `origin = 'native'`, `legacy_job_id` and `legacy_identifier_kind` must be null. A new native job receives a native DoorGo reference even if it already has a Sales Order. At creation, a supplied Sales Order is the visible identifier; otherwise the native DoorGo reference is visible. A later explicit Sales Order save may change a native job's visible value/kind under the existing native precedence rule.
+For `origin = 'native'`, `legacy_job_id` and `legacy_identifier_kind` must be null. Inspection of the accepted domain confirms that `NativeJobHeader.doorGoReference` is currently required and every brand-new native create allocates it even when a Sales Order is present; `visibleJobIdentifier` gives the Sales Order precedence. Preserve that rule: every brand-new native job receives a permanent `DG-######` reference, a supplied Sales Order is authoritative and visible, and the DG reference remains its stable secondary identity. Without a Sales Order, the DG reference is authoritative and visible. A later explicit Sales Order save may change a native job's visible value/kind under the existing native precedence rule.
 
 For `origin = 'legacy_transfer'`:
 
@@ -46,17 +46,23 @@ The generator is a read-max-then-write sequence with no script lock, database se
 
 At the read-only inspection checkpoint, the legacy mirror held 43 identifiers: eight matched the automatic `JOB-` format, with an observed numeric range from 56 through 65; one matched `DG-` with numeric suffix 2; and 29 were numeric identifiers. These aggregate observations expose no individual customer data and are not a durable allocation boundary because the mirror may lag Sheets.
 
-### Pilot native allocation
+The no-replacement rule for a transferred Sales-Order job is an approved exception to the current in-memory `doorGoReference: string` shape. Hosted implementation must evolve the adapter/domain identity shape to permit a null secondary DoorGo reference for that transferred case; it must not manufacture a reference merely to satisfy the old local-only type.
 
-Brand-new native jobs use a reserved temporary namespace:
+### Permanent native DG allocation
 
-`NDG-000001`, `NDG-000002`, ...
+Brand-new native jobs use the permanent new-DoorGo namespace:
 
-`dg_native_job_reference_seq` supplies the numeric suffix and the create RPC formats it as `NDG-` plus six digits. Sequence gaps after rolled-back attempts are accepted; references are unique identities, not gapless business counts.
+`DG-000001`, `DG-000002`, ...
 
-This separate prefix is the simplest reliable pilot strategy because the legacy automatic generator allocates only `JOB-*`; observed data proves that an independent numeric `DG-*` range is not safe. During the pilot, `NDG-*` is reserved exclusively for the new DoorGo and must not be manually entered in legacy DoorGo. The create RPC must also check normalized `dg_jobs.job_id` and native identifiers before insertion. A collision causes a controlled failure and never retries with a user-supplied value.
+`dg_native_job_reference_seq` supplies the numeric suffix and the create RPC formats it as `DG-` plus exactly six zero-padded digits. Sequence gaps after rolled-back or occupied candidates are accepted; references are unique identities, not gapless business counts.
 
-A shared counter would be the strongest long-term cross-application allocator but requires changing legacy DoorGo to call Supabase. Checking the mirror alone is insufficient because it may lag and cannot make legacy allocation atomic. A reserved numeric `DG-*` range is rejected because the legacy UI accepts arbitrary identifiers and already contains a `DG-*` value. Permanent prefix/domain rules require a later separately authorized transition after legacy creation ends or shares the allocator.
+From this contract checkpoint forward, the new DoorGo exclusively owns allocation of new `DG-` references. Legacy DoorGo continues using Sales Order identifiers and its automatic `JOB-####` generator; it must not allocate a new `DG-` reference. Existing legacy `DG-` values remain valid and are preserved unchanged during transfer.
+
+Before native creation is enabled, sequence initialization must inspect numeric suffixes matching the complete `DG-######` format in both `dg_jobs.job_id` and any reviewed native seed/test rows in `dg_native_jobs`. It sets the sequence so its first allocation is strictly above the highest discovered suffix. Ignored local fixtures, including local acceptance jobs, are not hosted seed rows and do not affect the hosted sequence unless separately reviewed and deliberately inserted under a future authorization.
+
+Allocation remains collision-safe after initialization. While holding the create transaction's allocation path, the RPC repeatedly obtains `nextval('public.dg_native_job_reference_seq')`, formats one `DG-######` candidate, and checks normalized equality against both `dg_native_jobs.door_go_reference` and `dg_jobs.job_id`. An occupied candidate is skipped permanently and allocation advances until an unused candidate is found. The native unique index is the final concurrency constraint. A unique-violation race is handled inside the reviewed allocation loop with a new sequence candidate; it never overwrites, renumbers or adopts the occupied identifier.
+
+Transferred jobs do not consume the sequence merely to replace an identity. An existing Sales Order remains unchanged; an existing legacy DG reference remains unchanged. Native uniqueness checks reject a transfer when its normalized Sales Order or DG reference already exists in `dg_native_jobs`. An expected source identifier in `dg_jobs` is not a transfer collision.
 
 ## Table contract
 
@@ -68,7 +74,7 @@ All tables are in `public`. Timestamps are `timestamptz`. UUID defaults use `ext
 |---|---|---|---|
 | `internal_job_id` | `uuid` | PK, default UUID | Immutable database identity. |
 | `biztrack_sales_order` | `text` | null | Trimmed; blank becomes null. |
-| `door_go_reference` | `text` | null | Trimmed; native allocation uses reserved `NDG-######`. |
+| `door_go_reference` | `text` | null | Trimmed; every brand-new native job receives permanent `DG-######`; transferred Sales-Order jobs may remain null. |
 | `visible_identifier` | `text` | not null | Exact authoritative visible value; immutable for transfers. |
 | `visible_identifier_kind` | `text` | not null | Check: `biztrack_sales_order`, `door_go_reference`; must identify the matching value column. |
 | `origin` | `text` | not null | Check: `native`, `legacy_transfer`. Immutable. |
@@ -107,7 +113,7 @@ Required constraints and indexes:
 - transfer/native provenance consistency checks described above;
 - archive fields require `archived_at` and `archived_by_user_id` together;
 - unique partial index on `lower(btrim(biztrack_sales_order))` where nonnull;
-- unique partial index on `lower(btrim(door_go_reference))` where nonnull;
+- unique partial index on `lower(btrim(door_go_reference))` where nonnull; this is the database concurrency backstop for native DG allocation;
 - unique partial index on `lower(btrim(legacy_job_id))` where nonnull;
 - unique index on `lower(btrim(visible_identifier))`;
 - indexes on `(archived_at, updated_at DESC)`, `updated_at DESC`, and `created_by_user_id`;
@@ -200,9 +206,9 @@ The RPC:
 4. returns the prior aggregate with `idempotent_replay: true` only when actor and fingerprint match;
 5. otherwise fails on command reuse;
 6. validates origin and transfer provenance;
-7. allocates `NDG-######` only for `origin=native`;
+7. for `origin=native`, allocates a permanent `DG-######` through the sequence even when a Sales Order is authoritative, preserving the existing approved domain requirement for a secondary DoorGo reference;
 8. checks normalized Sales Order, DoorGo reference and legacy provenance against native uniqueness rules;
-9. for a newly allocated `NDG-*` reference only, performs a read-only collision check against `dg_jobs.job_id`; an expected legacy source row never blocks its own transfer;
+9. for a newly allocated `DG-*` reference, loops across occupied sequence candidates and performs a read-only collision check against both native references and `dg_jobs.job_id`; an expected legacy source row never blocks its own transfer;
 10. inserts the job, all lines and command receipt in one transaction;
 11. returns `{job, lines, idempotent_replay:false}` with revision 1.
 
@@ -316,6 +322,6 @@ Before any native data exists, a separately authorized rollback migration may re
 
 After any native job exists, destructive rollback is prohibited. Disable new writes by revoking authenticated RPC execution, preserve and export native rows, diagnose forward, and use a reviewed corrective migration. Sequence rollback never reuses issued references. Application rollback must fail closed rather than falling back to local persistence or legacy mirrors.
 
-## Remaining approval
+## Resolved identifier decision
 
-Before migration implementation, the user must approve the reserved temporary `NDG-######` pilot namespace and the rule that it is never entered in legacy DoorGo. All other architecture, permission, transfer, archive and security decisions in this contract reflect the approved task brief and inspected catalog.
+`DG-######` is the approved permanent format for brand-new native DoorGo references. The new DoorGo exclusively owns new DG allocation from this checkpoint forward. No temporary alternate prefix is introduced. Legacy automatic `JOB-####` allocation remains separate, and transferred Sales Orders and legacy DG references are preserved without renumbering. All architecture, permission, transfer, archive and security decisions in this contract reflect the approved task brief and inspected catalog.

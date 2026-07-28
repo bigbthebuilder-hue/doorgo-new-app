@@ -58,7 +58,9 @@ Brand-new native jobs use the permanent new-DoorGo namespace:
 
 From this contract checkpoint forward, the new DoorGo exclusively owns allocation of new `DG-` references. Legacy DoorGo continues using Sales Order identifiers and its automatic `JOB-####` generator; it must not allocate a new `DG-` reference. Existing legacy `DG-` values remain valid and are preserved unchanged during transfer.
 
-Before native creation is enabled, sequence initialization must inspect numeric suffixes matching the complete `DG-######` format in both `dg_jobs.job_id` and any reviewed native seed/test rows in `dg_native_jobs`. It sets the sequence so its first allocation is strictly above the highest discovered suffix. Ignored local fixtures, including local acceptance jobs, are not hosted seed rows and do not affect the hosted sequence unless separately reviewed and deliberately inserted under a future authorization.
+The completed read-only sequence-floor inspection found a highest valid `DG-######` suffix of 2 in hosted legacy `dg_jobs.job_id`, a highest valid suffix of 6 in the ignored local native aggregate, and no higher valid permanent DG reference in committed fixtures or seeds. No malformed DG-shaped identifier was found in those sources. The approved initial allocation is therefore `DG-000007`, and the migration creates `dg_native_job_reference_seq` with a start value of 7. The ignored local aggregate is not itself a hosted seed, but its accepted references are included conservatively in this initial floor so a later reviewed seed cannot collide.
+
+This sequence-floor evidence is a checkpoint, not a substitute for runtime collision protection. At migration application and every later allocation, the implementation must still inspect or skip identifiers occupied in both the native table and the legacy mirror. If the reviewed data changes before application, the migration/application review must confirm that 7 remains safe or advance the sequence without reusing a reference. No hosted sequence or schema was created during the read-only inspection.
 
 Allocation remains collision-safe after initialization. While holding the create transaction's allocation path, the RPC repeatedly obtains `nextval('public.dg_native_job_reference_seq')`, formats one `DG-######` candidate, and checks normalized equality against both `dg_native_jobs.door_go_reference` and `dg_jobs.job_id`. An occupied candidate is skipped permanently and allocation advances until an unused candidate is found. The native unique index is the final concurrency constraint. A unique-violation race is handled inside the reviewed allocation loop with a new sequence candidate; it never overwrites, renumbers or adopts the occupied identifier.
 
@@ -263,12 +265,38 @@ Requires active `jobs=view` or `jobs=use`. By default an archived job is not fou
 Signature:
 
 ```text
-dg_list_native_jobs(
-  p_include_archived boolean default false
+public.dg_list_native_jobs(
+  p_include_archived boolean default false,
+  p_limit integer default 50,
+  p_cursor_updated_at timestamptz default null,
+  p_cursor_internal_job_id uuid default null
 ) returns jsonb
 ```
 
-Requires active `jobs=view` or `jobs=use`. It queries only `dg_native_jobs`; it never unions or falls back to `dg_jobs`. Default output excludes archived jobs. Explicit archive listing includes them. Response: `{jobs:[...]}`, ordered by `updated_at DESC, internal_job_id`, containing summary fields and active/archived line counts but not entire line aggregates.
+Requires an active DoorGo profile and explicit `jobs=view` or `jobs=use`; manager status provides no fallback. It queries only `dg_native_jobs`, includes both approved origins (`native` and `legacy_transfer`), and never unions or falls back to `dg_jobs`. Default output excludes archived jobs; `p_include_archived = true` includes them. The item representation is the already approved native Jobs-list projection containing summary fields and active/archived line counts, not entire line aggregates, legacy mirror rows or unsaved transfer payloads.
+
+Pagination is cursor-based and has no offset or page-number mode. `p_limit` defaults to 50 and must be between 1 and 100 inclusive. The RPC rejects a request unless `p_cursor_updated_at` and `p_cursor_internal_job_id` are either both null or both nonnull. Results are ordered by `updated_at DESC, internal_job_id DESC`. A cursor request continues strictly after the cursor in that same composite ordering:
+
+```text
+updated_at < p_cursor_updated_at
+OR (updated_at = p_cursor_updated_at AND internal_job_id < p_cursor_internal_job_id)
+```
+
+The RPC fetches `p_limit + 1` rows internally to determine whether another page exists, returns at most `p_limit` items, and performs no mandatory total-count query. Its exact response is:
+
+```json
+{
+  "items": [],
+  "page": {
+    "limit": 50,
+    "has_more": false,
+    "next_cursor_updated_at": null,
+    "next_cursor_internal_job_id": null
+  }
+}
+```
+
+When `has_more` is true, both next-cursor fields identify the last item included in `items`. When `has_more` is false, both next-cursor fields are null.
 
 ## Security and RLS contract
 

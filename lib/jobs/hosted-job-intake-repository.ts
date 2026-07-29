@@ -4,6 +4,8 @@ import {
   type JobIntakeRepository,type NativeDoorLine,type NativeJobAggregate,type NativeJobListItem,
   type NativeJobListPage,type NativeJobListRequest,type UpdateJobHeaderCommand,
 } from './job-intake-types';
+import { normalizeJobHeaderInput, isUuid } from './job-intake-contract';
+import { normalizeDoorLineInput } from './door-line-contract';
 
 type RpcError={message?:string;details?:string;code?:string};
 export type NativeJobRpcClient={rpc(name:string,args:Record<string,unknown>):PromiseLike<{data:unknown;error:RpcError|null}>};
@@ -13,7 +15,7 @@ const headerFields=['bizTrackSalesOrder','lifecycleStage','customer','siteAddres
 const lineFields=['lineId','lineIndex','lineStatus','mode','doorType','config','width','height','customSlab','customSlabWidth','customSlabHeight','hand','prep','glass','jambWidth','jambType','sill','weatherstrip','hingeType','notes','qty','roWidth','roHeight','material','doorThickness','ripJamb','glassCalcStatus','glassWorkorderDetail','vendorCopyText','glassWarnings','glassBlockers','glassOverride','glassUnits','glassCalc','sidelightType','sidelightGlass','transomGlass','sidelightMeasurementLeft','sidelightMeasurementRight','panelSidelightWidth','panelSidelights','includeDiagramOnWorkOrder'] as const;
 const serverJobFields=['internalJobId','doorGoReference','bizTrackSalesOrder','customer','siteAddress','phone','email','salesperson','lifecycleStage','notes','hingeColor','shopHours','shopHoursSource','poNumbers','fulfillmentPlan','deliveryDate','customerPickupDate','shopDate','shopDateSource','createdAt','updatedAt','revision','createdByUserId','updatedByUserId','origin','visibleIdentifier','visibleIdentifierKind','legacyJobId','legacyIdentifierKind','archivedAt','archivedByUserId','archiveReason'] as const;
 const serverLineFields=[...lineFields,'createdAt','updatedAt','createdByUserId','updatedByUserId'] as const;
-const snake=(value:string)=>value.replace(/[A-Z]/g,(letter)=>`_${letter.toLowerCase()}`);
+const snake=(value:string)=>value==='bizTrackSalesOrder'?'biztrack_sales_order':value.replace(/[A-Z]/g,(letter)=>`_${letter.toLowerCase()}`);
 
 function mapFields(source:Record<string,unknown>,fields:readonly string[],toSnake:boolean):Record<string,unknown>{
   return Object.fromEntries(fields.filter((field)=>source[field]!==undefined).map((field)=>[toSnake?snake(field):field,source[field]]));
@@ -23,8 +25,19 @@ function fromRow(row:unknown,fields:readonly string[]):Record<string,unknown>{
   const source=row as Record<string,unknown>;
   return Object.fromEntries(fields.map((field)=>[field,source[snake(field)]]));
 }
+function createHeaderPayload(input:JobHeaderInput,defaultSalesperson:string|null):Record<string,unknown>{
+  const normalized=normalizeJobHeaderInput(input,defaultSalesperson);
+  if(normalized.ok===false)throw new JobIntakeFailure('validation_failed',normalized.message,normalized.fieldErrors);
+  return mapFields({...normalized.value,lifecycleStage:input.lifecycleStage},headerFields,true);
+}
 function headerPayload(input:JobHeaderInput):Record<string,unknown>{return mapFields(input,headerFields,true);}
-function linePayload(input:DoorLineInput):Record<string,unknown>{return mapFields(input,lineFields,true);}
+function linePayload(input:DoorLineInput,index:number):Record<string,unknown>{
+  const lineId=typeof input.lineId==='string'?input.lineId:'';
+  if(lineId&&!isUuid(lineId))throw new JobIntakeFailure('validation_failed',`Door line ${index+1}: A new door line must have a valid UUID identity.`,{[`lines.${index}.lineId`]:'A new door line must have a valid UUID identity.'});
+  const normalized=normalizeDoorLineInput(input);
+  if(normalized.ok===false)throw new JobIntakeFailure('validation_failed',`Door line ${index+1}: ${normalized.message}`,Object.fromEntries(Object.entries(normalized.fieldErrors).map(([key,value])=>[`lines.${index}.${key}`,value])));
+  return mapFields({...normalized.value,lineId:lineId||undefined,lineIndex:index+1,lineStatus:input.lineStatus==='Archived'||input.lineStatus==='Merged'?input.lineStatus:'Active'},lineFields,true);
+}
 function unavailable(){return new JobIntakeFailure('unavailable','Hosted Job Intake is temporarily unavailable.');}
 function failure(error:RpcError):JobIntakeFailure{
   const message=`${error.message??''} ${error.details??''}`.toLowerCase();
@@ -36,7 +49,10 @@ function failure(error:RpcError):JobIntakeFailure{
     ['archived','archived'],['validation_failed','validation_failed'],
   ];
   const match=mappings.find(([token])=>message.includes(`native_job.${token}`)||message.includes(token));
-  return match?new JobIntakeFailure(match[1],`Hosted Job Intake rejected the request (${match[1]}).`):unavailable();
+  if(!match)return unavailable();
+  return new JobIntakeFailure(match[1],match[1]==='validation_failed'
+    ?'Hosted Job Intake rejected one or more job or door-line fields. Review the entered values and try again.'
+    :`Hosted Job Intake rejected the request (${match[1]}).`);
 }
 function aggregate(value:unknown):NativeJobAggregate{
   if(!value||typeof value!=='object'||Array.isArray(value)) throw unavailable();
@@ -74,8 +90,7 @@ export function createHostedJobIntakeRepository(options:HostedRepositoryOptions)
     async list(){return (await listPage()).items;},listPage,
     async findById(internalJobId){try{return aggregate(await call('dg_get_native_job',{p_internal_job_id:internalJobId,p_include_archived:false}));}catch(error){if(error instanceof JobIntakeFailure&&error.code==='not_found')return null;throw error;}},
     async create(command:CreateJobHeaderCommand){
-      const input=command.input.salesperson===undefined?{...command.input,salesperson:command.defaultSalesperson}:command.input;
-      return aggregate(await call('dg_create_native_job',{p_command_id:command.commandId,p_origin:'native',p_legacy_job_id:null,p_legacy_identifier_kind:null,p_header:headerPayload(input),p_lines:(command.lines??[]).map(linePayload)}));
+      return aggregate(await call('dg_create_native_job',{p_command_id:command.commandId,p_origin:'native',p_legacy_job_id:null,p_legacy_identifier_kind:null,p_header:createHeaderPayload(command.input,command.defaultSalesperson),p_lines:(command.lines??[]).map(linePayload)}));
     },
     async update(command:UpdateJobHeaderCommand){
       const lines=command.lines??(await this.findById(command.internalJobId))?.lines;

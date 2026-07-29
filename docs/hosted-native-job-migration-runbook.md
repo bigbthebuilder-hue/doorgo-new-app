@@ -2,7 +2,7 @@
 
 ## Boundary
 
-This package prepares a controlled manual application to the approved pilot Supabase project. It does not authorize Codex, the application, or an automated tool to apply the migration. The application repository adapter remains unimplemented and must not be started until every verification result is reviewed and accepted.
+This package records the controlled manual application and acceptance in the approved pilot Supabase project. It does not authorize further migration, deployment, or hosted mutation. The hosted application repository adapter is implemented and its controlled acceptance is complete.
 
 Authoritative migration: `supabase/migrations/20260728000000_create_native_job_persistence.sql`
 
@@ -14,9 +14,9 @@ Applied grant-hardening migration: `supabase/migrations/20260729000000_harden_na
 
 The grant-hardening migration contains only exact revocations from `service_role`. Post-correction permanent verification passed: it proved zero direct native-table privileges for `PUBLIC`, `anon`, `authenticated`, and `service_role`; exactly five authenticated RPC `EXECUTE` grants; exactly five normal `postgres` owner RPC privileges; zero `service_role` RPC privileges; no other RPC privileges; and zero direct native-sequence privileges for `PUBLIC`, `anon`, `authenticated`, and `service_role`.
 
-Update-expression correction awaiting separate authorization: `supabase/migrations/20260729010000_fix_native_job_update_greatest.sql`
+Applied update-expression correction: `supabase/migrations/20260729010000_fix_native_job_update_greatest.sql`
 
-The first rolled-back behavioral attempt exposed an invalid schema-qualified `GREATEST` expression inside `dg_update_native_job`. Confirm the aborted explicit transaction has been closed with one manual `ROLLBACK;`, then apply the update-expression correction exactly once and rerun **PORTION 1** before separately authorizing another **PORTION 2** attempt. Sequence values consumed by failed or rolled-back attempts remain permanent gaps and must not be reset or reused.
+The first rolled-back behavioral attempt exposed an invalid schema-qualified `GREATEST` expression inside `dg_update_native_job`. The correction was applied and permanent and rolled-back behavioral verification passed. Sequence values consumed by failed or rolled-back attempts remain permanent gaps and must not be reset or reused.
 
 ## Manual sequence awaiting approval
 
@@ -37,6 +37,8 @@ The first rolled-back behavioral attempt exposed an invalid schema-qualified `GR
 ## Result handling
 
 Hosted persistence acceptance is complete. The application repository now uses the five authenticated native-job RPCs in normal runtime, while local persistence is test-injected only. DG sequence gaps consumed by failed or rolled-back acceptance attempts are expected, permanent, and must not be reset or reused.
+
+Hosted application-adapter acceptance also passed with controlled non-production job `DG-000013`. Create, reopen/reload, update, stale-revision concurrency rejection, work-order Preview/Download, J3C pre-send inspection without email delivery, and soft archive were accepted. A saved Revision 9 became archived Revision 10 exactly once with the reason `Controlled hosted adapter acceptance complete`; both active lines and the legitimate linked idempotency receipt remained, with no orphan receipt. The archive RPC updated only its six accepted archive/audit fields on `public.dg_native_jobs` and caused no Production, Calendar, capacity, fulfillment, document, email, or legacy mutation. Current accepted legacy baselines are 45 jobs and 165 lines; read-only identifier and UUID scans proved the added legacy activity was unrelated to `DG-000013`. Legacy transfer remains unimplemented and out of scope.
 
 Use descriptive local filenames containing the project ref, phase (`preflight`, `post-apply`, or `post-behavior`), and timestamp. Keep exports outside the repository because catalog/grant information is operational evidence. Do not paste secrets, JWTs, service-role keys, customer details, or personal email addresses into the repository or review report.
 

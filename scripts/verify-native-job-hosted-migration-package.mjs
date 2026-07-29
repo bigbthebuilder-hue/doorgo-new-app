@@ -15,6 +15,42 @@ assert.equal(checksum, '2F13B297F395440912F6CD0B40FCD636DF6A23DD6331B4454DDA8672
 assert.ok(runbook.includes(checksum), 'Runbook must record the exact migration checksum');
 
 const stripComments = (sql) => sql.replace(/--.*$/gm, '');
+const extractUpdateSetColumns = (functionDefinition, relation) => {
+  const escapedRelation = relation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const setClause = functionDefinition.match(
+    new RegExp(`\\bupdate\\s+${escapedRelation}\\b(?:\\s+as\\s+[a-z_][a-z0-9_]*)?\\s+set\\s+([\\s\\S]*?)\\s+where\\b`, 'i'),
+  )?.[1];
+  assert.ok(setClause, `Expected one inspectable UPDATE ${relation} SET clause`);
+  return [...setClause.matchAll(/(?:^|,)\s*([a-z_][a-z0-9_]*)\s*=/gim)]
+    .map((match) => match[1]).sort();
+};
+
+const archiveAnalysisRegressionFixture = `
+  select profile.user_id
+  from public.dg_user_profiles as profile
+  join public.dg_permissions as permission on permission.user_id = profile.user_id
+  where profile.user_id = p_internal_job_id
+  for update;
+  update public.dg_native_jobs as job
+  set archived_at = now(),
+      archived_by_user_id = auth.uid(),
+      archive_reason = p_reason,
+      updated_at = now(),
+      updated_by_user_id = auth.uid(),
+      revision = job.revision + 1
+  where job.internal_job_id = p_internal_job_id
+  returning job.internal_job_id, job.revision;
+`;
+assert.deepEqual(extractUpdateSetColumns(archiveAnalysisRegressionFixture, 'public.dg_native_jobs'), [
+  'archive_reason', 'archived_at', 'archived_by_user_id', 'revision', 'updated_at', 'updated_by_user_id',
+], 'Function analysis must extract assignments only from the DML SET clause');
+const archiveFunction = migration.match(
+  /create or replace function public\.dg_archive_native_job\([\s\S]*?\n\$\$;/i,
+)?.[0];
+assert.ok(archiveFunction, 'Exact archive RPC definition must be inspectable');
+assert.deepEqual(extractUpdateSetColumns(archiveFunction, 'public.dg_native_jobs'), [
+  'archive_reason', 'archived_at', 'archived_by_user_id', 'revision', 'updated_at', 'updated_by_user_id',
+], 'Archive RPC must update only the accepted archive and audit columns');
 const serviceRole = ['service', 'role'].join('_');
 const correctiveStatements = stripComments(correctiveMigration).split(';')
   .map((statement) => statement.replace(/\s+/g, ' ').trim().toLowerCase()).filter(Boolean);

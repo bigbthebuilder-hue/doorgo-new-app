@@ -2,7 +2,7 @@
 
 ## Status and boundary
 
-This document is the authoritative design contract for hosted native-job persistence. Migration `supabase/migrations/20260728000000_create_native_job_persistence.sql` now implements this contract in the repository with sequence start 7. Static verification is recorded at its unapplied checkpoint; disposable PostgreSQL behavioral verification, hosted application, and the application repository adapter remain incomplete. This contract and migration do not authorize application to hosted Supabase. No native job may be stored in `dg_jobs` or `dg_job_lines`; those tables remain legacy Google Sheets mirrors. No native save or transfer may write production bookings, capacity, Calendar, fulfillment execution, documents, email, or the legacy system.
+This document is the authoritative design contract for hosted native-job persistence. Migration `supabase/migrations/20260728000000_create_native_job_persistence.sql` implements this contract with sequence start 7, and the corrective grant and update-expression migrations are applied. Hosted persistence, rolled-back database behavior, and the controlled application-adapter flow are accepted. No native job may be stored in `dg_jobs` or `dg_job_lines`; those tables remain legacy Google Sheets mirrors. No native save or transfer may write production bookings, capacity, Calendar, fulfillment execution, documents, email, or the legacy system.
 
 The independent native objects are:
 
@@ -316,6 +316,12 @@ Forced RLS is disabled deliberately. These `SECURITY DEFINER` RPCs require owner
 ## Jobs page and output behavior
 
 Hosted native-job persistence and its rolled-back behavioral acceptance are complete. Acceptance testing permanently advanced the DG sequence; those expected gaps are retained and never reused. Normal application runtime now uses the authenticated hosted repository adapter and only the five reviewed RPCs. The filesystem-backed repository remains available solely through explicit test injection; hosted configuration, authentication, or RPC failures never fall back to local persistence.
+
+Controlled hosted application-adapter acceptance passed with non-production job `DG-000013`. The accepted flow covered create, complete aggregate reload, update with revision advancement, two-tab stale-revision rejection, J3 work-order Preview and Download, J3C recipient pre-send inspection without sending email, and job-level soft archive. The final saved Revision 9 advanced exactly once to archived Revision 10 with reason `Controlled hosted adapter acceptance complete`; archive metadata was present, both active native lines were retained, one legitimate linked create-command idempotency receipt remained, and no orphan create-command row existed.
+
+The archive RPC remained `public.dg_archive_native_job(uuid,bigint,text)`, owned by `postgres`, `SECURITY DEFINER`, and fixed to an empty search path. Catalog evidence proved one actual DML update targeting only `public.dg_native_jobs`, no other update target, no insert or delete, no dynamic SQL or other native RPC invocation, and no Production, Calendar, capacity, fulfillment, document, email, or legacy side-effect reference. The accepted legacy baseline is now 45 `dg_jobs` rows and 165 `dg_job_lines` rows; identifier and UUID scans proved that intervening legacy activity was unrelated to `DG-000013`. Production, Calendar, capacity, and the operational schema marker remained unchanged. Expected DG sequence gaps from failed or rolled-back acceptance attempts remain valid and must never be reset or reused.
+
+Legacy transfer remains unimplemented and outside this acceptance scope.
 
 The Jobs page calls only `dg_list_native_jobs`. Its structural source is `dg_native_jobs`, whose allowed origins are `native` and `legacy_transfer`. Ordinary legacy mirror rows, Calendar/production/history records and unsaved transfer payloads cannot appear because they are not stored in that table.
 

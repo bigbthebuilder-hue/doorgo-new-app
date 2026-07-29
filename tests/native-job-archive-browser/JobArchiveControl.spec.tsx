@@ -9,14 +9,21 @@ test('is absent for an unsaved job', async ({ mount }) => {
 test('requires a reason and confirmation, then archives the exact saved revision and returns to Jobs', async ({ mount, page }) => {
   const component = await mount(<ArchiveHarness/>);
   await expect(component.getByRole('button', { name: 'Archive Job' })).toBeVisible();
+  await expect(component.getByRole('dialog')).toHaveCount(0);
   await component.getByRole('button', { name: 'Archive Job' }).click();
-  await expect(component.getByRole('status')).toHaveText('Enter a reason for archiving this job.');
-  await component.getByLabel('Archive reason').fill('Controlled hosted acceptance complete');
-  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('does not delete it'); await dialog.dismiss(); });
-  await component.getByRole('button', { name: 'Archive Job' }).click();
+  const dialog = component.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('does not delete it or its lines');
+  await expect(dialog).toContainText('Unrelated unsaved editor changes will not be saved.');
+  await dialog.getByRole('button', { name: 'Archive Job' }).click();
+  await expect(dialog.getByRole('status')).toHaveText('Enter a reason for archiving this job.');
+  await dialog.getByLabel('Archive reason').fill('  Controlled hosted acceptance complete  ');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(component.getByRole('dialog')).toHaveCount(0);
   expect(await page.evaluate(() => window.__archiveRequests ?? [])).toEqual([]);
-  page.once('dialog', async (dialog) => { expect(dialog.message()).toContain('Unrelated unsaved editor changes will not be saved.'); await dialog.accept(); });
   await component.getByRole('button', { name: 'Archive Job' }).click();
+  await component.getByRole('dialog').getByLabel('Archive reason').fill('  Controlled hosted acceptance complete  ');
+  await component.getByRole('dialog').getByRole('button', { name: 'Archive Job' }).click();
   await expect.poll(() => page.evaluate(() => window.__archiveRequests ?? [])).toEqual([{ internalJobId: '11111111-1111-4111-8111-111111111111', expectedRevision: 7, reason: 'Controlled hosted acceptance complete' }]);
   await expect.poll(() => page.evaluate(() => window.__archiveNavigations ?? [])).toEqual(['/jobs']);
 });
@@ -27,10 +34,11 @@ for (const failure of [
 ] as const) {
   test(`keeps ${failure.outcome} visible`, async ({ mount, page }) => {
     const component = await mount(<ArchiveHarness outcome={failure.outcome}/>);
-    await component.getByLabel('Archive reason').fill('Controlled test');
-    page.once('dialog', (dialog) => dialog.accept());
     await component.getByRole('button', { name: 'Archive Job' }).click();
-    await expect(component.getByRole('status')).toHaveText(failure.message);
+    const dialog = component.getByRole('dialog');
+    await dialog.getByLabel('Archive reason').fill('Controlled test');
+    await dialog.getByRole('button', { name: 'Archive Job' }).click();
+    await expect(dialog.getByRole('status')).toHaveText(failure.message);
     expect(await page.evaluate(() => window.__archiveNavigations ?? [])).toEqual([]);
   });
 }

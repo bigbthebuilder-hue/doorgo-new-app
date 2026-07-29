@@ -86,6 +86,16 @@ assert.match(appCode,/pg_get_functiondef\(p\.oid\)[\s\S]*function_definition_md5
   'Permanent verification must report concise corrected update-function evidence');
 assert.match(appCode,/owner='postgres' and prosecdef=true and configuration='search_path=""'[\s\S]*contains_valid_greatest=true and contains_invalid_pg_catalog_greatest=false/,
   'Permanent verification must require the corrected update-function contract');
+assert.match(appCode,/native_runtime_counts[\s\S]*count\(\*\)[\s\S]*from public\.dg_native_jobs[\s\S]*from public\.dg_native_job_lines[\s\S]*from public\.dg_native_job_create_commands/,
+  'Permanent verification must report exact native runtime row counts');
+assert.match(appCode,/native_sequence_runtime[\s\S]*last_value[\s\S]*is_called[\s\S]*calculated_next_candidate_value[\s\S]*configured_start_value[\s\S]*increment_by[\s\S]*cache_size[\s\S]*cycle_enabled/,
+  'Permanent verification must report sequence runtime and configuration evidence');
+assert.match(appCode,/native_runtime_tables_empty[\s\S]*native_sequence_not_reset[\s\S]*native_sequence_advancement_compatible[\s\S]*final_hosted_acceptance_runtime_state_passed/,
+  'Permanent verification must fail closed on final runtime state');
+assert.match(appCode,/configured_start_value=7 and increment_by=1 and last_value>=configured_start_value\+increment_by[\s\S]*is_called=true/,
+  'Sequence acceptance must permit gaps while proving at least two allocations above the floor');
+assert.match(appCode,/16,'native_runtime_counts'[\s\S]*17,'native_sequence_runtime'/,
+  'Permanent verification must export both runtime evidence sections');
 assert.match(appCode,/grantee in \('public','anon','authenticated','service_role'\)/,
   'Direct table and sequence access must fail closed for every non-owner role');
 assert.match(appCode,/grantee='postgres'[\s\S]*privilege_type='execute'[\s\S]*\)=5/,

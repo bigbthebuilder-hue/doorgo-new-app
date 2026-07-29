@@ -37,6 +37,23 @@ update_function_evidence AS (
     AND pg_catalog.pg_get_function_identity_arguments(p.oid)=
       'p_internal_job_id uuid, p_expected_revision bigint, p_header jsonb, p_lines jsonb'
 ),
+native_runtime_counts AS (
+  SELECT 'dg_native_jobs'::text AS table_name,pg_catalog.count(*) AS row_count FROM public.dg_native_jobs
+  UNION ALL SELECT 'dg_native_job_lines',pg_catalog.count(*) FROM public.dg_native_job_lines
+  UNION ALL SELECT 'dg_native_job_create_commands',pg_catalog.count(*) FROM public.dg_native_job_create_commands
+),
+native_sequence_runtime AS (
+  SELECT state.last_value,state.is_called,
+    CASE WHEN state.is_called THEN state.last_value+seq_catalog.seqincrement ELSE state.last_value END
+      AS calculated_next_candidate_value,
+    seq_catalog.seqstart AS configured_start_value,seq_catalog.seqincrement AS increment_by,
+    seq_catalog.seqcache AS cache_size,seq_catalog.seqcycle AS cycle_enabled
+  FROM public.dg_native_job_reference_seq AS state
+  CROSS JOIN pg_catalog.pg_sequence AS seq_catalog
+  JOIN pg_catalog.pg_class AS relation ON relation.oid=seq_catalog.seqrelid
+  JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=relation.relnamespace
+  WHERE namespace.nspname='public' AND relation.relname='dg_native_job_reference_seq'
+),
 native_columns AS (
   SELECT table_name,column_name,ordinal_position,data_type,udt_name,is_nullable,column_default
   FROM information_schema.columns WHERE table_schema='public'
@@ -126,6 +143,17 @@ sections AS (
     'update_function_contract_passed',EXISTS (SELECT 1 FROM update_function_evidence
       WHERE owner='postgres' AND prosecdef=true AND configuration='search_path=""'
         AND contains_valid_greatest=true AND contains_invalid_pg_catalog_greatest=false),
+    'native_runtime_tables_empty',NOT EXISTS (SELECT 1 FROM native_runtime_counts WHERE row_count<>0),
+    'native_sequence_not_reset',EXISTS (SELECT 1 FROM native_sequence_runtime
+      WHERE configured_start_value=7 AND increment_by=1 AND last_value>=7),
+    'native_sequence_advancement_compatible',EXISTS (SELECT 1 FROM native_sequence_runtime
+      WHERE is_called=true AND last_value>=configured_start_value+increment_by),
+    'final_hosted_acceptance_runtime_state_passed',(
+      NOT EXISTS (SELECT 1 FROM native_runtime_counts WHERE row_count<>0)
+      AND EXISTS (SELECT 1 FROM native_sequence_runtime
+        WHERE configured_start_value=7 AND increment_by=1 AND last_value>=configured_start_value+increment_by
+          AND is_called=true)
+    ),
     'forbidden_direct_table_grant_count',(SELECT pg_catalog.count(*) FROM native_grants
       WHERE grantee IN ('PUBLIC','anon','authenticated','service_role')),
     'authenticated_rpc_grant_count',(SELECT pg_catalog.count(*) FROM routine_grants
@@ -149,6 +177,12 @@ sections AS (
   UNION ALL SELECT 15,'update_function_evidence',pg_catalog.count(*),COALESCE(
     pg_catalog.jsonb_agg(pg_catalog.to_jsonb(x) ORDER BY x.proname,x.identity_arguments),'[]'::jsonb)
     FROM update_function_evidence AS x
+  UNION ALL SELECT 16,'native_runtime_counts',pg_catalog.count(*),COALESCE(
+    pg_catalog.jsonb_agg(pg_catalog.to_jsonb(x) ORDER BY x.table_name),'[]'::jsonb)
+    FROM native_runtime_counts AS x
+  UNION ALL SELECT 17,'native_sequence_runtime',pg_catalog.count(*),COALESCE(
+    pg_catalog.jsonb_agg(pg_catalog.to_jsonb(x)),'[]'::jsonb)
+    FROM native_sequence_runtime AS x
 )
 SELECT section_number,section_name,row_count,results_json FROM sections ORDER BY section_number;
 

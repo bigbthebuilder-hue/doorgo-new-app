@@ -315,6 +315,8 @@ Forced RLS is disabled deliberately. These `SECURITY DEFINER` RPCs require owner
 
 ## Jobs page and output behavior
 
+Hosted native-job persistence and its rolled-back behavioral acceptance are complete. Acceptance testing permanently advanced the DG sequence; those expected gaps are retained and never reused. Normal application runtime now uses the authenticated hosted repository adapter and only the five reviewed RPCs. The filesystem-backed repository remains available solely through explicit test injection; hosted configuration, authentication, or RPC failures never fall back to local persistence.
+
 The Jobs page calls only `dg_list_native_jobs`. Its structural source is `dg_native_jobs`, whose allowed origins are `native` and `legacy_transfer`. Ordinary legacy mirror rows, Calendar/production/history records and unsaved transfer payloads cannot appear because they are not stored in that table.
 
 Opening, work-order generation, PDF Download/Print and J3C Send load the saved aggregate only through `dg_get_native_job` or the hosted repository backed by it. Dirty state, revision pinning, blockers, warnings, permissions and recipient rules remain unchanged. Persistence RPCs have no output-delivery side effect.

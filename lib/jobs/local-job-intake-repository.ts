@@ -12,6 +12,7 @@ import {
   type NativeDoorLine,
   type NativeJobAggregate,
   type NativeJobHeader,
+  type NativeJobListItem,
 } from './job-intake-types';
 
 type CreateReceipt = { internalJobId: string; fingerprint: string };
@@ -57,6 +58,16 @@ function compatibleAggregate(job: NativeJobHeader & { lines?: unknown }): Native
   const poNumbers = normalizePoNumbers((job as NativeJobHeader & { poNumbers?: unknown }).poNumbers);
   if (poNumbers.ok === false) throw new Error(`Invalid local intake data: ${poNumbers.message}`);
   return { ...job, poNumbers: poNumbers.value, lines: Array.isArray(job.lines) ? job.lines as NativeDoorLine[] : [] };
+}
+
+function summarizeJob(job: NativeJobAggregate): NativeJobListItem {
+  return {
+    internalJobId: job.internalJobId,doorGoReference: job.doorGoReference,
+    bizTrackSalesOrder: job.bizTrackSalesOrder,customer: job.customer,siteAddress: job.siteAddress,
+    lifecycleStage: job.lifecycleStage,createdAt: job.createdAt,updatedAt: job.updatedAt,revision: job.revision,
+    archivedAt: job.archivedAt ?? null,activeLineCount: job.lines.filter((line) => line.lineStatus==='Active').length,
+    archivedLineCount: job.lines.filter((line) => line.lineStatus==='Archived').length,
+  };
 }
 
 function parseStore(raw: string): LocalJobStore {
@@ -184,7 +195,22 @@ export function createLocalJobIntakeRepository(options: LocalRepositoryOptions =
     async list() {
       allowed();
       const store = await readStore(filePath);
-      return [...store.jobs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      return [...store.jobs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(summarizeJob);
+    },
+    async listPage(request = {}) {
+      allowed();
+      const limit = request.limit ?? 50;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100 || (request.cursor && (!request.cursor.updatedAt || !request.cursor.internalJobId))) {
+        throw new JobIntakeFailure('validation_failed', 'The requested jobs page is invalid.');
+      }
+      const jobs = [...(await readStore(filePath)).jobs]
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.internalJobId.localeCompare(a.internalJobId))
+        .filter((job) => !request.cursor || job.updatedAt < request.cursor.updatedAt
+          || (job.updatedAt === request.cursor.updatedAt && job.internalJobId < request.cursor.internalJobId));
+      const items = jobs.slice(0, limit);
+      const hasMore = jobs.length > limit;
+      const last = hasMore ? items.at(-1) : undefined;
+      return { items: items.map(summarizeJob), page: { limit, hasMore, nextCursor: last ? { updatedAt: last.updatedAt, internalJobId: last.internalJobId } : null } };
     },
     async findById(internalJobId) {
       allowed();
@@ -251,6 +277,22 @@ export function createLocalJobIntakeRepository(options: LocalRepositoryOptions =
         store.jobs[index] = updated;
         await atomicWriteStore(filePath, store);
         return updated;
+      });
+    },
+    async archive(command) {
+      allowed();
+      return serialized(filePath, async () => {
+        const store = await readStore(filePath);
+        const index = store.jobs.findIndex((job) => job.internalJobId === command.internalJobId);
+        if (index < 0) throw new JobIntakeFailure('not_found', 'The requested job was not found.');
+        const existing = store.jobs[index];
+        if (existing.revision !== command.expectedRevision) throw new JobIntakeFailure('stale_revision', 'This job changed after you opened it.');
+        const timestamp = now().toISOString();
+        const archived = { ...existing, revision: existing.revision + 1, updatedAt: timestamp,
+          updatedByUserId: existing.updatedByUserId,archivedAt: timestamp,archiveReason: command.reason };
+        store.jobs[index] = archived;
+        await atomicWriteStore(filePath, store);
+        return archived;
       });
     },
   };

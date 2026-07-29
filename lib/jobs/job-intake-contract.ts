@@ -143,11 +143,13 @@ export function jobFailureMessage(code: JobIntakeFailureCode): string {
     permission_required: 'Your account does not have permission for this action.',
     validation_failed: 'Review the highlighted job fields.',
     duplicate_biztrack_sales_order: 'That BizTrack Sales Order is already attached to another job.',
+    duplicate_door_go_reference: 'That DoorGo reference is already attached to another job.',
+    archived: 'The requested job is archived.',
     stale_revision: 'This draft changed after you opened it. Reload and review the latest version before saving.',
     not_found: 'The requested draft job was not found.',
     idempotency_conflict: 'This create request was already used with different job details.',
     local_intake_disabled: 'Local Job Intake is disabled. Set DOORGO_LOCAL_INTAKE_ENABLED=true in a non-production environment.',
-    unavailable: 'Local Job Intake is temporarily unavailable.',
+    unavailable: 'Hosted Job Intake is temporarily unavailable.',
   };
   return messages[code];
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { visibleJobIdentifier } from '@/lib/jobs/job-intake-contract';
-import type { NativeJobAggregate } from '@/lib/jobs/job-intake-types';
+import type { NativeJobListItem } from '@/lib/jobs/job-intake-types';
 
 function formattedUpdatedAt(value: string): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -12,7 +12,7 @@ function formattedUpdatedAt(value: string): string {
   }).format(new Date(value));
 }
 
-export function JobsList({ jobs }: { jobs: NativeJobAggregate[] }) {
+export function JobsList({ jobs }: { jobs: NativeJobListItem[] }) {
   const [filter, setFilter] = useState('');
   const normalizedFilter = filter.trim().toLocaleLowerCase();
   const filteredJobs = useMemo(
@@ -20,7 +20,6 @@ export function JobsList({ jobs }: { jobs: NativeJobAggregate[] }) {
       visibleJobIdentifier(job),
       job.customer,
       job.siteAddress,
-      job.salesperson,
     ].some((value) => value?.toLocaleLowerCase().includes(normalizedFilter))),
     [jobs, normalizedFilter],
   );
@@ -30,7 +29,7 @@ export function JobsList({ jobs }: { jobs: NativeJobAggregate[] }) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 id="saved-jobs-heading" className="text-xl font-semibold">Saved draft jobs</h2>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Local J1 drafts only</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Saved DoorGo jobs</p>
         </div>
         <label className="grid w-full max-w-md gap-1 text-sm font-semibold" htmlFor="job-filter">
           Filter jobs
@@ -56,9 +55,8 @@ export function JobsList({ jobs }: { jobs: NativeJobAggregate[] }) {
               <dl className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
                 <div><dt className="inline text-slate-500 dark:text-slate-400">Customer: </dt><dd className="inline">{job.customer ?? 'Not entered'}</dd></div>
                 <div><dt className="inline text-slate-500 dark:text-slate-400">Site: </dt><dd className="inline">{job.siteAddress ?? 'Not entered'}</dd></div>
-                <div><dt className="inline text-slate-500 dark:text-slate-400">Salesperson: </dt><dd className="inline">{job.salesperson ?? 'Not assigned'}</dd></div>
-                <div><dt className="inline text-slate-500 dark:text-slate-400">Active lines: </dt><dd className="inline">{job.lines.filter((line) => line.lineStatus === 'Active').length}</dd></div>
-                <div><dt className="inline text-slate-500 dark:text-slate-400">Shop Hours: </dt><dd className="inline">{job.shopHours ?? 'Not estimated'}</dd></div>
+                <div><dt className="inline text-slate-500 dark:text-slate-400">Active lines: </dt><dd className="inline">{job.activeLineCount}</dd></div>
+                <div><dt className="inline text-slate-500 dark:text-slate-400">Archived lines: </dt><dd className="inline">{job.archivedLineCount}</dd></div>
                 <div><dt className="inline text-slate-500 dark:text-slate-400">Updated: </dt><dd className="inline">{formattedUpdatedAt(job.updatedAt)}</dd></div>
               </dl>
             </div>
@@ -69,7 +67,7 @@ export function JobsList({ jobs }: { jobs: NativeJobAggregate[] }) {
         ))}
         {!filteredJobs.length ? (
           <p className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
-            {jobs.length ? 'No drafts match this filter.' : 'No local draft jobs have been saved yet.'}
+            {jobs.length ? 'No jobs match this filter.' : 'No DoorGo jobs have been saved yet.'}
           </p>
         ) : null}
       </div>

@@ -174,10 +174,16 @@ const laterPhaseCheckpointActionBoundary = new Set([
   'lib/production-bookings/production-booking-completion-service.ts',
   'lib/production-bookings/production-booking-completion-contract.ts',
 ]);
+const reviewedNativeJobRpcBoundary = new Set(['lib/jobs/hosted-job-intake-repository.ts']);
 const applicationPaths = reviewablePaths.filter(
-  (path) => !path.startsWith('scripts/') && !path.endsWith('.test.ts') && !laterPhaseCheckpointActionBoundary.has(path),
+  (path) => !path.startsWith('scripts/') && !path.endsWith('.test.ts') && !laterPhaseCheckpointActionBoundary.has(path) && !reviewedNativeJobRpcBoundary.has(path),
 );
 const applicationDiffText = applicationPaths.map((path) => read(path)).join('\n');
+const nativeJobRpcAdapter = read('lib/jobs/hosted-job-intake-repository.ts');
+assert.deepEqual([...nativeJobRpcAdapter.matchAll(/call\('([^']+)'/g)].map((match) => match[1]).sort(),[
+  'dg_archive_native_job','dg_create_native_job','dg_get_native_job','dg_list_native_jobs','dg_update_native_job',
+], 'Hosted native-job adapter may call only the five reviewed RPCs');
+rejectPattern(nativeJobRpcAdapter,/\.from\(/,'Hosted native-job adapter must not access tables directly');
 
 rejectPattern(applicationDiffText, /\.rpc\((?!\s*['"]complete_dg_initial_password_setup['"])/, 'Only the password-setup RPC may be introduced in Phase 2F-C1');
 rejectPattern(

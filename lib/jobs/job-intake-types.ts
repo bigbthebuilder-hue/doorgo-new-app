@@ -118,9 +118,29 @@ export type NativeJobHeader = {
   revision: number;
   createdByUserId: string;
   updatedByUserId: string;
+  origin?: 'native' | 'legacy_transfer';
+  visibleIdentifier?: string;
+  visibleIdentifierKind?: 'door_go_reference' | 'biztrack_sales_order';
+  legacyJobId?: string | null;
+  legacyIdentifierKind?: string | null;
+  archivedAt?: string | null;
+  archivedByUserId?: string | null;
+  archiveReason?: string | null;
 };
 
 export type NativeJobAggregate = NativeJobHeader & { lines: NativeDoorLine[] };
+
+export type NativeJobListCursor = { updatedAt: string; internalJobId: string };
+export type NativeJobListRequest = { includeArchived?: boolean; limit?: number; cursor?: NativeJobListCursor | null };
+export type NativeJobListItem = Pick<NativeJobHeader,
+  'internalJobId' | 'doorGoReference' | 'bizTrackSalesOrder' | 'customer' | 'siteAddress' |
+  'lifecycleStage' | 'createdAt' | 'updatedAt' | 'revision'
+> & { activeLineCount: number; archivedLineCount: number; archivedAt: string | null };
+export type NativeJobListPage = {
+  items: NativeJobListItem[];
+  page: { limit: number; hasMore: boolean; nextCursor: NativeJobListCursor | null };
+};
+export type ArchiveJobCommand = { internalJobId: string; expectedRevision: number; reason: string };
 
 export type JobHeaderFields = Pick<NativeJobHeader,
   'bizTrackSalesOrder' | 'customer' | 'siteAddress' | 'phone' | 'email' |
@@ -151,16 +171,19 @@ export type UpdateJobHeaderCommand = {
 };
 
 export type JobIntakeRepository = {
-  list(): Promise<NativeJobAggregate[]>;
+  list(): Promise<NativeJobListItem[]>;
+  listPage(request?: NativeJobListRequest): Promise<NativeJobListPage>;
   findById(internalJobId: string): Promise<NativeJobAggregate | null>;
   create(command: CreateJobHeaderCommand): Promise<NativeJobAggregate>;
   update(command: UpdateJobHeaderCommand): Promise<NativeJobAggregate>;
+  archive(command: ArchiveJobCommand): Promise<NativeJobAggregate>;
 };
 
 export type JobIntakeFailureCode =
   | 'authentication_required' | 'active_profile_required' | 'permission_required'
   | 'validation_failed' | 'duplicate_biztrack_sales_order' | 'stale_revision'
-  | 'not_found' | 'idempotency_conflict' | 'local_intake_disabled' | 'unavailable';
+  | 'duplicate_door_go_reference' | 'archived' | 'not_found' | 'idempotency_conflict'
+  | 'local_intake_disabled' | 'unavailable';
 
 export class JobIntakeFailure extends Error {
   constructor(

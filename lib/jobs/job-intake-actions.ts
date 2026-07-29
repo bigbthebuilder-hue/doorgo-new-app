@@ -5,7 +5,7 @@ import { getPermissionAccess } from '@/lib/auth/access';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { canWriteJobs, jobFailureMessage } from './job-intake-contract';
 import { assertConfirmedJobActiveLineInvariant } from './door-line-contract';
-import { createJobWithAccess, prepareGlassOverrideWithAccess, removeGlassOverrideWithAccess, updateJobWithAccess } from './job-intake-service';
+import { archiveJobWithAccess, createJobWithAccess, prepareGlassOverrideWithAccess, removeGlassOverrideWithAccess, updateJobWithAccess } from './job-intake-service';
 import {
   JobIntakeFailure,
   type DoorLineInput,
@@ -73,6 +73,22 @@ export async function updateDraftJobAction(request: {
     const job = await updateJobWithAccess(access, request);
     revalidatePath('/jobs');
     revalidatePath(`/jobs/${job.internalJobId}/edit`);
+    return { ok: true, job };
+  } catch (error) {
+    return failureResult(error);
+  }
+}
+
+export async function archiveDraftJobAction(request: {
+  internalJobId: string;
+  expectedRevision: number;
+  reason: string;
+}): Promise<JobIntakeActionResult> {
+  try {
+    const access = await getCurrentDoorGoAccess();
+    actionWriteCheck(access);
+    const job = await archiveJobWithAccess(access, request);
+    revalidatePath('/jobs');
     return { ok: true, job };
   } catch (error) {
     return failureResult(error);

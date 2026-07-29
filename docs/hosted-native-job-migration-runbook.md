@@ -36,6 +36,8 @@ The first rolled-back behavioral attempt exposed an invalid schema-qualified `GR
 
 ## Result handling
 
+Hosted persistence acceptance is complete. The application repository now uses the five authenticated native-job RPCs in normal runtime, while local persistence is test-injected only. DG sequence gaps consumed by failed or rolled-back acceptance attempts are expected, permanent, and must not be reset or reused.
+
 Use descriptive local filenames containing the project ref, phase (`preflight`, `post-apply`, or `post-behavior`), and timestamp. Keep exports outside the repository because catalog/grant information is operational evidence. Do not paste secrets, JWTs, service-role keys, customer details, or personal email addresses into the repository or review report.
 
 ## Emergency rollback boundary

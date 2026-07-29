@@ -12,11 +12,13 @@ import { createJobIntakeRepository } from './job-intake-repository';
 import {
   JobIntakeFailure,
   type CreateJobHeaderCommand,
+  type ArchiveJobCommand,
   type DoorLineInput,
   type GlassGeometryValues,
   type GlassOverrideApproval,
   type JobHeaderInput,
   type JobIntakeRepository,
+  type NativeJobListItem,
   type NativeJobAggregate,
   type UpdateJobHeaderCommand,
 } from './job-intake-types';
@@ -42,7 +44,7 @@ export function assertJobsWriteAccess(access: CurrentDoorGoAccess): void {
 export async function listJobsWithAccess(
   access: CurrentDoorGoAccess,
   repository: JobIntakeRepository = createJobIntakeRepository(),
-): Promise<NativeJobAggregate[]> {
+): Promise<NativeJobListItem[]> {
   assertJobsReadAccess(access);
   return repository.list();
 }
@@ -85,7 +87,16 @@ export async function updateJobWithAccess(
   return repository.update({ ...request, actorUserId: access.user.id });
 }
 
-export async function loadCurrentJobs(): Promise<NativeJobAggregate[]> {
+export async function archiveJobWithAccess(
+  access: CurrentDoorGoAccess,
+  request: ArchiveJobCommand,
+  repository: JobIntakeRepository = createJobIntakeRepository(),
+): Promise<NativeJobAggregate> {
+  assertJobsWriteAccess(access);
+  return repository.archive(request);
+}
+
+export async function loadCurrentJobs(): Promise<NativeJobListItem[]> {
   return listJobsWithAccess(await getCurrentDoorGoAccess());
 }
 

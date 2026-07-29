@@ -4,7 +4,7 @@ import {
   type JobIntakeRepository,type NativeDoorLine,type NativeJobAggregate,type NativeJobListItem,
   type NativeJobListPage,type NativeJobListRequest,type UpdateJobHeaderCommand,
 } from './job-intake-types';
-import { normalizeJobHeaderInput, isUuid } from './job-intake-contract';
+import { normalizeJobHeaderInput, isUuid, jobFailureMessage } from './job-intake-contract';
 import { normalizeDoorLineInput } from './door-line-contract';
 
 type RpcError={message?:string;details?:string;code?:string};
@@ -52,7 +52,7 @@ function failure(error:RpcError):JobIntakeFailure{
   if(!match)return unavailable();
   return new JobIntakeFailure(match[1],match[1]==='validation_failed'
     ?'Hosted Job Intake rejected one or more job or door-line fields. Review the entered values and try again.'
-    :`Hosted Job Intake rejected the request (${match[1]}).`);
+    :jobFailureMessage(match[1]));
 }
 function aggregate(value:unknown):NativeJobAggregate{
   if(!value||typeof value!=='object'||Array.isArray(value)) throw unavailable();

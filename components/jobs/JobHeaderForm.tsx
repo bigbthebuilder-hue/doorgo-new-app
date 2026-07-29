@@ -2,13 +2,14 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { createDraftJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
+import { archiveDraftJobAction, createDraftJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine } from '@/lib/jobs/door-line-contract';
 import { jobAggregateDirtySnapshot, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
 import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggregate } from '@/lib/jobs/job-intake-types';
 import { workOrderOutputDecision, type WorkOrderOutputIntent } from '@/lib/jobs/work-order-preview-contract';
 import { HINGE_COLOR_OPTIONS, normalizeHingeColor } from '@/lib/jobs/hinge-contract';
 import { DoorLineWorkspace } from './DoorLineWorkspace';
+import { JobArchiveControl, jobArchiveTarget } from './JobArchiveControl';
 import { WorkOrderSendEntryButton } from './WorkOrderSendEntryButton';
 
 type FormValues = {
@@ -270,6 +271,12 @@ export function JobHeaderForm({
           <button className="min-h-12 rounded-xl bg-slate-900 px-5 font-semibold text-white disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button>
         </> : null}
       </div>
+
+      <JobArchiveControl
+        onArchive={archiveDraftJobAction}
+        onNavigate={(path) => router.push(path)}
+        target={jobArchiveTarget(job, canEdit)}
+      />
     </section>
   );
 }

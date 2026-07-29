@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHostedJobIntakeRepository,type NativeJobRpcClient } from './hosted-job-intake-repository';
 import { JobIntakeFailure } from './job-intake-types';
+import { jobFailureMessage } from './job-intake-contract';
 import { readFileSync } from 'node:fs';
 
 const job={internal_job_id:'11111111-1111-4111-8111-111111111111',door_go_reference:'DG-000013',biztrack_sales_order:null,
@@ -48,6 +49,10 @@ async function main(){
   }
   const rejected=createHostedJobIntakeRepository({client:{rpc:async()=>({data:null,error:{message:'native_job.validation_failed',details:'sensitive database detail'}})}});
   await assert.rejects(rejected.create({commandId:job.internal_job_id,actorUserId:job.created_by_user_id,defaultSalesperson:null,input:{customer:'Valid'},lines:[{lineId:line.line_id,mode:'Interior',config:'D',width:`2'6"`,height:`6'8"`,hand:'LH',prep:'YES',jambWidth:`4-9/16"`,jambType:'Primed',hingeType:'REG',qty:1}]}),(error)=>error instanceof JobIntakeFailure&&error.message==='Hosted Job Intake rejected one or more job or door-line fields. Review the entered values and try again.'&&!error.message.includes('sensitive'));
+  for(const code of ['authentication_required','active_profile_required','permission_required','stale_revision','not_found','archived'] as const){
+    const failing=createHostedJobIntakeRepository({client:{rpc:async()=>({data:null,error:{message:`native_job.${code}`}})}});
+    await assert.rejects(failing.archive({internalJobId:job.internal_job_id,expectedRevision:1,reason:'Controlled test'}),(error)=>error instanceof JobIntakeFailure&&error.code===code&&error.message===jobFailureMessage(code));
+  }
   const unavailable=createHostedJobIntakeRepository({client:{rpc:async()=>{throw new Error('network');}}});
   await assert.rejects(unavailable.list(),(error)=>error instanceof JobIntakeFailure&&error.code==='unavailable');
   console.log('Hosted native-job repository adapter tests passed');

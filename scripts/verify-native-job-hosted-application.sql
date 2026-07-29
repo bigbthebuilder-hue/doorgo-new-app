@@ -19,9 +19,23 @@ native_relations AS (
 ),
 native_routines AS (
   SELECT p.proname,pg_catalog.pg_get_function_identity_arguments(p.oid) AS identity_arguments,
-    p.prosecdef,pg_catalog.array_to_string(p.proconfig,',') AS configuration
+    pg_catalog.pg_get_userbyid(p.proowner) AS owner,p.prosecdef,
+    pg_catalog.array_to_string(p.proconfig,',') AS configuration
   FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace
   WHERE n.nspname='public' AND p.proname LIKE 'dg_%native_job%'
+),
+update_function_evidence AS (
+  SELECT p.proname,pg_catalog.pg_get_function_identity_arguments(p.oid) AS identity_arguments,
+    pg_catalog.pg_get_userbyid(p.proowner) AS owner,p.prosecdef,
+    pg_catalog.array_to_string(p.proconfig,',') AS configuration,
+    pg_catalog.md5(pg_catalog.pg_get_functiondef(p.oid)) AS function_definition_md5,
+    pg_catalog.strpos(pg_catalog.pg_get_functiondef(p.oid),'GREATEST(')>0 AS contains_valid_greatest,
+    pg_catalog.strpos(pg_catalog.lower(pg_catalog.pg_get_functiondef(p.oid)),'pg_catalog.'||'greatest(')>0
+      AS contains_invalid_pg_catalog_greatest
+  FROM pg_catalog.pg_proc AS p JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace
+  WHERE n.nspname='public' AND p.proname='dg_update_native_job'
+    AND pg_catalog.pg_get_function_identity_arguments(p.oid)=
+      'p_internal_job_id uuid, p_expected_revision bigint, p_header jsonb, p_lines jsonb'
 ),
 native_columns AS (
   SELECT table_name,column_name,ordinal_position,data_type,udt_name,is_nullable,column_default
@@ -103,6 +117,15 @@ sections AS (
     'all_tables_rls_enabled',NOT EXISTS (SELECT 1 FROM native_relations WHERE relkind='r' AND NOT relrowsecurity),
     'no_table_forced_rls',NOT EXISTS (SELECT 1 FROM native_relations WHERE relkind='r' AND relforcerowsecurity),
     'policy_count',(SELECT pg_catalog.count(*) FROM native_policies),
+    'all_rpc_owners_postgres',(
+      (SELECT pg_catalog.count(*) FROM native_routines)=5
+      AND NOT EXISTS (SELECT 1 FROM native_routines WHERE owner<>'postgres')
+      AND NOT EXISTS (SELECT 1 FROM native_routines AS r WHERE NOT EXISTS (
+        SELECT 1 FROM expected_routines AS e WHERE e.name=r.proname AND e.identity_arguments=r.identity_arguments))
+    ),
+    'update_function_contract_passed',EXISTS (SELECT 1 FROM update_function_evidence
+      WHERE owner='postgres' AND prosecdef=true AND configuration='search_path=""'
+        AND contains_valid_greatest=true AND contains_invalid_pg_catalog_greatest=false),
     'forbidden_direct_table_grant_count',(SELECT pg_catalog.count(*) FROM native_grants
       WHERE grantee IN ('PUBLIC','anon','authenticated','service_role')),
     'authenticated_rpc_grant_count',(SELECT pg_catalog.count(*) FROM routine_grants
@@ -123,6 +146,9 @@ sections AS (
   UNION ALL SELECT 14,'native_sequence_grants',pg_catalog.count(*),COALESCE(
     pg_catalog.jsonb_agg(pg_catalog.to_jsonb(x) ORDER BY x.grantee,x.privilege_type),'[]'::jsonb)
     FROM sequence_grants AS x
+  UNION ALL SELECT 15,'update_function_evidence',pg_catalog.count(*),COALESCE(
+    pg_catalog.jsonb_agg(pg_catalog.to_jsonb(x) ORDER BY x.proname,x.identity_arguments),'[]'::jsonb)
+    FROM update_function_evidence AS x
 )
 SELECT section_number,section_name,row_count,results_json FROM sections ORDER BY section_number;
 

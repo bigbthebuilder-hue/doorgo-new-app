@@ -79,7 +79,13 @@ assert.match(preflight,/highest_valid_suffix[\s\S]*candidate_unoccupied[\s\S]*ru
 const appCode = stripComments(application).toLowerCase();
 assert.match(application,/PORTION 1:[\s\S]*PORTION 2:/);
 assert.match(appCode,/with[\s\S]*begin;[\s\S]*do \$acceptance\$[\s\S]*rollback;/i);
-assert.match(appCode,/fail_closed_security_summary[\s\S]*forbidden_direct_table_grant_count[\s\S]*authenticated_rpc_grant_count[\s\S]*postgres_owner_rpc_grant_count[\s\S]*service_role_rpc_grant_count[\s\S]*rpc_grant_contract_passed[\s\S]*forbidden_direct_sequence_grant_count[\s\S]*native_sequence_grants/);
+assert.match(appCode,/fail_closed_security_summary[\s\S]*all_rpc_owners_postgres[\s\S]*update_function_contract_passed[\s\S]*forbidden_direct_table_grant_count[\s\S]*authenticated_rpc_grant_count[\s\S]*postgres_owner_rpc_grant_count[\s\S]*service_role_rpc_grant_count[\s\S]*rpc_grant_contract_passed[\s\S]*forbidden_direct_sequence_grant_count[\s\S]*native_sequence_grants[\s\S]*update_function_evidence/);
+assert.match(appCode,/pg_get_userbyid\(p\.proowner\) as owner/,
+  'Permanent verification must report direct owner evidence for native RPCs');
+assert.match(appCode,/pg_get_functiondef\(p\.oid\)[\s\S]*function_definition_md5[\s\S]*contains_valid_greatest[\s\S]*contains_invalid_pg_catalog_greatest/,
+  'Permanent verification must report concise corrected update-function evidence');
+assert.match(appCode,/owner='postgres' and prosecdef=true and configuration='search_path=""'[\s\S]*contains_valid_greatest=true and contains_invalid_pg_catalog_greatest=false/,
+  'Permanent verification must require the corrected update-function contract');
 assert.match(appCode,/grantee in \('public','anon','authenticated','service_role'\)/,
   'Direct table and sequence access must fail closed for every non-owner role');
 assert.match(appCode,/grantee='postgres'[\s\S]*privilege_type='execute'[\s\S]*\)=5/,

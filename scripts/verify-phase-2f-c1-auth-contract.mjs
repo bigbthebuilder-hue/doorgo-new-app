@@ -208,15 +208,19 @@ assert.deepEqual(
   serviceRoleReferences,
   [
     '.env.example',
+    'docs/hosted-native-job-migration-runbook.md',
     'lib/supabase/trusted-read-server.ts',
+    'scripts/verify-native-job-hosted-application.sql',
+    'scripts/verify-native-job-hosted-migration-package.mjs',
     'scripts/verify-native-job-intake-j3c.mjs',
     'scripts/verify-phase-2f-c1-auth-contract.mjs',
+    'supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql',
   ],
   'Service-role references must remain limited to approved runtime, placeholder, and verifier files',
 );
 
 const runtimeServiceRoleReferences = serviceRoleReferences.filter(
-  (path) => path !== '.env.example' && !path.startsWith('scripts/'),
+  (path) => path !== '.env.example' && !path.startsWith('docs/') && !path.startsWith('scripts/') && !path.startsWith('supabase/migrations/'),
 );
 assert.deepEqual(
   runtimeServiceRoleReferences,

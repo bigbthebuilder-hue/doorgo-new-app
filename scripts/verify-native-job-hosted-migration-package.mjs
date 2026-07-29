@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const read = (path) => readFileSync(path, 'utf8');
 const migration = read('supabase/migrations/20260728000000_create_native_job_persistence.sql');
+const correctiveMigration = read('supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql');
 const preflight = read('scripts/inspect-native-job-hosted-preflight.sql');
 const application = read('scripts/verify-native-job-hosted-application.sql');
 const rollback = read('scripts/rollback-native-job-persistence.sql');
@@ -13,6 +14,35 @@ assert.equal(checksum, '2F13B297F395440912F6CD0B40FCD636DF6A23DD6331B4454DDA8672
 assert.ok(runbook.includes(checksum), 'Runbook must record the exact migration checksum');
 
 const stripComments = (sql) => sql.replace(/--.*$/gm, '');
+const serviceRole = ['service', 'role'].join('_');
+const correctiveStatements = stripComments(correctiveMigration).split(';')
+  .map((statement) => statement.replace(/\s+/g, ' ').trim().toLowerCase()).filter(Boolean);
+assert.deepEqual(correctiveStatements, [
+  'begin',
+  `revoke all on table public.dg_native_jobs from ${serviceRole}`,
+  `revoke all on table public.dg_native_job_lines from ${serviceRole}`,
+  `revoke all on table public.dg_native_job_create_commands from ${serviceRole}`,
+  `revoke all on sequence public.dg_native_job_reference_seq from ${serviceRole}`,
+  `revoke execute on function public.dg_create_native_job(uuid,text,text,text,jsonb,jsonb) from ${serviceRole}`,
+  `revoke execute on function public.dg_update_native_job(uuid,bigint,jsonb,jsonb) from ${serviceRole}`,
+  `revoke execute on function public.dg_archive_native_job(uuid,bigint,text) from ${serviceRole}`,
+  `revoke execute on function public.dg_get_native_job(uuid,boolean) from ${serviceRole}`,
+  `revoke execute on function public.dg_list_native_jobs(boolean,integer,timestamptz,uuid) from ${serviceRole}`,
+  'commit',
+], 'Corrective migration must contain only the exact transaction and native-object revocations');
+const correctiveCode = stripComments(correctiveMigration).toLowerCase();
+assert.doesNotMatch(correctiveCode, /\b(create|alter|drop|insert|update|delete|merge|truncate|grant|select|call|do|set|lock)\b/,
+  'Corrective migration must not change structure, data, function bodies, sequence values, or grants');
+assert.doesNotMatch(correctiveCode, /\b(nextval|setval|create\s+or\s+replace\s+function)\b/,
+  'Corrective migration must not consume the sequence or replace an RPC body');
+for (const signature of [
+  'dg_create_native_job(uuid,text,text,text,jsonb,jsonb)',
+  'dg_update_native_job(uuid,bigint,jsonb,jsonb)',
+  'dg_archive_native_job(uuid,bigint,text)',
+  'dg_get_native_job(uuid,boolean)',
+  'dg_list_native_jobs(boolean,integer,timestamptz,uuid)',
+]) assert.ok(migration.toLowerCase().includes(`grant execute on function public.${signature} to authenticated`),
+  `Authenticated EXECUTE grant must remain intact for ${signature}`);
 const preflightCode = stripComments(preflight).toLowerCase();
 assert.match(preflightCode.trim(), /^with\b/);
 assert.doesNotMatch(preflightCode, /\b(insert|update|delete|merge|alter|create|drop|truncate|grant|revoke|call|do|begin|commit|rollback|lock|set)\b/,
@@ -26,7 +56,13 @@ assert.match(preflight,/highest_valid_suffix[\s\S]*candidate_unoccupied[\s\S]*ru
 const appCode = stripComments(application).toLowerCase();
 assert.match(application,/PORTION 1:[\s\S]*PORTION 2:/);
 assert.match(appCode,/with[\s\S]*begin;[\s\S]*do \$acceptance\$[\s\S]*rollback;/i);
-assert.match(appCode,/fail_closed_security_summary[\s\S]*all_tables_rls_enabled[\s\S]*no_table_forced_rls[\s\S]*policy_count[\s\S]*forbidden_direct_table_grant_count[\s\S]*unexpected_rpc_grant_count[\s\S]*authenticated_rpc_grant_count/);
+assert.match(appCode,/fail_closed_security_summary[\s\S]*forbidden_direct_table_grant_count[\s\S]*authenticated_rpc_grant_count[\s\S]*postgres_owner_rpc_grant_count[\s\S]*service_role_rpc_grant_count[\s\S]*rpc_grant_contract_passed[\s\S]*forbidden_direct_sequence_grant_count[\s\S]*native_sequence_grants/);
+assert.match(appCode,/grantee in \('public','anon','authenticated','service_role'\)/,
+  'Direct table and sequence access must fail closed for every non-owner role');
+assert.match(appCode,/grantee='postgres'[\s\S]*privilege_type='execute'[\s\S]*\)=5/,
+  'Normal postgres owner routine privileges must be expected explicitly');
+assert.match(appCode,/grantee='service_role'[\s\S]*rpc_grant_contract_passed/,
+  'Service-role native RPC execution must be reported and rejected');
 assert.doesNotMatch(appCode,/\bcommit\b/,'Behavioral script must never commit');
 assert.equal((appCode.match(/\bbegin;/g)??[]).length,1);
 assert.equal((appCode.match(/\brollback;/g)??[]).length,1);
@@ -60,9 +96,9 @@ assert.deepEqual([...rollbackCode.matchAll(/drop sequence public\.([a-z0-9_]+);/
 assert.doesNotMatch(rollbackCode,/dg_jobs|dg_job_lines|production|calendar|capacity|fulfillment|document|email|auth\./,
   'Rollback scope must contain only new native objects');
 
-for (const text of [preflight,application,rollback,runbook]) {
+for (const text of [preflight,application,rollback,runbook,correctiveMigration]) {
   assert.doesNotMatch(text,/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,'No email address may be embedded');
-  const privilegedKeyPattern = new RegExp(`${['service','role'].join('_')}|${['resend','api','key'].join('_')}|eyJ[A-Za-z0-9_-]+\\.`, 'i');
+  const privilegedKeyPattern = new RegExp(`${['resend','api','key'].join('_')}|eyJ[A-Za-z0-9_-]+\\.`, 'i');
   assert.doesNotMatch(text,privilegedKeyPattern,'No secret material may be embedded');
 }
 assert.match(runbook,/sequence allocation is nontransactional[\s\S]*permanently consumes DG sequence values/i);

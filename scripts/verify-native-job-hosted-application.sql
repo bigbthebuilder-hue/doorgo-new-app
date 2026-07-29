@@ -47,6 +47,17 @@ routine_grants AS (
   SELECT grantee,routine_name,privilege_type FROM information_schema.role_routine_grants
   WHERE specific_schema='public' AND routine_name LIKE 'dg_%native_job%'
 ),
+sequence_grants AS (
+  SELECT COALESCE(role.rolname,'PUBLIC') AS grantee,acl.privilege_type,acl.is_grantable
+  FROM pg_catalog.pg_class AS seq_class
+  JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=seq_class.relnamespace
+  CROSS JOIN LATERAL pg_catalog.aclexplode(COALESCE(
+    seq_class.relacl,pg_catalog.acldefault('S'::pg_catalog."char",seq_class.relowner)
+  )) AS acl
+  LEFT JOIN pg_catalog.pg_roles AS role ON role.oid=acl.grantee
+  WHERE namespace.nspname='public' AND seq_class.relkind::text='S'
+    AND seq_class.relname='dg_native_job_reference_seq'
+),
 native_policies AS (
   SELECT schemaname,tablename,policyname,roles,cmd FROM pg_catalog.pg_policies
   WHERE schemaname='public' AND tablename LIKE 'dg_native_job%'
@@ -93,11 +104,25 @@ sections AS (
     'no_table_forced_rls',NOT EXISTS (SELECT 1 FROM native_relations WHERE relkind='r' AND relforcerowsecurity),
     'policy_count',(SELECT pg_catalog.count(*) FROM native_policies),
     'forbidden_direct_table_grant_count',(SELECT pg_catalog.count(*) FROM native_grants
-      WHERE grantee IN ('PUBLIC','anon','authenticated')),
-    'unexpected_rpc_grant_count',(SELECT pg_catalog.count(*) FROM routine_grants
-      WHERE grantee<>'authenticated' OR privilege_type<>'EXECUTE'),
+      WHERE grantee IN ('PUBLIC','anon','authenticated','service_role')),
     'authenticated_rpc_grant_count',(SELECT pg_catalog.count(*) FROM routine_grants
-      WHERE grantee='authenticated' AND privilege_type='EXECUTE')))
+      WHERE grantee='authenticated' AND privilege_type='EXECUTE'),
+    'postgres_owner_rpc_grant_count',(SELECT pg_catalog.count(*) FROM routine_grants
+      WHERE grantee='postgres' AND privilege_type='EXECUTE'),
+    'service_role_rpc_grant_count',(SELECT pg_catalog.count(*) FROM routine_grants
+      WHERE grantee='service_role'),
+    'other_unexpected_rpc_grant_count',(SELECT pg_catalog.count(*) FROM routine_grants
+      WHERE grantee NOT IN ('postgres','authenticated') OR privilege_type<>'EXECUTE'),
+    'rpc_grant_contract_passed',(
+      (SELECT pg_catalog.count(*) FROM routine_grants WHERE grantee='authenticated' AND privilege_type='EXECUTE')=5
+      AND (SELECT pg_catalog.count(*) FROM routine_grants WHERE grantee='postgres' AND privilege_type='EXECUTE')=5
+      AND NOT EXISTS (SELECT 1 FROM routine_grants WHERE grantee NOT IN ('postgres','authenticated') OR privilege_type<>'EXECUTE')
+    ),
+    'forbidden_direct_sequence_grant_count',(SELECT pg_catalog.count(*) FROM sequence_grants
+      WHERE grantee IN ('PUBLIC','anon','authenticated','service_role'))))
+  UNION ALL SELECT 14,'native_sequence_grants',pg_catalog.count(*),COALESCE(
+    pg_catalog.jsonb_agg(pg_catalog.to_jsonb(x) ORDER BY x.grantee,x.privilege_type),'[]'::jsonb)
+    FROM sequence_grants AS x
 )
 SELECT section_number,section_name,row_count,results_json FROM sections ORDER BY section_number;
 

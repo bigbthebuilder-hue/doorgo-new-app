@@ -142,6 +142,10 @@ DECLARE
   v_line_one uuid;
   v_line_two uuid;
   v_reference text;
+  v_reference_suffix bigint;
+  v_sequence_last bigint;
+  v_sequence_is_called boolean;
+  v_sequence_position bigint;
   v_revision bigint;
   v_page jsonb;
   v_cursor_time timestamptz;
@@ -169,10 +173,22 @@ BEGIN
   PERFORM pg_catalog.set_config('request.jwt.claim.sub',v_actor::text,true);
   PERFORM pg_catalog.set_config('request.jwt.claim.role','authenticated',true);
 
+  SELECT state.last_value,state.is_called INTO v_sequence_last,v_sequence_is_called
+  FROM public.dg_native_job_reference_seq AS state;
+  v_sequence_position:=CASE WHEN v_sequence_is_called THEN v_sequence_last ELSE v_sequence_last-1 END;
+
   v_result:=public.dg_create_native_job(v_command,'native',NULL,NULL,v_header,v_lines);
   v_job_id:=(v_result->'job'->>'internal_job_id')::uuid;
   v_reference:=v_result->'job'->>'door_go_reference';
-  IF v_reference<>'DG-000007' OR v_result->'job'->>'revision'<>'1' OR pg_catalog.jsonb_array_length(v_result->'lines')<>2
+  IF v_reference !~ '^DG-[0-9]{6}$' THEN RAISE EXCEPTION 'acceptance.created_reference_format_failed'; END IF;
+  v_reference_suffix:=pg_catalog.substring(v_reference,4)::bigint;
+  IF v_reference_suffix<=v_sequence_position
+    OR v_reference_suffix<>(SELECT state.last_value FROM public.dg_native_job_reference_seq AS state)
+    OR EXISTS (SELECT 1 FROM public.dg_native_jobs AS job
+      WHERE job.internal_job_id<>v_job_id AND (job.door_go_reference=v_reference OR job.visible_identifier=v_reference))
+    OR EXISTS (SELECT 1 FROM public.dg_jobs AS legacy WHERE legacy.job_id=v_reference)
+  THEN RAISE EXCEPTION 'acceptance.created_reference_allocation_failed'; END IF;
+  IF v_result->'job'->>'revision'<>'1' OR pg_catalog.jsonb_array_length(v_result->'lines')<>2
   THEN RAISE EXCEPTION 'acceptance.create_or_first_reference_failed'; END IF;
   v_line_one:=(v_result->'lines'->0->>'line_id')::uuid; v_line_two:=(v_result->'lines'->1->>'line_id')::uuid;
   v_replay:=public.dg_create_native_job(v_command,'native',NULL,NULL,v_header,v_lines);
@@ -253,7 +269,7 @@ BEGIN
     OR v_calendar<>(SELECT pg_catalog.count(*) FROM public.dg_calendar_links)
     OR v_capacity<>(SELECT pg_catalog.count(*) FROM public.dg_daily_capacity)
   THEN RAISE EXCEPTION 'acceptance.prohibited_data_mutation_detected'; END IF;
-  RAISE NOTICE 'All controlled native-job behavioral assertions passed; transaction rollback follows.';
+  RAISE NOTICE 'All controlled native-job behavioral assertions passed for reference %; transaction rollback follows.',v_reference;
 END;
 $acceptance$;
 ROLLBACK;

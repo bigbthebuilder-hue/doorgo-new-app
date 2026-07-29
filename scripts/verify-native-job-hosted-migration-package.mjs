@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const read = (path) => readFileSync(path, 'utf8');
 const migration = read('supabase/migrations/20260728000000_create_native_job_persistence.sql');
 const correctiveMigration = read('supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql');
+const updateExpressionCorrection = read('supabase/migrations/20260729010000_fix_native_job_update_greatest.sql');
 const preflight = read('scripts/inspect-native-job-hosted-preflight.sql');
 const application = read('scripts/verify-native-job-hosted-application.sql');
 const rollback = read('scripts/rollback-native-job-persistence.sql');
@@ -43,6 +44,28 @@ for (const signature of [
   'dg_list_native_jobs(boolean,integer,timestamptz,uuid)',
 ]) assert.ok(migration.toLowerCase().includes(`grant execute on function public.${signature} to authenticated`),
   `Authenticated EXECUTE grant must remain intact for ${signature}`);
+
+const updateFunctionPattern = /create or replace function public\.dg_update_native_job\([\s\S]*?\n\$\$;/i;
+const originalUpdateFunction = migration.match(updateFunctionPattern)?.[0];
+const correctedUpdateFunction = updateExpressionCorrection.match(updateFunctionPattern)?.[0];
+assert.ok(originalUpdateFunction && correctedUpdateFunction, 'Exact update RPC definitions must be inspectable');
+assert.equal(
+  correctedUpdateFunction,
+  originalUpdateFunction.replace('pg_catalog.greatest(', 'GREATEST('),
+  'Corrective update RPC must differ only by the valid GREATEST expression',
+);
+const updateCorrectionCode = stripComments(updateExpressionCorrection).toLowerCase();
+assert.match(updateCorrectionCode.trim(), /^begin;[\s\S]*create or replace function public\.dg_update_native_job\([\s\S]*\$\$;[\s\S]*commit;$/);
+assert.doesNotMatch(updateCorrectionCode, /\b(alter table|create table|drop|truncate|grant|revoke|nextval|setval)\b/,
+  'Update correction must not change other objects, grants, or sequence state');
+
+const invalidSpecialQualification = /pg_catalog\.(?:greatest|least|coalesce|nullif)\s*\(|pg_catalog\.(?:substring|trim|position|extract|overlay)\s*\([^)]*\b(?:from|in|placing)\b/i;
+for (const [name,text] of [
+  ['original migration after the known repaired expression',migration.replace('pg_catalog.greatest(', 'GREATEST(')],
+  ['grant correction',correctiveMigration],
+  ['update correction',updateExpressionCorrection],
+  ['hosted acceptance SQL',application],
+]) assert.doesNotMatch(text,invalidSpecialQualification,`${name} contains invalid schema-qualified special syntax`);
 const preflightCode = stripComments(preflight).toLowerCase();
 assert.match(preflightCode.trim(), /^with\b/);
 assert.doesNotMatch(preflightCode, /\b(insert|update|delete|merge|alter|create|drop|truncate|grant|revoke|call|do|begin|commit|rollback|lock|set)\b/,
@@ -77,6 +100,10 @@ for (const evidence of ['idempotent_replay','idempotency_conflict','duplicate_do
   'stale_revision','line_status=\'archived\'','jobs_view_write_not_denied','inactive_not_denied',
   'manager_fallback_or_jobs_none_not_denied','partial_cursor_not_rejected','limit_not_rejected',
   'archived_default_exclusion_failed','prohibited_data_mutation_detected']) assert.ok(appCode.includes(evidence),`Missing behavioral evidence ${evidence}`);
+assert.doesNotMatch(appCode,/dg-000007/,'Behavioral acceptance must not assume a literal next reference');
+for (const evidence of ['v_sequence_position','created_reference_format_failed','created_reference_allocation_failed',
+  "v_reference !~ '^dg-[0-9]{6}$'",'v_reference_suffix<=v_sequence_position','state.last_value','legacy.job_id=v_reference'])
+  assert.ok(appCode.includes(evidence),`Missing sequence-safe behavioral evidence ${evidence}`);
 assert.match(appCode,/set_config\('request\.jwt\.claim\.sub'[\s\S]*set_config\('request\.jwt\.claim\.role'/);
 assert.doesNotMatch(appCode,/(?:insert into|update|delete from) public\.dg_job(?:s|_lines)\b/,'Legacy writes are forbidden');
 assert.doesNotMatch(appCode,/(?:insert into|update|delete from) public\.(?:dg_production|dg_calendar|dg_daily_capacity|dg_fulfillment|dg_document|dg_email)/,
@@ -96,7 +123,7 @@ assert.deepEqual([...rollbackCode.matchAll(/drop sequence public\.([a-z0-9_]+);/
 assert.doesNotMatch(rollbackCode,/dg_jobs|dg_job_lines|production|calendar|capacity|fulfillment|document|email|auth\./,
   'Rollback scope must contain only new native objects');
 
-for (const text of [preflight,application,rollback,runbook,correctiveMigration]) {
+for (const text of [preflight,application,rollback,runbook,correctiveMigration,updateExpressionCorrection]) {
   assert.doesNotMatch(text,/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,'No email address may be embedded');
   const privilegedKeyPattern = new RegExp(`${['resend','api','key'].join('_')}|eyJ[A-Za-z0-9_-]+\\.`, 'i');
   assert.doesNotMatch(text,privilegedKeyPattern,'No secret material may be embedded');

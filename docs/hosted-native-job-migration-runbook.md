@@ -10,9 +10,13 @@ Expected SHA-256: `2F13B297F395440912F6CD0B40FCD636DF6A23DD6331B4454DDA867258763
 
 The authoritative migration has been applied once. Permanent verification found that Supabase database default privileges granted `service_role` direct access to the new tables, sequence, and RPCs. PostgreSQL `postgres` owner privileges are normal ownership evidence and are not client exposure.
 
-Corrective migration awaiting separate authorization: `supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql`
+Applied grant-hardening migration: `supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql`
 
-The corrective migration contains only exact revocations from `service_role`. It must be applied before behavioral testing. After it is applied, run **PORTION 1** and stop unless it proves zero direct native-table privileges for `PUBLIC`, `anon`, `authenticated`, and `service_role`; exactly five authenticated RPC `EXECUTE` grants; exactly five normal `postgres` owner RPC privileges; zero `service_role` RPC privileges; no other RPC privileges; and zero direct native-sequence privileges for `PUBLIC`, `anon`, `authenticated`, and `service_role`.
+The grant-hardening migration contains only exact revocations from `service_role`. Post-correction permanent verification passed: it proved zero direct native-table privileges for `PUBLIC`, `anon`, `authenticated`, and `service_role`; exactly five authenticated RPC `EXECUTE` grants; exactly five normal `postgres` owner RPC privileges; zero `service_role` RPC privileges; no other RPC privileges; and zero direct native-sequence privileges for `PUBLIC`, `anon`, `authenticated`, and `service_role`.
+
+Update-expression correction awaiting separate authorization: `supabase/migrations/20260729010000_fix_native_job_update_greatest.sql`
+
+The first rolled-back behavioral attempt exposed an invalid schema-qualified `GREATEST` expression inside `dg_update_native_job`. Confirm the aborted explicit transaction has been closed with one manual `ROLLBACK;`, then apply the update-expression correction exactly once and rerun **PORTION 1** before separately authorizing another **PORTION 2** attempt. Sequence values consumed by failed or rolled-back attempts remain permanent gaps and must not be reset or reused.
 
 ## Manual sequence awaiting approval
 
@@ -22,7 +26,7 @@ The corrective migration contains only exact revocations from `service_role`. It
 4. Use **Download CSV** or **Copy as JSON** to preserve the single ordered preflight result set.
 5. Review every section. Stop unless planned-object collision counts are zero, required roles/extensions and assumed columns are present, the highest valid legacy DG suffix remains 2, `DG-000007` is unoccupied, and legacy/operational baselines are recorded.
 6. Reconfirm the migration file checksum. Paste the complete authoritative migration into a new SQL Editor query and run it exactly once. Do not retry after any error; preserve the complete error and stop.
-7. Apply the complete corrective migration exactly once only after separate authorization. Do not proceed after any error.
+7. Apply the complete update-expression corrective migration exactly once only after separate authorization. Do not proceed after any error.
 8. From `scripts/verify-native-job-hosted-application.sql`, select and run only **PORTION 1**. Export its single ordered result set with **Download CSV** or **Copy as JSON**. Confirm all objects, exact signatures, RLS, table/RPC/sequence grants, sequence settings, schemas, and counts match the preflight, contract, and post-correction requirements above. This verification must pass before behavioral testing.
 9. Review **PORTION 2** before running it. It selects one—and only one—active controlled `jobs=use` profile without displaying email or customer data, changes its profile/permission state only inside the test transaction, and ends with `ROLLBACK`.
 10. Important: PostgreSQL sequence allocation is nontransactional. Although all test jobs, lines, receipts, profile changes, and permission changes roll back, behavioral testing permanently consumes DG sequence values. Gaps are expected and must never be reused.

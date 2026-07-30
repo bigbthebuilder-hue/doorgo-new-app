@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict';
+import { defaultDoorLine, normalizeDoorLineInput } from './door-line-contract';
+import { normalizeJobHeaderInput } from './job-intake-contract';
+import { EXTERIOR_HINGE_TYPES, HINGE_COLOR_OPTIONS, INTERIOR_HINGE_TYPES, hingeTypeAfterModeChange, normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
+
+const acceptedColors = ['', 'L1', 'C15', 'C4', '10B', 'C26', '26D', 'SS'];
+assert.deepEqual(HINGE_COLOR_OPTIONS.map((option) => option.value), acceptedColors);
+for (const value of acceptedColors) assert.equal(normalizeHingeColor(value).ok, true, `${value || 'blank'} accepted`);
+assert.deepEqual(normalizeHingeColor(' c15 '), { ok: true, value: 'C15' });
+assert.deepEqual(normalizeHingeColor('C15 NRP'), { ok: true, value: 'C15' });
+assert.equal(normalizeHingeColor('C15 — Satin Nickel').ok, false);
+assert.equal(normalizeHingeColor('arbitrary black hinge').ok, false);
+assert.equal(normalizeJobHeaderInput({ customer: 'Customer', hingeColor: 'l1' }).ok, true);
+const invalidHeader = normalizeJobHeaderInput({ customer: 'Customer', hingeColor: 'Black hinges please' });
+assert.equal(invalidHeader.ok, false);
+if (!invalidHeader.ok) assert.match(invalidHeader.fieldErrors.hingeColor, /blank or one of L1/);
+
+assert.deepEqual(INTERIOR_HINGE_TYPES, ['REG', 'BB']);
+assert.deepEqual(EXTERIOR_HINGE_TYPES, ['REG', 'BB', 'NRP', 'BOM']);
+for (const value of INTERIOR_HINGE_TYPES) assert.deepEqual(normalizeHingeType('Interior', 'D', value.toLowerCase()), { ok: true, value });
+for (const value of EXTERIOR_HINGE_TYPES) assert.deepEqual(normalizeHingeType('Exterior', 'D', value.toLowerCase()), { ok: true, value });
+assert.equal(normalizeHingeType('Interior', 'D', 'NRP').ok, false);
+assert.equal(normalizeHingeType('Interior', 'D', 'BOM').ok, false);
+assert.deepEqual(normalizeHingeType('Interior', 'D', ''), { ok: true, value: 'REG' });
+assert.deepEqual(normalizeHingeType('Interior', 'PKT', 'BOM'), { ok: true, value: null });
+assert.deepEqual(normalizeHingeType('Interior', 'B.P.', 'NRP'), { ok: true, value: null });
+assert.equal(hingeTypeAfterModeChange('Interior', 'D', 'NRP'), 'REG');
+assert.equal(hingeTypeAfterModeChange('Interior', 'D', 'BOM'), 'REG');
+
+const display = (mode: 'Interior' | 'Exterior', config: string, hingeType: string | null, hingeColor: string | null, hand: string | null) => workOrderHingeDisplay({ mode, config, hingeType, hingeColor, hand });
+assert.equal(display('Interior', 'D', 'REG', 'L1', 'LH'), 'L1');
+assert.equal(display('Interior', 'D', 'REG', null, 'LH'), '');
+assert.equal(display('Interior', 'D', 'BB', 'L1', 'LH'), 'BB L1');
+assert.equal(display('Interior', 'D', 'BB', null, 'LH'), 'BB');
+assert.equal(display('Exterior', 'D', 'REG', 'C15', 'LH'), 'C15');
+assert.equal(display('Exterior', 'D', 'REG', 'C15', 'LHOUT'), 'SS');
+assert.equal(display('Exterior', 'D', 'BB', 'C15', 'LH'), 'BB C15');
+assert.equal(display('Exterior', 'D', 'BB', 'C15', 'LHOUT'), 'BB SS');
+assert.equal(display('Exterior', 'D', 'NRP', 'C15', 'LH'), 'NRP C15');
+assert.equal(display('Exterior', 'D', 'NRP', 'C15', 'LHOUT'), 'NRP SS');
+assert.equal(display('Exterior', 'D', 'BOM', 'C15', 'LH'), 'BOM C15');
+assert.equal(display('Exterior', 'D', 'BOM', 'C15', 'LHOUT'), 'BOM C15');
+assert.equal(display('Interior', 'PKT', null, 'L1', null), '');
+assert.equal(display('Interior', 'B.P.', null, 'L1', null), '');
+assert.equal(display('Exterior', 'D', 'REG', 'Satin Nickel', 'LH'), '');
+
+assert.equal(normalizeDoorLineInput({ ...defaultDoorLine('Interior'), hingeType: 'NRP' }).ok, false);
+const exteriorBom = normalizeDoorLineInput({ ...defaultDoorLine('Exterior'), hingeType: ' bom ' });
+assert.equal(exteriorBom.ok, true);
+if (exteriorBom.ok) assert.equal(exteriorBom.value.hingeType, 'BOM');
+const pkt = normalizeDoorLineInput({ ...defaultDoorLine('Interior'), config: 'PKT', prep: 'Round Weiser', hingeType: 'NRP' });
+assert.equal(pkt.ok, true);
+if (pkt.ok) assert.equal(pkt.value.hingeType, null);
+console.log('Native Job Intake hinge contract: PASS');

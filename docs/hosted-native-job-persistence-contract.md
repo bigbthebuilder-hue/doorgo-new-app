@@ -78,10 +78,15 @@ All tables are in `public`. Timestamps are `timestamptz`. UUID defaults use `ext
 | `biztrack_sales_order` | `text` | null | Trimmed; blank becomes null. |
 | `door_go_reference` | `text` | null | Trimmed; every brand-new native job receives permanent `DG-######`; transferred Sales-Order jobs may remain null. |
 | `visible_identifier` | `text` | not null | Exact authoritative visible value; immutable for transfers. |
-| `visible_identifier_kind` | `text` | not null | Check: `biztrack_sales_order`, `door_go_reference`; must identify the matching value column. |
+| `visible_identifier_kind` | `text` | not null | Check: `biztrack_sales_order`, `door_go_reference`, `legacy_job_id`; follows Sales Order, DG, legacy-ID precedence. |
 | `origin` | `text` | not null | Check: `native`, `legacy_transfer`. Immutable. |
-| `legacy_job_id` | `text` | null | Required and immutable only for transfers. |
-| `legacy_identifier_kind` | `text` | null | Check: `biztrack_sales_order`, `door_go_reference`; required only for transfers. |
+| `legacy_job_id` | `text` | null | Stores only transferred `JOB-####`; unique and immutable. Sales Orders and DG references remain in their own columns. |
+| `legacy_identifier_kind` | `text` | null | Check: `biztrack_sales_order`, `door_go_reference`, `legacy_job_id`; immutable source classification for transfers. |
+| `transfer_source_system` | `text` | null | Transfer-only immutable value `legacy-doorgo`. |
+| `transfer_schema` / `transfer_version` | `text` / `integer` | null | Transfer-only immutable `doorgo.legacy-job-transfer` / `1`. |
+| `transfer_source_identifier_kind` / `transfer_source_identifier_value` | `text` / `text` | null | Immutable normalized source identity matching the appropriate identifier column. |
+| `transfer_source_saved_at` / `transfer_exported_at` | `timestamptz` | null | Immutable source revision marker and export instant. |
+| `transfer_source_fingerprint` | `text` | null | Unique lowercase SHA-256 canonical source fingerprint. |
 | `revision` | `bigint` | not null, default `1` | Check `revision >= 1`; incremented once per successful save/archive. |
 | `lifecycle_stage` | `text` | not null, default `Draft` | Check: `Draft`, `Confirmed Job`. |
 | `customer` | `text` | null | Trimmed header value. Customer or site is required by domain validation. |
@@ -110,13 +115,14 @@ All tables are in `public`. Timestamps are `timestamptz`. UUID defaults use `ext
 Required constraints and indexes:
 
 - primary key on `internal_job_id`;
-- at least one of `biztrack_sales_order` or `door_go_reference` is nonnull;
+- at least one of `biztrack_sales_order`, `door_go_reference`, or `legacy_job_id` is nonnull;
 - visible value/kind consistency checks described above;
 - transfer/native provenance consistency checks described above;
 - archive fields require `archived_at` and `archived_by_user_id` together;
 - unique partial index on `lower(btrim(biztrack_sales_order))` where nonnull;
 - unique partial index on `lower(btrim(door_go_reference))` where nonnull; this is the database concurrency backstop for native DG allocation;
 - unique partial index on `lower(btrim(legacy_job_id))` where nonnull;
+- unique partial indexes on source fingerprint and normalized source-system/kind/value where present;
 - unique index on `lower(btrim(visible_identifier))`;
 - indexes on `(archived_at, updated_at DESC)`, `updated_at DESC`, and `created_by_user_id`;
 - normal RPCs have no hard-delete operation.
@@ -178,6 +184,14 @@ Required constraints and indexes:
 The receipt is permanent for idempotency and is not deleted by normal workflows. Reuse of a command ID by a different actor or fingerprint fails closed.
 
 ## RPC contract
+
+### Prepared transfer-create amendment
+
+`public.dg_create_transferred_native_job(p_command_id uuid, p_provenance jsonb, p_header jsonb, p_lines jsonb) returns jsonb` is the sole reviewed transfer-create boundary. It is `SECURITY DEFINER`, owned by `postgres`, fixed to `search_path=''`, executable only by `authenticated`, and requires active profile plus explicit `jobs=use`. Direct native table and sequence access remains revoked from `PUBLIC`, `anon`, `authenticated`, and `service_role`.
+
+The RPC accepts only normalized authoritative keys; requires `legacy_to_native`, active source state, `legacy-doorgo`, schema version 1, ISO source/export timestamps, stable line UUIDs and contiguous ordering; and atomically creates Revision 1 plus exactly one idempotency receipt. Sales Order transfers store no replacement DG; DG transfers preserve the DG; `JOB-####` transfers store it only as `legacy_job_id`. It never calls `nextval`, modifies legacy mirrors, or references operational systems. Duplicate source fingerprint, source identity, Sales Order, DG, legacy job ID, and command reuse produce structured safe errors.
+
+`dg_get_native_job` already returns `to_jsonb(job)` and therefore exposes the added provenance after migration. The amendment replaces only `dg_list_native_jobs` to include `legacy_job_id`, internal legacy kind, and the unified visible value/kind. Update and archive remain the accepted RPCs; a fail-closed row trigger prevents any provenance/origin/legacy-ID change while recomputing visible precedence if a later Sales Order is saved. Brand-new native creation and DG allocation are unchanged.
 
 All RPCs are `SECURITY DEFINER`, owned by the reviewed migration owner, use `SET search_path = ''`, schema-qualify every object and function, derive the actor only from `auth.uid()`, and return JSONB. They revoke execution from `PUBLIC` and `anon`; only `authenticated` receives `EXECUTE`.
 

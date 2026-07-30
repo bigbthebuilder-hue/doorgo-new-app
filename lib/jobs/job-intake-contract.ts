@@ -5,6 +5,7 @@ import type {
   NativeJobHeader,
 } from './job-intake-types';
 import { normalizeHingeColor } from './hinge-contract';
+import { unifiedJobIdentifier } from './unified-job-identifier';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -119,9 +120,9 @@ export function formatDoorGoReference(sequence: number): string {
 }
 
 export function visibleJobIdentifier(
-  job: Pick<NativeJobHeader, 'bizTrackSalesOrder' | 'doorGoReference'>,
+  job: Pick<NativeJobHeader, 'bizTrackSalesOrder' | 'doorGoReference'> & Partial<Pick<NativeJobHeader, 'legacyJobId'>>,
 ): string {
-  return job.bizTrackSalesOrder ?? job.doorGoReference;
+  return unifiedJobIdentifier(job).value;
 }
 
 export function isUuid(value: string): boolean {
@@ -144,6 +145,9 @@ export function jobFailureMessage(code: JobIntakeFailureCode): string {
     validation_failed: 'Review the highlighted job fields.',
     duplicate_biztrack_sales_order: 'That BizTrack Sales Order is already attached to another job.',
     duplicate_door_go_reference: 'That DoorGo reference is already attached to another job.',
+    duplicate_legacy_job_id: 'That legacy job ID has already been transferred.',
+    duplicate_source_fingerprint: 'That legacy export has already been transferred.',
+    duplicate_legacy_transfer: 'That legacy source job has already been transferred.',
     archived: 'The requested job is archived.',
     stale_revision: 'This draft changed after you opened it. Reload and review the latest version before saving.',
     not_found: 'The requested draft job was not found.',

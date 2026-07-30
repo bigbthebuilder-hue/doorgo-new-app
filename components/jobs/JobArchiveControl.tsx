@@ -18,12 +18,13 @@ export function jobArchiveTarget(job: {
   origin?: 'native' | 'legacy_transfer';
   archivedAt?: string | null;
   bizTrackSalesOrder: string | null;
-  doorGoReference: string;
+  doorGoReference: string | null;
+  legacyJobId?: string | null;
 } | null, canEdit: boolean): JobArchiveTarget | null {
   return canEdit && job?.origin === 'native' && !job.archivedAt ? {
     internalJobId: job.internalJobId,
     revision: job.revision,
-    visibleIdentifier: job.bizTrackSalesOrder ?? job.doorGoReference,
+    visibleIdentifier: job.bizTrackSalesOrder ?? job.doorGoReference ?? job.legacyJobId ?? '',
   } : null;
 }
 

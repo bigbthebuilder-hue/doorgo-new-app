@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-This document defines the inspection-only architecture for transferring one explicitly selected job from the deployed legacy DoorGo application into an unsaved native DoorGo editor. It does not implement or authorize export, import, persistence, deployment, migration, synchronization, or deletion.
+This document defines the one-way contract for transferring one explicitly selected job from the legacy DoorGo application into an unsaved native DoorGo editor. The forward persistence/RPC amendment is prepared but unapplied; export and import UI, hosted application, deployment, synchronization, and deletion remain unimplemented and unauthorized.
 
 The accepted workflow is deliberately manual and one-way:
 
@@ -56,7 +56,7 @@ The native editor accepts a header plus ordered `DoorLineInput[]`. A Draft requi
 
 For a transferred Sales Order, that Sales Order remains authoritative and visible. For a transferred legacy `DG-######`, that reference remains authoritative and visible. Neither receives a replacement DG reference. A native internal UUID remains separate. A brand-new native job continues to receive a permanent allocated `DG-######`.
 
-There is a proven persistence gap for legacy `JOB-####` IDs. The approved workflow requires immutable `legacy_job_id` provenance without treating it as a Sales Order or allocating a replacement DG reference. The current table/RPC constraint permits only `biztrack_sales_order` or `door_go_reference`. A later reviewed migration/RPC amendment must add neutral legacy-job identity and make it eligible for the same unified primary-identifier presentation used by Sales Orders, transferred DG references, and allocated native DG references. Unknown identifier formats remain blocked until explicitly classified.
+The prepared forward migration closes the persistence-contract gap for legacy `JOB-####` IDs with immutable `legacy_job_id` provenance. It never treats that identifier as a Sales Order or allocates a replacement DG reference. Sales Orders, transferred DG references, and legacy job IDs share one unified primary-identifier presentation with precedence Sales Order, DG, then legacy job ID. Unknown identifier formats remain blocked until explicitly classified.
 
 ## Mapping matrix
 
@@ -66,7 +66,15 @@ Status meanings: **Supported** maps safely after validation; **Review** requires
 |---|---|---|---|---|---|
 | `Job ID` classified as Sales Order | `bizTrackSalesOrder`, visible identifier; immutable provenance | Trim; preserve exact business value; case-insensitive normalized duplicate check | Required for this identifier kind | Authoritative | Supported after explicit classification; duplicate blocks import/save. |
 | `Job ID` matching accepted legacy `DG-######` | `doorGoReference`, visible identifier; immutable provenance | Preserve unchanged; do not allocate | Required for this identifier kind | Authoritative | Supported; malformed or duplicate DG blocks. |
-| Generated `JOB-####` | immutable `legacyJobId` and unified primary identifier | Never infer Sales Order or DG; never allocate replacement DG | Provenance required | Authoritative provenance | Payload/mapping supported; hosted save blocks pending approved migration/RPC amendment. No extra editor input is added. |
+| Generated `JOB-####` | immutable `legacyJobId` and unified primary identifier | Never infer Sales Order or DG; never allocate replacement DG | Provenance required | Authoritative provenance | Prepared persistence/RPC contract supports it after separately authorized migration application; no extra editor input is added. |
+
+## Prepared persistence boundary
+
+The unapplied amendment adds `public.dg_create_transferred_native_job(uuid,jsonb,jsonb,jsonb)`. It accepts only a command UUID, normalized provenance, normalized header, and normalized active lines. It requires an authenticated active profile with explicit `jobs=use`, has no manager fallback, is `SECURITY DEFINER` with an empty fixed search path, creates the job, ordered stable-UUID lines, and one idempotency receipt atomically, and returns Revision 1. The accepted native create RPC remains unchanged and is the only path that consumes `dg_native_job_reference_seq`.
+
+Immutable transfer provenance stores only source system, schema/version, identifier kind/value, source saved timestamp, export timestamp, and the canonical lowercase SHA-256 source fingerprint. The fingerprint and normalized source identity are unique. The RPC rejects archived/deleted or reverse/native source provenance, unknown keys, operational instructions, malformed or mismatched identifiers, duplicate fingerprints, Sales Orders, DG references, and legacy job IDs. It never writes legacy mirrors, Production, Calendar, capacity, fulfillment, document, or email objects.
+
+The legacy source may be archived or deleted only as a separate manual action after native save, reopen, and work-order verification. The transfer never archives or deletes it automatically. Export UI and native import/review UI are still unimplemented.
 | Unknown identifier shape | None until explicit classification | Never guess | Classification required | Unresolved source evidence | Blocks native Save. |
 | Native internal UUID | Allocated by create RPC | Never supplied from legacy | Server required at save | Native authority | No payload mapping. |
 | `Customer` | `customer` | Trim Unicode text | Customer or site required | Authoritative | Supported. |

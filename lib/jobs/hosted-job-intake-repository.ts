@@ -13,7 +13,7 @@ type HostedRepositoryOptions={client:NativeJobRpcClient|(()=>Promise<NativeJobRp
 
 const headerFields=['bizTrackSalesOrder','lifecycleStage','customer','siteAddress','phone','email','salesperson','notes','hingeColor','shopHours','shopHoursSource','poNumbers','fulfillmentPlan','deliveryDate','customerPickupDate','shopDate','shopDateSource'] as const;
 const lineFields=['lineId','lineIndex','lineStatus','mode','doorType','config','width','height','customSlab','customSlabWidth','customSlabHeight','hand','prep','glass','jambWidth','jambType','sill','weatherstrip','hingeType','notes','qty','roWidth','roHeight','material','doorThickness','ripJamb','glassCalcStatus','glassWorkorderDetail','vendorCopyText','glassWarnings','glassBlockers','glassOverride','glassUnits','glassCalc','sidelightType','sidelightGlass','transomGlass','sidelightMeasurementLeft','sidelightMeasurementRight','panelSidelightWidth','panelSidelights','includeDiagramOnWorkOrder'] as const;
-const serverJobFields=['internalJobId','doorGoReference','bizTrackSalesOrder','customer','siteAddress','phone','email','salesperson','lifecycleStage','notes','hingeColor','shopHours','shopHoursSource','poNumbers','fulfillmentPlan','deliveryDate','customerPickupDate','shopDate','shopDateSource','createdAt','updatedAt','revision','createdByUserId','updatedByUserId','origin','visibleIdentifier','visibleIdentifierKind','legacyJobId','legacyIdentifierKind','archivedAt','archivedByUserId','archiveReason'] as const;
+const serverJobFields=['internalJobId','doorGoReference','bizTrackSalesOrder','customer','siteAddress','phone','email','salesperson','lifecycleStage','notes','hingeColor','shopHours','shopHoursSource','poNumbers','fulfillmentPlan','deliveryDate','customerPickupDate','shopDate','shopDateSource','createdAt','updatedAt','revision','createdByUserId','updatedByUserId','origin','visibleIdentifier','visibleIdentifierKind','legacyJobId','legacyIdentifierKind','transferSourceSystem','transferSchema','transferVersion','transferSourceIdentifierKind','transferSourceIdentifierValue','transferSourceSavedAt','transferExportedAt','transferSourceFingerprint','archivedAt','archivedByUserId','archiveReason'] as const;
 const serverLineFields=[...lineFields,'createdAt','updatedAt','createdByUserId','updatedByUserId'] as const;
 const snake=(value:string)=>value==='bizTrackSalesOrder'?'biztrack_sales_order':value.replace(/[A-Z]/g,(letter)=>`_${letter.toLowerCase()}`);
 
@@ -46,6 +46,8 @@ function failure(error:RpcError):JobIntakeFailure{
     ['permission_required','permission_required'],['stale_revision','stale_revision'],['not_found','not_found'],
     ['duplicate_sales_order','duplicate_biztrack_sales_order'],['duplicate_door_go_reference','duplicate_door_go_reference'],
     ['duplicate_identifier','duplicate_door_go_reference'],['idempotency_conflict','idempotency_conflict'],
+    ['duplicate_legacy_job_id','duplicate_legacy_job_id'],['duplicate_source_fingerprint','duplicate_source_fingerprint'],
+    ['duplicate_legacy_transfer','duplicate_legacy_transfer'],
     ['archived','archived'],['validation_failed','validation_failed'],
   ];
   const match=mappings.find(([token])=>message.includes(`native_job.${token}`)||message.includes(token));
@@ -58,12 +60,12 @@ function aggregate(value:unknown):NativeJobAggregate{
   if(!value||typeof value!=='object'||Array.isArray(value)) throw unavailable();
   const envelope=value as Record<string,unknown>;
   const job=fromRow(envelope.job,serverJobFields);
-  if(typeof job.internalJobId!=='string'||typeof job.doorGoReference!=='string'||typeof job.revision!=='number'||!Array.isArray(envelope.lines)) throw unavailable();
+  if(typeof job.internalJobId!=='string'||(job.doorGoReference!==null&&typeof job.doorGoReference!=='string')||typeof job.revision!=='number'||!Array.isArray(envelope.lines)) throw unavailable();
   const lines=envelope.lines.map((row)=>fromRow(row,serverLineFields) as NativeDoorLine);
   return {...job,lines} as NativeJobAggregate;
 }
 function listItem(value:unknown):NativeJobListItem{
-  const row=fromRow(value,['internalJobId','doorGoReference','bizTrackSalesOrder','customer','siteAddress','lifecycleStage','createdAt','updatedAt','revision','archivedAt','activeLineCount','archivedLineCount']);
+  const row=fromRow(value,['internalJobId','doorGoReference','bizTrackSalesOrder','visibleIdentifier','visibleIdentifierKind','legacyJobId','customer','siteAddress','lifecycleStage','createdAt','updatedAt','revision','archivedAt','activeLineCount','archivedLineCount']);
   if(typeof row.internalJobId!=='string'||typeof row.updatedAt!=='string'||typeof row.revision!=='number') throw unavailable();
   return row as NativeJobListItem;
 }

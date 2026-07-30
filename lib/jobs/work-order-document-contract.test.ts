@@ -79,6 +79,9 @@ async function main() {
   assert.equal(fallback.header.poDisplay, '1234500/01/02');
   assert.equal(fallback.pages[0]?.footerText, 'Sales Order / Job ID: DG-000123 | Page 1 of 1');
 
+  const legacyJobId = generateWorkOrderDocument(aggregate({ doorGoReference: null, legacyJobId: 'JOB-1234' }), generation);
+  assert.equal(legacyJobId.visibleIdentifier, 'JOB-1234');
+
   const sales = generateWorkOrderDocument(aggregate({ bizTrackSalesOrder: 'SO-900' }), generation);
   assert.equal(sales.visibleIdentifier, 'SO-900');
   assert.equal(sales.pdfFilename, 'Work_Order_SO-900.pdf');
@@ -86,7 +89,7 @@ async function main() {
   assert.equal(createWorkOrderPdfFilename('../../SO:12\\bad'), 'Work_Order_SO_12_bad.pdf');
   assert.equal(createWorkOrderPdfFilename('SO-900').includes('aaaaaaaa'), false);
   assert.throws(() => createWorkOrderPdfFilename(' ../.. '));
-  assert.throws(() => generateWorkOrderDocument(aggregate({ doorGoReference: '', bizTrackSalesOrder: null }), generation));
+  assert.throws(() => generateWorkOrderDocument(aggregate({ doorGoReference: null, bizTrackSalesOrder: null }), generation));
   assert.equal(sales.pdfFilename.includes('Central Customer'), false);
   assert.equal(sales.pdfFilename.includes('contact@example.com'), false);
   assert.equal(sales.pdfFilename.includes('7'), false);

@@ -4,6 +4,7 @@ import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregat
 import { normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
 import { calculatePersistedGlassDiagramLayout, type GlassDiagramLayout } from './glass-diagram-contract';
 import { isFrameGlassConfiguration } from './glass-unit-composition-contract';
+import { unifiedJobIdentifier } from './unified-job-identifier';
 
 export const WORK_ORDER_COLUMNS = ['Qty', 'Config', 'Size', 'Thick', 'Door Type', 'Drill', 'Hinge', 'Swing', 'Jamb', 'Sill', 'W/S', 'Notes/Glass'] as const;
 export const FIRST_PAGE_WEIGHT_CAPACITY = 22;
@@ -91,10 +92,9 @@ export type WorkOrderGenerationInput = { generatedAt: string; generatedDate: str
 
 function text(value: unknown): string { return String(value ?? '').trim(); }
 
-export function resolveWorkOrderIdentifier(job: Pick<NativeJobAggregate, 'bizTrackSalesOrder' | 'doorGoReference'>): string {
-  const identifier = text(job.bizTrackSalesOrder) || text(job.doorGoReference);
-  if (!identifier) throw new Error('A saved visible job identifier is required to generate a work order.');
-  return identifier;
+export function resolveWorkOrderIdentifier(job: Pick<NativeJobAggregate, 'bizTrackSalesOrder' | 'doorGoReference'> & Partial<Pick<NativeJobAggregate, 'legacyJobId'>>): string {
+  try { return unifiedJobIdentifier(job).value; }
+  catch { throw new Error('A saved visible job identifier is required to generate a work order.'); }
 }
 
 export function createWorkOrderPdfFilename(visibleIdentifier: string): string {

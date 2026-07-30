@@ -20,6 +20,10 @@ The first rolled-back behavioral attempt exposed an invalid schema-qualified `GR
 
 ## Manual sequence awaiting approval
 
+The legacy-transfer amendment `supabase/migrations/20260730000000_add_legacy_transfer_persistence.sql` is prepared and unapplied. Before application, run the migration-package verifiers, inspect that no existing `legacy_transfer` native row lacks the new provenance fields, reconfirm direct grants are zero, and capture native/legacy/operational baselines. Apply the complete amendment once only under separate authorization, then run a revised permanent catalog/grant verification proving the new columns, constraints, indexes, trigger/helper, exact transfer RPC signature/owner/search path/grants, unchanged five existing RPC signatures, no direct table/sequence grants, and no sequence movement. Only after that passes may separately authorized rolled-back transfer behavior cover Sales Order, DG, and JOB identities, duplicates, permissions, idempotency, immutability, list/get, and prohibited-side-effect baselines. Re-run permanent verification after rollback and stop before any UI work.
+
+The amendment does not authorize exporter/importer UI, transfer execution, legacy-source archive, deployment, or Production enablement. A legacy source archive remains a manual post-verification operation.
+
 1. Recalculate the migration SHA-256 locally and stop unless it exactly matches the value above.
 2. Open the approved pilot project in Supabase SQL Editor. Do not open or modify another project.
 3. Paste the complete contents of `scripts/inspect-native-job-hosted-preflight.sql` into a new query and run it once.

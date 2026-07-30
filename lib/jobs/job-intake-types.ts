@@ -95,7 +95,7 @@ export type DoorLineInput = Partial<Omit<NativeDoorLine,
 
 export type NativeJobHeader = {
   internalJobId: string;
-  doorGoReference: string;
+  doorGoReference: string | null;
   bizTrackSalesOrder: string | null;
   customer: string | null;
   siteAddress: string | null;
@@ -120,9 +120,17 @@ export type NativeJobHeader = {
   updatedByUserId: string;
   origin?: 'native' | 'legacy_transfer';
   visibleIdentifier?: string;
-  visibleIdentifierKind?: 'door_go_reference' | 'biztrack_sales_order';
+  visibleIdentifierKind?: 'door_go_reference' | 'biztrack_sales_order' | 'legacy_job_id';
   legacyJobId?: string | null;
   legacyIdentifierKind?: string | null;
+  transferSourceSystem?: string | null;
+  transferSchema?: string | null;
+  transferVersion?: number | null;
+  transferSourceIdentifierKind?: 'biztrack_sales_order' | 'door_go_reference' | 'legacy_job_id' | null;
+  transferSourceIdentifierValue?: string | null;
+  transferSourceSavedAt?: string | null;
+  transferExportedAt?: string | null;
+  transferSourceFingerprint?: string | null;
   archivedAt?: string | null;
   archivedByUserId?: string | null;
   archiveReason?: string | null;
@@ -134,7 +142,8 @@ export type NativeJobListCursor = { updatedAt: string; internalJobId: string };
 export type NativeJobListRequest = { includeArchived?: boolean; limit?: number; cursor?: NativeJobListCursor | null };
 export type NativeJobListItem = Pick<NativeJobHeader,
   'internalJobId' | 'doorGoReference' | 'bizTrackSalesOrder' | 'customer' | 'siteAddress' |
-  'lifecycleStage' | 'createdAt' | 'updatedAt' | 'revision'
+  'lifecycleStage' | 'createdAt' | 'updatedAt' | 'revision' | 'visibleIdentifier' |
+  'visibleIdentifierKind' | 'legacyJobId'
 > & { activeLineCount: number; archivedLineCount: number; archivedAt: string | null };
 export type NativeJobListPage = {
   items: NativeJobListItem[];
@@ -183,6 +192,7 @@ export type JobIntakeFailureCode =
   | 'authentication_required' | 'active_profile_required' | 'permission_required'
   | 'validation_failed' | 'duplicate_biztrack_sales_order' | 'stale_revision'
   | 'duplicate_door_go_reference' | 'archived' | 'not_found' | 'idempotency_conflict'
+  | 'duplicate_legacy_job_id' | 'duplicate_source_fingerprint' | 'duplicate_legacy_transfer'
   | 'local_intake_disabled' | 'unavailable';
 
 export class JobIntakeFailure extends Error {

@@ -6,6 +6,7 @@ const read = (path) => readFileSync(path, 'utf8');
 const migration = read('supabase/migrations/20260728000000_create_native_job_persistence.sql');
 const correctiveMigration = read('supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql');
 const updateExpressionCorrection = read('supabase/migrations/20260729010000_fix_native_job_update_greatest.sql');
+const transferAmendment = read('supabase/migrations/20260730000000_add_legacy_transfer_persistence.sql');
 const preflight = read('scripts/inspect-native-job-hosted-preflight.sql');
 const application = read('scripts/verify-native-job-hosted-application.sql');
 const rollback = read('scripts/rollback-native-job-persistence.sql');
@@ -13,6 +14,11 @@ const runbook = read('docs/hosted-native-job-migration-runbook.md');
 const checksum = createHash('sha256').update(migration).digest('hex').toUpperCase();
 assert.equal(checksum, '2F13B297F395440912F6CD0B40FCD636DF6A23DD6331B4454DDA867258763B05');
 assert.ok(runbook.includes(checksum), 'Runbook must record the exact migration checksum');
+assert.match(transferAmendment,/CREATE FUNCTION public\.dg_create_transferred_native_job\([\s\S]*SECURITY DEFINER SET search_path=''/);
+assert.match(transferAmendment,/ALTER FUNCTION public\.dg_create_transferred_native_job\(uuid,jsonb,jsonb,jsonb\) OWNER TO postgres/);
+assert.match(transferAmendment,/GRANT EXECUTE ON FUNCTION public\.dg_create_transferred_native_job\(uuid,jsonb,jsonb,jsonb\) TO authenticated/);
+assert.doesNotMatch(transferAmendment,/\b(?:ALTER SEQUENCE|setval|RESTART)\b/i);
+assert.doesNotMatch(transferAmendment,/(?:INSERT INTO|UPDATE|DELETE FROM) public\.(?:dg_jobs|dg_job_lines|dg_production|dg_calendar|dg_daily_capacity|dg_fulfillment|dg_document|dg_email)/i);
 
 const stripComments = (sql) => sql.replace(/--.*$/gm, '');
 const extractUpdateSetColumns = (functionDefinition, relation) => {

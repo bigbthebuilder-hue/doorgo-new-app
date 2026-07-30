@@ -9,6 +9,8 @@ import { canReadJobs, canWriteJobs, jobFailureMessage } from './job-intake-contr
 import { assertConfirmedJobActiveLineInvariant } from './door-line-contract';
 import { applyManualGeometryOverride, removeManualGeometryOverride } from './glass-geometry-contract';
 import { createJobIntakeRepository } from './job-intake-repository';
+import { mapLegacyTransferToUnsavedEditor } from './legacy-transfer-mapping';
+import { unresolvedTransferBlockers } from './legacy-transfer-import-contract';
 import {
   JobIntakeFailure,
   type CreateJobHeaderCommand,
@@ -74,6 +76,36 @@ export async function createJobWithAccess(
     lines: request.lines,
   };
   return repository.create(command);
+}
+
+export async function createTransferredJobWithAccess(
+  access: CurrentDoorGoAccess,
+  request: { commandId: string; rawPayload: string; input: JobHeaderInput; lines: DoorLineInput[] },
+  repository: JobIntakeRepository = createJobIntakeRepository(),
+): Promise<NativeJobAggregate> {
+  assertJobsWriteAccess(access);
+  if (access.state !== 'active') throw accessFailure(access);
+  const mapped = mapLegacyTransferToUnsavedEditor(request.rawPayload);
+  if (!mapped.ok) throw new JobIntakeFailure('validation_failed', 'The legacy-transfer file is invalid.', { transferFile: mapped.blockers.map((issue) => issue.message).join(' ') });
+  const blockers = unresolvedTransferBlockers(mapped.blockers);
+  if (blockers.length) throw new JobIntakeFailure('validation_failed', 'Resolve all legacy-transfer blockers before saving.', { transferFile: blockers.map((issue) => issue.message).join(' ') });
+  if (request.lines.length !== mapped.provenance.transferLineIds.length) throw new JobIntakeFailure('validation_failed', 'Imported line identities or ordering changed during review. Re-import the file.');
+  const lines = request.lines.map((line, index) => ({ ...line, lineId: mapped.provenance.transferLineIds[index], lineIndex: index + 1, lineStatus: 'Active' as const }));
+  assertConfirmedJobActiveLineInvariant(request.input.lifecycleStage, lines);
+  const source = mapped.provenance;
+  return repository.createTransferred({
+    commandId: request.commandId,
+    actorUserId: access.user.id,
+    defaultSalesperson: access.profile.displayName.trim() || null,
+    provenance: {
+      direction: 'legacy_to_native', sourceSystem: source.sourceSystem, sourceJobState: 'active',
+      transferSchema: source.payloadSchema, transferVersion: source.payloadVersion,
+      sourceIdentifierKind: source.sourceIdentifierKind, sourceIdentifierValue: source.sourceIdentifier,
+      sourceSavedAt: source.sourceSavedAt, exportedAt: source.exportedAt, sourceFingerprint: source.sourceFingerprint,
+    },
+    input: request.input,
+    lines,
+  });
 }
 
 export async function updateJobWithAccess(

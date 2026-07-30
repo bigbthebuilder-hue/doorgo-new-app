@@ -57,7 +57,9 @@ assert.match(docs, /neither exports nor invents archived line history/);
 assert.match(docs, /Hosted persistence acceptance is complete/);
 assert.match(docs, /sequence remained at 13/);
 assert.match(docs, /no transferred job persisted/);
-assert.match(docs, /exporter, native import\/review UI, transfer application adapter/);
+assert.match(docs, /native file-import, unsaved review, and dedicated transfer-create adapter are implemented locally/);
+assert.match(docs, /no hosted transfer acceptance has occurred/);
+assert.match(docs, /Legacy exporter:[\s\S]*unimplemented/);
 
 for (const source of [types, validation, mapping, tests]) {
   assert.doesNotMatch(source, /production booking|calendar event|document move|send email/i,

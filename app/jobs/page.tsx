@@ -36,7 +36,7 @@ export default async function JobsPage() {
           <div><h1 className="text-3xl font-semibold">Jobs</h1><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Native DoorGo jobs · hosted persistence</p></div>
           <nav className="flex flex-wrap gap-3" aria-label="Jobs navigation">
             <Link className="inline-flex min-h-12 items-center rounded-xl border border-slate-300 bg-white px-5 font-semibold dark:border-slate-600 dark:bg-slate-900" href="/account">Account</Link>
-            {canCreate ? <Link className="inline-flex min-h-12 items-center rounded-xl bg-sky-700 px-5 font-semibold text-white" href="/jobs/new">New Draft Job</Link> : null}
+            {canCreate ? <><Link className="inline-flex min-h-12 items-center rounded-xl border border-sky-700 bg-white px-5 font-semibold text-sky-800 dark:bg-slate-900 dark:text-sky-200" href="/jobs/import">Import Legacy Job</Link><Link className="inline-flex min-h-12 items-center rounded-xl bg-sky-700 px-5 font-semibold text-white" href="/jobs/new">New Draft Job</Link></> : null}
           </nav>
         </header>
         <JobsList jobs={jobs}/>

@@ -5,7 +5,9 @@ import { getPermissionAccess } from '@/lib/auth/access';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { canWriteJobs, jobFailureMessage } from './job-intake-contract';
 import { assertConfirmedJobActiveLineInvariant } from './door-line-contract';
-import { archiveJobWithAccess, createJobWithAccess, prepareGlassOverrideWithAccess, removeGlassOverrideWithAccess, updateJobWithAccess } from './job-intake-service';
+import { archiveJobWithAccess, createJobWithAccess, createTransferredJobWithAccess, prepareGlassOverrideWithAccess, removeGlassOverrideWithAccess, updateJobWithAccess } from './job-intake-service';
+import { mapLegacyTransferToUnsavedEditor } from './legacy-transfer-mapping';
+import type { LegacyTransferMappingResult } from './legacy-transfer-types';
 import {
   JobIntakeFailure,
   type DoorLineInput,
@@ -18,6 +20,10 @@ import {
 export type GlassOverrideActionResult =
   | { ok: true; approval: GlassOverrideApproval | null }
   | { ok: false; message: string };
+
+export type LegacyTransferInspectionResult =
+  | { ok: true; review: Extract<LegacyTransferMappingResult, { ok: true }> }
+  | { ok: false; message: string; issues: { code: string; path: string; message: string }[] };
 
 function failureResult(error: unknown): JobIntakeActionResult {
   if (error instanceof JobIntakeFailure) {
@@ -53,6 +59,36 @@ export async function createDraftJobAction(request: {
     actionWriteCheck(access);
     assertConfirmedJobActiveLineInvariant(request.input.lifecycleStage, request.lines ?? []);
     const job = await createJobWithAccess(access, request);
+    revalidatePath('/jobs');
+    return { ok: true, job };
+  } catch (error) {
+    return failureResult(error);
+  }
+}
+
+export async function inspectLegacyTransferAction(rawPayload: string): Promise<LegacyTransferInspectionResult> {
+  try {
+    const access = await getCurrentDoorGoAccess();
+    actionWriteCheck(access);
+    const review = mapLegacyTransferToUnsavedEditor(rawPayload);
+    if (!review.ok) return { ok: false, message: 'The selected file is not a valid DoorGo legacy transfer.', issues: review.blockers };
+    return { ok: true, review };
+  } catch (error) {
+    const failed = failureResult(error);
+    return { ok: false, message: failed.ok ? jobFailureMessage('unavailable') : failed.message, issues: [] };
+  }
+}
+
+export async function createTransferredJobAction(request: {
+  commandId: string;
+  rawPayload: string;
+  input: JobHeaderInput;
+  lines: DoorLineInput[];
+}): Promise<JobIntakeActionResult> {
+  try {
+    const access = await getCurrentDoorGoAccess();
+    actionWriteCheck(access);
+    const job = await createTransferredJobWithAccess(access, request);
     revalidatePath('/jobs');
     return { ok: true, job };
   } catch (error) {

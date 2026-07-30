@@ -171,6 +171,28 @@ export type CreateJobHeaderCommand = {
   lines?: DoorLineInput[];
 };
 
+export type LegacyTransferCreateProvenance = {
+  direction: 'legacy_to_native';
+  sourceSystem: 'legacy-doorgo';
+  sourceJobState: 'active';
+  transferSchema: 'doorgo.legacy-job-transfer';
+  transferVersion: 1;
+  sourceIdentifierKind: 'biztrack_sales_order' | 'door_go_reference' | 'legacy_job_id';
+  sourceIdentifierValue: string;
+  sourceSavedAt: string;
+  exportedAt: string;
+  sourceFingerprint: string;
+};
+
+export type CreateTransferredJobCommand = {
+  commandId: string;
+  actorUserId: string;
+  defaultSalesperson: string | null;
+  provenance: LegacyTransferCreateProvenance;
+  input: JobHeaderInput;
+  lines: DoorLineInput[];
+};
+
 export type UpdateJobHeaderCommand = {
   internalJobId: string;
   expectedRevision: number;
@@ -184,6 +206,7 @@ export type JobIntakeRepository = {
   listPage(request?: NativeJobListRequest): Promise<NativeJobListPage>;
   findById(internalJobId: string): Promise<NativeJobAggregate | null>;
   create(command: CreateJobHeaderCommand): Promise<NativeJobAggregate>;
+  createTransferred(command: CreateTransferredJobCommand): Promise<NativeJobAggregate>;
   update(command: UpdateJobHeaderCommand): Promise<NativeJobAggregate>;
   archive(command: ArchiveJobCommand): Promise<NativeJobAggregate>;
 };

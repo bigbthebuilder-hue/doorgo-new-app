@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { mapLegacyTransferToUnsavedEditor } from './legacy-transfer-mapping';
 import {
   LEGACY_TRANSFER_MAX_BYTES,
@@ -55,6 +56,8 @@ function issueCodes(entry: unknown): string[] {
   if (result.ok === false) return result.issues.map((issue) => issue.code);
   return [];
 }
+
+assert.equal(validateLegacyTransferPayload(readFileSync('tests/fixtures/legacy-transfer-job-0065.json', 'utf8')).ok, true, 'manual acceptance fixture remains valid');
 
 for (const [kind, identifier, label] of [
   ['biztrack_sales_order', 'SO-100', 'Sales Order'],

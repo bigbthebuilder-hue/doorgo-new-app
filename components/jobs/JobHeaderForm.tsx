@@ -2,10 +2,12 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { archiveDraftJobAction, createDraftJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
+import { archiveDraftJobAction, createDraftJobAction, createTransferredJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine } from '@/lib/jobs/door-line-contract';
 import { jobAggregateDirtySnapshot, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
 import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggregate } from '@/lib/jobs/job-intake-types';
+import type { LegacyTransferIssue, UnifiedTransferIdentifier } from '@/lib/jobs/legacy-transfer-types';
+import { unresolvedTransferBlockers } from '@/lib/jobs/legacy-transfer-import-contract';
 import { workOrderOutputDecision, type WorkOrderOutputIntent } from '@/lib/jobs/work-order-preview-contract';
 import { HINGE_COLOR_OPTIONS, normalizeHingeColor } from '@/lib/jobs/hinge-contract';
 import { DoorLineWorkspace } from './DoorLineWorkspace';
@@ -30,25 +32,27 @@ type FormValues = {
   shopDate: string;
 };
 
-function initialValues(job: NativeJobAggregate | null, defaultSalesperson: string): FormValues {
+function initialValues(job: NativeJobAggregate | null, defaultSalesperson: string, draft?: JobHeaderInput): FormValues {
+  const source = job ?? draft;
   return {
-    bizTrackSalesOrder: job?.bizTrackSalesOrder ?? '',
-    customer: job?.customer ?? '',
-    siteAddress: job?.siteAddress ?? '',
-    phone: job?.phone ?? '',
-    email: job?.email ?? '',
-    salesperson: job?.salesperson ?? defaultSalesperson,
-    notes: job?.notes ?? '',
-    hingeColor: job?.hingeColor ?? '',
-    shopHours: job?.shopHours === null || job?.shopHours === undefined ? '' : String(job.shopHours),
-    shopHoursSource: job?.shopHoursSource ?? '',
-    poNumbers: job?.poNumbers ?? [],
-    fulfillmentPlan: job?.fulfillmentPlan ?? '',
-    deliveryDate: job?.deliveryDate ?? '',
-    customerPickupDate: job?.customerPickupDate ?? '',
-    shopDate: job?.shopDate ?? '',
+    bizTrackSalesOrder: typeof source?.bizTrackSalesOrder === 'string' ? source.bizTrackSalesOrder : '',
+    customer: typeof source?.customer === 'string' ? source.customer : '', siteAddress: typeof source?.siteAddress === 'string' ? source.siteAddress : '',
+    phone: typeof source?.phone === 'string' ? source.phone : '', email: typeof source?.email === 'string' ? source.email : '',
+    salesperson: typeof source?.salesperson === 'string' ? source.salesperson : defaultSalesperson,
+    notes: typeof source?.notes === 'string' ? source.notes : '', hingeColor: typeof source?.hingeColor === 'string' ? source.hingeColor : '',
+    shopHours: source?.shopHours === null || source?.shopHours === undefined ? '' : String(source.shopHours),
+    shopHoursSource: typeof source?.shopHoursSource === 'string' ? source.shopHoursSource : '',
+    poNumbers: Array.isArray(source?.poNumbers) ? source.poNumbers.filter((value): value is string => typeof value === 'string') : [],
+    fulfillmentPlan: typeof source?.fulfillmentPlan === 'string' ? source.fulfillmentPlan : '',
+    deliveryDate: typeof source?.deliveryDate === 'string' ? source.deliveryDate : '', customerPickupDate: typeof source?.customerPickupDate === 'string' ? source.customerPickupDate : '',
+    shopDate: typeof source?.shopDate === 'string' ? source.shopDate : '',
   };
 }
+
+export type LegacyTransferReviewContext = {
+  rawPayload: string; primaryIdentifier: UnifiedTransferIdentifier; sourceSavedAt: string; exportedAt: string;
+  warnings: LegacyTransferIssue[]; blockers: LegacyTransferIssue[]; unsupportedFields: string[];
+};
 
 const inputClass = 'min-h-12 w-full border-0 bg-transparent px-3 py-2 text-base outline-none disabled:cursor-not-allowed disabled:opacity-70 sm:min-h-11';
 const fieldClass = 'job-intake-field grid overflow-hidden rounded-xl border border-slate-300 bg-white focus-within:border-sky-600 focus-within:ring-2 focus-within:ring-sky-200 dark:border-slate-600 dark:bg-slate-950';
@@ -69,26 +73,30 @@ export function JobHeaderForm({
   initialJob,
   canEdit,
   defaultSalesperson,
+  initialDraft,
+  transferReview,
 }: {
   initialJob: NativeJobAggregate | null;
   canEdit: boolean;
   defaultSalesperson: string;
+  initialDraft?: { header: JobHeaderInput; lines: DoorLineInput[] };
+  transferReview?: LegacyTransferReviewContext;
 }) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
-  const [values, setValues] = useState(() => initialValues(initialJob, defaultSalesperson));
-  const [lines, setLines] = useState<DoorLineInput[]>(() => initialJob?.lines ?? []);
-  const [lifecycleStage, setLifecycleStage] = useState<JobLifecycleStage>(initialJob?.lifecycleStage ?? 'Draft');
+  const [values, setValues] = useState(() => initialValues(initialJob, defaultSalesperson, initialDraft?.header));
+  const [lines, setLines] = useState<DoorLineInput[]>(() => initialJob?.lines ?? initialDraft?.lines ?? []);
+  const [lifecycleStage, setLifecycleStage] = useState<JobLifecycleStage>(initialJob?.lifecycleStage ?? (initialDraft?.header.lifecycleStage === 'Confirmed Job' ? 'Confirmed Job' : 'Draft'));
   const [pendingPoNumber, setPendingPoNumber] = useState('');
   const [hasUnappliedLineChanges, setHasUnappliedLineChanges] = useState(false);
   const snapshot = (nextValues = values, nextLines = lines, nextStage = lifecycleStage, nextPendingPo = pendingPoNumber) => jobAggregateDirtySnapshot({ values: nextValues, lines: nextLines, lifecycleStage: nextStage, pendingPoNumber: nextPendingPo });
-  const [baseline, setBaseline] = useState(() => jobAggregateDirtySnapshot({ values: initialValues(initialJob, defaultSalesperson), lines: initialJob?.lines ?? [], lifecycleStage: initialJob?.lifecycleStage ?? 'Draft', pendingPoNumber: '' }));
+  const [baseline, setBaseline] = useState(() => jobAggregateDirtySnapshot({ values: initialValues(initialJob, defaultSalesperson, initialDraft?.header), lines: initialJob?.lines ?? initialDraft?.lines ?? [], lifecycleStage: initialJob?.lifecycleStage ?? (initialDraft?.header.lifecycleStage === 'Confirmed Job' ? 'Confirmed Job' : 'Draft'), pendingPoNumber: '' }));
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
   const commandId = useRef<string | null>(null);
   const dirty = snapshot() !== baseline;
-  const visibleIdentifier = values.bizTrackSalesOrder.trim() || job?.doorGoReference || 'New Draft';
+  const visibleIdentifier = transferReview?.primaryIdentifier.value || values.bizTrackSalesOrder.trim() || job?.visibleIdentifier || job?.doorGoReference || 'New Draft';
 
   useEffect(() => {
     const preventExit = (event: BeforeUnloadEvent) => {
@@ -139,10 +147,16 @@ export function JobHeaderForm({
 
   async function persistAggregate() {
     if (!validateAggregateBeforeSave()) return null;
+    if (!job && transferReview && unresolvedTransferBlockers(transferReview.blockers).length) {
+      setMessage({ kind: 'error', text: 'Resolve all legacy-transfer blockers before saving.' });
+      return null;
+    }
     setMessage(null); setFieldErrors({}); commandId.current ??= globalThis.crypto.randomUUID();
     const result = job
       ? await updateDraftJobAction({ internalJobId: job.internalJobId, expectedRevision: job.revision, input, lines })
-      : await createDraftJobAction({ commandId: commandId.current as string, input, lines });
+      : transferReview
+        ? await createTransferredJobAction({ commandId: commandId.current as string, rawPayload: transferReview.rawPayload, input, lines })
+        : await createDraftJobAction({ commandId: commandId.current as string, input, lines });
     if (!result.ok) {
       setMessage({ kind: 'error', text: result.message });
       setFieldErrors(result.fieldErrors ?? {});
@@ -216,6 +230,16 @@ export function JobHeaderForm({
       </div>
 
       {!canEdit ? <p className="mt-4 rounded-xl bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-100">You have jobs = view access. This draft is read-only.</p> : null}
+      {transferReview ? <section className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100" aria-labelledby="legacy-transfer-review-heading">
+        <h2 className="font-bold" id="legacy-transfer-review-heading">Imported legacy job — review before saving</h2>
+        <p className="mt-2">{transferReview.primaryIdentifier.label}: <strong>{transferReview.primaryIdentifier.value}</strong></p>
+        <p>Source saved: {transferReview.sourceSavedAt} · Exported: {transferReview.exportedAt}</p>
+        <p className="mt-2">No native job, UUID, revision, or new DoorGo reference exists until you select Save as Native Job.</p>
+        <p>The legacy source must be archived manually only after the saved native job is reopened and verified.</p>
+        {transferReview.warnings.length ? <div className="mt-3"><h3 className="font-semibold">Warnings</h3><ul className="list-disc pl-5">{transferReview.warnings.map((issue, index) => <li key={`${issue.code}-${issue.path}-${index}`}>{issue.message} <span className="text-xs">({issue.path})</span></li>)}</ul></div> : null}
+        {transferReview.blockers.length ? <div className="mt-3 text-rose-800 dark:text-rose-200"><h3 className="font-semibold">Blocking issues</h3><ul className="list-disc pl-5">{transferReview.blockers.map((issue, index) => <li key={`${issue.code}-${issue.path}-${index}`}>{issue.message} <span className="text-xs">({issue.path})</span></li>)}</ul></div> : null}
+        {transferReview.unsupportedFields.length ? <p className="mt-3"><strong>Unsupported source fields:</strong> {transferReview.unsupportedFields.join(', ')}</p> : null}
+      </section> : null}
       <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">Confirmation requires at least one valid active door line. Saving or confirming does not schedule production or create fulfillment or Calendar records.</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
@@ -229,7 +253,7 @@ export function JobHeaderForm({
         <section aria-labelledby="job-identity-heading">
           <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" id="job-identity-heading">Identity and contact</h2>
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <Field error={fieldErrors.bizTrackSalesOrder} label="BizTrack Sales Order" name="bizTrackSalesOrder"><input className={inputClass} disabled={!canEdit} id="bizTrackSalesOrder" onChange={(e) => update('bizTrackSalesOrder', e.target.value)} placeholder="Optional" value={values.bizTrackSalesOrder}/></Field>
+            <Field error={fieldErrors.bizTrackSalesOrder} label="BizTrack Sales Order" name="bizTrackSalesOrder"><input className={inputClass} disabled={!canEdit || Boolean(transferReview)} id="bizTrackSalesOrder" onChange={(e) => update('bizTrackSalesOrder', e.target.value)} placeholder="Optional" value={values.bizTrackSalesOrder}/></Field>
             <Field error={fieldErrors.customer} label="Customer" name="customer"><input className={inputClass} disabled={!canEdit} id="customer" onChange={(e) => update('customer', e.target.value)} placeholder="Customer" value={values.customer}/></Field>
             <Field error={fieldErrors.siteAddress} label="Site / Address" name="siteAddress"><input className={inputClass} disabled={!canEdit} id="siteAddress" onChange={(e) => update('siteAddress', e.target.value)} placeholder="Site or address" value={values.siteAddress}/></Field>
             <Field label="Phone" name="phone"><input autoComplete="tel" className={inputClass} disabled={!canEdit} id="phone" onChange={(e) => update('phone', e.target.value)} placeholder="Phone number" type="tel" value={values.phone}/></Field>
@@ -267,8 +291,8 @@ export function JobHeaderForm({
         <button className="min-h-12 rounded-xl border border-slate-300 px-5 font-semibold dark:border-slate-600" onClick={leave} type="button">Back / Exit</button>
         {job ? <><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print Work Order</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></> : null}
         {canEdit ? <>
-          <button className="min-h-12 rounded-xl bg-sky-700 px-5 font-semibold text-white disabled:opacity-60" disabled={isPending} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : 'Save'}</button>
-          <button className="min-h-12 rounded-xl bg-slate-900 px-5 font-semibold text-white disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button>
+          <button className="min-h-12 rounded-xl bg-sky-700 px-5 font-semibold text-white disabled:opacity-60" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>
+          {!transferReview ? <button className="min-h-12 rounded-xl bg-slate-900 px-5 font-semibold text-white disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button> : null}
         </> : null}
       </div>
 

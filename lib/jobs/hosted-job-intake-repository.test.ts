@@ -42,6 +42,12 @@ async function main(){
   const page=await repository.listPage({limit:2,cursor:{updatedAt:'2026-07-29T11:00:00.000Z',internalJobId:'55555555-5555-4555-8555-555555555555'}});
   assert.equal(page.items[0].activeLineCount,1);assert.equal(page.page.hasMore,true);assert.equal(page.page.nextCursor?.internalJobId,job.internal_job_id);
   assert.deepEqual(calls[4].args,{p_include_archived:false,p_limit:2,p_cursor_updated_at:'2026-07-29T11:00:00.000Z',p_cursor_internal_job_id:'55555555-5555-4555-8555-555555555555'});
+  await repository.createTransferred({commandId:'77777777-7777-4777-8777-777777777777',actorUserId:job.created_by_user_id,defaultSalesperson:'Tester',
+    provenance:{direction:'legacy_to_native',sourceSystem:'legacy-doorgo',sourceJobState:'active',transferSchema:'doorgo.legacy-job-transfer',transferVersion:1,sourceIdentifierKind:'legacy_job_id',sourceIdentifierValue:'JOB-0065',sourceSavedAt:'2026-07-30T09:30:00.000Z',exportedAt:'2026-07-30T10:00:00.000Z',sourceFingerprint:'a'.repeat(64)},
+    input:{customer:'Adapter Test',lifecycleStage:'Draft'},lines:[{lineId:line.line_id,lineStatus:'Active',mode:'Interior',doorType:'Madison H/C',config:'D',width:`2'6"`,height:`6'8"`,customSlab:'No',hand:'LH',prep:'YES',jambWidth:`4-9/16"`,jambType:'Primed',hingeType:'REG',qty:1}]});
+  assert.equal(calls[5].name,'dg_create_transferred_native_job');
+  assert.deepEqual(calls[5].args.p_provenance,{direction:'legacy_to_native',source_system:'legacy-doorgo',source_job_state:'active',transfer_schema:'doorgo.legacy-job-transfer',transfer_version:1,source_identifier_kind:'legacy_job_id',source_identifier_value:'JOB-0065',source_saved_at:'2026-07-30T09:30:00.000Z',exported_at:'2026-07-30T10:00:00.000Z',source_fingerprint:'a'.repeat(64)});
+  assert.equal((calls[5].args.p_header as Record<string,unknown>).biztrack_sales_order,null,'JOB identifiers never populate Sales Order');
   await assert.rejects(repository.listPage({limit:101}),(error)=>error instanceof JobIntakeFailure&&error.code==='validation_failed');
   for(const [token,code] of [['authentication_required','authentication_required'],['permission_required','permission_required'],['stale_revision','stale_revision'],['duplicate_sales_order','duplicate_biztrack_sales_order'],['duplicate_door_go_reference','duplicate_door_go_reference']] as const){
     const failing=createHostedJobIntakeRepository({client:{rpc:async()=>({data:null,error:{message:`native_job.${token}`}})}});
@@ -55,6 +61,10 @@ async function main(){
   }
   const unavailable=createHostedJobIntakeRepository({client:{rpc:async()=>{throw new Error('network');}}});
   await assert.rejects(unavailable.list(),(error)=>error instanceof JobIntakeFailure&&error.code==='unavailable');
+  for(const [token,code] of [['duplicate_legacy_job_id','duplicate_legacy_job_id'],['duplicate_source_fingerprint','duplicate_source_fingerprint'],['duplicate_legacy_transfer','duplicate_legacy_transfer']] as const){
+    const failing=createHostedJobIntakeRepository({client:{rpc:async()=>({data:null,error:{message:`native_job.${token}`}})}});
+    await assert.rejects(failing.createTransferred({commandId:job.internal_job_id,actorUserId:job.created_by_user_id,defaultSalesperson:null,provenance:{direction:'legacy_to_native',sourceSystem:'legacy-doorgo',sourceJobState:'active',transferSchema:'doorgo.legacy-job-transfer',transferVersion:1,sourceIdentifierKind:'legacy_job_id',sourceIdentifierValue:'JOB-0065',sourceSavedAt:job.created_at,exportedAt:job.updated_at,sourceFingerprint:'b'.repeat(64)},input:{customer:'Valid'},lines:[{lineId:line.line_id,mode:'Interior',config:'D',width:`2'6"`,height:`6'8"`,hand:'LH',prep:'YES',jambWidth:`4-9/16"`,jambType:'Primed',hingeType:'REG',qty:1}]}),(error)=>error instanceof JobIntakeFailure&&error.code===code);
+  }
   console.log('Hosted native-job repository adapter tests passed');
 }
 void main();

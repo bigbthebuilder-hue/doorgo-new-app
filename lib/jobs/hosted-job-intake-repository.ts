@@ -1,6 +1,6 @@
 import {
   JobIntakeFailure,
-  type ArchiveJobCommand,type CreateJobHeaderCommand,type DoorLineInput,type JobHeaderInput,
+  type ArchiveJobCommand,type CreateJobHeaderCommand,type CreateTransferredJobCommand,type DoorLineInput,type JobHeaderInput,
   type JobIntakeRepository,type NativeDoorLine,type NativeJobAggregate,type NativeJobListItem,
   type NativeJobListPage,type NativeJobListRequest,type UpdateJobHeaderCommand,
 } from './job-intake-types';
@@ -48,6 +48,8 @@ function failure(error:RpcError):JobIntakeFailure{
     ['duplicate_identifier','duplicate_door_go_reference'],['idempotency_conflict','idempotency_conflict'],
     ['duplicate_legacy_job_id','duplicate_legacy_job_id'],['duplicate_source_fingerprint','duplicate_source_fingerprint'],
     ['duplicate_legacy_transfer','duplicate_legacy_transfer'],
+    ['unsupported_payload','validation_failed'],['invalid_transfer_provenance','validation_failed'],
+    ['invalid_identifier_kind','validation_failed'],['identifier_mismatch','validation_failed'],
     ['archived','archived'],['validation_failed','validation_failed'],
   ];
   const match=mappings.find(([token])=>message.includes(`native_job.${token}`)||message.includes(token));
@@ -93,6 +95,15 @@ export function createHostedJobIntakeRepository(options:HostedRepositoryOptions)
     async findById(internalJobId){try{return aggregate(await call('dg_get_native_job',{p_internal_job_id:internalJobId,p_include_archived:false}));}catch(error){if(error instanceof JobIntakeFailure&&error.code==='not_found')return null;throw error;}},
     async create(command:CreateJobHeaderCommand){
       return aggregate(await call('dg_create_native_job',{p_command_id:command.commandId,p_origin:'native',p_legacy_job_id:null,p_legacy_identifier_kind:null,p_header:createHeaderPayload(command.input,command.defaultSalesperson),p_lines:(command.lines??[]).map(linePayload)}));
+    },
+    async createTransferred(command:CreateTransferredJobCommand){
+      const provenance=command.provenance;
+      return aggregate(await call('dg_create_transferred_native_job',{
+        p_command_id:command.commandId,
+        p_provenance:{direction:provenance.direction,source_system:provenance.sourceSystem,source_job_state:provenance.sourceJobState,transfer_schema:provenance.transferSchema,transfer_version:provenance.transferVersion,source_identifier_kind:provenance.sourceIdentifierKind,source_identifier_value:provenance.sourceIdentifierValue,source_saved_at:provenance.sourceSavedAt,exported_at:provenance.exportedAt,source_fingerprint:provenance.sourceFingerprint},
+        p_header:createHeaderPayload(command.input,command.defaultSalesperson),
+        p_lines:command.lines.map(linePayload),
+      }));
     },
     async update(command:UpdateJobHeaderCommand){
       const lines=command.lines??(await this.findById(command.internalJobId))?.lines;

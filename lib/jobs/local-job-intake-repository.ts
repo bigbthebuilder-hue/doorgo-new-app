@@ -251,6 +251,9 @@ export function createLocalJobIntakeRepository(options: LocalRepositoryOptions =
         return job;
       });
     },
+    async createTransferred() {
+      throw new JobIntakeFailure('local_intake_disabled', 'Legacy transfers require the reviewed hosted transfer boundary.');
+    },
     async update(command) {
       allowed();
       return serialized(filePath, async () => {

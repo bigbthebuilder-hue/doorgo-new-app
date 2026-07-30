@@ -14,7 +14,7 @@ The accepted workflow is deliberately manual and one-way:
 6. The user reopens the native aggregate and verifies its work order.
 7. Only then may the user separately delete or archive the legacy source manually.
 
-There is no synchronization, background discovery, automatic legacy read, automatic save, or automatic deletion. Temporary coexistence during review is administrative only: staff must not actively edit the same job in both applications.
+There is no synchronization, background discovery, automatic legacy read, automatic save, reverse transfer, or automatic deletion. Native and transferred-native jobs remain invisible and unreadable in legacy DoorGo. Temporary coexistence during review is administrative only: staff must not actively edit the same job in both applications.
 
 ## Inspected sources
 
@@ -32,9 +32,9 @@ The `Jobs` sheet stores the header columns `Job ID`, customer/site/contact field
 
 Authoritative transfer inputs are the saved user-entered header values, saved line inputs, line order, explicit quantities, and source identity/timestamps. Door-type summary, scheduling status, calculated shop hours, glass calculation status/detail/warnings/blockers, vendor copy, calculated glass units/geometry, timestamps generated only for line saving, and all production/output artifacts are derived or operational and must not be trusted as native authority.
 
-Legacy lines have no durable independent line identifier. Their stable source identity is only the selected job plus sheet row/order at export time. The export must therefore generate a UUID `transfer_line_id` for every payload line and preserve `source_line_ordinal`; that UUID is stable within the payload and its canonical fingerprint, but is not a claim that the legacy row had a durable UUID.
+Legacy lines have no durable independent line identifier or individual archive workflow. Their stable source identity is only the selected job plus sheet row/order at export time. The export must therefore include active source lines only, generate a UUID `transfer_line_id` for every payload line, and preserve `source_line_index`; that UUID is stable within the payload and its canonical fingerprint, but is not a claim that the legacy row had a durable UUID.
 
-`saveDoorLinesWithoutDeleting_` retains surplus rows as `Archived`; normal `DGData.jobLines.listForJob` returns only non-archived rows. A transfer exporter must use a dedicated read-only projection rather than the normal active-only loader if archived-line evidence is to be reported accurately.
+`saveDoorLinesWithoutDeleting_` may retain superseded sheet rows internally, but the legacy user workflow does not archive individual lines and normal `DGData.jobLines.listForJob` returns active source lines only. The transfer contract neither exports nor invents archived line history.
 
 ### Identifiers
 
@@ -42,7 +42,7 @@ The single legacy `Job ID` field is polymorphic. It can contain a BizTrack Sales
 
 The current work-order HTML/PDF/email paths are output mechanisms, not safe structured transfer mechanisms. Browser `payload()` is an internal save payload, contains derived and operational fields, and invokes Apps Script persistence when used by `saveCurrentJob`; it must not be reused as the transfer contract.
 
-The safest legacy UI location for **Export to New DoorGo** is the saved-current-job action area beside other explicit job-level actions, separated from Save, Archive/Delete, Print, and Email. It must appear only for an opened saved job, require confirmation that current unsaved legacy edits will not be included unless saved first, call a read-only exporter for that exact `Job ID`, and download/copy data without invoking `saveJob`, mirroring, work-order generation, email, production, or Calendar code.
+The safest legacy UI location for **Export to New DoorGo** is the saved-current-job action area beside other explicit job-level actions, separated from Save, Archive/Delete, Print, and Email. It must appear only for an opened saved job, require confirmation that current unsaved legacy edits will not be included unless saved first, call a read-only exporter for that exact `Job ID`, and download one JSON file without invoking `saveJob`, mirroring, work-order generation, email, production, or Calendar code.
 
 ### Fields that must never be exported as commands
 
@@ -56,7 +56,7 @@ The native editor accepts a header plus ordered `DoorLineInput[]`. A Draft requi
 
 For a transferred Sales Order, that Sales Order remains authoritative and visible. For a transferred legacy `DG-######`, that reference remains authoritative and visible. Neither receives a replacement DG reference. A native internal UUID remains separate. A brand-new native job continues to receive a permanent allocated `DG-######`.
 
-There is a proven contract gap for legacy `JOB-####` and other unclassified IDs. The approved workflow requires immutable `legacy_job_id` provenance without assuming it is a Sales Order or DoorGo reference, plus separately confirmed Sales Order when applicable. The current table/RPC constraint permits only `biztrack_sales_order` or `door_go_reference` and makes `legacy_job_id` the transferred visible identifier. Implementation must stop until a separately reviewed migration/RPC amendment represents neutral legacy provenance without converting `JOB-####` into a Sales Order or allocating/replacing an identifier contrary to policy.
+There is a proven persistence gap for legacy `JOB-####` IDs. The approved workflow requires immutable `legacy_job_id` provenance without treating it as a Sales Order or allocating a replacement DG reference. The current table/RPC constraint permits only `biztrack_sales_order` or `door_go_reference`. A later reviewed migration/RPC amendment must add neutral legacy-job identity and make it eligible for the same unified primary-identifier presentation used by Sales Orders, transferred DG references, and allocated native DG references. Unknown identifier formats remain blocked until explicitly classified.
 
 ## Mapping matrix
 
@@ -66,7 +66,8 @@ Status meanings: **Supported** maps safely after validation; **Review** requires
 |---|---|---|---|---|---|
 | `Job ID` classified as Sales Order | `bizTrackSalesOrder`, visible identifier; immutable provenance | Trim; preserve exact business value; case-insensitive normalized duplicate check | Required for this identifier kind | Authoritative | Supported after explicit classification; duplicate blocks import/save. |
 | `Job ID` matching accepted legacy `DG-######` | `doorGoReference`, visible identifier; immutable provenance | Preserve unchanged; do not allocate | Required for this identifier kind | Authoritative | Supported; malformed or duplicate DG blocks. |
-| Generated `JOB-####` or ambiguous `Job ID` | immutable `legacyJobId`; separately confirmed Sales Order if available | Never infer Sales Order or DG | Provenance required | Authoritative provenance | Unsupported by current RPC/schema; blocks persistence pending approved amendment. |
+| Generated `JOB-####` | immutable `legacyJobId` and unified primary identifier | Never infer Sales Order or DG; never allocate replacement DG | Provenance required | Authoritative provenance | Payload/mapping supported; hosted save blocks pending approved migration/RPC amendment. No extra editor input is added. |
+| Unknown identifier shape | None until explicit classification | Never guess | Classification required | Unresolved source evidence | Blocks native Save. |
 | Native internal UUID | Allocated by create RPC | Never supplied from legacy | Server required at save | Native authority | No payload mapping. |
 | `Customer` | `customer` | Trim Unicode text | Customer or site required | Authoritative | Supported. |
 | `Site/Address` | `siteAddress` | Trim Unicode text | Customer or site required | Authoritative | Supported. |
@@ -74,7 +75,7 @@ Status meanings: **Supported** maps safely after validation; **Review** requires
 | `Email` | `email` | Trim/lowercase under native validation | Optional | Authoritative | Supported; invalid email blocks save, never sends. |
 | `Salesperson` | `salesperson` | Trim; do not map Calendar name | Optional for Draft | Authoritative | Supported; unknown staff name warns. |
 | `PO Numbers JSON` | `poNumbers[]` | Parse array, trim, deduplicate, digits only | Optional | Authoritative | Supported; malformed JSON/non-digits block field import. |
-| `Notes` | `notes` | Preserve plain text and line breaks; strip control characters | Optional | Authoritative | Supported; HTML/script content remains inert text and is rejected if unsafe. |
+| `Notes` | `notes` | Preserve plain text and line breaks; strip control characters | Optional | Authoritative | Supported; HTML/script or otherwise unsafe content is rejected. |
 | `Hinge Color` | `hingeColor` | Native hinge-finish normalization | Optional | Authoritative | Review; unknown finish blocks save until selected. |
 | `Job Stage` | `lifecycleStage` | `Quote / Not Confirmed` -> `Draft`; `Confirmed Job` -> `Confirmed Job` | Required | Authoritative intent | Review; Confirmed blocks until one valid active line exists. |
 | `Status` / `Active` | Import eligibility and review warning | Never silently create an archived native job | Required review | Authoritative lifecycle evidence | Archived/deleted source blocks normal transfer; user must explicitly resolve source state. |
@@ -85,7 +86,7 @@ Status meanings: **Supported** maps safely after validation; **Review** requires
 | `Scheduling Status`, `Door Type` summary | None | Recompute from native aggregate if needed | Not applicable | Derived | Excluded. |
 | Door row order | `lineIndex` at save | Preserve array order; native assigns 1-based index | Required | Authoritative ordering | Supported. |
 | Export-generated line UUID + source ordinal | temporary transfer identity; later `lineId` | Validate UUID; retain ordinal; create may use UUID after review | Required | Transfer audit | Duplicate/missing UUID or ordinal blocks. |
-| `Line Status` | `lineStatus` | Active/Archived only; never Deleted/Merged by inference | Required | Authoritative | Review; archived rows remain archived if supported by dedicated exporter. Unknown status blocks. |
+| Source line state | `lineStatus='Active'` | Exact active-only contract | Required | Authoritative | Any archived/deleted/merged line state rejects the payload. |
 | `Qty` | `qty` | Positive whole integer | Required | Authoritative | Supported; invalid blocks line. |
 | `Mode` | `mode` | Exact `Interior`/`Exterior` | Required | Authoritative | Unsupported value blocks line. |
 | `Config` including D/DD/SD/DS/SDS/SDDS/transoms | `config` | Native canonical configuration parser | Required | Authoritative | Supported canonical/legacy aliases; unparseable config blocks. |
@@ -114,19 +115,21 @@ Status meanings: **Supported** maps safely after validation; **Review** requires
 
 ## Versioned payload contract
 
-The first format is `doorgo.legacy-job-transfer/v1`. JSON is UTF-8 and data-only:
+The first format is `doorgo.legacy-job-transfer/v1`. Transport is one downloaded UTF-8 JSON file; clipboard transport is not part of this phase. JSON is data-only:
 
 ```json
 {
   "schema": "doorgo.legacy-job-transfer",
   "version": 1,
+  "direction": "legacy-to-native",
   "export_id": "uuid",
   "exported_at": "2026-07-29T00:00:00.000Z",
   "source": {
-    "application": "legacy-doorgo",
-    "legacy_job_id": "source value",
-    "identifier_classification": "biztrack_sales_order|door_go_reference|unclassified",
-    "source_updated_at": "ISO-8601",
+    "system": "legacy-doorgo",
+    "job_state": "active",
+    "identifier_kind": "biztrack_sales_order|door_go_reference|legacy_job_id",
+    "identifier_value": "source value",
+    "saved_at": "ISO-8601",
     "source_fingerprint": "sha256 lowercase hex"
   },
   "job": {
@@ -137,8 +140,8 @@ The first format is `doorgo.legacy-job-transfer/v1`. JSON is UTF-8 and data-only
   "lines": [
     {
       "transfer_line_id": "uuid",
-      "source_line_ordinal": 1,
-      "line_status": "Active",
+      "source_line_index": 1,
+      "line_state": "active",
       "fields": {}
     }
   ]
@@ -151,11 +154,11 @@ The canonical source fingerprint is SHA-256 over schema/version, normalized lega
 
 ### Validation limits
 
-- Maximum UTF-8 payload: 512 KiB; maximum 100 line entries.
+- Maximum UTF-8 payload: 1 MiB; maximum 250 line entries.
 - JSON depth: 12; reject duplicate JSON keys, non-finite numbers, unknown top-level keys, prototypes, functions, and non-JSON values.
 - Schema must equal `doorgo.legacy-job-transfer`; version must equal integer `1`.
-- `export_id` and every `transfer_line_id` must be RFC 4122 UUIDs; transfer line IDs and ordinals must be unique.
-- Identifier: 1–100 Unicode characters after trim; DG must match `^DG-[0-9]{6}$`; never infer a numeric or `JOB-*` value's meaning.
+- `export_id` and every `transfer_line_id` must be RFC 4122 UUIDs; transfer line IDs must be unique and source line indexes must be unique, contiguous, and match array order.
+- Identifier: 1–100 Unicode characters after trim; DG must match `^DG-[0-9]{6}$`; legacy JOB must match `^JOB-[0-9]{4,}$`; never infer an unknown value's meaning.
 - Source/export timestamps must be valid ISO-8601 instants. Business dates must be strict `YYYY-MM-DD` calendar dates.
 - General text maximum 500 characters; customer/site 300; phone/email/identifier 254; notes 10,000 per job and 2,000 per line; enum tokens 64; each PO 50 digits; maximum 25 POs.
 - Quantity must be integer 1–999. Dimensions and enums must pass current native contracts, not merely regex checks.
@@ -165,9 +168,9 @@ The canonical source fingerprint is SHA-256 over schema/version, normalized lega
 
 ## Import and persistence behavior
 
-Import is available only to an active user with explicit `jobs=use`; manager status is not fallback authority. The user chooses/pastes one payload and confirms import. Parsing and validation occur before editor mutation. On success the app replaces a new, unsaved editor only after warning about any current unsaved content; it never overlays a saved job.
+Import is available only to an active user with explicit `jobs=use`; manager status is not fallback authority. The user chooses one downloaded JSON payload and confirms import. Parsing and validation occur before editor mutation. On success the app replaces a new, unsaved editor only after warning about any current unsaved content; it never overlays a saved job.
 
-The review screen groups exact blockers and warnings by source field/line. Blockers prevent native Save but do not prevent reviewing safe mapped fields. Warnings identify normalized aliases, recomputed derived fields, missing optional values, archived source evidence, unknown staff/options, and manual review. Original whitelisted source values remain visible for comparison but are never submitted as unrecognized RPC fields.
+The review screen groups exact blockers and warnings by source field/line. Blockers prevent native Save but do not prevent reviewing safe mapped fields. Warnings identify normalized aliases, recomputed derived fields, missing optional values, unknown staff/options, and manual review. Original whitelisted source values remain visible for comparison but are never submitted as unrecognized RPC fields.
 
 Import performs no repository call. It generates no native UUID, DG reference, create-command receipt, sequence value, database row, work order, production booking, Calendar link, fulfillment action, document, or email. Cancel/failure clears the transient payload and leaves no hosted residue.
 
@@ -183,7 +186,7 @@ After save, the user must reopen the server-loaded native aggregate and verify i
 - Unknown enums and configurations block the affected line. Do not coerce to a visually similar option.
 - Native calculations replace legacy derived calculations. Any disagreement is shown and blocks confirmation until explicitly resolved.
 - Legacy glass overrides do not become native approvals. They require fresh native calculation and authorized approval.
-- Archived/deleted jobs, malformed source timestamps, ambiguous IDs, unsupported `JOB-*` provenance under the current schema, active production linkage, and unsafe payload content block persistence.
+- Archived/deleted jobs, malformed source timestamps, unknown identifier shapes, active production linkage, and unsafe payload content block persistence. Valid `JOB-*` payloads map for review but remain blocked from hosted persistence until the approved later schema/RPC amendment exists.
 - Descriptive delivery/pickup/shop dates are reviewable inputs only and confer no execution or scheduling state.
 
 ## Safety invariants
@@ -198,19 +201,15 @@ After save, the user must reopen the server-loaded native aggregate and verify i
 
 ## Recommended implementation phases
 
-1. **Pure payload contract:** implement schema types, canonicalization/fingerprint verification, limits, mapping results, warnings/blockers, and fixture tests without UI, RPC, or runtime reads. Exact files: `lib/jobs/legacy-job-transfer-contract.ts`, `lib/jobs/legacy-job-transfer-contract.test.ts`, `scripts/verify-legacy-job-transfer-contract.mjs`, and the matching `package.json` verification command.
-2. **Persistence amendment:** resolve the unclassified legacy provenance gap; design and separately authorize a forward migration, exact RPC signature/body amendment, immutable provenance/fingerprint constraints, duplicate rules, grants, and rolled-back behavioral tests.
+1. **Pure payload contract:** implemented in `lib/jobs/legacy-transfer-types.ts`, `legacy-transfer-validation.ts`, `legacy-transfer-mapping.ts`, `legacy-transfer-contract.test.ts`, `scripts/verify-legacy-job-transfer-contract.mjs`, and the matching `package.json` verification command. It contains no UI, RPC, or runtime read.
+2. **Persistence amendment:** implement the approved distinct `legacy_job_id` identity; design and separately authorize a forward migration, exact RPC signature/body amendment, immutable provenance/fingerprint constraints, duplicate rules, unified visible-identifier behavior, grants, and rolled-back behavioral tests.
 3. **Legacy exporter:** in the separately governed legacy source, add one read-only server exporter and one explicit saved-job action with tests; deploy only under separate authorization.
 4. **Unsaved native import:** add file/paste input, review presentation, editor mapping, cancel behavior, and browser isolation tests. No repository call during import.
 5. **Transfer create adapter:** add a distinct typed service/repository command using the accepted RPC amendment; preserve ordinary native create behavior.
 6. **Controlled acceptance:** export one non-production job, import/review/save/reopen/work-order verify, prove no operational mutation, then leave any legacy archive/delete to the user.
 
-## Decisions requiring approval before implementation
+## Finalized decisions and remaining later phases
 
-1. Approve the persistence representation for neutral legacy provenance (`JOB-####` and other unclassified IDs), including a new identifier-kind value or separate source-identifier field, while keeping Sales Order and DoorGo reference independently nullable and unique.
-2. Decide whether unclassified legacy jobs must have a user-confirmed Sales Order before native save, or may save with provenance as their visible legacy identifier until a Sales Order is supplied. No new DG may replace the legacy identifier.
-3. Approve whether archived legacy lines are transferred as archived native lines or only reported as excluded evidence. Active line order is always preserved.
-4. Approve whether an archived/deleted legacy job is categorically ineligible or may be transferred through an exceptional reviewed workflow.
-5. Approve which legacy glass input keys inside `Glass Calc JSON` are authoritative enough to whitelist. All calculated geometry/output remains recomputed.
-6. Approve the maximum payload/line/text limits above and whether export uses downloaded JSON, clipboard copy, or both.
-7. Approve how the immutable source fingerprint/version/timestamp are stored, because the current native schema has provenance identifiers but no payload fingerprint columns.
+Transfer direction, unified identifier presentation, distinct `JOB-####` meaning, active-only source eligibility, active-only lines, downloaded JSON transport, 1 MiB/250-line limits, provenance content, and the authoritative-input-only glass boundary are approved. The pure payload phase allocates no hosted identity and persists nothing.
+
+Remaining work is implementation rather than product-policy ambiguity: a reviewed forward migration/RPC amendment must store distinct legacy-job provenance plus fingerprint/version/timestamp and enforce duplicate transfer prevention; the legacy exporter and native import/review UI require separate authorization; the transfer create adapter must remain distinct from ordinary native creation; and controlled end-to-end acceptance must precede any manual legacy archive. Exact whitelisted glass inputs are the typed source selections and measurements in the v1 payload; calculated dimensions, units, cut/frame results, overrides, and work-order output are always recomputed or reviewed through the native Leave Glass Detail Needed path.

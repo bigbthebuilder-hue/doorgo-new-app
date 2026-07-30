@@ -12,6 +12,7 @@ const originalMigration=read('supabase/migrations/20260728000000_create_native_j
 const checksum=createHash('sha256').update(migration).digest('hex').toUpperCase();
 assert.equal(checksum,'CC3DA75E5EEA5AB418CF10A1779361C2E64EA4AC6D819AE2C5BB46F33C9C79CF');
 assert.ok(runbook.includes(checksum),'Runbook must record exact amendment SHA-256');
+for(const record of ['was applied successfully once','Hosted legacy-transfer persistence is accepted','sequence value 13','No transferred job exists after rollback','transfer application adapter remain unimplemented']) assert.ok(runbook.includes(record),`Runbook is missing accepted hosted status: ${record}`);
 const stripComments=(sql)=>sql.replace(/--.*$/gm,'');
 const preflightCode=stripComments(preflight).toLowerCase();
 assert.match(preflightCode.trim(),/^with\b/);

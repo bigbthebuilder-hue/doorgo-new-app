@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-This document defines the one-way contract for transferring one explicitly selected job from the legacy DoorGo application into an unsaved native DoorGo editor. The forward persistence/RPC amendment is prepared but unapplied; export and import UI, hosted application, deployment, synchronization, and deletion remain unimplemented and unauthorized.
+This document defines the one-way contract for transferring one explicitly selected job from the legacy DoorGo application into an unsaved native DoorGo editor. The forward persistence/RPC amendment is applied and its hosted persistence and rolled-back behavioral acceptance passed. Exporter, native import/review UI, transfer application adapter, deployment, synchronization, and source deletion remain unimplemented and unauthorized.
 
 The accepted workflow is deliberately manual and one-way:
 
@@ -56,7 +56,7 @@ The native editor accepts a header plus ordered `DoorLineInput[]`. A Draft requi
 
 For a transferred Sales Order, that Sales Order remains authoritative and visible. For a transferred legacy `DG-######`, that reference remains authoritative and visible. Neither receives a replacement DG reference. A native internal UUID remains separate. A brand-new native job continues to receive a permanent allocated `DG-######`.
 
-The prepared forward migration closes the persistence-contract gap for legacy `JOB-####` IDs with immutable `legacy_job_id` provenance. It never treats that identifier as a Sales Order or allocates a replacement DG reference. Sales Orders, transferred DG references, and legacy job IDs share one unified primary-identifier presentation with precedence Sales Order, DG, then legacy job ID. Unknown identifier formats remain blocked until explicitly classified.
+The applied forward migration closes the persistence-contract gap for legacy `JOB-####` IDs with immutable `legacy_job_id` provenance. It never treats that identifier as a Sales Order or allocates a replacement DG reference. Sales Orders, transferred DG references, and legacy job IDs share one unified primary-identifier presentation with precedence Sales Order, DG, then legacy job ID. Unknown identifier formats remain blocked until explicitly classified.
 
 ## Mapping matrix
 
@@ -66,11 +66,11 @@ Status meanings: **Supported** maps safely after validation; **Review** requires
 |---|---|---|---|---|---|
 | `Job ID` classified as Sales Order | `bizTrackSalesOrder`, visible identifier; immutable provenance | Trim; preserve exact business value; case-insensitive normalized duplicate check | Required for this identifier kind | Authoritative | Supported after explicit classification; duplicate blocks import/save. |
 | `Job ID` matching accepted legacy `DG-######` | `doorGoReference`, visible identifier; immutable provenance | Preserve unchanged; do not allocate | Required for this identifier kind | Authoritative | Supported; malformed or duplicate DG blocks. |
-| Generated `JOB-####` | immutable `legacyJobId` and unified primary identifier | Never infer Sales Order or DG; never allocate replacement DG | Provenance required | Authoritative provenance | Prepared persistence/RPC contract supports it after separately authorized migration application; no extra editor input is added. |
+| Generated `JOB-####` | immutable `legacyJobId` and unified primary identifier | Never infer Sales Order or DG; never allocate replacement DG | Provenance required | Authoritative provenance | Accepted hosted persistence supports it; no extra editor input is added. |
 
-## Prepared persistence boundary
+## Accepted persistence boundary
 
-The unapplied amendment adds `public.dg_create_transferred_native_job(uuid,jsonb,jsonb,jsonb)`. It accepts only a command UUID, normalized provenance, normalized header, and normalized active lines. It requires an authenticated active profile with explicit `jobs=use`, has no manager fallback, is `SECURITY DEFINER` with an empty fixed search path, creates the job, ordered stable-UUID lines, and one idempotency receipt atomically, and returns Revision 1. The accepted native create RPC remains unchanged and is the only path that consumes `dg_native_job_reference_seq`.
+The applied amendment adds `public.dg_create_transferred_native_job(uuid,jsonb,jsonb,jsonb)`. It accepts only a command UUID, normalized provenance, normalized header, and normalized active lines. It requires an authenticated active profile with explicit `jobs=use`, has no manager fallback, is `SECURITY DEFINER` with an empty fixed search path, creates the job, ordered stable-UUID lines, and one idempotency receipt atomically, and returns Revision 1. The accepted native create RPC remains unchanged and is the only path that consumes `dg_native_job_reference_seq`.
 
 Immutable transfer provenance stores only source system, schema/version, identifier kind/value, source saved timestamp, export timestamp, and the canonical lowercase SHA-256 source fingerprint. The fingerprint and normalized source identity are unique. The RPC rejects archived/deleted or reverse/native source provenance, unknown keys, operational instructions, malformed or mismatched identifiers, duplicate fingerprints, Sales Orders, DG references, and legacy job IDs. It never writes legacy mirrors, Production, Calendar, capacity, fulfillment, document, or email objects.
 
@@ -210,7 +210,7 @@ After save, the user must reopen the server-loaded native aggregate and verify i
 ## Recommended implementation phases
 
 1. **Pure payload contract:** implemented in `lib/jobs/legacy-transfer-types.ts`, `legacy-transfer-validation.ts`, `legacy-transfer-mapping.ts`, `legacy-transfer-contract.test.ts`, `scripts/verify-legacy-job-transfer-contract.mjs`, and the matching `package.json` verification command. It contains no UI, RPC, or runtime read.
-2. **Persistence amendment:** implement the approved distinct `legacy_job_id` identity; design and separately authorize a forward migration, exact RPC signature/body amendment, immutable provenance/fingerprint constraints, duplicate rules, unified visible-identifier behavior, grants, and rolled-back behavioral tests.
+2. **Persistence amendment:** complete. The applied hosted migration and rolled-back behavioral acceptance verified distinct `legacy_job_id`, immutable provenance/fingerprint constraints, duplicate rules, unified identifiers, grants, all three identifier paths, and no sequence or operational side effects.
 3. **Legacy exporter:** in the separately governed legacy source, add one read-only server exporter and one explicit saved-job action with tests; deploy only under separate authorization.
 4. **Unsaved native import:** add file/paste input, review presentation, editor mapping, cancel behavior, and browser isolation tests. No repository call during import.
 5. **Transfer create adapter:** add a distinct typed service/repository command using the accepted RPC amendment; preserve ordinary native create behavior.
@@ -220,4 +220,4 @@ After save, the user must reopen the server-loaded native aggregate and verify i
 
 Transfer direction, unified identifier presentation, distinct `JOB-####` meaning, active-only source eligibility, active-only lines, downloaded JSON transport, 1 MiB/250-line limits, provenance content, and the authoritative-input-only glass boundary are approved. The pure payload phase allocates no hosted identity and persists nothing.
 
-Remaining work is implementation rather than product-policy ambiguity: a reviewed forward migration/RPC amendment must store distinct legacy-job provenance plus fingerprint/version/timestamp and enforce duplicate transfer prevention; the legacy exporter and native import/review UI require separate authorization; the transfer create adapter must remain distinct from ordinary native creation; and controlled end-to-end acceptance must precede any manual legacy archive. Exact whitelisted glass inputs are the typed source selections and measurements in the v1 payload; calculated dimensions, units, cut/frame results, overrides, and work-order output are always recomputed or reviewed through the native Leave Glass Detail Needed path.
+Hosted persistence acceptance is complete. The migration was applied once; permanent verification passed before and after a successful rolled-back behavioral acceptance. The sequence remained at 13, no transferred job persisted, and the sole existing native job remained DG-000013 at archived Revision 10 with null transfer provenance, two lines, and one idempotency receipt. Remaining work is the separately authorized legacy exporter, native import/review UI, transfer application adapter, and later controlled end-to-end transfer acceptance. Transfer remains strictly legacy-to-native, and any source legacy archive is a separate manual action only after native verification. Exact whitelisted glass inputs remain the typed source selections and measurements in the v1 payload; calculated dimensions, units, cut/frame results, overrides, and work-order output are recomputed or reviewed through the native Leave Glass Detail Needed path.

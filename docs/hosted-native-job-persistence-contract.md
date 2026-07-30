@@ -320,7 +320,7 @@ When `has_more` is true, both next-cursor fields identify the last item included
 - Revoke direct `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES`, `TRIGGER` and `MAINTAIN` from `authenticated`.
 - Do not grant authenticated direct table `SELECT`; list/get are reviewed RPCs.
 - Revoke sequence access from `anon` and `authenticated`; only the create RPC owner allocates references.
-- Grant authenticated execution only on the five reviewed RPC signatures.
+- Grant authenticated execution only on the six reviewed public RPC signatures: the five native runtime RPCs plus `dg_create_transferred_native_job(uuid,jsonb,jsonb,jsonb)`. The private immutability trigger helper has no client execution grant.
 - Each RPC independently checks `auth.uid()`, an active `dg_user_profiles` row, and the exact `jobs` permission level.
 - `jobs=none` is denied; `jobs=view` may list/get and retains Preview, Print, Download and Send rights; `jobs=use` may create/update/archive/transfer. Manager status is ignored as permission authority.
 - No RPC uses or depends on Resend or Production Send configuration.
@@ -335,7 +335,9 @@ Controlled hosted application-adapter acceptance passed with non-production job 
 
 The archive RPC remained `public.dg_archive_native_job(uuid,bigint,text)`, owned by `postgres`, `SECURITY DEFINER`, and fixed to an empty search path. Catalog evidence proved one actual DML update targeting only `public.dg_native_jobs`, no other update target, no insert or delete, no dynamic SQL or other native RPC invocation, and no Production, Calendar, capacity, fulfillment, document, email, or legacy side-effect reference. The accepted legacy baseline is now 45 `dg_jobs` rows and 165 `dg_job_lines` rows; identifier and UUID scans proved that intervening legacy activity was unrelated to `DG-000013`. Production, Calendar, capacity, and the operational schema marker remained unchanged. Expected DG sequence gaps from failed or rolled-back acceptance attempts remain valid and must never be reset or reused.
 
-Legacy transfer remains unimplemented and outside this acceptance scope.
+Legacy-transfer hosted persistence acceptance is complete. Migration `20260730000000_add_legacy_transfer_persistence.sql` was applied once; PORTION 1 passed, PORTION 2 passed and rolled back, and PORTION 1 passed again. Sales Order, preserved legacy DG, and distinct `JOB-####` paths; unified identifier kinds; immutable provenance; fingerprint/source-identity uniqueness; duplicate and permission rejection; get/list output; and update/archive preservation all passed. The sequence remained exactly 13, no behavioral row persisted, and native/legacy/Production/Calendar/capacity counts plus the 116-row operational schema marker MD5 `9d857fcd335968c48a878fd5d55dcc06` remained unchanged.
+
+No transferred native job currently exists. DG-000013 remains an ordinary native origin at archived Revision 10 with null transfer provenance, two retained lines, and one legitimate receipt. The exporter, import/review UI, and transfer application adapter remain unimplemented. Direction remains strictly legacy-to-native; archiving a verified source remains a separate manual action.
 
 The Jobs page calls only `dg_list_native_jobs`. Its structural source is `dg_native_jobs`, whose allowed origins are `native` and `legacy_transfer`. Ordinary legacy mirror rows, Calendar/production/history records and unsaved transfer payloads cannot appear because they are not stored in that table.
 

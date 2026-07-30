@@ -54,7 +54,10 @@ assert.match(docs, /downloaded UTF-8 JSON file[\s\S]*clipboard transport is not 
 assert.match(docs, /Maximum UTF-8 payload: 1 MiB; maximum 250 line entries/);
 assert.match(docs, /Generated `JOB-####`[\s\S]*unified primary identifier/);
 assert.match(docs, /neither exports nor invents archived line history/);
-assert.match(docs, /Remaining work is implementation rather than product-policy ambiguity/);
+assert.match(docs, /Hosted persistence acceptance is complete/);
+assert.match(docs, /sequence remained at 13/);
+assert.match(docs, /no transferred job persisted/);
+assert.match(docs, /exporter, native import\/review UI, transfer application adapter/);
 
 for (const source of [types, validation, mapping, tests]) {
   assert.doesNotMatch(source, /production booking|calendar event|document move|send email/i,

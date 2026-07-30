@@ -65,6 +65,10 @@ const approvedLaterMigrations = new Set([
   'supabase/migrations/20260714000000_create_production_booking_move_contract.sql',
   'supabase/migrations/20260715000000_extend_production_booking_reschedule_contract.sql',
   'supabase/migrations/20260716000000_create_production_booking_completion_contract.sql',
+  'supabase/migrations/20260728000000_create_native_job_persistence.sql',
+  'supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql',
+  'supabase/migrations/20260729010000_fix_native_job_update_greatest.sql',
+  'supabase/migrations/20260730000000_add_legacy_transfer_persistence.sql',
 ]);
 assert.deepEqual(changed.filter((path) => path.startsWith('supabase/migrations/') && !approvedLaterMigrations.has(path)), [], 'Only exact reviewed later-phase migrations may follow C3');
 const approvedLaterUi = new Set([
@@ -89,10 +93,13 @@ const approvedLaterUi = new Set([
   'components/production-board-interaction.ts',
   'app/jobs/page.tsx',
   'app/jobs/new/page.tsx',
+  'app/jobs/import/page.tsx',
   'app/jobs/[internalJobId]/edit/page.tsx',
   'app/jobs/[internalJobId]/work-order/page.tsx',
   'app/jobs/[internalJobId]/work-order/pdf/route.ts',
   'components/jobs/JobHeaderForm.tsx',
+  'components/jobs/JobArchiveControl.tsx',
+  'components/jobs/LegacyJobImportReview.tsx',
   'components/jobs/JobsList.tsx',
   'components/jobs/DoorLineWorkspace.tsx',
   'components/jobs/GlassUnitBuilder.tsx',

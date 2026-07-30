@@ -226,6 +226,7 @@ assert.deepEqual(
     'scripts/verify-native-job-hosted-migration-package.mjs',
     'scripts/verify-native-job-intake-j3c.mjs',
     'scripts/verify-phase-2f-c1-auth-contract.mjs',
+    'scripts/verify-phase-2f-c3-checkpoint-actions.mjs',
     'supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql',
     'supabase/migrations/20260730000000_add_legacy_transfer_persistence.sql',
   ],

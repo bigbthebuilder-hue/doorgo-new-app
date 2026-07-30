@@ -22,6 +22,12 @@ The first rolled-back behavioral attempt exposed an invalid schema-qualified `GR
 
 The legacy-transfer amendment `supabase/migrations/20260730000000_add_legacy_transfer_persistence.sql` is prepared and unapplied. Before application, run the migration-package verifiers, inspect that no existing `legacy_transfer` native row lacks the new provenance fields, reconfirm direct grants are zero, and capture native/legacy/operational baselines. Apply the complete amendment once only under separate authorization, then run a revised permanent catalog/grant verification proving the new columns, constraints, indexes, trigger/helper, exact transfer RPC signature/owner/search path/grants, unchanged five existing RPC signatures, no direct table/sequence grants, and no sequence movement. Only after that passes may separately authorized rolled-back transfer behavior cover Sales Order, DG, and JOB identities, duplicates, permissions, idempotency, immutability, list/get, and prohibited-side-effect baselines. Re-run permanent verification after rollback and stop before any UI work.
 
+Legacy-transfer amendment SHA-256: `CC3DA75E5EEA5AB418CF10A1779361C2E64EA4AC6D819AE2C5BB46F33C9C79CF`
+
+The acceptance package consists of `scripts/inspect-legacy-transfer-hosted-preflight.sql`, `scripts/verify-legacy-transfer-hosted-application.sql`, and `scripts/rollback-legacy-transfer-persistence.sql`. Run and export the preflight's single 15-section result. Stop on any collision, pre-existing transfer row, incompatible native row, privilege exposure, missing prerequisite, or unexplained baseline discrepancy. Record the exact sequence state and fresh native, legacy, and operational baselines before separately authorizing application.
+
+After separately authorized application, run and export only PORTION 1. Compare counts, operational schema marker, existing RPC hashes, and exact sequence state with preflight. DG-000013 must remain archived Revision 10 with two lines and one receipt. Only after PORTION 1 passes may PORTION 2 be separately authorized. Run PORTION 2 once from `BEGIN;` through `ROLLBACK;`, then rerun PORTION 1 and prove no rows or sequence value persisted.
+
 The amendment does not authorize exporter/importer UI, transfer execution, legacy-source archive, deployment, or Production enablement. A legacy source archive remains a manual post-verification operation.
 
 1. Recalculate the migration SHA-256 locally and stop unless it exactly matches the value above.
@@ -47,5 +53,7 @@ Hosted application-adapter acceptance also passed with controlled non-production
 Use descriptive local filenames containing the project ref, phase (`preflight`, `post-apply`, or `post-behavior`), and timestamp. Keep exports outside the repository because catalog/grant information is operational evidence. Do not paste secrets, JWTs, service-role keys, customer details, or personal email addresses into the repository or review report.
 
 ## Emergency rollback boundary
+
+For this amendment only, `scripts/rollback-legacy-transfer-persistence.sql` stops if any transferred or provenance-bearing row exists. Before that boundary it removes only amendment objects and columns, restores the prior constraints and list projection, preserves every table and row, and never touches the DG sequence or legacy/operational objects. Never run it after a transfer becomes authoritative.
 
 `scripts/rollback-native-job-persistence.sql` is for separately authorized emergency use only before native application data becomes authoritative. It removes only the five native RPCs, three native tables, and native reference sequence. Never run it after accepted native records become authoritative; use a reviewed forward recovery plan instead. Do not run it merely because a behavioral assertion failed—first preserve evidence and review whether the migration transaction already rolled back.

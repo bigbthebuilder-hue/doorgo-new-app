@@ -125,6 +125,12 @@ export function visibleJobIdentifier(
   return unifiedJobIdentifier(job).value;
 }
 
+export function jobSaveConfirmation(
+  job: Pick<NativeJobHeader, 'bizTrackSalesOrder' | 'doorGoReference'> & Partial<Pick<NativeJobHeader, 'legacyJobId'>>,
+): string {
+  return `${visibleJobIdentifier(job)} saved.`;
+}
+
 export function isUuid(value: string): boolean {
   return UUID_PATTERN.test(value);
 }

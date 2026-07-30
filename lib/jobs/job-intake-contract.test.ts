@@ -8,9 +8,16 @@ import {
   canWriteJobs,
   normalizeJobHeaderInput,
   visibleJobIdentifier,
+  jobSaveConfirmation,
 } from './job-intake-contract';
+
 import { createLocalJobIntakeRepository } from './local-job-intake-repository';
 import { JobIntakeFailure } from './job-intake-types';
+
+assert.equal(jobSaveConfirmation({ bizTrackSalesOrder: null, doorGoReference: 'DG-000014' }), 'DG-000014 saved.', 'ordinary native save confirmation is preserved');
+assert.equal(jobSaveConfirmation({ bizTrackSalesOrder: 'SO-100', doorGoReference: null, legacyJobId: null }), 'SO-100 saved.', 'transferred Sales Order confirmation uses the saved authority');
+assert.equal(jobSaveConfirmation({ bizTrackSalesOrder: null, doorGoReference: 'DG-000002', legacyJobId: null }), 'DG-000002 saved.', 'transferred legacy DG confirmation uses the saved authority');
+assert.equal(jobSaveConfirmation({ bizTrackSalesOrder: null, doorGoReference: null, legacyJobId: 'JOB-0065' }), 'JOB-0065 saved.', 'transferred legacy job confirmation never renders null');
 
 const uuids = [
   '11111111-1111-4111-8111-111111111111',

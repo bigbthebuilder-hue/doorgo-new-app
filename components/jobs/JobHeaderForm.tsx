@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { archiveDraftJobAction, createDraftJobAction, createTransferredJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine } from '@/lib/jobs/door-line-contract';
-import { jobAggregateDirtySnapshot, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
+import { jobAggregateDirtySnapshot, jobSaveConfirmation, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
 import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggregate } from '@/lib/jobs/job-intake-types';
 import type { LegacyTransferIssue, UnifiedTransferIdentifier } from '@/lib/jobs/legacy-transfer-types';
 import { unresolvedTransferBlockers } from '@/lib/jobs/legacy-transfer-import-contract';
@@ -208,7 +208,7 @@ export function JobHeaderForm({
     startTransition(async () => {
       const saved = await persistAggregate();
       if (!saved) return;
-      setMessage({ kind: 'success', text: `${saved.doorGoReference} saved.` });
+      setMessage({ kind: 'success', text: jobSaveConfirmation(saved) });
       if (exitAfterSave) router.push('/jobs');
       else if (!job) router.replace(`/jobs/${saved.internalJobId}/edit`);
     });

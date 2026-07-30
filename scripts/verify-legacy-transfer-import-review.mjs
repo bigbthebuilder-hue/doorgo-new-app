@@ -18,6 +18,8 @@ assert.match(review, /legacyTransferFilePreflight\(file\)[\s\S]*await file\.text
 assert.match(review, /accept="application\/json,\.json"/);
 assert.match(form, /No native job, UUID, revision, or new DoorGo reference exists/);
 assert.match(form, /Save as Native Job/);
+assert.match(form, /jobSaveConfirmation\(saved\)/, 'save confirmation must use the authoritative saved aggregate identifier');
+assert.doesNotMatch(form, /`\$\{saved\.doorGoReference\} saved\.`/, 'nullable DoorGo reference must not drive the confirmation');
 assert.match(form, /router\.replace\(`\/jobs\/\$\{saved\.internalJobId\}\/edit`\)/, 'successful Revision 1 creation must navigate to the normal editor');
 assert.match(form, /disabled=\{isPending \|\| Boolean\(transferReview && unresolvedTransferBlockers/, 'immutable blockers must disable Save');
 assert.match(form, /The legacy source must be archived manually/);

@@ -59,6 +59,22 @@ function issueCodes(entry: unknown): string[] {
 
 assert.equal(validateLegacyTransferPayload(readFileSync('tests/fixtures/legacy-transfer-job-0065.json', 'utf8')).ok, true, 'manual acceptance fixture remains valid');
 
+{
+  const evidencePayload = payload();
+  evidencePayload.lines = [baseLine(1), baseLine(2)];
+  const repeated = { code: 'glass_review', field: 'glass_inputs', message: 'Review glass evidence.', severity: 'warning' as const };
+  evidencePayload.lines[0].review_evidence.push(repeated, { ...repeated }, { ...repeated, message: 'Confirm first-line glass.' });
+  evidencePayload.lines[1].review_evidence.push({ ...repeated });
+  const mapped = mapLegacyTransferToUnsavedEditor(resign(evidencePayload));
+  assert.equal(mapped.ok, true);
+  if (mapped.ok) {
+    assert.equal(mapped.warnings.filter((issue) => issue.message === repeated.message).length, 2, 'one exact warning remains for each distinct line scope');
+    assert.ok(mapped.warnings.some((issue) => issue.path === 'lines.0.glass_inputs'));
+    assert.ok(mapped.warnings.some((issue) => issue.path === 'lines.1.glass_inputs'));
+    assert.ok(mapped.warnings.some((issue) => issue.message === 'Confirm first-line glass.'), 'distinct wording on the same field remains visible');
+  }
+}
+
 for (const [kind, identifier, label] of [
   ['biztrack_sales_order', 'SO-100', 'Sales Order'],
   ['door_go_reference', 'DG-000002', 'DoorGo Reference'],

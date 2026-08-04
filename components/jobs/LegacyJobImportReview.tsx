@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { inspectLegacyTransferAction } from '@/lib/jobs/job-intake-actions';
 import { legacyTransferFilePreflight } from '@/lib/jobs/legacy-transfer-import-contract';
 import type { LegacyTransferIssue, LegacyTransferMappingResult } from '@/lib/jobs/legacy-transfer-types';
+import { legacyTransferIssueKey } from '@/lib/jobs/legacy-transfer-review-presentation';
 import { JobHeaderForm, type LegacyTransferReviewContext } from './JobHeaderForm';
 
 type AcceptedReview = Extract<LegacyTransferMappingResult, { ok: true }>;
@@ -45,7 +46,7 @@ export function LegacyJobImportReview({ defaultSalesperson }: { defaultSalespers
     </label>
     {isPending ? <p className="mt-4" role="status">Inspecting transfer file…</p> : null}
     {message ? <p className="mt-4 rounded-xl bg-rose-50 p-3 text-rose-900 dark:bg-rose-950 dark:text-rose-100" role="alert">{message}</p> : null}
-    {issues.length ? <ul className="mt-3 list-disc pl-5 text-sm text-rose-800 dark:text-rose-200">{issues.map((issue, index) => <li key={`${issue.code}-${issue.path}-${index}`}>{issue.path}: {issue.message}</li>)}</ul> : null}
+    {issues.length ? <ul className="mt-3 list-disc pl-5 text-sm text-rose-800 dark:text-rose-200">{issues.map((issue, index) => <li key={legacyTransferIssueKey('validation', issue, index)}>{issue.path}: {issue.message}</li>)}</ul> : null}
     <p className="mt-5 text-xs text-slate-500">Maximum file size: 1 MiB. Duplicate JSON keys, unknown identifiers, reverse transfers, secrets, and operational commands are rejected.</p>
   </section>;
 }

@@ -51,6 +51,9 @@ async function main() {
   assert.equal(exteriorD.values?.sillOrThresholdWidth?.display, `36"`);
   assert.equal(exteriorD.values?.frameWidth?.display, `36"`);
 
+  const exteriorDOutswing = complete({ mode: 'Exterior', material: 'fiberglass', hand: 'RHOUT', prep: 'STD', sill: 'STD', weatherstrip: 'WHT', jambWidth: `6-9/16"`, hingeType: 'BB' });
+  assert.equal(exteriorDOutswing.values?.jambLeg?.display, `81"`, 'ordinary outswing D remains slab-height based');
+
   const exteriorDd = complete({ mode: 'Exterior', config: 'DD', material: 'fiberglass', hand: 'RHOUT', prep: 'STD', sill: 'STD', weatherstrip: 'WHT', jambWidth: `6-9/16"`, hingeType: 'BB' });
   assert.equal(exteriorDd.values?.doubleDoorCoreWidth?.display, `72 9/16"`);
   assert.equal(exteriorDd.values?.headerWidth?.display, `72 9/16"`);

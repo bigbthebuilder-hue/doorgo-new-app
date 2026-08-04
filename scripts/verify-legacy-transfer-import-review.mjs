@@ -16,6 +16,7 @@ const presentation = read('lib/jobs/legacy-transfer-review-presentation.ts');
 const lines = read('components/jobs/DoorLineWorkspace.tsx');
 const glassBuilder = read('components/jobs/GlassUnitBuilder.tsx');
 const browserTest = read('tests/legacy-transfer-import-browser/legacy-transfer-review.spec.tsx');
+const glassBrowserTest = read('tests/legacy-transfer-import-browser/imported-glass-builder.spec.tsx');
 
 assert.match(jobs, /href="\/jobs\/import"[^>]*>Import Legacy Job/);
 assert.match(page, /canUse\(access, 'jobs'\)[\s\S]*redirect\('\/account'\)/);
@@ -46,6 +47,9 @@ assert.doesNotMatch(glassBuilder, /key=\{issue\.code\}/, 'nested glass evidence 
 assert.match(mapping, /function lineEvidencePath[\s\S]*`lines\.\$\{index\}\.\$\{field\}`[\s\S]*uniqueLegacyTransferIssues/, 'exact evidence duplicates must be removed without losing line scope');
 assert.match(presentation, /JSON\.stringify\(\[group, issue\.code, issue\.path, issue\.message, occurrence\]\)/, 'evidence keys must include stable content and occurrence');
 assert.match(browserTest, /consoleErrors[\s\S]*same key[\s\S]*toEqual\(\[\]\)/, 'focused rendering must assert that React reports no duplicate keys');
+assert.match(lines, /editingIndex !== null[\s\S]*replaceDoorLineAtIndex\(lines, editingIndex, saved\)/, 'id-less imported lines must update by their local editor position');
+assert.match(glassBrowserTest, /Status: Complete[\s\S]*attention-count[\s\S]*toHaveText\('0'\)/, 'completed imported glass must clear attention state');
+assert.doesNotMatch(glassBrowserTest, /createTransferredJobAction|\.rpc\(|fetch\(/, 'focused glass rendering must remain local-only');
 for (const forbidden of ['dg_production', 'dg_calendar', 'dg_fulfillment', 'dg_document', 'resend', 'send email']) {
   for (const source of [review, action, service]) assert.ok(!source.toLowerCase().includes(forbidden), `import runtime references prohibited boundary: ${forbidden}`);
 }

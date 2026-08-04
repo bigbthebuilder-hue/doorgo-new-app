@@ -9,6 +9,12 @@
   width: 100%;
   max-width: 28rem;
   color: rgb(15 23 42);
+  --glass-diagram-background: rgb(241 245 249);
+  --glass-diagram-door: rgb(254 243 199);
+  --glass-diagram-glass: rgb(186 230 253);
+  --glass-diagram-panel: rgb(214 211 209);
+  --glass-diagram-bar: rgb(71 85 105);
+  --glass-diagram-stroke: rgb(15 23 42);
 }
 
 .glass-unit-diagram svg {
@@ -34,7 +40,15 @@
 .glass-unit-diagram figcaption { margin-top: .5rem; font-size: .75rem; line-height: 1.25rem; }
 
 @media (prefers-color-scheme: dark) {
-  .glass-unit-diagram { color: rgb(226 232 240); }
+  .glass-unit-diagram {
+    color: rgb(226 232 240);
+    --glass-diagram-background: rgb(30 41 59);
+    --glass-diagram-door: rgb(120 53 15);
+    --glass-diagram-glass: rgb(7 89 133);
+    --glass-diagram-panel: rgb(68 64 60);
+    --glass-diagram-bar: rgb(148 163 184);
+    --glass-diagram-stroke: rgb(226 232 240);
+  }
   .glass-unit-diagram .diagram-background { fill: rgb(30 41 59); }
   .glass-unit-diagram .diagram-frame { fill: none; }
   .glass-unit-diagram .diagram-door { fill: rgb(120 53 15); }
@@ -44,6 +58,16 @@
   .glass-unit-diagram .diagram-divider,
   .glass-unit-diagram .diagram-transom-divider,
   .glass-unit-diagram .diagram-mullion { fill: rgb(148 163 184); }
+}
+
+.dark .glass-unit-diagram {
+  color: rgb(226 232 240);
+  --glass-diagram-background: rgb(30 41 59);
+  --glass-diagram-door: rgb(120 53 15);
+  --glass-diagram-glass: rgb(7 89 133);
+  --glass-diagram-panel: rgb(68 64 60);
+  --glass-diagram-bar: rgb(148 163 184);
+  --glass-diagram-stroke: rgb(226 232 240);
 }
 
 @media print {

@@ -9,6 +9,7 @@ const updateExpressionCorrection = read('supabase/migrations/20260729010000_fix_
 const transferAmendment = read('supabase/migrations/20260730000000_add_legacy_transfer_persistence.sql');
 const glassSourceMigration = read('supabase/migrations/20260805000000_add_direct_dimension_glass_sources.sql');
 const glassSourcePreflight = read('scripts/read-only-direct-dimension-glass-hosted-preflight.sql');
+const glassRegexProbe = read('scripts/read-only-direct-dimension-glass-regex-probe.sql');
 const preflight = read('scripts/inspect-native-job-hosted-preflight.sql');
 const application = read('scripts/verify-native-job-hosted-application.sql');
 const rollback = read('scripts/rollback-native-job-persistence.sql');
@@ -30,6 +31,22 @@ for (const rpc of ['dg_create_native_job','dg_update_native_job','dg_create_tran
   assert.match(glassSourceMigration,new RegExp(`ALTER FUNCTION public\\.${rpc}\\([^;]+ OWNER TO postgres`));
 }
 assert.match(glassSourceMigration,/transom_t_bar_size IN \('1\.5','2\.25'\)/);
+const finishedWidthRegex = "pg_catalog.btrim(v_specification->>'finishedWidth') !~ '^[0-9[:space:]./''\"′’″“”-]+$'";
+assert.ok(glassSourceMigration.includes(finishedWidthRegex));
+assert.doesNotMatch(glassSourceMigration,/\$dimensions?\$[^\n]*\+\$\$dimensions?\$/i);
+assert.doesNotMatch(glassSourceMigration,/(?:!~\*?|~\*?)\s*\$([a-z_][a-z0-9_]*)\$[^\n]*\+\$\$\1\$/i);
+const dollarTags=[...glassSourceMigration.matchAll(/\$[a-z_]*\$/gi)].map(m=>m[0]);
+for(const tag of new Set(dollarTags)) assert.equal(dollarTags.filter(value=>value===tag).length%2,0,`Unbalanced dollar quote ${tag}`);
+for(const broken of [
+  glassSourceMigration.replace(finishedWidthRegex,"pg_catalog.btrim(v_specification->>'finishedWidth') !~ $dimensions$^[0-9]+$$dimensions$"),
+  glassSourceMigration.replace("AS $$\nDECLARE","AS $broken$\nDECLARE"),
+  glassSourceMigration.replace("-]+$'", "-]+'"),
+  glassSourceMigration.replace("-]+$'", "-]*$'"),
+]) assert.throws(()=>{const tags=[...broken.matchAll(/\$[a-z_]*\$/gi)].map(m=>m[0]);assert.doesNotMatch(broken,/\$dimensions?\$[^\n]*\+\$\$dimensions?\$/i);for(const tag of new Set(tags))assert.equal(tags.filter(v=>v===tag).length%2,0);assert.ok(broken.includes(finishedWidthRegex));});
+assert.ok(glassRegexProbe.includes("~ '^[0-9[:space:]./''\"′’″“”-]+$'"));
+const probeCode=glassRegexProbe.replace(/^\s*--.*$/gm,'').replace(/'(?:''|[^'])*'/g,"''");
+assert.match(probeCode.trim(),/^WITH\b[\s\S]*\bSELECT\b[\s\S]*;$/i);
+assert.doesNotMatch(probeCode,/\b(?:INSERT|UPDATE|DELETE|MERGE|ALTER|CREATE|DROP|TRUNCATE|GRANT|REVOKE|CALL|DO|LOCK|SET|RESET|nextval|setval)\b/i);
 assert.match(glassSourceMigration,/CREATE OR REPLACE FUNCTION public\.dg_validate_direct_dimension_glass_source\(p_line jsonb\)[\s\S]*IMMUTABLE[\s\S]*SECURITY INVOKER[\s\S]*SET search_path = ''/);
 assert.match(glassSourceMigration,/ALTER FUNCTION public\.dg_validate_direct_dimension_glass_source\(jsonb\) OWNER TO postgres/);
 assert.match(glassSourceMigration,/REVOKE ALL ON FUNCTION public\.dg_validate_direct_dimension_glass_source\(jsonb\) FROM PUBLIC,anon,authenticated,service_role/);

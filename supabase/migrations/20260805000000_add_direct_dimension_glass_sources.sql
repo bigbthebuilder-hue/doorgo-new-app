@@ -47,7 +47,7 @@ BEGIN
     IF v_specification ? 'finishedWidth' AND v_specification->'finishedWidth' <> 'null'::jsonb
       AND (pg_catalog.jsonb_typeof(v_specification->'finishedWidth') IS DISTINCT FROM 'string'
         OR pg_catalog.length(pg_catalog.btrim(v_specification->>'finishedWidth')) NOT BETWEEN 1 AND 32
-        OR pg_catalog.btrim(v_specification->>'finishedWidth') !~ $dimension$^[0-9[:space:]./'"′’″“”-]+$$dimension$)
+        OR pg_catalog.btrim(v_specification->>'finishedWidth') !~ '^[0-9[:space:]./''"′’″“”-]+$')
     THEN RETURN false; END IF;
     IF v_specification ? 'tBarSize' AND v_specification->'tBarSize' <> 'null'::jsonb
       AND (pg_catalog.jsonb_typeof(v_specification->'tBarSize') IS DISTINCT FROM 'string'

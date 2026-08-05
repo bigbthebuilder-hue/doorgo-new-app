@@ -31,8 +31,55 @@ assert.match(glassSourceMigration,/transom_t_bar_size IN \('1\.5','2\.25'\)/);
 assert.match(glassSourceMigration,/CREATE OR REPLACE FUNCTION public\.dg_validate_direct_dimension_glass_source\(p_line jsonb\)[\s\S]*IMMUTABLE[\s\S]*SECURITY INVOKER[\s\S]*SET search_path = ''/);
 assert.match(glassSourceMigration,/ALTER FUNCTION public\.dg_validate_direct_dimension_glass_source\(jsonb\) OWNER TO postgres/);
 assert.match(glassSourceMigration,/REVOKE ALL ON FUNCTION public\.dg_validate_direct_dimension_glass_source\(jsonb\) FROM PUBLIC,anon,authenticated,service_role/);
-assert.match(rollback,/DROP FUNCTION IF EXISTS public\.dg_validate_direct_dimension_glass_source\(jsonb\)/,
-  'Rollback planning must include the private direct-dimension validator');
+const extractGlassRpc = (source, name) => source.match(
+  new RegExp(`CREATE OR REPLACE FUNCTION public\\.${name}\\([\\s\\S]*?\\n\\$\\$;`, 'i'),
+)?.[0];
+const splitSqlList = (source) => {
+  const parts = []; let start = 0; let depth = 0; let quoted = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === "'" && source[index + 1] === "'") { index += 1; continue; }
+    if (character === "'") quoted = !quoted;
+    else if (!quoted && character === '(') depth += 1;
+    else if (!quoted && character === ')') depth -= 1;
+    else if (!quoted && depth === 0 && character === ',') { parts.push(source.slice(start,index).trim()); start=index+1; }
+  }
+  parts.push(source.slice(start).trim()); return parts;
+};
+const validateNativeCreate = (body) => {
+  assert.ok(body, 'Native-create RPC body must be independently extractable');
+  assert.doesNotMatch(body, /tokens? truncated|output truncated|omitted for brevity|chars? truncated|Oâ€¦|…\s*\d+\s+tokens?/i);
+  assert.doesNotMatch(body, /p_internal_job_id|p_expected_revision|UPDATE public\.dg_native_jobs|submitted_bound|aggregate_bound|\bomitted\s+AS\s*\(|ON CONFLICT \(line_id\) DO UPDATE|stale_revision/i);
+  assert.match(body, /v_job_id uuid := extensions\.gen_random_uuid\(\)/);
+  assert.equal((body.match(/pg_catalog\.nextval\(/g) ?? []).length,1);
+  for (const anchor of [
+    'INSERT INTO public.dg_native_jobs','INSERT INTO public.dg_native_job_lines',
+    'INSERT INTO public.dg_native_job_create_commands',"'idempotent_replay', true","'idempotent_replay',false",
+    'SELECT * INTO v_receipt','v_receipt.request_fingerprint IS DISTINCT FROM v_fingerprint',
+    'NOT public.dg_validate_direct_dimension_glass_source(line)',
+    'WHERE job.internal_job_id=v_job_id',
+  ]) assert.ok(body.includes(anchor), `Native-create RPC is missing: ${anchor}`);
+  const lineInsert = body.match(/INSERT INTO public\.dg_native_job_lines\s*\(([\s\S]*?)\)\s*VALUES\s*\(([\s\S]*?)\);/i);
+  assert.ok(lineInsert, 'Native-create line INSERT must be inspectable');
+  const columns=splitSqlList(lineInsert[1]); const values=splitSqlList(lineInsert[2]);
+  assert.equal(columns.length,values.length,'Native-create line INSERT columns and values must align');
+  for (const field of ['sidelight_specifications','transom_t_bar_size','transom_glass_type_code','transom_custom_glass_description'])
+    assert.equal(columns.filter((column)=>column===field).length,1,`Native-create line INSERT must contain ${field} exactly once`);
+};
+const nativeCreate = extractGlassRpc(glassSourceMigration,'dg_create_native_job');
+validateNativeCreate(nativeCreate);
+for (const invalidFixture of [
+  nativeCreate.replace('INSERT INTO public.dg_native_jobs','REMOVED_NATIVE_JOB_INSERT'),
+  nativeCreate.replace('INSERT INTO public.dg_native_job_create_commands','REMOVED_COMMAND_RECEIPT'),
+  nativeCreate.replace('BEGIN','BEGIN\n  PERFORM p_internal_job_id;'),
+  nativeCreate.replace('BEGIN','BEGIN\n  UPDATE public.dg_native_jobs SET revision=revision;'),
+  nativeCreate.replace('BEGIN','BEGIN\n  ON CONFLICT (line_id) DO UPDATE SET line_index=EXCLUDED.line_index;'),
+  nativeCreate.replace('WHERE job.internal_job_id=v_job_id','WHERE job.internal_job_id=NULL'),
+  nativeCreate.replace("'idempotent_replay', true","'replay_removed', true"),
+  nativeCreate.replaceAll('panel_sidelights,sidelight_specifications','panel_sidelights'),
+  nativeCreate.replace('BEGIN','BEGIN\n  Oâ€¦2328 tokens truncatedâ€¦'),
+  nativeCreate.replace('NOT public.dg_validate_direct_dimension_glass_source(line)','true'),
+]) assert.throws(()=>validateNativeCreate(invalidFixture),'Corrupt native-create fixture must fail closed');
 assert.equal((glassSourceMigration.match(/NOT public\.dg_validate_direct_dimension_glass_source\(line\)/g) ?? []).length,3,
   'All three write RPCs must use the same direct-dimension validator');
 for (const requiredGuard of [
@@ -78,8 +125,8 @@ assert.doesNotMatch(glassSourcePreflight,/target_functions\s*\(signature\)|JOIN\
   'RPC discovery must not filter by rendered identity-argument strings');
 assert.match(glassSourcePreflight,/p\.proname IN \('dg_create_native_job','dg_update_native_job','dg_create_transferred_native_job'\)/,
   'RPC discovery must begin with exact proname matching');
-assert.match(glassSourcePreflight,/p\.proargtypes::pg_catalog\.oid\[\] = ARRAY\[/,
-  'Expected logical signatures must be compared through normalized input type OIDs');
+assert.match(glassSourcePreflight,/ARRAY\(SELECT argument_oid FROM pg_catalog\.unnest\(p\.proargtypes::pg_catalog\.oid\[\]\)/,
+  'Expected logical signatures must compare normalized elements without oidvector lower-bound dependence');
 for (const field of ['schema_name','function_name','function_kind','identity_arguments','arguments','argument_names','argument_modes',
   'input_argument_type_oids','rendered_input_types','parallel_setting','strict','leakproof','execution_grants',
   'matches_expected_logical_signature','exact_name_overload_count','diagnostic_fallback_needed','fallback_candidates']) {

@@ -98,9 +98,9 @@ function_evidence AS (
     ) ORDER BY pg_catalog.pg_get_userbyid(grant_acl.grantee))
       FROM pg_catalog.aclexplode(COALESCE(p.proacl, pg_catalog.acldefault('f',p.proowner))) grant_acl), '[]'::jsonb),
     'matches_expected_logical_signature', CASE p.proname
-      WHEN 'dg_create_native_job' THEN p.proargtypes::pg_catalog.oid[] = ARRAY['uuid'::pg_catalog.regtype::pg_catalog.oid,'text'::pg_catalog.regtype::pg_catalog.oid,'text'::pg_catalog.regtype::pg_catalog.oid,'text'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid]::pg_catalog.oid[]
-      WHEN 'dg_update_native_job' THEN p.proargtypes::pg_catalog.oid[] = ARRAY['uuid'::pg_catalog.regtype::pg_catalog.oid,'bigint'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid]::pg_catalog.oid[]
-      WHEN 'dg_create_transferred_native_job' THEN p.proargtypes::pg_catalog.oid[] = ARRAY['uuid'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid]::pg_catalog.oid[]
+      WHEN 'dg_create_native_job' THEN ARRAY(SELECT argument_oid FROM pg_catalog.unnest(p.proargtypes::pg_catalog.oid[]) AS argument_oid) = ARRAY['uuid'::pg_catalog.regtype::pg_catalog.oid,'text'::pg_catalog.regtype::pg_catalog.oid,'text'::pg_catalog.regtype::pg_catalog.oid,'text'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid]::pg_catalog.oid[]
+      WHEN 'dg_update_native_job' THEN ARRAY(SELECT argument_oid FROM pg_catalog.unnest(p.proargtypes::pg_catalog.oid[]) AS argument_oid) = ARRAY['uuid'::pg_catalog.regtype::pg_catalog.oid,'bigint'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid]::pg_catalog.oid[]
+      WHEN 'dg_create_transferred_native_job' THEN ARRAY(SELECT argument_oid FROM pg_catalog.unnest(p.proargtypes::pg_catalog.oid[]) AS argument_oid) = ARRAY['uuid'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid,'jsonb'::pg_catalog.regtype::pg_catalog.oid]::pg_catalog.oid[]
       ELSE false END
   ) ORDER BY p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid)), '[]'::jsonb) AS result
   FROM pg_catalog.pg_proc p

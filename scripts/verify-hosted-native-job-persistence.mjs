@@ -46,6 +46,15 @@ assert.match(glassSourceMigration,/v_index < 1 OR v_index > 3/);
 assert.match(glassSourceMigration,/finishedWidth'[\s\S]*NOT BETWEEN 1 AND 32/);
 assert.match(glassSourceMigration,/customGlassDescription'[\s\S]*> 200/);
 assert.match(glassSourceMigration,/panelConstructionNotes'[\s\S]*> 1000/);
+assert.doesNotMatch(glassSourceMigration,/tokens? truncated|output truncated|omitted for brevity|chars? truncated|Oâ€¦|…\s*\d+\s+tokens?/i);
+const directDimensionCreate = glassSourceMigration.match(
+  /CREATE OR REPLACE FUNCTION public\.dg_create_native_job\([\s\S]*?\n\$\$;/i,
+)?.[0];
+assert.ok(directDimensionCreate,'Direct-dimension native-create replacement must be extractable');
+assert.doesNotMatch(directDimensionCreate,/p_internal_job_id|p_expected_revision|UPDATE public\.dg_native_jobs|submitted_bound|aggregate_bound|ON CONFLICT \(line_id\) DO UPDATE|stale_revision/i);
+for (const anchor of ['INSERT INTO public.dg_native_jobs','INSERT INTO public.dg_native_job_lines',
+  'INSERT INTO public.dg_native_job_create_commands','WHERE job.internal_job_id=v_job_id'])
+  assert.ok(directDimensionCreate.includes(anchor),`Direct-dimension native create is missing ${anchor}`);
 
 requireMatch(/create sequence public\.dg_native_job_reference_seq[^;]*start with 7/, 'Sequence must start at 7');
 requireMatch(/'dg-' \|\| pg_catalog\.lpad\(v_candidate::text, 6, '0'\)/, 'DG formatting must use six digits');

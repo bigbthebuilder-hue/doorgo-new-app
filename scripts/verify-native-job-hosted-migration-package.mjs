@@ -67,12 +67,28 @@ assert.ok(glassSourcePreflight.startsWith('-- READ-ONLY HOSTED CATALOG PREFLIGHT
 const executablePreflight = glassSourcePreflight.replace(/^\s*--.*$/gm,'').trim();
 const preflightTokens = executablePreflight.replace(/'(?:''|[^'])*'/g,"''");
 assert.match(executablePreflight,/^WITH\b[\s\S]*\bSELECT\b[\s\S]*;$/i);
-assert.equal((executablePreflight.match(/;\s*(?=\S)/g) ?? []).length,0,'Preflight must contain one top-level statement');
-assert.doesNotMatch(preflightTokens,/\b(?:INSERT|UPDATE|DELETE|MERGE|ALTER|CREATE|DROP|TRUNCATE|GRANT|REVOKE|CALL|DO|LOCK|SET|RESET|nextval|setval)\b/i,
+assert.equal((preflightTokens.match(/;\s*(?=\S)/g) ?? []).length,0,'Preflight must contain one top-level statement');
+assert.doesNotMatch(preflightTokens,/\b(?:INSERT|UPDATE|DELETE|MERGE|ALTER|CREATE|DROP|TRUNCATE|GRANT|REVOKE|CALL|COPY|DO|LOCK|SET|RESET|nextval|setval)\b|\bCOMMENT\s+ON\b|\bEXPLAIN\s+ANALYZE\b|\bSET\s+ROLE\b/i,
   'Preflight must remain catalog-only and read-only');
+assert.doesNotMatch(preflightTokens,/\b(?:SELECT|PERFORM|CALL)\s+(?:public\.)?dg_[a-z0-9_]+\s*\(/i,
+  'Preflight must not invoke a DoorGo business function');
+assert.doesNotMatch(glassSourcePreflight,/\bre_[A-Za-z0-9]{20,}\b|\beyJ[A-Za-z0-9_-]{40,}\b/,
+  'Preflight must not contain credential-shaped text');
+assert.doesNotMatch(glassSourcePreflight,/target_functions\s*\(signature\)|JOIN\s+target_functions/i,
+  'RPC discovery must not filter by rendered identity-argument strings');
+assert.match(glassSourcePreflight,/p\.proname IN \('dg_create_native_job','dg_update_native_job','dg_create_transferred_native_job'\)/,
+  'RPC discovery must begin with exact proname matching');
+assert.match(glassSourcePreflight,/p\.proargtypes::pg_catalog\.oid\[\] = ARRAY\[/,
+  'Expected logical signatures must be compared through normalized input type OIDs');
+for (const field of ['schema_name','function_name','function_kind','identity_arguments','arguments','argument_names','argument_modes',
+  'input_argument_type_oids','rendered_input_types','parallel_setting','strict','leakproof','execution_grants',
+  'matches_expected_logical_signature','exact_name_overload_count','diagnostic_fallback_needed','fallback_candidates']) {
+  assert.ok(glassSourcePreflight.includes(`'${field}'`), `Missing RPC catalog evidence: ${field}`);
+}
 for (const evidence of [
   'native_line_columns','native_line_constraints','native_line_indexes','native_line_security',
-  'write_rpc_definitions','dg_sequence_runtime_state','provenance_transfer_and_stale_revision_guards','migration_history',
+  'write_rpc_definitions','write_rpc_discovery_diagnostics','dg_sequence_runtime_state','provenance_transfer_and_stale_revision_guards',
+  'migration_history_candidates','supabase_migration_history','complete_column_definition','latest_25_rows','exact_row_count',
   'pg_get_functiondef','definition_md5','security_definer','calculated_next_candidate','direct_dimension_migration_already_recorded',
 ]) assert.ok(glassSourcePreflight.includes(evidence),`Missing direct-dimension preflight evidence: ${evidence}`);
 

@@ -3,7 +3,7 @@
 -- DO NOT USE AS A GENERAL DIRECT-DIMENSION ROLLBACK
 BEGIN;
 SET LOCAL lock_timeout='5s'; SET LOCAL statement_timeout='60s';
-DO $pre$ BEGIN IF (SELECT pg_catalog.md5(pg_catalog.pg_get_functiondef(oid)) FROM pg_catalog.pg_proc WHERE oid=pg_catalog.to_regprocedure('public.dg_update_native_job(uuid,bigint,jsonb,jsonb)'))<>'1c080e0832feb2821df8248e715f0c96' THEN RAISE EXCEPTION 'rollback.corrected_md5_mismatch'; END IF; END; $pre$;
+DO $pre$ BEGIN IF (SELECT pg_catalog.md5(pg_catalog.pg_get_functiondef(oid)) FROM pg_catalog.pg_proc WHERE oid=pg_catalog.to_regprocedure('public.dg_update_native_job(uuid,bigint,jsonb,jsonb)'))<>'be3117f9494d85c82adb2359bf2040d1' THEN RAISE EXCEPTION 'rollback.corrected_md5_mismatch'; END IF; END; $pre$;
 CREATE OR REPLACE FUNCTION public.dg_update_native_job(p_internal_job_id uuid, p_expected_revision bigint, p_header jsonb, p_lines jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql

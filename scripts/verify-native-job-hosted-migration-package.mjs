@@ -49,7 +49,7 @@ const validateUpdateCorrection = (sql) => {
   assert.equal((lower.match(/create or replace function public\.dg_[a-z0-9_]+/g)??[]).length,1,'Correction may replace only one RPC');
   assert.match(lower,/^\s*begin;[\s\S]*6819aa940c8e894c23601b73e870fd28[\s\S]*commit;\s*$/);
   for(const field of directFields) assert.ok(submittedLineAllowlist(definition).includes(`'${field}'`),`${field} must be in the executable submitted-line allowlist`);
-  for(const token of ['dg_validate_direct_dimension_glass_source','owner to postgres','security definer',"set search_path=''",'from public,anon,service_role','to authenticated','1c080e0832feb2821df8248e715f0c96']) assert.ok(lower.includes(token),`Correction missing ${token}`);
+  for(const token of ['dg_validate_direct_dimension_glass_source','owner to postgres','security definer',"set search_path=''",'from public,anon,service_role','to authenticated','be3117f9494d85c82adb2359bf2040d1']) assert.ok(lower.includes(token),`Correction missing ${token}`);
   assert.ok(lower.includes('if v_job.revision is distinct from p_expected_revision then'), 'Stale-revision behavior must remain present');
   assert.doesNotMatch(lower.replace(definition.toLowerCase(),''),/\b(?:alter table|create table|drop table|insert into|delete from|update public\.|nextval|setval|alter sequence|supabase_migrations)\b/);
 };

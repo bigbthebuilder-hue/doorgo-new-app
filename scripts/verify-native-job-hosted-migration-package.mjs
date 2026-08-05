@@ -14,6 +14,7 @@ const glassRegexProbe = read('scripts/read-only-direct-dimension-glass-regex-pro
 const glassRpcAcceptance = read('scripts/rollback-contained-direct-dimension-glass-rpc-acceptance.sql');
 const glassUpdateCorrection = read('supabase/migrations/20260805010000_fix_direct_dimension_update_rpc_allowlist.sql');
 const glassUpdateRollback = read('scripts/rollback-direct-dimension-update-rpc-allowlist.sql');
+const glassUpdateMd5Probe = read('scripts/rollback-contained-direct-dimension-update-rpc-md5-probe.sql');
 const preflight = read('scripts/inspect-native-job-hosted-preflight.sql');
 const application = read('scripts/verify-native-job-hosted-application.sql');
 const rollback = read('scripts/rollback-native-job-persistence.sql');
@@ -26,6 +27,19 @@ assert.equal(sha256(Buffer.from(glassRollback)), '0A6E96885BE49B2708C9BC5C36FDF9
 const updateDefinition = (sql) => sql.match(/CREATE OR REPLACE FUNCTION public\.dg_update_native_job\([\s\S]*?\n\$function\$;/i)?.[0];
 const submittedLineAllowlist = (definition) => definition?.match(/jsonb_array_elements\(p_lines\)[\s\S]*?jsonb_object_keys\(line\)[\s\S]*?ALL\(ARRAY\[([\s\S]*?)\]::text\[\]\)/i)?.[1] ?? '';
 const directFields = ['sidelight_specifications','transom_t_bar_size','transom_glass_type_code','transom_custom_glass_description'];
+const validateUpdateMd5Probe = (sql) => {
+  const code=stripComments(sql);const lower=code.toLowerCase();const definition=updateDefinition(code);assert.ok(definition,'Probe must temporarily replace the update RPC');
+  assert.match(lower,/^\s*begin;[\s\S]*\brollback;[\s\S]*post_rollback_restoration[\s\S]*overall_probe_passed[\s\S]*;\s*$/);
+  assert.doesNotMatch(lower,/\bcommit;|1c080e0832feb2821df8248e715f0c96/);
+  assert.equal((lower.match(/create or replace function public\.dg_[a-z0-9_]+/g)??[]).length,1);
+  assert.ok(lower.includes('6819aa940c8e894c23601b73e870fd28'),'Probe must require and verify the original hosted MD5');
+  for(const field of directFields)assert.ok(submittedLineAllowlist(definition).includes(`'${field}'`),`Probe allowlist missing ${field}`);
+  for(const evidence of ['candidate_function_md5','keys_present_in_executable_allowlist_not_only_comments_or_mappings','validator_call_present','all_four_persistence_mappings_present','stale_revision_guard_present','archive_and_merge_behavior_present','revision_increment_present','owner_correct','security_definer_correct','empty_search_path_correct','grants_correct','sequence_unchanged_before_rollback','candidate_contract_passed','restored_function_md5','restored_original_md5','sequence_last_value_unchanged','sequence_is_called_unchanged'])assert.ok(lower.includes(evidence),`Probe missing ${evidence}`);
+  assert.match(lower,/doorgo_probe\.sequence_last_value[\s\S]*doorgo_probe\.sequence_is_called/);
+  assert.doesNotMatch(lower.replace(definition.toLowerCase(),''),/\b(?:insert into|update public\.|delete from|nextval|setval|alter sequence|restart sequence|supabase_migrations)|dg_create_native_job\s*\(|dg_create_transferred_native_job\s*\(|dg_archive_native_job\s*\(/);
+};
+validateUpdateMd5Probe(glassUpdateMd5Probe);
+[glassUpdateMd5Probe.replace('ROLLBACK;','COMMIT;'),glassUpdateMd5Probe.replace('ROLLBACK;',''),glassUpdateMd5Probe.replace('CREATE OR REPLACE FUNCTION public.dg_update_native_job','CREATE OR REPLACE FUNCTION public.dg_create_native_job'),glassUpdateMd5Probe.replace("'sidelight_specifications',",''),glassUpdateMd5Probe.replaceAll('stale_revision_guard_present','stale_guard_removed'),glassUpdateMd5Probe.replaceAll('restored_original_md5','restoration_removed'),glassUpdateMd5Probe.replace('BEGIN;','BEGIN; SELECT nextval(\'x\');'),glassUpdateMd5Probe.replace('BEGIN;','BEGIN; DELETE FROM public.dg_native_jobs;')].forEach((bad,index)=>assert.throws(()=>validateUpdateMd5Probe(bad),`Probe negative ${index}`));
 const validateUpdateCorrection = (sql) => {
   const code=stripComments(sql); const lower=code.toLowerCase(); const definition=updateDefinition(code); assert.ok(definition,'Correction must replace the exact update RPC');
   assert.equal((lower.match(/create or replace function public\.dg_[a-z0-9_]+/g)??[]).length,1,'Correction may replace only one RPC');

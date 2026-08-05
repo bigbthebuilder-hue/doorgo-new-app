@@ -19,7 +19,7 @@ for (const [label, pattern] of [
 
 const model = await readFile('lib/jobs/work-order-document-contract.ts', 'utf8');
 for (const required of [
-  'generateWorkOrderDocument', 'calculateNonGlassFrameCut(line)', 'FIRST_PAGE_WEIGHT_CAPACITY = 22',
+  'generateWorkOrderDocument', 'calculateNonGlassFrameCut(outputLine)', 'withDerivedGlassGeometry(line)', 'FIRST_PAGE_WEIGHT_CAPACITY = 22',
   'CONTINUATION_PAGE_WEIGHT_CAPACITY = 26', 'formatWorkOrderPoNumbers', 'createWorkOrderPdfFilename',
   "line.lineStatus === 'Active'", 'sourceAggregateRevision', 'Manual Override',
 ]) assert.ok(model.includes(required), `J3A model missing ${required}`);

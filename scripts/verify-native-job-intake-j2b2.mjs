@@ -22,7 +22,7 @@ for (const required of [
   'Apply Manual Override', 'Remove Override', 'GlassUnitBuilder', 'Needs Attention',
   '54, 54 1/2, 54-1/2, or 54.5', 'aria-label={`${label}, inches`',
   'explicitGlassDetailNeeded', 'commitEditor()', 'setExplicitGlassDetailNeeded(explicitDetailNeeded)',
-  'resolvedConfiguration(config)', 'prepAfterHeightChange',
+  'resolvedConfiguration(config)', 'prepAfterHeightChange', 'replaceDoorLineAtIndex(lines, editingIndex, saved)',
 ]) assert.ok(workspace.includes(required), `J2B2 workspace missing ${required}`);
 assert.equal(/left.*sidelight.*type|right.*sidelight.*type/i.test(workspace), false, 'UI must not expose independent left/right sidelight type controls');
 assert.equal(workspace.includes('onChange((current)'), false, 'workspace must not update child state from a parent updater');
@@ -41,11 +41,12 @@ assert.ok(builder.includes('}, []);'), 'modal focus management must initialize o
 assert.equal(/repository\.|createBrowserClient|\.rpc\s*\(/.test(builder), false, 'builder must only update its isolated client draft');
 
 const diagram = await readFile('components/jobs/GlassUnitDiagram.tsx', 'utf8');
-for (const required of ['preserveAspectRatio="xMidYMid meet"', 'calculateGlassDiagramLayout(line)', 'layout.parts.map', 'data-kind', 'diagram-background']) assert.ok(diagram.includes(required));
+for (const required of ['preserveAspectRatio="xMidYMid meet"', 'calculateGlassDiagramLayout(line)', 'layout.parts.map', 'data-kind', 'diagram-background', 'var(--glass-diagram-background', 'var(--glass-diagram-stroke']) assert.ok(diagram.includes(required));
 assert.equal(/sideWidth\s*=\s*\d|transomHeight\s*=\s*\d|viewBox="0 0 100 100"/.test(diagram), false, 'React must not independently approximate physical diagram geometry');
 assert.equal(/https?:\/\//.test(diagram), false, 'diagram must not depend on external images');
 const css = await readFile('app/globals.css', 'utf8');
 for (const required of ['.glass-unit-diagram', '.diagram-background { fill: rgb(241 245 249)', '.diagram-frame { fill: none', '@media (prefers-color-scheme: dark)', '@media print']) assert.ok(css.includes(required));
+for (const required of ['--glass-diagram-background', '--glass-diagram-door', '--glass-diagram-glass', '--glass-diagram-bar', '.dark .glass-unit-diagram']) assert.ok(css.includes(required));
 assert.equal(/diagram-background[^}]*fill:\s*(?:black|#000|rgb\(0\s+0\s+0\))/i.test(css), false, 'light diagram background must not be solid black');
 const actions = await readFile('lib/jobs/job-intake-actions.ts', 'utf8');
 const service = await readFile('lib/jobs/job-intake-service.ts', 'utf8');

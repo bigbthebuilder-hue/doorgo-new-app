@@ -40,12 +40,27 @@ for (const config of GLASS_CONFIGS) {
   const result = calculateGlassGeometry(line({ config, roWidth: expected[config].roWidth, roHeight: transom ? '96' : '' }));
   assert.equal(result.status, 'Complete', `${config} calculates completely`);
   assert.equal(result.glassCalc?.headerWidth, expected[config].headerWidth, `${config} header formula`);
+  if (transom) assert.equal(result.glassCalc?.jambLeg, `95 1/2"`, `${config} jamb legs use the full transom-unit RO height`);
   if ('sidelightWidth' in expected[config]) assert.equal(result.glassCalc?.sidelightWidth, expected[config].sidelightWidth, `${config} sidelight formula`);
   if ('transomWidth' in expected[config]) assert.equal(result.glassCalc?.transomWidth, expected[config].transomWidth, `${config} transom formula`);
   assert.equal(result.vendorCopyText.length > 0, true, `${config} vendor output`);
   assert.equal(/\d'/.test(result.workorderDetail), false, `${config} work order uses inches-only geometry`);
   assert.equal(/\d'/.test(result.vendorCopyText), false, `${config} vendor copy uses inches-only geometry`);
 }
+
+const acceptedTransfer = calculateGlassGeometry(line({
+  config: 'T/DS', hand: 'RHOUT', roWidth: '54', roHeight: '98',
+  sidelightGlass: 'CLR_SB60_K4SG', transomGlass: 'CLR_SB60_K4SG',
+}));
+assert.equal(acceptedTransfer.status, 'Complete');
+assert.equal(acceptedTransfer.glassCalc?.jambLeg, `97 1/2"`);
+assert.equal(acceptedTransfer.glassCalc?.headerWidth, `52"`);
+assert.deepEqual(acceptedTransfer.glassUnits.map(({ position, width, height }) => ({ position, width, height })), [
+  { position: 'Right sidelight 1', width: `13 5/8"`, height: `79 1/8"` },
+  { position: 'Transom', width: `51 7/8"`, height: `14 1/8"` },
+]);
+assert.match(acceptedTransfer.workorderDetail, /Jamb legs: 97 1\/2"/);
+assert.doesNotMatch(JSON.stringify(acceptedTransfer), /NaN|Infinity|"-\d/);
 
 assert.equal(line().width, `3'0"`, 'nominal door width remains feet/inches');
 assert.equal(line().height, `6'8"`, 'nominal door height remains feet/inches');
@@ -159,9 +174,10 @@ const standardTransomRepeated = calculateGlassGeometry(line({
 const tallTransomRepeated = calculateGlassGeometry(line({
   config: 'T/DSSS', height: `8'0"`, roWidth: '80', roHeight: '112',
 }));
-assert.equal(standardTransomRepeated.glassCalc?.jambLeg, tallTransomRepeated.glassCalc?.jambLeg, 'transom RO height does not lengthen jamb legs');
+assert.equal(standardTransomRepeated.glassCalc?.jambLeg, `105 1/2"`, 'transom jamb legs use RO height minus one half inch');
+assert.equal(tallTransomRepeated.glassCalc?.jambLeg, `111 1/2"`, 'taller transom RO lengthens the full-unit jamb legs');
 assert.equal(standardTransomRepeated.glassCalc?.sidelightHeight, tallTransomRepeated.glassCalc?.sidelightHeight, 'transom RO height does not lengthen sidelights');
-assert.notEqual(standardTransomRepeated.glassCalc?.transomHeight, tallTransomRepeated.glassCalc?.transomHeight, 'additional transom RO height changes only the transom height');
+assert.notEqual(standardTransomRepeated.glassCalc?.transomHeight, tallTransomRepeated.glassCalc?.transomHeight, 'additional transom RO height changes transom height');
 const repeatedGlassMissingTransom = calculateGlassGeometry(line({
   config: 'T/DSSS', roWidth: '96', roHeight: '100', sidelightType: 'Glass',
   sidelightGlass: 'CLR_SB60_K4SG', transomGlass: '',

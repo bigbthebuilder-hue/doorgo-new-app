@@ -13,6 +13,7 @@ import { HINGE_COLOR_OPTIONS, normalizeHingeColor } from '@/lib/jobs/hinge-contr
 import { DoorLineWorkspace } from './DoorLineWorkspace';
 import { JobArchiveControl, jobArchiveTarget } from './JobArchiveControl';
 import { WorkOrderSendEntryButton } from './WorkOrderSendEntryButton';
+import { LegacyTransferEvidenceSummary } from './LegacyTransferEvidenceSummary';
 
 type FormValues = {
   bizTrackSalesOrder: string;
@@ -236,9 +237,7 @@ export function JobHeaderForm({
         <p>Source saved: {transferReview.sourceSavedAt} · Exported: {transferReview.exportedAt}</p>
         <p className="mt-2">No native job, UUID, revision, or new DoorGo reference exists until you select Save as Native Job.</p>
         <p>The legacy source must be archived manually only after the saved native job is reopened and verified.</p>
-        {transferReview.warnings.length ? <div className="mt-3"><h3 className="font-semibold">Warnings</h3><ul className="list-disc pl-5">{transferReview.warnings.map((issue, index) => <li key={`${issue.code}-${issue.path}-${index}`}>{issue.message} <span className="text-xs">({issue.path})</span></li>)}</ul></div> : null}
-        {transferReview.blockers.length ? <div className="mt-3 text-rose-800 dark:text-rose-200"><h3 className="font-semibold">Blocking issues</h3><ul className="list-disc pl-5">{transferReview.blockers.map((issue, index) => <li key={`${issue.code}-${issue.path}-${index}`}>{issue.message} <span className="text-xs">({issue.path})</span></li>)}</ul></div> : null}
-        {transferReview.unsupportedFields.length ? <p className="mt-3"><strong>Unsupported source fields:</strong> {transferReview.unsupportedFields.join(', ')}</p> : null}
+        <LegacyTransferEvidenceSummary blockers={transferReview.blockers} unsupportedFields={transferReview.unsupportedFields} warnings={transferReview.warnings}/>
       </section> : null}
       <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">Confirmation requires at least one valid active door line. Saving or confirming does not schedule production or create fulfillment or Calendar records.</p>
 

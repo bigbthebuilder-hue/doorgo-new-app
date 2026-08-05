@@ -9,6 +9,7 @@ import type {
   UnifiedTransferIdentifier,
 } from './legacy-transfer-types';
 import { validateLegacyTransferPayload } from './legacy-transfer-validation';
+import { uniqueLegacyTransferFields, uniqueLegacyTransferIssues } from './legacy-transfer-review-presentation';
 
 function value<T>(field: LegacyTransferField<T>): T | null {
   return field.state === 'value' ? field.value : null;
@@ -59,9 +60,17 @@ function line(payload: LegacyJobTransferPayloadV1, index: number): DoorLineInput
   };
 }
 
+function lineEvidencePath(field: string, index: number): string {
+  return /^lines\.\d+\./.test(field) ? field : `lines.${index}.${field}`;
+}
+
 function evidence(payload: LegacyJobTransferPayloadV1): LegacyTransferIssue[] {
-  return [...payload.review_evidence, ...payload.lines.flatMap((entry) => entry.review_evidence)]
-    .map((entry) => ({ code: entry.code, path: entry.field, message: entry.message }));
+  return [
+    ...payload.review_evidence.map((entry) => ({ code: entry.code, path: entry.field, message: entry.message })),
+    ...payload.lines.flatMap((line, index) => line.review_evidence.map((entry) => ({
+      code: entry.code, path: lineEvidencePath(entry.field, index), message: entry.message,
+    }))),
+  ];
 }
 
 export function mapLegacyTransferToUnsavedEditor(input: string | unknown): LegacyTransferMappingResult {
@@ -94,11 +103,17 @@ export function mapLegacyTransferToUnsavedEditor(input: string | unknown): Legac
   payload.lines.forEach((entry, index) => {
     if (value(entry.fields.glass_inputs)) review.push({ code: 'glass_recalculation_required', path: `lines.${index}.glass_inputs`, message: 'Review authoritative glass inputs and run the native glass builder before Save.' });
   });
-  const declaredBlockers = [...payload.review_evidence, ...payload.lines.flatMap((entry) => entry.review_evidence)]
-    .filter((entry) => entry.severity === 'blocker').map((entry) => ({ code: entry.code, path: entry.field, message: entry.message }));
+  const declaredBlockers = [
+    ...payload.review_evidence.filter((entry) => entry.severity === 'blocker').map((entry) => ({ code: entry.code, path: entry.field, message: entry.message })),
+    ...payload.lines.flatMap((line, index) => line.review_evidence.filter((entry) => entry.severity === 'blocker').map((entry) => ({
+      code: entry.code, path: lineEvidencePath(entry.field, index), message: entry.message,
+    }))),
+  ];
   blockers.push(...declaredBlockers);
-  const unsupportedFields = [...payload.review_evidence, ...payload.lines.flatMap((entry) => entry.review_evidence)]
-    .filter((entry) => entry.code.includes('unsupported')).map((entry) => entry.field);
+  const unsupportedFields = uniqueLegacyTransferFields([
+    ...payload.review_evidence.filter((entry) => entry.code.includes('unsupported')).map((entry) => entry.field),
+    ...payload.lines.flatMap((line, index) => line.review_evidence.filter((entry) => entry.code.includes('unsupported')).map((entry) => lineEvidencePath(entry.field, index))),
+  ]);
   return {
     ok: true,
     editor: { saved: false, internalJobId: null, doorGoReference: null, revision: null, primaryIdentifier: identifier(payload), header: editorHeader, lines: editorLines },
@@ -110,7 +125,7 @@ export function mapLegacyTransferToUnsavedEditor(input: string | unknown): Legac
       sourceJobFields: payload.job,
       sourceLineFields: payload.lines.map((entry) => ({ transferLineId: entry.transfer_line_id, sourceLineIndex: entry.source_line_index, fields: entry.fields })),
     },
-    warnings: review.filter((issue) => !declaredBlockers.some((blocker) => blocker.code === issue.code && blocker.path === issue.path)),
-    blockers, unsupportedFields,
+    warnings: uniqueLegacyTransferIssues(review.filter((issue) => !declaredBlockers.some((blocker) => blocker.code === issue.code && blocker.path === issue.path))),
+    blockers: uniqueLegacyTransferIssues(blockers), unsupportedFields,
   };
 }

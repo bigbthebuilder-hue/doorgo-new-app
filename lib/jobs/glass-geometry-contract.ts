@@ -210,7 +210,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   const deduction = outswing ? 2 : 2.25;
   const fullHeightJambLeg = slab.height + deduction;
   if (topology.hasTransom) {
-    jambLeg = fullHeightJambLeg;
+    jambLeg = (roH as number) - 0.5;
     finalDoorHeight = slab.height;
   } else {
     standardRoHeight = slab.height + deduction + 0.5;
@@ -383,4 +383,10 @@ export function normalizeGlassDomainFields(input: DoorLineInput): Pick<NativeDoo
     transomGlass: text(input.transomGlass ?? input.glass), sidelightMeasurementLeft: text(input.sidelightMeasurementLeft),
     sidelightMeasurementRight: text(input.sidelightMeasurementRight), panelSidelightWidth: text(result.glassCalc?.panelWidth ?? input.panelSidelightWidth), panelSidelights: result.panelSidelights,
   };
+}
+
+export function withDerivedGlassGeometry<T extends DoorLineInput>(input: T): T {
+  if (!isGlassConfiguration(input.config)) return input;
+  const derived = normalizeGlassDomainFields(input);
+  return derived.glassCalc ? { ...input, ...derived } : input;
 }

@@ -181,6 +181,16 @@ async function main() {
     glassUnits: correctedTallGeometry.glassUnits, glassWarnings: correctedTallGeometry.warnings,
   }), null);
   assert.match(correctedTallWorkOrder.detailRows.flatMap((row) => row.lines).join('\n'), /Jamb legs: 97 1\/4"/, 'J3A detail consumes the corrected saved jamb-leg result');
+  const acceptedTransomInput = line({
+    mode: 'Exterior', config: 'T/DS', width: `3'0"`, height: `6'8"`, material: 'fiberglass', hand: 'RHOUT',
+    roWidth: '54', roHeight: '98', sidelightType: 'Glass', sidelightGlass: 'CLR_SB60_K4SG', transomGlass: 'CLR_SB60_K4SG',
+    glassCalcStatus: 'Complete', glassCalc: { jambLeg: `81"` }, glassWorkorderDetail: 'Jamb legs: 81"',
+  });
+  const acceptedTransomWorkOrder = createWorkOrderRowGroup(acceptedTransomInput, null);
+  const acceptedTransomText = acceptedTransomWorkOrder.detailRows.flatMap((row) => row.lines).join('\n');
+  assert.match(acceptedTransomText, /Jamb legs: 97 1\/2"/, 'J3A derives corrected transom jamb legs from saved source inputs');
+  assert.doesNotMatch(acceptedTransomText, /Jamb legs: 81"/);
+  assert.match(acceptedTransomText, /Header\/Sill\/T-bar: 52"/);
   const fourRepeated = createWorkOrderRowGroup(line({
     mode: 'Exterior', config: 'SSDSS', material: 'fiberglass', glassCalcStatus: 'Complete',
     sidelightType: 'Glass', glassCalc: { headerWidth: `94"` },

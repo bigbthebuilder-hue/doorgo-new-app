@@ -3,6 +3,7 @@ import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-gl
 import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate } from './job-intake-types';
 import { normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
 import { calculatePersistedGlassDiagramLayout, type GlassDiagramLayout } from './glass-diagram-contract';
+import { withDerivedGlassGeometry } from './glass-geometry-contract';
 import { isFrameGlassConfiguration } from './glass-unit-composition-contract';
 import { unifiedJobIdentifier } from './unified-job-identifier';
 
@@ -301,28 +302,29 @@ function compactWorkOrderDetails(details: WorkOrderDetailRow[]): WorkOrderDetail
 
 export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string | null): WorkOrderRowGroup {
   const glassConfiguration = isFrameGlassConfiguration(line.config);
-  const nonGlassResult = glassConfiguration ? null : calculateNonGlassFrameCut(line);
+  const outputLine = glassConfiguration ? withDerivedGlassGeometry(line) : line;
+  const nonGlassResult = glassConfiguration ? null : calculateNonGlassFrameCut(outputLine);
   const status = glassConfiguration
-    ? presentationStatus(line)
+    ? presentationStatus(outputLine)
     : nonGlassResult?.status === 'Blocked' || nonGlassResult?.status === 'Incomplete'
       ? 'Blocked'
       : 'Complete';
-  const details = compactWorkOrderDetails(glassConfiguration ? glassDetailRows(line) : nonGlassDetailRows(nonGlassResult!));
+  const details = compactWorkOrderDetails(glassConfiguration ? glassDetailRows(outputLine) : nonGlassDetailRows(nonGlassResult!));
   const detailLineCount = details.flatMap((row) => row.lines).filter(Boolean).length;
   return {
     primaryRow: {
-      lineId: line.lineId, lineIndex: line.lineIndex, status,
+      lineId: outputLine.lineId, lineIndex: outputLine.lineIndex, status,
       cells: {
-        quantity: String(line.qty), configuration: text(line.config), size: sizeDisplay(line),
-        thickness: text(line.doorThickness) || (line.mode === 'Interior' ? '1-3/8' : '1-3/4'),
-        doorType: text(line.doorType), drill: prepDisplay(line.prep), hinge: workOrderHingeDisplay({ ...line, hingeColor }),
-        swing: isNoJamb(line) ? '' : text(line.hand), jamb: jambDisplay(line), sill: text(line.sill),
-        weatherstrip: text(line.weatherstrip), notesGlass: notesGlass(line, status),
+        quantity: String(outputLine.qty), configuration: text(outputLine.config), size: sizeDisplay(outputLine),
+        thickness: text(outputLine.doorThickness) || (outputLine.mode === 'Interior' ? '1-3/8' : '1-3/4'),
+        doorType: text(outputLine.doorType), drill: prepDisplay(outputLine.prep), hinge: workOrderHingeDisplay({ ...outputLine, hingeColor }),
+        swing: isNoJamb(outputLine) ? '' : text(outputLine.hand), jamb: jambDisplay(outputLine), sill: text(outputLine.sill),
+        weatherstrip: text(outputLine.weatherstrip), notesGlass: notesGlass(outputLine, status),
       },
     },
     detailRows: details,
     weightedUnits: 1 + (detailLineCount ? Math.max(2, Math.ceil(detailLineCount / 3)) : 0),
-    diagram: glassConfiguration && line.includeDiagramOnWorkOrder !== false ? calculatePersistedGlassDiagramLayout(line) : null,
+    diagram: glassConfiguration && outputLine.includeDiagramOnWorkOrder !== false ? calculatePersistedGlassDiagramLayout(outputLine) : null,
   };
 }
 

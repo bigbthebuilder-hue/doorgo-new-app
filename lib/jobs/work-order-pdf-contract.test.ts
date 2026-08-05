@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { decodePDFRawStream, PDFArray, PDFDocument, PDFRawStream, StandardFonts } from 'pdf-lib';
 import { resolveCurrentDoorGoAccess } from '../auth/access';
 import { JobIntakeFailure, type NativeDoorLine, type NativeJobAggregate } from './job-intake-types';
+import { calculateGlassGeometry } from './glass-geometry-contract';
 import { createWorkOrderRowGroup, generateWorkOrderDocument, type WorkOrderDocument, type WorkOrderRowGroup } from './work-order-document-contract';
 import { calculateWorkOrderDiagramBounds, measureWorkOrderGroup, normalizeWorkOrderPdfText, printedWorkOrderStatusLabel, renderWorkOrderPdf, WORK_ORDER_PDF_COLUMN_WIDTHS, WORK_ORDER_PDF_TEXT_SIZES, WORK_ORDER_PDF_UNSUPPORTED_CHARACTER_FALLBACK, workOrderPdfHeaders } from './work-order-pdf-contract';
 import { generateRevisionPinnedSavedWorkOrderPdfWithAccess, generateSavedWorkOrderPdfWithAccess } from './work-order-pdf-service-contract';
@@ -66,6 +67,16 @@ async function main() {
   })] }), generation);
   assert.equal(cleanedGlassDocument.rowGroups[0].primaryRow.cells.notesGlass, 'RO 75" × 99"', 'preview document model omits the generic Glass marker');
   assert.ok((await renderWorkOrderPdf(cleanedGlassDocument)).length > 500, 'PDF consumes the same cleaned projected document model');
+  const acceptedTransomSource = line({
+    mode: 'Exterior', config: 'T/DS', width: `3'0"`, height: `6'8"`, material: 'fiberglass', hand: 'RHOUT',
+    roWidth: '54', roHeight: '98', sidelightType: 'Glass', sidelightGlass: 'CLR_SB60_K4SG', transomGlass: 'CLR_SB60_K4SG',
+    glassCalcStatus: 'Complete', glassCalc: { jambLeg: `81"` }, glassWorkorderDetail: 'Jamb legs: 81"',
+  });
+  assert.equal(calculateGlassGeometry(acceptedTransomSource).glassCalc?.jambLeg, `97 1/2"`);
+  const acceptedTransomDocument = generateWorkOrderDocument(aggregate({ lines: [acceptedTransomSource] }), generation);
+  const acceptedTransomPdfText = await extractedWinAnsiText(await renderWorkOrderPdf(acceptedTransomDocument));
+  assert.ok(acceptedTransomPdfText.includes('Jamb legs: 97 1/2"'), 'PDF text uses the shared corrected transom jamb-leg result');
+  assert.equal(acceptedTransomPdfText.includes('Jamb legs: 81"'), false);
   const measurementPdf = await PDFDocument.create();
   const measurementFont = await measurementPdf.embedFont(StandardFonts.Helvetica);
   const measurementBold = await measurementPdf.embedFont(StandardFonts.HelveticaBold);

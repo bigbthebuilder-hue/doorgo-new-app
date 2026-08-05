@@ -18,6 +18,7 @@ DROP FUNCTION public.dg_list_native_jobs(boolean,integer,timestamptz,uuid);
 
 DROP TABLE public.dg_native_job_create_commands;
 DROP TABLE public.dg_native_job_lines;
+DROP FUNCTION IF EXISTS public.dg_validate_direct_dimension_glass_source(jsonb);
 DROP TABLE public.dg_native_jobs;
 DROP SEQUENCE public.dg_native_job_reference_seq;
 

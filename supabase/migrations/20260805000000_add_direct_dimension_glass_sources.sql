@@ -2,12 +2,105 @@
 -- UNAPPLIED: this migration requires separate hosted authorization.
 BEGIN;
 
+CREATE OR REPLACE FUNCTION public.dg_validate_direct_dimension_glass_source(p_line jsonb)
+RETURNS boolean
+LANGUAGE plpgsql
+IMMUTABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  v_specifications jsonb := COALESCE(NULLIF(p_line->'sidelight_specifications', 'null'::jsonb), '[]'::jsonb);
+  v_specification jsonb;
+  v_key text;
+  v_index numeric;
+  v_identity text;
+  v_identities text[] := ARRAY[]::text[];
+BEGIN
+  -- Persistence rejects malformed structure and bounded scalar sources. The shared
+  -- application geometry engine remains authoritative for topology and dimensions.
+  IF pg_catalog.jsonb_typeof(p_line) <> 'object'
+    OR pg_catalog.jsonb_typeof(v_specifications) <> 'array'
+  THEN RETURN false; END IF;
+
+  FOR v_specification IN SELECT value FROM pg_catalog.jsonb_array_elements(v_specifications) LOOP
+    IF pg_catalog.jsonb_typeof(v_specification) <> 'object' THEN RETURN false; END IF;
+    FOR v_key IN SELECT key FROM pg_catalog.jsonb_object_keys(v_specification) AS key LOOP
+      IF v_key <> ALL(ARRAY[
+        'side','index','finishedWidth','tBarSize','glassTypeCode','customGlassDescription',
+        'panelSizeMode','panelConstructionNotes'
+      ]::text[]) THEN RETURN false; END IF;
+    END LOOP;
+
+    IF NOT (v_specification ? 'side')
+      OR pg_catalog.jsonb_typeof(v_specification->'side') <> 'string'
+      OR v_specification->>'side' NOT IN ('left','right')
+      OR NOT (v_specification ? 'index')
+      OR pg_catalog.jsonb_typeof(v_specification->'index') <> 'number'
+    THEN RETURN false; END IF;
+    v_index := (v_specification->>'index')::numeric;
+    IF v_index <> pg_catalog.trunc(v_index) OR v_index < 1 OR v_index > 3 THEN RETURN false; END IF;
+    v_identity := (v_specification->>'side') || ':' || v_index::integer::text;
+    IF v_identity = ANY(v_identities) THEN RETURN false; END IF;
+    v_identities := pg_catalog.array_append(v_identities, v_identity);
+
+    IF v_specification ? 'finishedWidth' AND v_specification->'finishedWidth' <> 'null'::jsonb
+      AND (pg_catalog.jsonb_typeof(v_specification->'finishedWidth') IS DISTINCT FROM 'string'
+        OR pg_catalog.length(pg_catalog.btrim(v_specification->>'finishedWidth')) NOT BETWEEN 1 AND 32
+        OR pg_catalog.btrim(v_specification->>'finishedWidth') !~ $dimension$^[0-9[:space:]./'"′’″“”-]+$$dimension$)
+    THEN RETURN false; END IF;
+    IF v_specification ? 'tBarSize' AND v_specification->'tBarSize' <> 'null'::jsonb
+      AND (pg_catalog.jsonb_typeof(v_specification->'tBarSize') IS DISTINCT FROM 'string'
+        OR v_specification->>'tBarSize' NOT IN ('1.5','2.25'))
+    THEN RETURN false; END IF;
+    IF v_specification ? 'glassTypeCode' AND v_specification->'glassTypeCode' <> 'null'::jsonb
+      AND (pg_catalog.jsonb_typeof(v_specification->'glassTypeCode') IS DISTINCT FROM 'string'
+        OR v_specification->>'glassTypeCode' NOT IN ('CLEAR','SATIN_ETCH','CUSTOM'))
+    THEN RETURN false; END IF;
+    IF v_specification ? 'customGlassDescription' AND v_specification->'customGlassDescription' <> 'null'::jsonb
+      AND (pg_catalog.jsonb_typeof(v_specification->'customGlassDescription') IS DISTINCT FROM 'string'
+        OR pg_catalog.length(v_specification->>'customGlassDescription') > 200)
+    THEN RETURN false; END IF;
+    IF v_specification->>'glassTypeCode' = 'CUSTOM'
+      AND (pg_catalog.jsonb_typeof(v_specification->'customGlassDescription') IS DISTINCT FROM 'string'
+        OR pg_catalog.length(pg_catalog.btrim(v_specification->>'customGlassDescription')) NOT BETWEEN 1 AND 200)
+    THEN RETURN false; END IF;
+    IF v_specification ? 'panelSizeMode' AND v_specification->'panelSizeMode' <> 'null'::jsonb
+      AND (pg_catalog.jsonb_typeof(v_specification->'panelSizeMode') IS DISTINCT FROM 'string'
+        OR v_specification->>'panelSizeMode' NOT IN ('standard','custom'))
+    THEN RETURN false; END IF;
+    IF v_specification ? 'panelConstructionNotes' AND v_specification->'panelConstructionNotes' <> 'null'::jsonb
+      AND (pg_catalog.jsonb_typeof(v_specification->'panelConstructionNotes') IS DISTINCT FROM 'string'
+        OR pg_catalog.length(v_specification->>'panelConstructionNotes') > 1000)
+    THEN RETURN false; END IF;
+  END LOOP;
+
+  IF p_line ? 'transom_t_bar_size' AND p_line->'transom_t_bar_size' <> 'null'::jsonb
+    AND (pg_catalog.jsonb_typeof(p_line->'transom_t_bar_size') IS DISTINCT FROM 'string'
+      OR p_line->>'transom_t_bar_size' NOT IN ('1.5','2.25'))
+  THEN RETURN false; END IF;
+  IF p_line ? 'transom_glass_type_code' AND p_line->'transom_glass_type_code' <> 'null'::jsonb
+    AND (pg_catalog.jsonb_typeof(p_line->'transom_glass_type_code') IS DISTINCT FROM 'string'
+      OR p_line->>'transom_glass_type_code' NOT IN ('CLEAR','SATIN_ETCH','CUSTOM'))
+  THEN RETURN false; END IF;
+  IF p_line ? 'transom_custom_glass_description' AND p_line->'transom_custom_glass_description' <> 'null'::jsonb
+    AND (pg_catalog.jsonb_typeof(p_line->'transom_custom_glass_description') IS DISTINCT FROM 'string'
+      OR pg_catalog.length(p_line->>'transom_custom_glass_description') > 200)
+  THEN RETURN false; END IF;
+  IF p_line->>'transom_glass_type_code' = 'CUSTOM'
+    AND (pg_catalog.jsonb_typeof(p_line->'transom_custom_glass_description') IS DISTINCT FROM 'string'
+      OR pg_catalog.length(pg_catalog.btrim(p_line->>'transom_custom_glass_description')) NOT BETWEEN 1 AND 200)
+  THEN RETURN false; END IF;
+  RETURN true;
+END;
+$$;
+
 ALTER TABLE public.dg_native_job_lines
   ADD COLUMN sidelight_specifications jsonb NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN transom_t_bar_size text NULL,
   ADD COLUMN transom_glass_type_code text NULL,
   ADD COLUMN transom_custom_glass_description text NULL,
-  ADD CONSTRAINT dg_native_job_lines_sidelight_specifications_array CHECK (pg_catalog.jsonb_typeof(sidelight_specifications) = 'array'),
+  ADD CONSTRAINT dg_native_job_lines_sidelight_specifications_shape CHECK (public.dg_validate_direct_dimension_glass_source(pg_catalog.jsonb_build_object('sidelight_specifications', sidelight_specifications))),
   ADD CONSTRAINT dg_native_job_lines_sidelight_t_bar_sizes CHECK (NOT pg_catalog.jsonb_path_exists(sidelight_specifications, '$[*] ? (@.tBarSize != null && @.tBarSize != "1.5" && @.tBarSize != "2.25")')),
   ADD CONSTRAINT dg_native_job_lines_sidelight_glass_codes CHECK (NOT pg_catalog.jsonb_path_exists(sidelight_specifications, '$[*] ? (@.glassTypeCode != null && @.glassTypeCode != "CLEAR" && @.glassTypeCode != "SATIN_ETCH" && @.glassTypeCode != "CUSTOM")')),
   ADD CONSTRAINT dg_native_job_lines_panel_size_modes CHECK (NOT pg_catalog.jsonb_path_exists(sidelight_specifications, '$[*] ? (@.panelSizeMode != null && @.panelSizeMode != "standard" && @.panelSizeMode != "custom")')),
@@ -220,20 +313,7 @@ BEGIN
   THEN RAISE EXCEPTION USING MESSAGE = 'native_job.validation_failed'; END IF;
   IF EXISTS (
     SELECT 1 FROM pg_catalog.jsonb_array_elements(p_lines) AS line
-    WHERE pg_catalog.jsonb_typeof(COALESCE(line->'sidelight_specifications','[]'::jsonb)) <> 'array'
-       OR (NULLIF(line->>'transom_t_bar_size','') IS NOT NULL AND line->>'transom_t_bar_size' NOT IN ('1.5','2.25'))
-       OR (NULLIF(line->>'transom_glass_type_code','') IS NOT NULL AND line->>'transom_glass_type_code' NOT IN ('CLEAR','SATIN_ETCH','CUSTOM'))
-       OR EXISTS (
-         SELECT 1 FROM pg_catalog.jsonb_array_elements(COALESCE(line->'sidelight_specifications','[]'::jsonb)) AS specification
-         WHERE pg_catalog.jsonb_typeof(specification) <> 'object'
-            OR specification->>'side' NOT IN ('left','right')
-            OR COALESCE((specification->>'index')::integer,0) < 1
-            OR (NULLIF(specification->>'tBarSize','') IS NOT NULL AND specification->>'tBarSize' NOT IN ('1.5','2.25'))
-            OR (NULLIF(specification->>'glassTypeCode','') IS NOT NULL AND specification->>'glassTypeCode' NOT IN ('CLEAR','SATIN_ETCH','CUSTOM'))
-            OR (NULLIF(specification->>'panelSizeMode','') IS NOT NULL AND specification->>'panelSizeMode' NOT IN ('standard','custom'))
-            OR (specification->>'glassTypeCode' = 'CUSTOM' AND NULLIF(pg_catalog.btrim(specification->>'customGlassDescription'),'') IS NULL)
-       )
-       OR (line->>'transom_glass_type_code' = 'CUSTOM' AND NULLIF(pg_catalog.btrim(line->>'transom_custom_glass_description'),'') IS NULL)
+    WHERE NOT public.dg_validate_direct_dimension_glass_source(line)
   ) THEN RAISE EXCEPTION USING MESSAGE = 'native_job.validation_failed'; END IF;
 
   IF (SELECT pg_catalog.count(*) FROM pg_catalog.jsonb_array_elements(p_lines) AS line WHERE line ? 'line_id')
@@ -261,7 +341,7 @@ BEGIN
     SELECT COALESCE(pg_catalog.max((item->>'line_index')::integer),0) AS max_index
     FROM pg_catalog.jsonb_array_elements(p_lines) AS item
   ), aggregate_bound AS (
-    SELECT pg_catalog.greatest(COALESCE(pg_catalog.max(line.line_index),0),submitted_bound.max_index) AS max_index
+    SELECT GREATEST(COALESCE(pg_catalog.max(line.line_index),0),submitted_bound.max_index) AS max_index
     FROM public.dg_native_job_lines AS line CROSS JOIN submitted_bound
     WHERE line.internal_job_id=p_internal_job_id
     GROUP BY submitted_bound.max_index
@@ -304,7 +384,7 @@ BEGIN
       NULLIF(v_line->'glass_override','null'::jsonb),COALESCE(v_line->'glass_units','[]'::jsonb),NULLIF(v_line->'glass_calc','null'::jsonb),
       NULLIF(v_line->>'sidelight_type',''),NULLIF(v_line->>'sidelight_glass',''),NULLIF(v_line->>'transom_glass',''),
       NULLIF(v_line->>'sidelight_measurement_left',''),NULLIF(v_line->>'sidelight_measurement_right',''),
-      NULLIF(v_line->>'panel_sidelight_width',''),COALESCE(v_line->'panel_sidelights','[]'::jsonb),COALESCE(v_line->'sidelight_specifications','[]'::jsonb),
+      NULLIF(v_line->>'panel_sidelight_width',''),COALESCE(v_line->'panel_sidelights','[]'::jsonb),COALESCE(NULLIF(v_line->'sidelight_specifications','null'::jsonb),'[]'::jsonb),
       NULLIF(v_line->>'transom_t_bar_size',''),NULLIF(v_line->>'transom_glass_type_code',''),NULLIF(v_line->>'transom_custom_glass_description',''),
       COALESCE((v_line->>'include_diagram_on_work_order')::boolean,true),v_now,v_now,v_actor,v_actor
     ) ON CONFLICT (line_id) DO UPDATE SET
@@ -429,20 +509,7 @@ BEGIN
   THEN RAISE EXCEPTION USING MESSAGE = 'native_job.validation_failed'; END IF;
   IF EXISTS (
     SELECT 1 FROM pg_catalog.jsonb_array_elements(p_lines) AS line
-    WHERE pg_catalog.jsonb_typeof(COALESCE(line->'sidelight_specifications','[]'::jsonb)) <> 'array'
-       OR (NULLIF(line->>'transom_t_bar_size','') IS NOT NULL AND line->>'transom_t_bar_size' NOT IN ('1.5','2.25'))
-       OR (NULLIF(line->>'transom_glass_type_code','') IS NOT NULL AND line->>'transom_glass_type_code' NOT IN ('CLEAR','SATIN_ETCH','CUSTOM'))
-       OR EXISTS (
-         SELECT 1 FROM pg_catalog.jsonb_array_elements(COALESCE(line->'sidelight_specifications','[]'::jsonb)) AS specification
-         WHERE pg_catalog.jsonb_typeof(specification) <> 'object'
-            OR specification->>'side' NOT IN ('left','right')
-            OR COALESCE((specification->>'index')::integer,0) < 1
-            OR (NULLIF(specification->>'tBarSize','') IS NOT NULL AND specification->>'tBarSize' NOT IN ('1.5','2.25'))
-            OR (NULLIF(specification->>'glassTypeCode','') IS NOT NULL AND specification->>'glassTypeCode' NOT IN ('CLEAR','SATIN_ETCH','CUSTOM'))
-            OR (NULLIF(specification->>'panelSizeMode','') IS NOT NULL AND specification->>'panelSizeMode' NOT IN ('standard','custom'))
-            OR (specification->>'glassTypeCode' = 'CUSTOM' AND NULLIF(pg_catalog.btrim(specification->>'customGlassDescription'),'') IS NULL)
-       )
-       OR (line->>'transom_glass_type_code' = 'CUSTOM' AND NULLIF(pg_catalog.btrim(line->>'transom_custom_glass_description'),'') IS NULL)
+    WHERE NOT public.dg_validate_direct_dimension_glass_source(line)
   ) THEN RAISE EXCEPTION USING MESSAGE = 'native_job.validation_failed'; END IF;
 
   IF (SELECT pg_catalog.count(*) FROM pg_catalog.jsonb_array_elements(p_lines) AS line WHERE line ? 'line_id')
@@ -513,7 +580,7 @@ BEGIN
       NULLIF(v_line->'glass_override','null'::jsonb),COALESCE(v_line->'glass_units','[]'::jsonb),NULLIF(v_line->'glass_calc','null'::jsonb),
       NULLIF(v_line->>'sidelight_type',''),NULLIF(v_line->>'sidelight_glass',''),NULLIF(v_line->>'transom_glass',''),
       NULLIF(v_line->>'sidelight_measurement_left',''),NULLIF(v_line->>'sidelight_measurement_right',''),
-      NULLIF(v_line->>'panel_sidelight_width',''),COALESCE(v_line->'panel_sidelights','[]'::jsonb),COALESCE(v_line->'sidelight_specifications','[]'::jsonb),
+      NULLIF(v_line->>'panel_sidelight_width',''),COALESCE(v_line->'panel_sidelights','[]'::jsonb),COALESCE(NULLIF(v_line->'sidelight_specifications','null'::jsonb),'[]'::jsonb),
       NULLIF(v_line->>'transom_t_bar_size',''),NULLIF(v_line->>'transom_glass_type_code',''),NULLIF(v_line->>'transom_custom_glass_description',''),
       COALESCE((v_line->>'include_diagram_on_work_order')::boolean,true),v_now,v_now,v_actor,v_actor
     ) ON CONFLICT (line_id) DO UPDATE SET
@@ -584,20 +651,7 @@ BEGIN
 
   IF EXISTS (
     SELECT 1 FROM pg_catalog.jsonb_array_elements(p_lines) AS line
-    WHERE pg_catalog.jsonb_typeof(COALESCE(line->'sidelight_specifications','[]'::jsonb)) <> 'array'
-       OR (NULLIF(line->>'transom_t_bar_size','') IS NOT NULL AND line->>'transom_t_bar_size' NOT IN ('1.5','2.25'))
-       OR (NULLIF(line->>'transom_glass_type_code','') IS NOT NULL AND line->>'transom_glass_type_code' NOT IN ('CLEAR','SATIN_ETCH','CUSTOM'))
-       OR EXISTS (
-         SELECT 1 FROM pg_catalog.jsonb_array_elements(COALESCE(line->'sidelight_specifications','[]'::jsonb)) AS specification
-         WHERE pg_catalog.jsonb_typeof(specification) <> 'object'
-            OR specification->>'side' NOT IN ('left','right')
-            OR COALESCE((specification->>'index')::integer,0) < 1
-            OR (NULLIF(specification->>'tBarSize','') IS NOT NULL AND specification->>'tBarSize' NOT IN ('1.5','2.25'))
-            OR (NULLIF(specification->>'glassTypeCode','') IS NOT NULL AND specification->>'glassTypeCode' NOT IN ('CLEAR','SATIN_ETCH','CUSTOM'))
-            OR (NULLIF(specification->>'panelSizeMode','') IS NOT NULL AND specification->>'panelSizeMode' NOT IN ('standard','custom'))
-            OR (specification->>'glassTypeCode' = 'CUSTOM' AND NULLIF(pg_catalog.btrim(specification->>'customGlassDescription'),'') IS NULL)
-       )
-       OR (line->>'transom_glass_type_code' = 'CUSTOM' AND NULLIF(pg_catalog.btrim(line->>'transom_custom_glass_description'),'') IS NULL)
+    WHERE NOT public.dg_validate_direct_dimension_glass_source(line)
   ) THEN RAISE EXCEPTION USING MESSAGE = 'native_job.validation_failed'; END IF;
 
   v_kind:=p_provenance->>'source_identifier_kind'; v_value:=NULLIF(pg_catalog.btrim(p_provenance->>'source_identifier_value'),'');
@@ -690,7 +744,7 @@ BEGIN
       NULLIF(v_line->'glass_calc','null'::jsonb),NULLIF(v_line->>'sidelight_type',''),NULLIF(v_line->>'sidelight_glass',''),
       NULLIF(v_line->>'transom_glass',''),NULLIF(v_line->>'sidelight_measurement_left',''),
       NULLIF(v_line->>'sidelight_measurement_right',''),NULLIF(v_line->>'panel_sidelight_width',''),
-      COALESCE(v_line->'panel_sidelights','[]'::jsonb),COALESCE(v_line->'sidelight_specifications','[]'::jsonb),
+      COALESCE(v_line->'panel_sidelights','[]'::jsonb),COALESCE(NULLIF(v_line->'sidelight_specifications','null'::jsonb),'[]'::jsonb),
       NULLIF(v_line->>'transom_t_bar_size',''),NULLIF(v_line->>'transom_glass_type_code',''),NULLIF(v_line->>'transom_custom_glass_description',''),
       COALESCE((v_line->>'include_diagram_on_work_order')::boolean,true),
       v_now,v_now,v_actor,v_actor);
@@ -716,9 +770,11 @@ $$;
 ALTER FUNCTION public.dg_create_native_job(uuid,text,text,text,jsonb,jsonb) OWNER TO postgres;
 ALTER FUNCTION public.dg_update_native_job(uuid,bigint,jsonb,jsonb) OWNER TO postgres;
 ALTER FUNCTION public.dg_create_transferred_native_job(uuid,jsonb,jsonb,jsonb) OWNER TO postgres;
+ALTER FUNCTION public.dg_validate_direct_dimension_glass_source(jsonb) OWNER TO postgres;
 REVOKE ALL ON FUNCTION public.dg_create_native_job(uuid,text,text,text,jsonb,jsonb) FROM PUBLIC,anon,service_role;
 REVOKE ALL ON FUNCTION public.dg_update_native_job(uuid,bigint,jsonb,jsonb) FROM PUBLIC,anon,service_role;
 REVOKE ALL ON FUNCTION public.dg_create_transferred_native_job(uuid,jsonb,jsonb,jsonb) FROM PUBLIC,anon,service_role;
+REVOKE ALL ON FUNCTION public.dg_validate_direct_dimension_glass_source(jsonb) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.dg_create_native_job(uuid,text,text,text,jsonb,jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dg_update_native_job(uuid,bigint,jsonb,jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dg_create_transferred_native_job(uuid,jsonb,jsonb,jsonb) TO authenticated;

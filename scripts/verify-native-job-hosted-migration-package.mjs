@@ -8,6 +8,7 @@ const correctiveMigration = read('supabase/migrations/20260729000000_harden_nati
 const updateExpressionCorrection = read('supabase/migrations/20260729010000_fix_native_job_update_greatest.sql');
 const transferAmendment = read('supabase/migrations/20260730000000_add_legacy_transfer_persistence.sql');
 const glassSourceMigration = read('supabase/migrations/20260805000000_add_direct_dimension_glass_sources.sql');
+const glassSourcePreflight = read('scripts/read-only-direct-dimension-glass-hosted-preflight.sql');
 const preflight = read('scripts/inspect-native-job-hosted-preflight.sql');
 const application = read('scripts/verify-native-job-hosted-application.sql');
 const rollback = read('scripts/rollback-native-job-persistence.sql');
@@ -27,10 +28,53 @@ for (const rpc of ['dg_create_native_job','dg_update_native_job','dg_create_tran
   assert.match(glassSourceMigration,new RegExp(`ALTER FUNCTION public\\.${rpc}\\([^;]+ OWNER TO postgres`));
 }
 assert.match(glassSourceMigration,/transom_t_bar_size IN \('1\.5','2\.25'\)/);
+assert.match(glassSourceMigration,/CREATE OR REPLACE FUNCTION public\.dg_validate_direct_dimension_glass_source\(p_line jsonb\)[\s\S]*IMMUTABLE[\s\S]*SECURITY INVOKER[\s\S]*SET search_path = ''/);
+assert.match(glassSourceMigration,/ALTER FUNCTION public\.dg_validate_direct_dimension_glass_source\(jsonb\) OWNER TO postgres/);
+assert.match(glassSourceMigration,/REVOKE ALL ON FUNCTION public\.dg_validate_direct_dimension_glass_source\(jsonb\) FROM PUBLIC,anon,authenticated,service_role/);
+assert.match(rollback,/DROP FUNCTION IF EXISTS public\.dg_validate_direct_dimension_glass_source\(jsonb\)/,
+  'Rollback planning must include the private direct-dimension validator');
+assert.equal((glassSourceMigration.match(/NOT public\.dg_validate_direct_dimension_glass_source\(line\)/g) ?? []).length,3,
+  'All three write RPCs must use the same direct-dimension validator');
+for (const requiredGuard of [
+  "pg_catalog.jsonb_typeof(v_specification->'side') <> 'string'",
+  "pg_catalog.jsonb_typeof(v_specification->'index') <> 'number'",
+  'v_index <> pg_catalog.trunc(v_index)', 'v_index < 1 OR v_index > 3',
+  'v_identity = ANY(v_identities)', "v_key <> ALL(ARRAY[",
+  "pg_catalog.jsonb_typeof(v_specification->'finishedWidth') IS DISTINCT FROM 'string'",
+  "pg_catalog.length(pg_catalog.btrim(v_specification->>'finishedWidth')) NOT BETWEEN 1 AND 32",
+  "v_specification->>'tBarSize' NOT IN ('1.5','2.25')",
+  "v_specification->>'glassTypeCode' NOT IN ('CLEAR','SATIN_ETCH','CUSTOM')",
+  "v_specification->>'panelSizeMode' NOT IN ('standard','custom')",
+  "pg_catalog.jsonb_typeof(v_specification->'tBarSize') IS DISTINCT FROM 'string'",
+  "pg_catalog.jsonb_typeof(v_specification->'glassTypeCode') IS DISTINCT FROM 'string'",
+  "pg_catalog.jsonb_typeof(v_specification->'customGlassDescription') IS DISTINCT FROM 'string'",
+  "pg_catalog.jsonb_typeof(v_specification->'panelSizeMode') IS DISTINCT FROM 'string'",
+  "pg_catalog.jsonb_typeof(v_specification->'panelConstructionNotes') IS DISTINCT FROM 'string'",
+  "pg_catalog.length(v_specification->>'customGlassDescription') > 200",
+  "pg_catalog.length(v_specification->>'panelConstructionNotes') > 1000",
+  "pg_catalog.length(pg_catalog.btrim(v_specification->>'customGlassDescription')) NOT BETWEEN 1 AND 200",
+  "pg_catalog.jsonb_typeof(p_line->'transom_t_bar_size') IS DISTINCT FROM 'string'",
+  "pg_catalog.jsonb_typeof(p_line->'transom_glass_type_code') IS DISTINCT FROM 'string'",
+  "pg_catalog.jsonb_typeof(p_line->'transom_custom_glass_description') IS DISTINCT FROM 'string'",
+]) assert.ok(glassSourceMigration.includes(requiredGuard), `Missing direct-dimension persistence guard: ${requiredGuard}`);
+assert.equal((glassSourceMigration.match(/COALESCE\(NULLIF\(v_line->'sidelight_specifications','null'::jsonb\),'\[\]'::jsonb\)/g) ?? []).length,3,
+  'All write paths must normalize omitted or explicit-null sidelight specifications to an empty array');
 assert.doesNotMatch(glassSourceMigration,/(?:INSERT INTO|UPDATE|DELETE FROM) public\.(?:dg_jobs|dg_job_lines|dg_production|dg_calendar|dg_daily_capacity|dg_fulfillment|dg_document|dg_email)/i);
 assert.doesNotMatch(glassSourceMigration,/\b(?:ALTER SEQUENCE|setval|RESTART)\b/i);
 assert.equal((glassSourceMigration.match(/pg_catalog\.nextval\(/g) ?? []).length,(migration.match(/pg_catalog\.nextval\(/g) ?? []).length,
   'The replacement create RPC must preserve, not expand, the accepted sequence allocation behavior');
+assert.ok(glassSourcePreflight.startsWith('-- READ-ONLY HOSTED CATALOG PREFLIGHT — DO NOT MODIFY INTO AN APPLY SCRIPT'));
+const executablePreflight = glassSourcePreflight.replace(/^\s*--.*$/gm,'').trim();
+const preflightTokens = executablePreflight.replace(/'(?:''|[^'])*'/g,"''");
+assert.match(executablePreflight,/^WITH\b[\s\S]*\bSELECT\b[\s\S]*;$/i);
+assert.equal((executablePreflight.match(/;\s*(?=\S)/g) ?? []).length,0,'Preflight must contain one top-level statement');
+assert.doesNotMatch(preflightTokens,/\b(?:INSERT|UPDATE|DELETE|MERGE|ALTER|CREATE|DROP|TRUNCATE|GRANT|REVOKE|CALL|DO|LOCK|SET|RESET|nextval|setval)\b/i,
+  'Preflight must remain catalog-only and read-only');
+for (const evidence of [
+  'native_line_columns','native_line_constraints','native_line_indexes','native_line_security',
+  'write_rpc_definitions','dg_sequence_runtime_state','provenance_transfer_and_stale_revision_guards','migration_history',
+  'pg_get_functiondef','definition_md5','security_definer','calculated_next_candidate','direct_dimension_migration_already_recorded',
+]) assert.ok(glassSourcePreflight.includes(evidence),`Missing direct-dimension preflight evidence: ${evidence}`);
 
 const stripComments = (sql) => sql.replace(/--.*$/gm, '');
 const extractUpdateSetColumns = (functionDefinition, relation) => {

@@ -39,6 +39,13 @@ assert.match(glassSourceMigration,/transom_t_bar_size IN \('1\.5','2\.25'\)/);
 assert.match(glassSourceMigration,/CREATE OR REPLACE FUNCTION public\.dg_create_native_job\(/);
 assert.match(glassSourceMigration,/CREATE OR REPLACE FUNCTION public\.dg_update_native_job\(/);
 assert.match(glassSourceMigration,/CREATE OR REPLACE FUNCTION public\.dg_create_transferred_native_job\(/);
+assert.match(glassSourceMigration,/CREATE OR REPLACE FUNCTION public\.dg_validate_direct_dimension_glass_source\(p_line jsonb\)/);
+assert.equal((glassSourceMigration.match(/NOT public\.dg_validate_direct_dimension_glass_source\(line\)/g) ?? []).length, 3);
+assert.match(glassSourceMigration,/v_identity = ANY\(v_identities\)/);
+assert.match(glassSourceMigration,/v_index < 1 OR v_index > 3/);
+assert.match(glassSourceMigration,/finishedWidth'[\s\S]*NOT BETWEEN 1 AND 32/);
+assert.match(glassSourceMigration,/customGlassDescription'[\s\S]*> 200/);
+assert.match(glassSourceMigration,/panelConstructionNotes'[\s\S]*> 1000/);
 
 requireMatch(/create sequence public\.dg_native_job_reference_seq[^;]*start with 7/, 'Sequence must start at 7');
 requireMatch(/'dg-' \|\| pg_catalog\.lpad\(v_candidate::text, 6, '0'\)/, 'DG formatting must use six digits');

@@ -55,7 +55,8 @@ function line(payload: LegacyJobTransferPayloadV1, index: number): DoorLineInput
     sidelightType: glass?.sidelight_type ?? null, sidelightGlass: glass?.sidelight_glass ?? null,
     transomGlass: glass?.transom_glass ?? null, sidelightMeasurementLeft: glass?.sidelight_measurement_left ?? null,
     sidelightMeasurementRight: glass?.sidelight_measurement_right ?? null,
-    panelSidelightWidth: glass?.panel_sidelight_width ?? null, panelSidelights: [],
+    panelSidelightWidth: glass?.panel_sidelight_width ?? null, panelSidelights: [], sidelightSpecifications: [],
+    transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
     includeDiagramOnWorkOrder: false,
   };
 }
@@ -95,7 +96,8 @@ export function mapLegacyTransferToUnsavedEditor(input: string | unknown): Legac
       ...(hasGlassInputs ? {
         glassCalcStatus: 'Glass Detail Needed' as const, glassWorkorderDetail: null,
         glassWarnings: [], glassBlockers: [], glassOverride: null, glassUnits: [], glassCalc: null,
-        vendorCopyText: null, panelSidelights: [], includeDiagramOnWorkOrder: false,
+        vendorCopyText: null, panelSidelights: [], sidelightSpecifications: [], transomTBarSize: null,
+        transomGlassTypeCode: null, transomCustomGlassDescription: null, includeDiagramOnWorkOrder: false,
       } : {}),
     };
   });

@@ -108,7 +108,8 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
     glassUnits: [], glassCalc: null, vendorCopyText: '',
     sidelightType: 'Glass', sidelightGlass: '', transomGlass: '',
     sidelightMeasurementLeft: '', sidelightMeasurementRight: '',
-    panelSidelightWidth: '', panelSidelights: [],
+    panelSidelightWidth: '', panelSidelights: [], sidelightSpecifications: [],
+    transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
     includeDiagramOnWorkOrder: false,
   };
 }
@@ -205,7 +206,8 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
         glassCalcStatus: 'Ready' as const, glassWorkorderDetail: null, glassWarnings: [], glassBlockers: [],
         glassOverride: null, glassUnits: [], glassCalc: null, vendorCopyText: null, sidelightType: null,
         sidelightGlass: null, transomGlass: null, sidelightMeasurementLeft: null,
-        sidelightMeasurementRight: null, panelSidelightWidth: null, panelSidelights: [],
+        sidelightMeasurementRight: null, panelSidelightWidth: null, panelSidelights: [], sidelightSpecifications: [],
+        transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
       }),
     },
   };
@@ -268,6 +270,7 @@ const DEPLOYED_MERGE_FIELDS = [
   'doorThickness', 'glassCalcStatus', 'glassWorkorderDetail', 'glassWarnings',
   'vendorCopyText', 'sidelightType', 'sidelightGlass', 'transomGlass',
   'sidelightMeasurementLeft', 'sidelightMeasurementRight', 'panelSidelightWidth',
+  'sidelightSpecifications', 'transomTBarSize', 'transomGlassTypeCode', 'transomCustomGlassDescription',
 ] as const;
 
 export function doorLineEquivalenceKey(line: DoorLineInput): string {

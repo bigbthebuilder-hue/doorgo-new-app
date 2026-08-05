@@ -7,11 +7,12 @@ const migration = read('supabase/migrations/20260728000000_create_native_job_per
 const correctiveMigration = read('supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql');
 const updateExpressionCorrection = read('supabase/migrations/20260729010000_fix_native_job_update_greatest.sql');
 const transferAmendment = read('supabase/migrations/20260730000000_add_legacy_transfer_persistence.sql');
+const glassSourceMigration = read('supabase/migrations/20260805000000_add_direct_dimension_glass_sources.sql');
 const preflight = read('scripts/inspect-native-job-hosted-preflight.sql');
 const application = read('scripts/verify-native-job-hosted-application.sql');
 const rollback = read('scripts/rollback-native-job-persistence.sql');
 const runbook = read('docs/hosted-native-job-migration-runbook.md');
-const checksum = createHash('sha256').update(migration).digest('hex').toUpperCase();
+const checksum = createHash('sha256').update(migration.replace(/\r\n/g, '\n')).digest('hex').toUpperCase();
 assert.equal(checksum, '2F13B297F395440912F6CD0B40FCD636DF6A23DD6331B4454DDA867258763B05');
 assert.ok(runbook.includes(checksum), 'Runbook must record the exact migration checksum');
 assert.match(transferAmendment,/CREATE FUNCTION public\.dg_create_transferred_native_job\([\s\S]*SECURITY DEFINER SET search_path=''/);
@@ -19,6 +20,17 @@ assert.match(transferAmendment,/ALTER FUNCTION public\.dg_create_transferred_nat
 assert.match(transferAmendment,/GRANT EXECUTE ON FUNCTION public\.dg_create_transferred_native_job\(uuid,jsonb,jsonb,jsonb\) TO authenticated/);
 assert.doesNotMatch(transferAmendment,/\b(?:ALTER SEQUENCE|setval|RESTART)\b/i);
 assert.doesNotMatch(transferAmendment,/(?:INSERT INTO|UPDATE|DELETE FROM) public\.(?:dg_jobs|dg_job_lines|dg_production|dg_calendar|dg_daily_capacity|dg_fulfillment|dg_document|dg_email)/i);
+assert.match(glassSourceMigration,/^--[\s\S]*BEGIN;[\s\S]*COMMIT;\s*$/);
+for (const field of ['sidelight_specifications','transom_t_bar_size','transom_glass_type_code','transom_custom_glass_description']) assert.ok(glassSourceMigration.includes(field));
+for (const rpc of ['dg_create_native_job','dg_update_native_job','dg_create_transferred_native_job']) {
+  assert.match(glassSourceMigration,new RegExp(`CREATE OR REPLACE FUNCTION public\\.${rpc}\\(`));
+  assert.match(glassSourceMigration,new RegExp(`ALTER FUNCTION public\\.${rpc}\\([^;]+ OWNER TO postgres`));
+}
+assert.match(glassSourceMigration,/transom_t_bar_size IN \('1\.5','2\.25'\)/);
+assert.doesNotMatch(glassSourceMigration,/(?:INSERT INTO|UPDATE|DELETE FROM) public\.(?:dg_jobs|dg_job_lines|dg_production|dg_calendar|dg_daily_capacity|dg_fulfillment|dg_document|dg_email)/i);
+assert.doesNotMatch(glassSourceMigration,/\b(?:ALTER SEQUENCE|setval|RESTART)\b/i);
+assert.equal((glassSourceMigration.match(/pg_catalog\.nextval\(/g) ?? []).length,(migration.match(/pg_catalog\.nextval\(/g) ?? []).length,
+  'The replacement create RPC must preserve, not expand, the accepted sequence allocation behavior');
 
 const stripComments = (sql) => sql.replace(/--.*$/gm, '');
 const extractUpdateSetColumns = (functionDefinition, relation) => {

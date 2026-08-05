@@ -12,6 +12,7 @@ import {
   retainCompatibleGlassFields,
 } from './glass-geometry-contract';
 import type { DoorLineInput, GlassGeometryValues } from './job-intake-types';
+import { reconcileGlassDimensionCommit } from './glass-dimension-reconciliation-contract';
 
 function line(overrides: DoorLineInput = {}): DoorLineInput {
   return {
@@ -196,6 +197,57 @@ assert.equal(calculateJ2AShopHours([line({ config: 'SDDS' })]).shopHours, 4.5);
 assert.equal(calculateJ2AShopHours([line({ config: 'T/SDDS' })]).shopHours, 5.5);
 assert.deepEqual(calculateJ2AShopHours([line({ config: 'DSS' })]).unknown, ['Line 1: Exterior DSS']);
 assert.equal(calculateJ2AShopHours([line({ config: 'SD', qty: 2, prep: 'MULTI', ripJamb: 'Yes' })]).shopHours, 8, 'quantity, multipoint and RIP additions apply');
+
+const unequalSource = line({ config: 'SDS', roWidth: '78', sidelightSpecifications: [
+  { side: 'left', index: 1, finishedWidth: '15', tBarSize: null, glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+  { side: 'right', index: 1, finishedWidth: '20', tBarSize: null, glassTypeCode: 'SATIN_ETCH', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+] });
+const unequalRo = reconcileGlassDimensionCommit(unequalSource, { kind: 'roWidth', value: '80' });
+assert.equal(unequalRo.blockers.length, 0);
+assert.deepEqual(unequalRo.sourcePatch.sidelightSpecifications?.map((entry) => entry.finishedWidth), [`16 1/8"`, `21 1/8"`]);
+const rightAuthoritative = reconcileGlassDimensionCommit({ ...unequalSource, ...unequalRo.sourcePatch }, { kind: 'sidelightWidth', side: 'right', index: 1, value: '24' });
+assert.equal(rightAuthoritative.sourcePatch.sidelightSpecifications?.[0].finishedWidth, `16 1/8"`);
+assert.equal(rightAuthoritative.sourcePatch.roWidth, `82 7/8"`);
+const repeatedRo = reconcileGlassDimensionCommit(line({ config: 'DSSS', roWidth: '96' }), { kind: 'roWidth', value: '97 1/16' });
+assert.equal(repeatedRo.sourcePatch.sidelightSpecifications?.length, 3);
+assert.equal(repeatedRo.sourcePatch.sidelightSpecifications?.at(-1)?.finishedWidth, `17 5/16"`, 'rounding residual is deterministic');
+const oneSide = reconcileGlassDimensionCommit(line(), { kind: 'roWidth', value: '61' });
+assert.equal(oneSide.sourcePatch.sidelightSpecifications?.[0].finishedWidth, `20 5/8"`, 'one sidelight absorbs the complete RO change');
+const equalSides = reconcileGlassDimensionCommit(line({ config: 'SDS', roWidth: '78' }), { kind: 'roWidth', value: '79' });
+assert.deepEqual(equalSides.sourcePatch.sidelightSpecifications?.map((entry) => entry.finishedWidth), [`18 1/8"`, `18 1/8"`]);
+const invalidCommit = reconcileGlassDimensionCommit(unequalSource, { kind: 'sidelightWidth', side: 'left', index: 1, value: '0' });
+assert.deepEqual(invalidCommit.sourcePatch, {}, 'invalid committed input does not erase valid canonical source');
+for (const [type, expected] of [['Panel', '1.5'], ['Glass', '2.25']] as const) {
+  const reconciled = reconcileGlassDimensionCommit(line({ sidelightType: type, panelSidelightWidth: type === 'Panel' ? '11.75' : null }), { kind: 'roWidth', value: '60' });
+  assert.equal(reconciled.sourcePatch.sidelightSpecifications?.[0].tBarSize, expected);
+}
+const customPanel = calculateGlassGeometry(line({ roWidth: '61', sidelightType: 'Panel', panelSidelightWidth: null, sidelightGlass: null, sidelightSpecifications: [
+  { side: 'left', index: 1, finishedWidth: '20', tBarSize: '2.25', glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: 'Build from slab.' },
+] }));
+assert.equal(customPanel.status, 'Complete');
+assert.equal(customPanel.panelSidelights[0].constructionNotes, 'Build from slab.');
+const customPanelNoNotes = calculateGlassGeometry(line({ roWidth: '61', sidelightType: 'Panel', panelSidelightWidth: null, sidelightGlass: null, sidelightSpecifications: [
+  { side: 'left', index: 1, finishedWidth: '20', tBarSize: null, glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: null },
+] }));
+assert.equal(customPanelNoNotes.status, 'Warning');
+const customGlass = calculateGlassGeometry(line({ sidelightSpecifications: [
+  { side: 'left', index: 1, finishedWidth: '20', tBarSize: '1.5', glassTypeCode: 'CUSTOM', customGlassDescription: 'Rain glass', panelSizeMode: null, panelConstructionNotes: null },
+] }));
+assert.equal(customGlass.glassUnits[0].glassType, 'Rain glass');
+assert.equal(((customGlass.glassCalc?.resolvedSidelights as Array<{tBar:{nonStandard:boolean}}>)?.[0].tBar.nonStandard), true, 'Glass sidelight 1.5 override is non-standard');
+assert.equal(calculateGlassGeometry(line({ sidelightSpecifications: [{ side: 'left', index: 1, finishedWidth: '20', tBarSize: null, glassTypeCode: 'CUSTOM', customGlassDescription: ' ', panelSizeMode: null, panelConstructionNotes: null }] })).status, 'Blocked');
+assert.equal(calculateGlassGeometry(line({ sidelightGlass: 'mystery' })).status, 'Blocked');
+const singleTransomOverride = calculateGlassGeometry(line({ config: 'T/SD', roHeight: '96', transomTBarSize: '2.25' }));
+assert.equal((singleTransomOverride.glassCalc?.transomTBar as {automaticDefault:string;nonStandard:boolean}).automaticDefault, '1.5');
+assert.equal((singleTransomOverride.glassCalc?.transomTBar as {nonStandard:boolean}).nonStandard, true);
+const doubleTransomOverride = calculateGlassGeometry(line({ config: 'T/SDDS', roWidth: '96', roHeight: '96', transomTBarSize: '1.5' }));
+assert.equal((doubleTransomOverride.glassCalc?.transomTBar as {automaticDefault:string;nonStandard:boolean}).automaticDefault, '2.25');
+assert.equal((doubleTransomOverride.glassCalc?.transomTBar as {nonStandard:boolean}).nonStandard, true);
+assert.equal(calculateGlassGeometry(line({ transomTBarSize: '2' as never })).status, 'Blocked');
+const immutableLegacy = line();
+const immutableLegacySnapshot = structuredClone(immutableLegacy);
+calculateGlassGeometry(immutableLegacy);
+assert.deepEqual(immutableLegacy, immutableLegacySnapshot, 'calculating an old record does not rewrite it');
 
 const complete = normalizeDoorLineInput(line());
 const incomplete = normalizeDoorLineInput(line({ roWidth: '' }));

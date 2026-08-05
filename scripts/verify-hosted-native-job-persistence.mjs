@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const migrationPath = 'supabase/migrations/20260728000000_create_native_job_persistence.sql';
 const sql = readFileSync(migrationPath, 'utf8');
+const glassSourceMigration = readFileSync('supabase/migrations/20260805000000_add_direct_dimension_glass_sources.sql', 'utf8');
 const normalized = sql.replace(/--.*$/gm, '').replace(/\s+/g, ' ').trim().toLowerCase();
 const requireMatch = (pattern, message) => assert.match(normalized, pattern, message);
 const rejectMatch = (pattern, message) => assert.doesNotMatch(normalized, pattern, message);
@@ -31,6 +32,13 @@ for (const column of [
   'glass_blockers jsonb not null', 'glass_units jsonb not null', 'panel_sidelights jsonb not null',
   'include_diagram_on_work_order boolean not null default true',
 ]) assert.ok(normalized.includes(column), `Missing native-line column contract: ${column}`);
+for (const field of ['sidelight_specifications','transom_t_bar_size','transom_glass_type_code','transom_custom_glass_description']) {
+  assert.ok(glassSourceMigration.includes(field), `Missing direct-dimension glass source persistence: ${field}`);
+}
+assert.match(glassSourceMigration,/transom_t_bar_size IN \('1\.5','2\.25'\)/);
+assert.match(glassSourceMigration,/CREATE OR REPLACE FUNCTION public\.dg_create_native_job\(/);
+assert.match(glassSourceMigration,/CREATE OR REPLACE FUNCTION public\.dg_update_native_job\(/);
+assert.match(glassSourceMigration,/CREATE OR REPLACE FUNCTION public\.dg_create_transferred_native_job\(/);
 
 requireMatch(/create sequence public\.dg_native_job_reference_seq[^;]*start with 7/, 'Sequence must start at 7');
 requireMatch(/'dg-' \|\| pg_catalog\.lpad\(v_candidate::text, 6, '0'\)/, 'DG formatting must use six digits');

@@ -14,6 +14,34 @@ export type GlassCalculationStatus =
 
 export type GlassIssue = { code: string; message: string };
 export type SidelightType = 'Glass' | 'Panel';
+export type GlassTypeCode = 'CLEAR' | 'SATIN_ETCH' | 'CUSTOM';
+export type GlassTBarSize = '1.5' | '2.25';
+export type PanelSizeMode = 'standard' | 'custom';
+export type SidelightSpecification = {
+  side: 'left' | 'right';
+  index: number;
+  finishedWidth: string | null;
+  tBarSize: GlassTBarSize | null;
+  glassTypeCode: GlassTypeCode | null;
+  customGlassDescription: string | null;
+  panelSizeMode: PanelSizeMode | null;
+  panelConstructionNotes: string | null;
+};
+export type ResolvedTBar = {
+  resolvedSize: GlassTBarSize;
+  automaticDefault: GlassTBarSize;
+  nonStandard: boolean;
+};
+export type ResolvedSidelight = {
+  side: 'left' | 'right';
+  index: number;
+  finishedWidth: string;
+  tBar: ResolvedTBar;
+  glassTypeCode: GlassTypeCode | null;
+  effectiveGlassDescription: string | null;
+  panelSizeMode: PanelSizeMode | null;
+  panelConstructionNotes: string | null;
+};
 export type GlassUnit = {
   position: string;
   width: string;
@@ -28,8 +56,9 @@ export type PanelSidelight = {
   width: string;
   height: string;
   qty: number;
+  constructionNotes?: string | null;
 };
-export type GlassGeometryValues = Record<string, string | number | boolean | null | PanelSidelight[]>;
+export type GlassGeometryValues = Record<string, string | number | boolean | null | PanelSidelight[] | ResolvedSidelight[] | ResolvedTBar>;
 export type GlassOverrideApproval = {
   approvedLineId: string;
   calculatedValues: GlassGeometryValues;
@@ -81,6 +110,10 @@ export type NativeDoorLine = {
   sidelightMeasurementLeft: string | null;
   sidelightMeasurementRight: string | null;
   panelSidelightWidth: string | null;
+  sidelightSpecifications?: SidelightSpecification[];
+  transomTBarSize?: GlassTBarSize | null;
+  transomGlassTypeCode?: GlassTypeCode | null;
+  transomCustomGlassDescription?: string | null;
   panelSidelights: PanelSidelight[];
   includeDiagramOnWorkOrder: boolean;
   createdAt: string;

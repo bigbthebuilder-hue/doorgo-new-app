@@ -24,13 +24,13 @@ for (const required of [
   'explicitGlassDetailNeeded', 'commitEditor()', 'setExplicitGlassDetailNeeded(explicitDetailNeeded)',
   'resolvedConfiguration(config)', 'prepAfterHeightChange', 'replaceDoorLineAtIndex(lines, editingIndex, saved)',
 ]) assert.ok(workspace.includes(required), `J2B2 workspace missing ${required}`);
-assert.equal(/left.*sidelight.*type|right.*sidelight.*type/i.test(workspace), false, 'UI must not expose independent left/right sidelight type controls');
 assert.equal(workspace.includes('onChange((current)'), false, 'workspace must not update child state from a parent updater');
 const builder = await readFile('components/jobs/GlassUnitBuilder.tsx', 'utf8');
 for (const required of [
   'Use Configuration', 'Leave Glass Detail Needed', 'Cancel', 'calculateGlassGeometry',
   'calculateGlassCompositionSchematic', 'nextGlassBuilderDraft', 'GlassUnitDiagram',
-  'Choose type', 'Copy Vendor Text', 'includeDiagramOnWorkOrder',
+  'Sidelight positions', 'Custom Glass Sidelight Width', 'Custom Panel Sidelight Width',
+  'T-bar Size', 'Custom Transom Width', 'Copy Vendor Text', 'includeDiagramOnWorkOrder',
   'EXTERIOR_WIDTHS', 'DOOR_HEIGHTS', 'Slab Width', 'Slab Height', 'prepAfterHeightChange',
 ]) assert.ok(builder.includes(required), `Glass Unit Builder missing ${required}`);
 assert.equal(builder.includes("normalizeSidelightType(draft.sidelightType) ?? 'Glass'"), false, 'builder must not display a sidelight type absent from the authoritative draft');
@@ -39,6 +39,7 @@ assert.ok(builder.includes("['Complete', 'Warning', 'Manual Override'].includes(
 assert.ok(builder.includes('tabIndex={-1}'), 'header Cancel must not interrupt normal forward tab order');
 assert.ok(builder.includes('}, []);'), 'modal focus management must initialize only once, not after each draft update');
 assert.equal(/repository\.|createBrowserClient|\.rpc\s*\(/.test(builder), false, 'builder must only update its isolated client draft');
+assert.deepEqual([...builder.matchAll(/<option value="(1\.5|2\.25)">/g)].map((match) => match[1]).filter((value, index, values) => values.indexOf(value) === index).sort(), ['1.5', '2.25'], 'builder exposes only canonical T-bar sizes');
 
 const diagram = await readFile('components/jobs/GlassUnitDiagram.tsx', 'utf8');
 for (const required of ['preserveAspectRatio="xMidYMid meet"', 'calculateGlassDiagramLayout(line)', 'layout.parts.map', 'data-kind', 'diagram-background', 'var(--glass-diagram-background', 'var(--glass-diagram-stroke']) assert.ok(diagram.includes(required));

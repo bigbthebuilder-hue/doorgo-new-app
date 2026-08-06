@@ -35,6 +35,7 @@ export type ResolvedTBar = {
 export type ResolvedSidelight = {
   side: 'left' | 'right';
   index: number;
+  sidelightType: SidelightType;
   finishedWidth: string;
   tBar: ResolvedTBar;
   glassTypeCode: GlassTypeCode | null;

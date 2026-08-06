@@ -38,7 +38,7 @@ test('completed imported T/DS glass state renders visibly and survives applicati
   await expect(component.getByRole('dialog').getByText('Status: Complete', { exact: false })).toBeVisible();
   await component.getByRole('dialog').getByRole('button', { name: '+ Add Transom Above' }).click();
   await expect(component.getByRole('dialog').getByText('Status: Glass Detail Needed', { exact: false })).toBeVisible();
-  await component.getByRole('dialog').getByLabel('Transom Glass').selectOption('CLR_SB60_K4SG');
+  await component.getByRole('dialog').getByLabel('Transom Glass Type').selectOption('CLEAR');
   await component.getByRole('dialog').getByLabel('RO Height (inches)').fill('98');
   await expect(component.getByRole('dialog').getByText('Status: Complete', { exact: false })).toBeVisible();
   expect(consoleErrors.filter((message) => /same key|unique "key" prop|duplicate key|nan|infinity/i.test(message))).toEqual([]);

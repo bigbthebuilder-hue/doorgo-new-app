@@ -7,8 +7,10 @@ import {
   glassConfigurationTopology,
   isGlassConfiguration,
   normalizeSidelightType,
+  normalizeGlassTypeCode,
   normalizeTBarSize,
   numericDimension,
+  sidelightSpecificationType,
   slabFor,
   type GlassGeometryResult,
 } from './glass-geometry-contract';
@@ -16,9 +18,10 @@ import { orderedGlassUnitComponents, parseGlassUnitConfiguration } from './glass
 import type { DoorLineInput, GlassIssue, GlassTBarSize, SidelightSpecification } from './job-intake-types';
 
 export type SidelightIdentity = { side: 'left' | 'right'; index: number };
-export type GlassDimensionAuthority = { kind: 'roWidth' } | ({ kind: 'sidelightWidth' } & SidelightIdentity);
+export type GlassDimensionAuthority = { kind: 'roWidth' } | { kind: 'transomWidth' } | ({ kind: 'sidelightWidth' } & SidelightIdentity);
 export type GlassCommittedEdit =
   | { kind: 'roWidth'; value: unknown }
+  | { kind: 'transomWidth'; value: unknown }
   | ({ kind: 'sidelightWidth'; value: unknown } & SidelightIdentity)
   | ({ kind: 'sidelightTBar'; value: unknown } & SidelightIdentity);
 
@@ -42,19 +45,20 @@ function orderedPositions(input: DoorLineInput): SidelightIdentity[] {
     : [];
 }
 
-function canonicalSpecifications(input: DoorLineInput, positions: SidelightIdentity[]): SidelightSpecification[] {
+export function canonicalSidelightSpecifications(input: DoorLineInput, positions = orderedPositions(input)): SidelightSpecification[] {
   const supplied = Array.isArray(input.sidelightSpecifications) ? input.sidelightSpecifications : [];
   const type = normalizeSidelightType(input.sidelightType) ?? 'Glass';
   return positions.map((position) => {
     const found = supplied.find((entry) => entry && samePosition(entry, position));
+    const resolvedType = sidelightSpecificationType(found, type) ?? type;
     return {
       side: position.side,
       index: position.index,
-      finishedWidth: found?.finishedWidth ?? null,
-      tBarSize: normalizeTBarSize(found?.tBarSize) ?? automaticSidelightTBar(type),
-      glassTypeCode: found?.glassTypeCode ?? null,
+      finishedWidth: found?.finishedWidth ?? (resolvedType === 'Panel' ? String(input.panelSidelightWidth ?? '').trim() || null : null),
+      tBarSize: normalizeTBarSize(found?.tBarSize) ?? automaticSidelightTBar(resolvedType),
+      glassTypeCode: resolvedType === 'Glass' ? normalizeGlassTypeCode(found?.glassTypeCode ?? input.sidelightGlass ?? input.glass) : null,
       customGlassDescription: found?.customGlassDescription?.trim() || null,
-      panelSizeMode: found?.panelSizeMode ?? null,
+      panelSizeMode: resolvedType === 'Panel' ? found?.panelSizeMode ?? 'standard' : null,
       panelConstructionNotes: found?.panelConstructionNotes?.trim() || null,
     };
   });
@@ -95,8 +99,13 @@ export function reconcileGlassDimensionCommit(input: DoorLineInput, edit: GlassC
   };
   const positions = orderedPositions(input);
   const fixed = fixedHeaderWidth(input);
-  if (!positions.length || fixed === null) return unchanged();
-  let specifications = canonicalSpecifications(input, positions);
+  if (fixed === null) return unchanged();
+  if (!positions.length) {
+    if (edit.kind !== 'transomWidth' || !glassConfigurationTopology(String(input.config)).hasTransom) return unchanged();
+    const width = numericDimension(edit.value);
+    return { ...unchanged(), blockers: [issue(width.ok ? 'fixed_transom_width' : 'invalid_transom_width', width.ok ? 'This door-only transom width is fixed by the selected slab and door configuration.' : 'message' in width ? width.message : 'Enter a valid transom width.')] };
+  }
+  let specifications = canonicalSidelightSpecifications(input, positions);
   const widths = currentWidths(input, specifications, fixed);
   if (!widths) return unchanged();
   const blockers: GlassIssue[] = [];
@@ -121,6 +130,20 @@ export function reconcileGlassDimensionCommit(input: DoorLineInput, edit: GlassC
       adjusted[adjusted.length - 1] = rounded(targetTotal - adjusted.slice(0, -1).reduce((sum, width) => sum + width, 0));
       if (adjusted.some((width) => width <= 0)) blockers.push(issue('nonpositive_sidelight_width', 'RO width would produce a zero or negative finished sidelight.'));
       else { specifications = applyWidths(specifications, adjusted); nextRo = ro.inches; notices.push(issue('ro_recalculated_sidelights', 'Sidelight widths were recalculated from the committed RO width.')); }
+    }
+  } else if (!blockers.length && authority.kind === 'transomWidth') {
+    const transom = numericDimension(edit.kind === 'transomWidth' ? edit.value : input.glassCalc?.transomWidth);
+    if (!transom.ok) blockers.push(issue('invalid_transom_width', 'message' in transom ? transom.message : 'Enter a valid transom width.'));
+    else {
+      const hasPanel = specifications.some((entry) => sidelightSpecificationType(entry, input.sidelightType) === 'Panel');
+      const targetHeader = hasPanel ? transom.inches + 0.125 : null;
+      nextRo = targetHeader === null ? rounded(transom.inches + 2.125) : rounded(targetHeader + 2);
+      const targetTotal = targetHeader === null ? availableSidelightWidth(nextRo, fixed, specifications) : targetHeader - fixed.width - specifications.reduce((sum, entry) => sum + Number(entry.tBarSize) + 0.125, 0);
+      const delta = rounded((targetTotal - widths.reduce((sum, width) => sum + width, 0)) / widths.length);
+      const adjusted = widths.map((width) => rounded(width + delta));
+      adjusted[adjusted.length - 1] = rounded(targetTotal - adjusted.slice(0, -1).reduce((sum, width) => sum + width, 0));
+      if (adjusted.some((width) => width <= 0)) blockers.push(issue('nonpositive_sidelight_width', 'Transom width would produce a zero or negative finished sidelight.'));
+      else { specifications = applyWidths(specifications, adjusted); notices.push(issue('transom_recalculated_ro', 'RO and sidelight widths were recalculated from the committed transom width.')); }
     }
   } else if (!blockers.length) {
     const sideAuthority = authority as Extract<GlassDimensionAuthority, { kind: 'sidelightWidth' }>;

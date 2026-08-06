@@ -153,6 +153,13 @@ export function automaticTransomTBar(doorCount: 1 | 2): GlassTBarSize {
   return doorCount === 2 ? '2.25' : '1.5';
 }
 
+/** The accepted persisted specification shape uses panelSizeMode/glassTypeCode as its per-position discriminator. */
+export function sidelightSpecificationType(specification: SidelightSpecification | null | undefined, fallback: unknown = null): SidelightType | null {
+  if (specification?.panelSizeMode || text(specification?.panelConstructionNotes)) return 'Panel';
+  if (specification?.glassTypeCode || text(specification?.customGlassDescription)) return 'Glass';
+  return normalizeSidelightType(fallback);
+}
+
 function panelHeaderWidth(slabWidth: number, panelWidth: number, sides: number, doubleCore: boolean): number {
   return headerWidthFromResolvedSidelights(slabWidth, doubleCore ? 2 : 1, Array.from({ length: sides }, () => ({ finishedWidth: panelWidth, tBarSize: '1.5' })));
 }
@@ -212,11 +219,8 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   if (roWidth.ok === false && roWidth.missing) missing.push(issue('ro_width_required', 'Rough-opening width is required.'));
   if (topology.hasTransom && roHeight.ok === false && roHeight.missing) missing.push(issue('ro_height_required', 'Rough-opening height is required for a transom.'));
   const sidelightType = topology.sidelightPositions.length ? normalizeSidelightType(input.sidelightType) : null;
-  if (topology.sidelightPositions.length && text(input.sidelightType) && !sidelightType) {
-    return blocked([issue('conflicting_sidelight_state', 'Every sidelight in the unit must use one unit-level type: Glass or Panel. Mixed or malformed sidelight state is invalid.')]);
-  }
-  if (topology.sidelightPositions.length && !sidelightType) missing.push(issue('sidelight_type_required', 'Choose one unit-level sidelight type: Glass or Panel.'));
   const suppliedSpecifications = Array.isArray(input.sidelightSpecifications) ? input.sidelightSpecifications : [];
+  if (topology.sidelightPositions.length && !suppliedSpecifications.length && !sidelightType && !text(input.sidelightType)) missing.push(issue('sidelight_type_required', 'Choose Glass or Panel for each sidelight position.'));
   if (sidelightType === 'Glass' && !suppliedSpecifications.length && !text(input.sidelightGlass ?? input.glass)) missing.push(issue('sidelight_glass_required', 'Choose the sidelight glass.'));
   if (topology.hasTransom && !text(input.transomGlassTypeCode ?? input.transomGlass ?? input.glass)) missing.push(issue('transom_glass_required', 'Choose the transom glass.'));
   const panelWidth = sidelightType === 'Panel' ? numericDimension(input.panelSidelightWidth) : null;
@@ -226,6 +230,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   }
   if (missing.length) return incomplete(missing);
   const invalid: GlassIssue[] = [];
+  if (topology.sidelightPositions.length && !suppliedSpecifications.length && text(input.sidelightType) && !sidelightType) invalid.push(issue('invalid_sidelight_type', 'Sidelight type must be Glass or Panel.'));
   if (roWidth.ok === false) invalid.push(issue('invalid_ro_width', roWidth.message));
   if (topology.hasTransom && roHeight.ok === false) invalid.push(issue('invalid_ro_height', roHeight.message));
   if (!suppliedSpecifications.length && panelWidth?.ok === false) invalid.push(issue('invalid_panel_width', panelWidth.message));
@@ -239,13 +244,17 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   if (hasStructuredSpecifications && (structuredSpecifications.some((entry) => !entry) || suppliedSpecifications.length !== sideComponents.length)) invalid.push(issue('invalid_sidelight_specifications', 'Structured sidelights must identify every configured sidelight exactly once.'));
   for (const entry of structuredSpecifications) {
     if (!entry) continue;
+    const entryType = sidelightSpecificationType(entry, sidelightType);
+    if (!entryType) invalid.push(issue('sidelight_type_required', `Choose Glass or Panel for the ${entry.side} sidelight ${entry.index}.`));
+    if (entry.panelSizeMode && entry.glassTypeCode) invalid.push(issue('conflicting_sidelight_state', `The ${entry.side} sidelight ${entry.index} cannot be both Glass and Panel.`));
     if (entry.tBarSize !== null && entry.tBarSize !== undefined && !normalizeTBarSize(entry.tBarSize)) invalid.push(issue('invalid_t_bar', 'T-bar must be 1.5 or 2.25.'));
-    if (entry.glassTypeCode && !normalizeGlassTypeCode(entry.glassTypeCode)) invalid.push(issue('unknown_glass_code', 'Unknown glass codes must be corrected or explicitly selected as Custom.'));
-    if (normalizeGlassTypeCode(entry.glassTypeCode) === 'CUSTOM' && !text(entry.customGlassDescription)) invalid.push(issue('custom_glass_description_required', 'Enter a description for Custom glass.'));
+    if (entryType === 'Glass' && !entry.glassTypeCode) invalid.push(issue('sidelight_glass_required', `Choose glass for the ${entry.side} sidelight ${entry.index}.`));
+    if (entryType === 'Glass' && entry.glassTypeCode && !normalizeGlassTypeCode(entry.glassTypeCode)) invalid.push(issue('unknown_glass_code', 'Unknown glass codes must be corrected or explicitly selected as Custom.'));
+    if (entryType === 'Glass' && normalizeGlassTypeCode(entry.glassTypeCode) === 'CUSTOM' && !text(entry.customGlassDescription)) invalid.push(issue('custom_glass_description_required', 'Enter a description for Custom glass.'));
     if (entry.panelSizeMode && entry.panelSizeMode !== 'standard' && entry.panelSizeMode !== 'custom') invalid.push(issue('invalid_panel_size_mode', 'Panel size mode must be standard or custom.'));
     const width = numericDimension(entry.finishedWidth);
     if (!width.ok) invalid.push(issue('invalid_sidelight_width', 'message' in width ? width.message : 'Enter a valid sidelight width.'));
-    if (sidelightType === 'Panel' && entry.panelSizeMode !== 'custom' && width.ok && String(input.material ?? '').toLowerCase() !== 'wood' && !FIBERGLASS_PANEL_WIDTHS.includes(width.inches as 11.75 | 13.75)) invalid.push(issue('unsupported_fiberglass_panel_width', 'Standard fiberglass sidelight panel width must be 11 3/4" or 13 3/4".'));
+    if (entryType === 'Panel' && entry.panelSizeMode !== 'custom' && width.ok && String(input.material ?? '').toLowerCase() !== 'wood' && !FIBERGLASS_PANEL_WIDTHS.includes(width.inches as 11.75 | 13.75)) invalid.push(issue('unsupported_fiberglass_panel_width', 'Standard fiberglass sidelight panel width must be 11 3/4" or 13 3/4".'));
   }
   if (!hasStructuredSpecifications && panelWidth?.ok && String(input.material ?? '').toLowerCase() !== 'wood' && !FIBERGLASS_PANEL_WIDTHS.includes(panelWidth.inches as 11.75 | 13.75)) {
     invalid.push(issue('unsupported_fiberglass_panel_width', 'Fiberglass sidelight panel width must be 11 3/4" or 13 3/4".'));
@@ -255,23 +264,26 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   const roW = roWidth.inches;
   const roH = roHeight.ok ? roHeight.inches : null;
   const sides = topology.sidelightPositions.length;
-  const panel = sidelightType === 'Panel' && sides > 0;
+  const structuredTypes = structuredSpecifications.map((entry) => sidelightSpecificationType(entry, sidelightType));
+  const panel = !hasStructuredSpecifications && sidelightType === 'Panel' && sides > 0;
+  const hasPanel = panel || structuredTypes.includes('Panel');
   const doubleCore = topology.doorCount === 2 && sides > 0;
   const divider = panel ? 1.5 : 2.25;
   const resolvedSidelights: ResolvedSidelight[] = hasStructuredSpecifications ? structuredSpecifications.map((raw, index) => {
     const specification = raw as SidelightSpecification;
-    const automaticDefault = automaticSidelightTBar(sidelightType as SidelightType);
+    const resolvedType = sidelightSpecificationType(specification, sidelightType) ?? 'Glass';
+    const automaticDefault = automaticSidelightTBar(resolvedType);
     const resolvedSize = normalizeTBarSize(specification.tBarSize) ?? automaticDefault;
-    const glassTypeCode = sidelightType === 'Glass' ? normalizeGlassTypeCode(specification.glassTypeCode ?? input.sidelightGlass ?? input.glass) : null;
+    const glassTypeCode = resolvedType === 'Glass' ? normalizeGlassTypeCode(specification.glassTypeCode ?? input.sidelightGlass ?? input.glass) : null;
     const parsedWidth = numericDimension(specification.finishedWidth);
     return {
-      side: sideComponents[index].side, index: sideComponents[index].index,
+      side: sideComponents[index].side, index: sideComponents[index].index, sidelightType: resolvedType,
       finishedWidth: parsedWidth.ok ? parsedWidth.formatted : '',
       tBar: { resolvedSize, automaticDefault, nonStandard: resolvedSize !== automaticDefault },
       glassTypeCode,
       effectiveGlassDescription: glassTypeCode === 'CUSTOM' ? text(specification.customGlassDescription) : glassTypeCode === 'SATIN_ETCH' ? 'Satin Etch' : glassTypeCode === 'CLEAR' ? 'Clear' : null,
-      panelSizeMode: panel ? specification.panelSizeMode ?? 'standard' : null,
-      panelConstructionNotes: panel ? text(specification.panelConstructionNotes) : null,
+      panelSizeMode: resolvedType === 'Panel' ? specification.panelSizeMode ?? 'standard' : null,
+      panelConstructionNotes: resolvedType === 'Panel' ? text(specification.panelConstructionNotes) : null,
     };
   }) : [];
   const outswing = String(input.hand ?? '').includes('OUT');
@@ -314,7 +326,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
         : config === 'T/D' ? slab.width + 0.25 : roW - 2);
   const minimumRoWidth = headerWidth + 2;
   if (!doubleCore && (topology.doorCount === 2 || config === 'T/D') && roW + 0.001 < minimumRoWidth) blockers.push(issue('ro_too_narrow', `RO width is too narrow. Minimum RO width is ${formatShopDimension(minimumRoWidth)}.`));
-  if (panel && roW + 0.001 < minimumRoWidth) blockers.push(issue('panel_ro_too_narrow', `RO width is too narrow for the selected panel width. Minimum RO width is ${formatShopDimension(minimumRoWidth)}.`));
+  if (hasPanel && roW + 0.001 < minimumRoWidth) blockers.push(issue('panel_ro_too_narrow', `RO width is too narrow for the selected panel width. Minimum RO width is ${formatShopDimension(minimumRoWidth)}.`));
 
   let sidelightWidth: number | null = null;
   let sidelightHeight: number | null = null;
@@ -328,9 +340,9 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   let transomWidth: number | null = null;
   let transomHeight: number | null = null;
   if (topology.hasTransom) {
-    transomWidth = panel || config === 'T/DD' || config === 'T/D' ? headerWidth - 0.125 : roW - 2.125;
+    transomWidth = hasPanel || config === 'T/DD' || config === 'T/D' ? headerWidth - 0.125 : roW - 2.125;
     transomHeight = (roH as number) - slab.height - (config === 'T/D' ? (outswing ? 4.125 : 4.375) : (outswing ? 4.875 : 5.125));
-    if (panel) transomHeight += 0.75;
+    if (hasPanel) transomHeight += 0.75;
     if (!(transomWidth > 0)) blockers.push(issue('nonpositive_transom_width', 'Transom width is zero or negative.'));
     if (!(transomHeight > 0)) blockers.push(issue('nonpositive_transom_height', 'RO height is too short; transom height would be zero or negative.'));
   }
@@ -338,18 +350,18 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   if (!(jambLeg > 0)) blockers.push(issue('nonpositive_jamb_leg', 'Jamb leg length is zero or negative.'));
   if (blockers.length) return blocked(blockers);
 
-  const panels: PanelSidelight[] = panel && resolvedSidelights.length ? resolvedSidelights.map((entry) => ({
+  const panels: PanelSidelight[] = resolvedSidelights.filter((entry) => entry.sidelightType === 'Panel').map((entry) => ({
     position: `${entry.side === 'left' ? 'Left' : 'Right'} sidelight ${entry.index}`,
-    material: String(input.material ?? '').toLowerCase() === 'wood' ? 'Wood' : 'Fiberglass',
+    material: String(input.material ?? '').toLowerCase() === 'wood' ? 'Wood' as const : 'Fiberglass' as const,
     width: entry.finishedWidth, height: formatShopDimension(slab.height), qty: 1, constructionNotes: entry.panelConstructionNotes,
-  })) : panel && parsedPanelWidth !== null ? sideComponents.map((component) => ({
+  })).concat(panel && !resolvedSidelights.length && parsedPanelWidth !== null ? sideComponents.map((component) => ({
     position: `${component.side === 'left' ? 'Left' : 'Right'} sidelight ${component.index}`,
-    material: String(input.material ?? '').toLowerCase() === 'wood' ? 'Wood' : 'Fiberglass',
-    width: formatShopDimension(parsedPanelWidth), height: formatShopDimension(slab.height), qty: 1,
-  })) : [];
+    material: String(input.material ?? '').toLowerCase() === 'wood' ? 'Wood' as const : 'Fiberglass' as const,
+    width: formatShopDimension(parsedPanelWidth), height: formatShopDimension(slab.height), qty: 1, constructionNotes: null,
+  })) : []);
   const units: GlassUnit[] = [];
-  if (sides && !panel && resolvedSidelights.length) {
-    units.push(...resolvedSidelights.map((entry) => ({
+  if (sides && resolvedSidelights.length) {
+    units.push(...resolvedSidelights.filter((entry) => entry.sidelightType === 'Glass').map((entry) => ({
       position: `${entry.side === 'left' ? 'Left' : 'Right'} sidelight ${entry.index}`,
       width: entry.finishedWidth, height: formatShopDimension(finalDoorHeight + 0.125),
       glassType: entry.effectiveGlassDescription ?? '', termCode: entry.glassTypeCode === 'SATIN_ETCH' ? 'SAT_SB60_K4SG' : entry.glassTypeCode === 'CUSTOM' ? 'CUSTOM' : 'CLR_SB60_K4SG', qty: 1,

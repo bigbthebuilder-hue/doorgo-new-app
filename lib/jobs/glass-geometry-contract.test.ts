@@ -217,6 +217,10 @@ const equalSides = reconcileGlassDimensionCommit(line({ config: 'SDS', roWidth: 
 assert.deepEqual(equalSides.sourcePatch.sidelightSpecifications?.map((entry) => entry.finishedWidth), [`18 1/8"`, `18 1/8"`]);
 const invalidCommit = reconcileGlassDimensionCommit(unequalSource, { kind: 'sidelightWidth', side: 'left', index: 1, value: '0' });
 assert.deepEqual(invalidCommit.sourcePatch, {}, 'invalid committed input does not erase valid canonical source');
+const transomAuthoritative = reconcileGlassDimensionCommit(line({ config: 'T/SDS', roWidth: '78', roHeight: '96', sidelightSpecifications: unequalSource.sidelightSpecifications }), { kind: 'transomWidth', value: '80' });
+assert.equal(transomAuthoritative.blockers.length, 0);
+assert.equal(transomAuthoritative.calculatedGeometry.glassCalc?.transomWidth, `80"`, 'committed transom width remains authoritative');
+assert.equal(transomAuthoritative.sourcePatch.roWidth, `82 1/8"`, 'transom authority recalculates RO');
 for (const [type, expected] of [['Panel', '1.5'], ['Glass', '2.25']] as const) {
   const reconciled = reconcileGlassDimensionCommit(line({ sidelightType: type, panelSidelightWidth: type === 'Panel' ? '11.75' : null }), { kind: 'roWidth', value: '60' });
   assert.equal(reconciled.sourcePatch.sidelightSpecifications?.[0].tBarSize, expected);
@@ -237,6 +241,19 @@ assert.equal(customGlass.glassUnits[0].glassType, 'Rain glass');
 assert.equal(((customGlass.glassCalc?.resolvedSidelights as Array<{tBar:{nonStandard:boolean}}>)?.[0].tBar.nonStandard), true, 'Glass sidelight 1.5 override is non-standard');
 assert.equal(calculateGlassGeometry(line({ sidelightSpecifications: [{ side: 'left', index: 1, finishedWidth: '20', tBarSize: null, glassTypeCode: 'CUSTOM', customGlassDescription: ' ', panelSizeMode: null, panelConstructionNotes: null }] })).status, 'Blocked');
 assert.equal(calculateGlassGeometry(line({ sidelightGlass: 'mystery' })).status, 'Blocked');
+const mixedSidelights = calculateGlassGeometry(line({ config: 'SDS', roWidth: '76.75', sidelightSpecifications: [
+  { side: 'left', index: 1, finishedWidth: '11.75', tBarSize: null, glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'standard', panelConstructionNotes: null },
+  { side: 'right', index: 1, finishedWidth: '20', tBarSize: null, glassTypeCode: 'CUSTOM', customGlassDescription: 'Rain glass', panelSizeMode: null, panelConstructionNotes: null },
+] }));
+assert.equal(mixedSidelights.status, 'Complete', 'mixed Panel and Glass sidelights calculate independently');
+assert.equal(mixedSidelights.panelSidelights[0].position, 'Left sidelight 1');
+assert.equal(mixedSidelights.glassUnits[0].position, 'Right sidelight 1');
+assert.deepEqual((mixedSidelights.glassCalc?.resolvedSidelights as Array<{sidelightType:string;tBar:{resolvedSize:string}}>).map((entry) => [entry.sidelightType, entry.tBar.resolvedSize]), [['Panel', '1.5'], ['Glass', '2.25']]);
+const preservedSelections = calculateGlassGeometry(line({ config: 'SDS', roWidth: '77.5', sidelightSpecifications: [
+  { side: 'left', index: 1, finishedWidth: '12', tBarSize: '2.25', glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: 'Custom panel' },
+  { side: 'right', index: 1, finishedWidth: '20', tBarSize: '1.5', glassTypeCode: 'SATIN_ETCH', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+] }));
+assert.deepEqual((preservedSelections.glassCalc?.resolvedSidelights as Array<{tBar:{resolvedSize:string}}>).map((entry) => entry.tBar.resolvedSize), ['2.25', '1.5'], 'valid saved T-bars are preserved');
 const singleTransomOverride = calculateGlassGeometry(line({ config: 'T/SD', roHeight: '96', transomTBarSize: '2.25' }));
 assert.equal((singleTransomOverride.glassCalc?.transomTBar as {automaticDefault:string;nonStandard:boolean}).automaticDefault, '1.5');
 assert.equal((singleTransomOverride.glassCalc?.transomTBar as {nonStandard:boolean}).nonStandard, true);

@@ -56,7 +56,8 @@ export function canCommitGlassCalculation(status: GlassCalculationStatus, explic
 const MATERIAL_GLASS_FIELDS = new Set([
   'config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand',
   'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'panelSidelightWidth',
-  'transomGlass',
+  'transomGlass', 'sidelightSpecifications', 'transomTBarSize', 'transomGlassTypeCode',
+  'transomCustomGlassDescription',
 ]);
 
 export function nextGlassBuilderDraft(line: DoorLineInput, field: string, value: unknown): DoorLineInput {

@@ -1,6 +1,6 @@
 import { parseStoredShopDimension } from './dimension-contract';
 import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-glass-frame-cut-contract';
-import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate } from './job-intake-types';
+import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate, ResolvedSidelight, ResolvedTBar } from './job-intake-types';
 import { normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
 import { calculatePersistedGlassDiagramLayout, type GlassDiagramLayout } from './glass-diagram-contract';
 import { withDerivedGlassGeometry } from './glass-geometry-contract';
@@ -198,6 +198,10 @@ function calculatedGlassProductionLine(line: NativeDoorLine): string {
   const parts: string[] = [];
   if (text(calc.jambLeg)) parts.push(`Jamb legs: ${text(calc.jambLeg)}`);
   if (text(calc.headerWidth)) parts.push(`${line.config.startsWith('T/') ? 'Header/Sill/T-bar' : 'Header/Sill'}: ${text(calc.headerWidth)}`);
+  const sidelights = Array.isArray(calc.resolvedSidelights) ? calc.resolvedSidelights as ResolvedSidelight[] : [];
+  if (sidelights.length) parts.push(`Sidelight T-bars: ${sidelights.map((entry) => `${entry.side[0].toUpperCase()}${entry.index} ${entry.tBar.resolvedSize}`).join(', ')}`);
+  const transomTBar = calc.transomTBar as ResolvedTBar | undefined;
+  if (line.config.startsWith('T/') && transomTBar?.resolvedSize) parts.push(`Transom T-bar: ${transomTBar.resolvedSize}`);
   const cutDown = canonicalStoredDimension(calc.cutDown);
   if (cutDown && cutDown !== '0"' && text(calc.finalDoorHeight)) parts.push(`Door cut to: ${text(calc.finalDoorHeight)}`);
   return parts.join(' | ');

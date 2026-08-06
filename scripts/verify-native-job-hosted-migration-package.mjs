@@ -15,6 +15,7 @@ const glassRpcAcceptance = read('scripts/rollback-contained-direct-dimension-gla
 const glassUpdateCorrection = read('supabase/migrations/20260805010000_fix_direct_dimension_update_rpc_allowlist.sql');
 const glassUpdateRollback = read('scripts/rollback-direct-dimension-update-rpc-allowlist.sql');
 const glassUpdateMd5Probe = read('scripts/rollback-contained-direct-dimension-update-rpc-md5-probe.sql');
+const transferredBiztrackUpdateMd5Probe = read('scripts/rollback-contained-transferred-biztrack-update-rpc-md5-probe.sql');
 const preflight = read('scripts/inspect-native-job-hosted-preflight.sql');
 const application = read('scripts/verify-native-job-hosted-application.sql');
 const rollback = read('scripts/rollback-native-job-persistence.sql');
@@ -44,6 +45,24 @@ const validateUpdateMd5Probe = (sql) => {
 };
 validateUpdateMd5Probe(glassUpdateMd5Probe);
 [glassUpdateMd5Probe+'\nCOMMIT;',glassUpdateMd5Probe.replace('candidate_function_md5,all_four_allowlist_keys_present','all_four_allowlist_keys_present'),glassUpdateMd5Probe.replaceAll('pg_temp.doorgo_update_rpc_md5_probe_results','public.doorgo_update_rpc_md5_probe_results'),glassUpdateMd5Probe.replace("IF v_error<>'probe.candidate_evidence_captured_force_rollback' THEN RAISE; END IF;",'NULL;'),glassUpdateMd5Probe.replace("RAISE EXCEPTION 'probe.candidate_evidence_captured_force_rollback';",''),glassUpdateMd5Probe.replace("INSERT INTO pg_temp.doorgo_update_rpc_md5_probe_results VALUES", "INSERT INTO pg_temp.doorgo_update_rpc_md5_probe_results VALUES").replace("v_restored_original:=v_restored_md5", "INSERT INTO pg_temp.doorgo_update_rpc_md5_probe_results DEFAULT VALUES; v_restored_original:=v_restored_md5"),glassUpdateMd5Probe.replace('CREATE TEMP TABLE pg_temp.','CREATE TABLE public.'),glassUpdateMd5Probe.replace('DO $probe$','SELECT nextval(\'x\'); DO $probe$'),glassUpdateMd5Probe.replace('DO $probe$','SELECT public.dg_create_native_job(NULL,NULL,NULL,NULL,NULL,NULL); DO $probe$')].forEach((bad,index)=>assert.throws(()=>validateUpdateMd5Probe(bad),`Combined probe negative ${index}`));
+const validateTransferredBiztrackUpdateMd5Probe = (sql) => {
+  const lower=stripComments(sql).toLowerCase();
+  assert.match(lower,/^\s*drop table if exists pg_temp\.doorgo_transferred_biztrack_update_probe_results;[\s\S]*create temp table pg_temp\.doorgo_transferred_biztrack_update_probe_results[\s\S]*do \$probe\$[\s\S]*begin[\s\S]*execute v_candidate_definition;[\s\S]*exception when others[\s\S]*probe\.candidate_evidence_captured_force_rollback[\s\S]*insert into pg_temp\.doorgo_transferred_biztrack_update_probe_results[\s\S]*select result_label,candidate_function_md5[\s\S]*overall_probe_passed[\s\S]*from pg_temp\.doorgo_transferred_biztrack_update_probe_results;\s*$/);
+  assert.doesNotMatch(lower,/\bcommit;|\bnextval\s*\(|\bsetval\s*\(|alter sequence|restart sequence|supabase_migrations/);
+  assert.equal((lower.match(/probe\.candidate_evidence_captured_force_rollback/g)??[]).length,2,'Probe must raise and exclusively handle the forced rollback sentinel');
+  assert.equal((lower.match(/be3117f9494d85c82adb2359bf2040d1/g)??[]).length,1,'Probe must bind exactly once to the hosted starting MD5');
+  assert.ok(lower.includes("v_old_expression constant text := 'if v_job.legacy_identifier_kind=''biztrack_sales_order'' then v_sales_order:=v_job.legacy_job_id; end if;'"));
+  assert.ok(lower.includes("v_new_expression constant text := 'if v_job.legacy_identifier_kind=''biztrack_sales_order'' then v_sales_order:=v_job.biztrack_sales_order; end if;'"));
+  assert.match(lower,/v_candidate_definition:=pg_catalog\.replace\(v_original_definition,v_old_expression,v_new_expression\)/);
+  assert.match(lower,/v_restored_current:=v_restored_md5=v_expected_md5/);
+  assert.match(lower,/if not v_restored_current or not v_sequence_value_restored or not v_sequence_called_restored[\s\S]*probe\.restoration_failed/);
+  for(const evidence of ['transferred_biztrack_preserved_from_sales_order','obsolete_legacy_job_id_source_absent','exact_update_signature_present','all_four_allowlist_keys_present','all_four_persistence_mappings_present','validator_call_present','stale_revision_guard_present','archive_and_merge_behavior_present','revision_increment_present','owner_correct','security_definer_correct','empty_search_path_correct','grants_correct','sequence_unchanged_while_candidate_installed','candidate_contract_passed','restored_function_md5','restored_current_md5','sequence_last_value_unchanged','sequence_is_called_unchanged','overall_probe_passed'])assert.ok(lower.includes(evidence),`Transferred BizTrack probe missing ${evidence}`);
+  assert.equal((lower.match(/insert into pg_temp\.doorgo_transferred_biztrack_update_probe_results/g)??[]).length,1);
+  assert.equal((lower.match(/^select result_label,candidate_function_md5[\s\S]*?from pg_temp\.doorgo_transferred_biztrack_update_probe_results;$/gm)??[]).length,1);
+  assert.doesNotMatch(lower,/dg_create_native_job\s*\(|dg_create_transferred_native_job\s*\(|dg_archive_native_job\s*\(|insert into public\.|update public\.|delete from public\./);
+};
+validateTransferredBiztrackUpdateMd5Probe(transferredBiztrackUpdateMd5Probe);
+for(const [index,bad] of [transferredBiztrackUpdateMd5Probe+'\nCOMMIT;',transferredBiztrackUpdateMd5Probe.replace('be3117f9494d85c82adb2359bf2040d1','missing'),transferredBiztrackUpdateMd5Probe.replace('v_job.biztrack_sales_order','v_job.legacy_job_id'),transferredBiztrackUpdateMd5Probe.replace("RAISE EXCEPTION 'probe.candidate_evidence_captured_force_rollback';",''),transferredBiztrackUpdateMd5Probe.replace("IF v_error<>'probe.candidate_evidence_captured_force_rollback' THEN RAISE; END IF;",'NULL;'),transferredBiztrackUpdateMd5Probe.replace('CREATE TEMP TABLE pg_temp.','CREATE TABLE public.'),transferredBiztrackUpdateMd5Probe.replace('DO $probe$','SELECT nextval(\'x\'); DO $probe$')].entries())assert.throws(()=>validateTransferredBiztrackUpdateMd5Probe(bad),`Transferred BizTrack probe negative ${index}`);
 const validateUpdateCorrection = (sql) => {
   const code=stripComments(sql); const lower=code.toLowerCase(); const definition=updateDefinition(code); assert.ok(definition,'Correction must replace the exact update RPC');
   assert.equal((lower.match(/create or replace function public\.dg_[a-z0-9_]+/g)??[]).length,1,'Correction may replace only one RPC');

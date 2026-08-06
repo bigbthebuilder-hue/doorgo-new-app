@@ -16,6 +16,8 @@ const glassUpdateCorrection = read('supabase/migrations/20260805010000_fix_direc
 const glassUpdateRollback = read('scripts/rollback-direct-dimension-update-rpc-allowlist.sql');
 const glassUpdateMd5Probe = read('scripts/rollback-contained-direct-dimension-update-rpc-md5-probe.sql');
 const transferredBiztrackUpdateMd5Probe = read('scripts/rollback-contained-transferred-biztrack-update-rpc-md5-probe.sql');
+const transferredBiztrackUpdateCorrection = read('supabase/migrations/20260806010000_fix_transferred_biztrack_update_identifier.sql');
+const transferredBiztrackUpdateRollback = read('scripts/rollback-transferred-biztrack-update-identifier.sql');
 const preflight = read('scripts/inspect-native-job-hosted-preflight.sql');
 const application = read('scripts/verify-native-job-hosted-application.sql');
 const rollback = read('scripts/rollback-native-job-persistence.sql');
@@ -63,6 +65,31 @@ const validateTransferredBiztrackUpdateMd5Probe = (sql) => {
 };
 validateTransferredBiztrackUpdateMd5Probe(transferredBiztrackUpdateMd5Probe);
 for(const [index,bad] of [transferredBiztrackUpdateMd5Probe+'\nCOMMIT;',transferredBiztrackUpdateMd5Probe.replace('be3117f9494d85c82adb2359bf2040d1','missing'),transferredBiztrackUpdateMd5Probe.replace('v_job.biztrack_sales_order','v_job.legacy_job_id'),transferredBiztrackUpdateMd5Probe.replace("RAISE EXCEPTION 'probe.candidate_evidence_captured_force_rollback';",''),transferredBiztrackUpdateMd5Probe.replace("IF v_error<>'probe.candidate_evidence_captured_force_rollback' THEN RAISE; END IF;",'NULL;'),transferredBiztrackUpdateMd5Probe.replace('CREATE TEMP TABLE pg_temp.','CREATE TABLE public.'),transferredBiztrackUpdateMd5Probe.replace('DO $probe$','SELECT nextval(\'x\'); DO $probe$')].entries())assert.throws(()=>validateTransferredBiztrackUpdateMd5Probe(bad),`Transferred BizTrack probe negative ${index}`);
+const transferredBiztrackOldExpression="IF v_job.legacy_identifier_kind=''biztrack_sales_order'' THEN v_sales_order:=v_job.legacy_job_id; END IF;";
+const transferredBiztrackNewExpression="IF v_job.legacy_identifier_kind=''biztrack_sales_order'' THEN v_sales_order:=v_job.biztrack_sales_order; END IF;";
+assert.ok(transferredBiztrackUpdateMd5Probe.includes(`v_old_expression constant text := '${transferredBiztrackOldExpression}'`));
+assert.ok(transferredBiztrackUpdateMd5Probe.includes(`v_new_expression constant text := '${transferredBiztrackNewExpression}'`));
+const validateTransferredBiztrackPackageScript=(sql,{rollback=false}={})=>{
+  const lower=stripComments(sql).toLowerCase();
+  assert.match(lower,/^\s*begin;[\s\S]*do \$(?:correction|rollback)\$[\s\S]*execute v_(?:candidate|restore)_definition;[\s\S]*commit;\s*$/);
+  assert.equal((lower.match(/execute v_(?:candidate|restore)_definition;/g)??[]).length,1,'Exactly one canonical function definition may be executed');
+  assert.equal((lower.match(/pg_catalog\.replace\(v_before_definition,v_(?:old|corrected)_expression,v_(?:new|restored)_expression\)/g)??[]).length,1,'Only the reviewed expression replacement is allowed');
+  assert.doesNotMatch(lower,/create or replace function|alter function|revoke |grant execute|\b(?:insert into public\.|update public\.|delete from public\.|nextval|setval|alter sequence|restart sequence|alter table|create table|drop table|supabase_migrations)\b/);
+  for(const token of ['pg_get_functiondef','dg_update_native_job(uuid,bigint,jsonb,jsonb)','pg_get_userbyid','postgres','prosecdef','search_path=""','routine_privileges','authenticated','public','anon','service_role','last_value','is_called','sidelight_specifications','transom_t_bar_size','transom_glass_type_code','transom_custom_glass_description','dg_validate_direct_dimension_glass_source(line)','native_job.stale_revision',"line_status=''archived''",'on conflict (line_id) do update','revision=job.revision+1'])assert.ok(lower.includes(token),`BizTrack package script missing ${token}`);
+  if(rollback){
+    assert.ok(sql.includes(`v_corrected_expression constant text := '${transferredBiztrackNewExpression}'`));
+    assert.ok(sql.includes(`v_restored_expression constant text := '${transferredBiztrackOldExpression}'`));
+    assert.match(lower,/4b16dfb5896d1ea080edc05e419de6c2[\s\S]*be3117f9494d85c82adb2359bf2040d1/);
+  }else{
+    assert.ok(sql.includes(`v_old_expression constant text := '${transferredBiztrackOldExpression}'`));
+    assert.ok(sql.includes(`v_new_expression constant text := '${transferredBiztrackNewExpression}'`));
+    assert.match(lower,/be3117f9494d85c82adb2359bf2040d1[\s\S]*4b16dfb5896d1ea080edc05e419de6c2/);
+  }
+};
+validateTransferredBiztrackPackageScript(transferredBiztrackUpdateCorrection);
+validateTransferredBiztrackPackageScript(transferredBiztrackUpdateRollback,{rollback:true});
+for(const [index,bad] of [transferredBiztrackUpdateCorrection.replace('COMMIT;',''),transferredBiztrackUpdateCorrection.replace('4b16dfb5896d1ea080edc05e419de6c2','missing'),transferredBiztrackUpdateCorrection.replace('v_job.biztrack_sales_order','v_job.legacy_job_id'),transferredBiztrackUpdateCorrection.replace('EXECUTE v_candidate_definition;','UPDATE public.dg_native_jobs SET revision=revision;'),transferredBiztrackUpdateCorrection.replace('SELECT last_value,is_called','SELECT nextval(\'public.dg_native_job_reference_seq\'),is_called')].entries())assert.throws(()=>validateTransferredBiztrackPackageScript(bad),`Transferred BizTrack correction negative ${index}`);
+for(const [index,bad] of [transferredBiztrackUpdateRollback.replace('COMMIT;',''),transferredBiztrackUpdateRollback.replace('be3117f9494d85c82adb2359bf2040d1','missing'),transferredBiztrackUpdateRollback.replace('v_job.legacy_job_id','v_job.biztrack_sales_order'),transferredBiztrackUpdateRollback.replace('EXECUTE v_restore_definition;','DELETE FROM public.dg_native_jobs;'),transferredBiztrackUpdateRollback.replace('SELECT last_value,is_called','SELECT setval(\'public.dg_native_job_reference_seq\',1),is_called')].entries())assert.throws(()=>validateTransferredBiztrackPackageScript(bad,{rollback:true}),`Transferred BizTrack rollback negative ${index}`);
 const validateUpdateCorrection = (sql) => {
   const code=stripComments(sql); const lower=code.toLowerCase(); const definition=updateDefinition(code); assert.ok(definition,'Correction must replace the exact update RPC');
   assert.equal((lower.match(/create or replace function public\.dg_[a-z0-9_]+/g)??[]).length,1,'Correction may replace only one RPC');

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/experimental-ct-react';
-import { ImportedGlassBuilderHarness } from './imported-glass-builder-harness';
+import { DirectDimensionGlassBuilderHarness, ImportedGlassBuilderHarness } from './imported-glass-builder-harness';
 
 test('completed imported T/DS glass state renders visibly and survives application and reopening', async ({ mount, page }) => {
   const consoleErrors: string[] = [];
@@ -42,4 +42,20 @@ test('completed imported T/DS glass state renders visibly and survives applicati
   await component.getByRole('dialog').getByLabel('RO Height (inches)').fill('98');
   await expect(component.getByRole('dialog').getByText('Status: Complete', { exact: false })).toBeVisible();
   expect(consoleErrors.filter((message) => /same key|unique "key" prop|duplicate key|nan|infinity/i.test(message))).toEqual([]);
+});
+
+test('T/SDS unit type, Clear selection, and committed custom width remain canonical', async ({ mount }) => {
+  const component = await mount(<DirectDimensionGlassBuilderHarness/>);
+  const dialog = component.getByRole('dialog');
+  await expect(dialog.getByLabel('Sidelight Type')).toHaveCount(1);
+  await dialog.getByLabel('Sidelight Type').selectOption('Glass');
+  const right = dialog.getByRole('group', { name: 'Right sidelight 1' });
+  await right.getByLabel('Glass Type').selectOption('CLEAR');
+  const width = right.getByLabel('Custom Glass Sidelight Width (inches)');
+  await width.fill('14 1/8');
+  await width.press('Enter');
+  await expect(width).toHaveValue('14 1/8"');
+  await expect(dialog.getByLabel('RO Width (inches)')).not.toHaveValue('');
+  await expect(dialog.getByLabel('Calculated measurements')).toBeVisible();
+  await expect(dialog.getByText(/Choose glass for the right sidelight 1/i)).toHaveCount(0);
 });

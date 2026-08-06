@@ -153,8 +153,10 @@ export function automaticTransomTBar(doorCount: 1 | 2): GlassTBarSize {
   return doorCount === 2 ? '2.25' : '1.5';
 }
 
-/** The accepted persisted specification shape uses panelSizeMode/glassTypeCode as its per-position discriminator. */
+/** Unit sidelight type is authoritative; specification fields carry position-level detail only. */
 export function sidelightSpecificationType(specification: SidelightSpecification | null | undefined, fallback: unknown = null): SidelightType | null {
+  const unitType = normalizeSidelightType(fallback);
+  if (unitType) return unitType;
   if (specification?.panelSizeMode || text(specification?.panelConstructionNotes)) return 'Panel';
   if (specification?.glassTypeCode || text(specification?.customGlassDescription)) return 'Glass';
   return normalizeSidelightType(fallback);
@@ -230,6 +232,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   }
   if (missing.length) return incomplete(missing);
   const invalid: GlassIssue[] = [];
+  const nonGeometricIncomplete: GlassIssue[] = [];
   if (topology.sidelightPositions.length && !suppliedSpecifications.length && text(input.sidelightType) && !sidelightType) invalid.push(issue('invalid_sidelight_type', 'Sidelight type must be Glass or Panel.'));
   if (roWidth.ok === false) invalid.push(issue('invalid_ro_width', roWidth.message));
   if (topology.hasTransom && roHeight.ok === false) invalid.push(issue('invalid_ro_height', roHeight.message));
@@ -237,7 +240,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   if (sidelightType === 'Glass' && text(input.sidelightGlass ?? input.glass) && !normalizeGlassTypeCode(input.sidelightGlass ?? input.glass)) invalid.push(issue('unknown_glass_code', 'Unknown glass codes must not resolve to Clear.'));
   const transomCode = normalizeGlassTypeCode(input.transomGlassTypeCode ?? input.transomGlass ?? input.glass);
   if (topology.hasTransom && text(input.transomGlassTypeCode ?? input.transomGlass ?? input.glass) && !transomCode) invalid.push(issue('unknown_transom_glass_code', 'Unknown transom glass codes must not resolve to Clear.'));
-  if (topology.hasTransom && transomCode === 'CUSTOM' && !text(input.transomCustomGlassDescription)) invalid.push(issue('custom_transom_glass_description_required', 'Enter a description for Custom transom glass.'));
+  if (topology.hasTransom && transomCode === 'CUSTOM' && !text(input.transomCustomGlassDescription)) nonGeometricIncomplete.push(issue('custom_transom_glass_description_required', 'Enter a description for Custom transom glass.'));
   if (input.transomTBarSize !== null && input.transomTBarSize !== undefined && !normalizeTBarSize(input.transomTBarSize)) invalid.push(issue('invalid_transom_t_bar', 'Transom T-bar must be 1.5 or 2.25.'));
   const structuredSpecifications = sideComponents.map((component) => suppliedSpecifications.find((entry) => entry?.side === component.side && entry?.index === component.index) ?? null);
   const hasStructuredSpecifications = suppliedSpecifications.length > 0;
@@ -250,7 +253,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
     if (entry.tBarSize !== null && entry.tBarSize !== undefined && !normalizeTBarSize(entry.tBarSize)) invalid.push(issue('invalid_t_bar', 'T-bar must be 1.5 or 2.25.'));
     if (entryType === 'Glass' && !entry.glassTypeCode) invalid.push(issue('sidelight_glass_required', `Choose glass for the ${entry.side} sidelight ${entry.index}.`));
     if (entryType === 'Glass' && entry.glassTypeCode && !normalizeGlassTypeCode(entry.glassTypeCode)) invalid.push(issue('unknown_glass_code', 'Unknown glass codes must be corrected or explicitly selected as Custom.'));
-    if (entryType === 'Glass' && normalizeGlassTypeCode(entry.glassTypeCode) === 'CUSTOM' && !text(entry.customGlassDescription)) invalid.push(issue('custom_glass_description_required', 'Enter a description for Custom glass.'));
+    if (entryType === 'Glass' && normalizeGlassTypeCode(entry.glassTypeCode) === 'CUSTOM' && !text(entry.customGlassDescription)) nonGeometricIncomplete.push(issue('custom_glass_description_required', `Enter a Custom glass description for the ${entry.side} sidelight ${entry.index}.`));
     if (entry.panelSizeMode && entry.panelSizeMode !== 'standard' && entry.panelSizeMode !== 'custom') invalid.push(issue('invalid_panel_size_mode', 'Panel size mode must be standard or custom.'));
     const width = numericDimension(entry.finishedWidth);
     if (!width.ok) invalid.push(issue('invalid_sidelight_width', 'message' in width ? width.message : 'Enter a valid sidelight width.'));
@@ -400,9 +403,9 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   ].join('\n');
   const suppliedOverride = overrideApproval(input.glassOverride);
   const overrideValid = suppliedOverride && warnings.length > 0;
-  const status: GlassCalculationStatus = overrideValid ? 'Manual Override' : warnings.length ? 'Warning' : 'Complete';
+  const status: GlassCalculationStatus = nonGeometricIncomplete.length ? 'Glass Detail Needed' : overrideValid ? 'Manual Override' : warnings.length ? 'Warning' : 'Complete';
   const overrideText = overrideValid ? `\nMANUAL OVERRIDE\nReason: ${suppliedOverride.reason}\nCalculated: ${JSON.stringify(suppliedOverride.calculatedValues)}\nAccepted: ${JSON.stringify(suppliedOverride.acceptedValues)}` : '';
-  return { status, warnings, blockers: [], incompleteDetails: [], workorderDetail: detail + overrideText, glassUnits: units, panelSidelights: panels, glassCalc: calc, vendorCopyText: generateVendorCopy(units), override: overrideValid ? suppliedOverride : null };
+  return { status, warnings, blockers: [], incompleteDetails: nonGeometricIncomplete, workorderDetail: detail + overrideText, glassUnits: units, panelSidelights: panels, glassCalc: calc, vendorCopyText: generateVendorCopy(units), override: overrideValid ? suppliedOverride : null };
 }
 
 export function applyManualGeometryOverride(input: {

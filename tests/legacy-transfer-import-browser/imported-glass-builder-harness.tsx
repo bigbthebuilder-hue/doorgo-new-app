@@ -17,9 +17,9 @@ const importedLine: DoorLineInput = {
   glassUnits: [], panelSidelights: [], glassCalc: null, glassOverride: null, glassWorkorderDetail: null, vendorCopyText: null,
 };
 
-export function ImportedGlassBuilderHarness() {
-  const [lines, setLines] = useState<DoorLineInput[]>([structuredClone(importedLine)]);
-  const [editor, setEditor] = useState<DoorLineInput>(() => structuredClone(importedLine));
+function GlassBuilderHarness({ initialLine }: { initialLine: DoorLineInput }) {
+  const [lines, setLines] = useState<DoorLineInput[]>([structuredClone(initialLine)]);
+  const [editor, setEditor] = useState<DoorLineInput>(() => structuredClone(initialLine));
   const [builderOpen, setBuilderOpen] = useState(true);
   const line = lines[0];
   const attention = glassLineNeedsAttention(line);
@@ -33,4 +33,12 @@ export function ImportedGlassBuilderHarness() {
     <button onClick={() => setLines((current) => replaceDoorLineAtIndex(current, 0, { ...editor, lineId: editor.lineId ?? 'local-import-line' }))} type="button">Update Door</button>
     {builderOpen ? <GlassUnitBuilder line={structuredClone(editor)} onCancel={() => setBuilderOpen(false)} onUse={(next) => { setEditor(next); setBuilderOpen(false); }}/>: null}
   </section>;
+}
+
+export function ImportedGlassBuilderHarness() {
+  return <GlassBuilderHarness initialLine={importedLine}/>;
+}
+
+export function DirectDimensionGlassBuilderHarness() {
+  return <GlassBuilderHarness initialLine={{ ...importedLine, config: 'T/SDS', hand: 'LH', roWidth: '71', roHeight: '96', sidelightType: 'Glass', sidelightGlass: null, sidelightSpecifications: [] }}/>;
 }

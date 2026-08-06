@@ -36,13 +36,13 @@ assert.deepEqual(
 const mixedLine: DoorLineInput = {
   ...fixture('SDS'), roWidth: '76.75',
   sidelightSpecifications: [
-    { side: 'left', index: 1, finishedWidth: '11.75', tBarSize: '1.5', glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'standard', panelConstructionNotes: null },
+    { side: 'left', index: 1, finishedWidth: '11.75', tBarSize: '1.5', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
     { side: 'right', index: 1, finishedWidth: '20', tBarSize: '2.25', glassTypeCode: 'SATIN_ETCH', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
   ],
 };
 mixedLine.glassCalc = calculateGlassGeometry(mixedLine).glassCalc;
 const mixedLayout = calculateGlassDiagramLayout(mixedLine);
-assert.equal(mixedLayout?.parts.find((part) => part.id === 'left-sidelight-1')?.kind, 'panel');
+assert.equal(mixedLayout?.parts.find((part) => part.id === 'left-sidelight-1')?.kind, 'glass');
 assert.equal(mixedLayout?.parts.find((part) => part.id === 'right-sidelight-1')?.kind, 'glass');
 assert.equal(mixedLayout?.parts.find((part) => part.id === 'left-divider-1')?.width, 1.5);
 assert.equal(mixedLayout?.parts.find((part) => part.id === 'right-divider-1')?.width, 2.25);

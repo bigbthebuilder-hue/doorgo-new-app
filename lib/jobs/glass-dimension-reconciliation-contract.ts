@@ -50,7 +50,7 @@ export function canonicalSidelightSpecifications(input: DoorLineInput, positions
   const type = normalizeSidelightType(input.sidelightType) ?? 'Glass';
   return positions.map((position) => {
     const found = supplied.find((entry) => entry && samePosition(entry, position));
-    const resolvedType = sidelightSpecificationType(found, type) ?? type;
+    const resolvedType = type;
     return {
       side: position.side,
       index: position.index,

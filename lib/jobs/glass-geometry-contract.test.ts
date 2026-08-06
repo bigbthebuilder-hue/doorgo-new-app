@@ -239,18 +239,19 @@ const customGlass = calculateGlassGeometry(line({ sidelightSpecifications: [
 ] }));
 assert.equal(customGlass.glassUnits[0].glassType, 'Rain glass');
 assert.equal(((customGlass.glassCalc?.resolvedSidelights as Array<{tBar:{nonStandard:boolean}}>)?.[0].tBar.nonStandard), true, 'Glass sidelight 1.5 override is non-standard');
-assert.equal(calculateGlassGeometry(line({ sidelightSpecifications: [{ side: 'left', index: 1, finishedWidth: '20', tBarSize: null, glassTypeCode: 'CUSTOM', customGlassDescription: ' ', panelSizeMode: null, panelConstructionNotes: null }] })).status, 'Blocked');
+const customGlassIncomplete = calculateGlassGeometry(line({ sidelightSpecifications: [{ side: 'left', index: 1, finishedWidth: '20', tBarSize: null, glassTypeCode: 'CUSTOM', customGlassDescription: ' ', panelSizeMode: null, panelConstructionNotes: null }] }));
+assert.equal(customGlassIncomplete.status, 'Glass Detail Needed');
+assert.ok(customGlassIncomplete.glassCalc, 'non-geometric detail does not suppress calculated measurements');
 assert.equal(calculateGlassGeometry(line({ sidelightGlass: 'mystery' })).status, 'Blocked');
-const mixedSidelights = calculateGlassGeometry(line({ config: 'SDS', roWidth: '76.75', sidelightSpecifications: [
-  { side: 'left', index: 1, finishedWidth: '11.75', tBarSize: null, glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'standard', panelConstructionNotes: null },
+const independentGlassDetails = calculateGlassGeometry(line({ config: 'SDS', roWidth: '76.75', sidelightSpecifications: [
+  { side: 'left', index: 1, finishedWidth: '11.75', tBarSize: null, glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
   { side: 'right', index: 1, finishedWidth: '20', tBarSize: null, glassTypeCode: 'CUSTOM', customGlassDescription: 'Rain glass', panelSizeMode: null, panelConstructionNotes: null },
 ] }));
-assert.equal(mixedSidelights.status, 'Complete', 'mixed Panel and Glass sidelights calculate independently');
-assert.equal(mixedSidelights.panelSidelights[0].position, 'Left sidelight 1');
-assert.equal(mixedSidelights.glassUnits[0].position, 'Right sidelight 1');
-assert.deepEqual((mixedSidelights.glassCalc?.resolvedSidelights as Array<{sidelightType:string;tBar:{resolvedSize:string}}>).map((entry) => [entry.sidelightType, entry.tBar.resolvedSize]), [['Panel', '1.5'], ['Glass', '2.25']]);
+assert.equal(independentGlassDetails.status, 'Complete', 'unit Glass type permits independent position details');
+assert.deepEqual(independentGlassDetails.glassUnits.map((unit) => unit.position), ['Left sidelight 1', 'Right sidelight 1']);
+assert.deepEqual((independentGlassDetails.glassCalc?.resolvedSidelights as Array<{sidelightType:string;tBar:{resolvedSize:string}}>).map((entry) => [entry.sidelightType, entry.tBar.resolvedSize]), [['Glass', '2.25'], ['Glass', '2.25']]);
 const preservedSelections = calculateGlassGeometry(line({ config: 'SDS', roWidth: '77.5', sidelightSpecifications: [
-  { side: 'left', index: 1, finishedWidth: '12', tBarSize: '2.25', glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: 'Custom panel' },
+  { side: 'left', index: 1, finishedWidth: '12', tBarSize: '2.25', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
   { side: 'right', index: 1, finishedWidth: '20', tBarSize: '1.5', glassTypeCode: 'SATIN_ETCH', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
 ] }));
 assert.deepEqual((preservedSelections.glassCalc?.resolvedSidelights as Array<{tBar:{resolvedSize:string}}>).map((entry) => entry.tBar.resolvedSize), ['2.25', '1.5'], 'valid saved T-bars are preserved');

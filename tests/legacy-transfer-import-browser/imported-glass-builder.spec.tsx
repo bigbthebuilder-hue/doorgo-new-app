@@ -18,8 +18,7 @@ test('completed imported T/DS glass state renders visibly and survives applicati
   expect(new Set(fills).size).toBeGreaterThan(2);
   expect(fills.every((fill) => fill !== 'rgb(0, 0, 0)')).toBe(true);
 
-  await dialog.getByRole('button', { name: 'Use Configuration' }).click();
-  await component.getByRole('button', { name: 'Update Door' }).click();
+  await dialog.getByRole('button', { name: 'Add Door to Order' }).click();
   await expect(component.getByTestId('saved-status')).toHaveText('Complete');
   await expect(component.getByTestId('attention-count')).toHaveText('0');
   await expect(component.getByTestId('unit-count')).toHaveText('2');
@@ -41,6 +40,8 @@ test('completed imported T/DS glass state renders visibly and survives applicati
   await component.getByRole('dialog').getByLabel('Transom Glass Type').selectOption('CLEAR');
   await component.getByRole('dialog').getByLabel('RO Height (inches)').fill('98');
   await expect(component.getByRole('dialog').getByText('Status: Complete', { exact: false })).toBeVisible();
+  await component.getByRole('dialog').getByRole('button', { name: 'Save Door Changes' }).click();
+  await expect(component.getByTestId('saved-status')).toHaveText('Complete');
   expect(consoleErrors.filter((message) => /same key|unique "key" prop|duplicate key|nan|infinity/i.test(message))).toEqual([]);
 });
 
@@ -48,14 +49,17 @@ test('T/SDS unit type, Clear selection, and committed custom width remain canoni
   const component = await mount(<DirectDimensionGlassBuilderHarness/>);
   const dialog = component.getByRole('dialog');
   await expect(dialog.getByLabel('Sidelight Type')).toHaveCount(1);
+  await expect(dialog.getByLabel('Unit T-bar Size')).toHaveCount(1);
+  await expect(dialog.getByText('Sidelight Product Width')).toBeVisible();
   await dialog.getByLabel('Sidelight Type').selectOption('Glass');
   const right = dialog.getByRole('group', { name: 'Right sidelight 1' });
   await right.getByLabel('Glass Type').selectOption('CLEAR');
-  const width = right.getByLabel('Custom Glass Sidelight Width (inches)');
+  const width = dialog.getByLabel('Sidelight Product Width (inches)');
   await width.fill('14 1/8');
   await width.press('Enter');
   await expect(width).toHaveValue('14 1/8"');
   await expect(dialog.getByLabel('RO Width (inches)')).not.toHaveValue('');
   await expect(dialog.getByLabel('Calculated measurements')).toBeVisible();
+  await expect(dialog.getByText('Transom Product Size')).toBeVisible();
   await expect(dialog.getByText(/Choose glass for the right sidelight 1/i)).toHaveCount(0);
 });

@@ -45,5 +45,5 @@ const mixedLayout = calculateGlassDiagramLayout(mixedLine);
 assert.equal(mixedLayout?.parts.find((part) => part.id === 'left-sidelight-1')?.kind, 'glass');
 assert.equal(mixedLayout?.parts.find((part) => part.id === 'right-sidelight-1')?.kind, 'glass');
 assert.equal(mixedLayout?.parts.find((part) => part.id === 'left-divider-1')?.width, 1.5);
-assert.equal(mixedLayout?.parts.find((part) => part.id === 'right-divider-1')?.width, 2.25);
+assert.equal(mixedLayout?.parts.find((part) => part.id === 'right-divider-1')?.width, 1.5, 'one unit-wide T-bar drives every divider');
 console.log('Glass Unit Builder diagram contract: PASS');

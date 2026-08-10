@@ -31,7 +31,7 @@ function GlassBuilderHarness({ initialLine }: { initialLine: DoorLineInput }) {
     <p data-testid="unit-count">{line.glassUnits?.length ?? 0}</p>
     <button onClick={() => { setEditor(structuredClone(lines[0])); setBuilderOpen(true); }} type="button">Reopen Glass Builder</button>
     <button onClick={() => setLines((current) => replaceDoorLineAtIndex(current, 0, { ...editor, lineId: editor.lineId ?? 'local-import-line' }))} type="button">Update Door</button>
-    {builderOpen ? <GlassUnitBuilder line={structuredClone(editor)} onCancel={() => setBuilderOpen(false)} onUse={(next) => { setEditor(next); setBuilderOpen(false); }}/>: null}
+    {builderOpen ? <GlassUnitBuilder commitLabel={line.lineId ? 'Save Door Changes' : 'Add Door to Order'} line={structuredClone(editor)} onCancel={() => setBuilderOpen(false)} onUse={(next) => { const saved = { ...next, lineId: next.lineId ?? 'local-import-line' }; setEditor(saved); setLines((current) => replaceDoorLineAtIndex(current, 0, saved)); setBuilderOpen(false); return true; }}/>: null}
   </section>;
 }
 

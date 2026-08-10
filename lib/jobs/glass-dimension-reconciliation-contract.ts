@@ -125,9 +125,8 @@ export function reconcileGlassDimensionCommit(input: DoorLineInput, edit: GlassC
     if (!ro.ok) blockers.push(issue('invalid_ro_width', 'message' in ro ? ro.message : 'Enter a valid RO width.'));
     else {
       const targetTotal = availableSidelightWidth(ro.inches, fixed, specifications);
-      const delta = rounded((targetTotal - widths.reduce((sum, width) => sum + width, 0)) / widths.length);
-      const adjusted = widths.map((width) => rounded(width + delta));
-      adjusted[adjusted.length - 1] = rounded(targetTotal - adjusted.slice(0, -1).reduce((sum, width) => sum + width, 0));
+      const commonWidth = rounded(targetTotal / widths.length);
+      const adjusted = widths.map(() => commonWidth);
       if (adjusted.some((width) => width <= 0)) blockers.push(issue('nonpositive_sidelight_width', 'RO width would produce a zero or negative finished sidelight.'));
       else { specifications = applyWidths(specifications, adjusted); nextRo = ro.inches; notices.push(issue('ro_recalculated_sidelights', 'Sidelight widths were recalculated from the committed RO width.')); }
     }
@@ -139,9 +138,8 @@ export function reconcileGlassDimensionCommit(input: DoorLineInput, edit: GlassC
       const targetHeader = hasPanel ? transom.inches + 0.125 : null;
       nextRo = targetHeader === null ? rounded(transom.inches + 2.125) : rounded(targetHeader + 2);
       const targetTotal = targetHeader === null ? availableSidelightWidth(nextRo, fixed, specifications) : targetHeader - fixed.width - specifications.reduce((sum, entry) => sum + Number(entry.tBarSize) + 0.125, 0);
-      const delta = rounded((targetTotal - widths.reduce((sum, width) => sum + width, 0)) / widths.length);
-      const adjusted = widths.map((width) => rounded(width + delta));
-      adjusted[adjusted.length - 1] = rounded(targetTotal - adjusted.slice(0, -1).reduce((sum, width) => sum + width, 0));
+      const commonWidth = rounded(targetTotal / widths.length);
+      const adjusted = widths.map(() => commonWidth);
       if (adjusted.some((width) => width <= 0)) blockers.push(issue('nonpositive_sidelight_width', 'Transom width would produce a zero or negative finished sidelight.'));
       else { specifications = applyWidths(specifications, adjusted); notices.push(issue('transom_recalculated_ro', 'RO and sidelight widths were recalculated from the committed transom width.')); }
     }
@@ -152,9 +150,9 @@ export function reconcileGlassDimensionCommit(input: DoorLineInput, edit: GlassC
     if (target < 0) blockers.push(issue('invalid_sidelight_width', 'The committed sidelight position is not part of this configuration.'));
     else if (!dimension.ok) blockers.push(issue('invalid_sidelight_width', 'message' in dimension ? dimension.message : 'Enter a valid sidelight width.'));
     else {
-      widths[target] = dimension.inches;
+      widths.fill(dimension.inches);
       specifications = applyWidths(specifications, widths);
-      nextRo = rounded(fixed.width + specifications.reduce((sum, entry, index) => sum + widths[index] + Number(entry.tBarSize) + 0.125, 0) + 2);
+      nextRo = rounded(fixed.width + specifications.reduce((sum, entry) => sum + dimension.inches + Number(entry.tBarSize) + 0.125, 0) + 2);
       notices.push(issue('sidelight_recalculated_ro', 'Recommended RO and dependent frame geometry were recalculated from the committed sidelight width.'));
     }
   }

@@ -206,30 +206,31 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     const next = defaultDoorLine(mode); setEditor(next); setEditorBaseline(JSON.stringify(next)); setEditingIndex(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
-  function commitEditor(detailNeeded = explicitGlassDetailNeeded) {
-    if (Object.values(fieldErrors).some(Boolean)) {
-      clearMessageTimer(); setMessage({ error: true, text: Object.values(fieldErrors)[0], lifecycleStage }); return;
+  function commitEditor(detailNeeded = explicitGlassDetailNeeded, submittedEditor: DoorLineInput = editor): boolean {
+    if (submittedEditor === editor && Object.values(fieldErrors).some(Boolean)) {
+      clearMessageTimer(); setMessage({ error: true, text: Object.values(fieldErrors)[0], lifecycleStage }); return false;
     }
-    const candidate = { ...editor, lineId: editor.lineId ?? globalThis.crypto.randomUUID(), lineStatus: 'Active' as const };
+    const candidate = { ...submittedEditor, lineId: submittedEditor.lineId ?? globalThis.crypto.randomUUID(), lineStatus: 'Active' as const };
     const normalized = normalizeDoorLineInput(candidate);
     if (!normalized.ok) {
       const special = lifecycleStage === 'Confirmed Job' && editingIndex !== null && active.length === 1 ? CONFIRMED_JOB_LINE_MESSAGE : Object.values(normalized.fieldErrors)[0] ?? normalized.message;
       setFieldErrors(normalized.fieldErrors);
       clearMessageTimer();
       setMessage({ error: true, text: special, lifecycleStage });
-      return;
+      return false;
     }
     if (!canCommitGlassCalculation(normalized.value.glassCalcStatus ?? 'Ready', detailNeeded)) {
-      clearMessageTimer(); setMessage({ error: true, text: 'Required glass detail is incomplete. Use Leave Glass Detail Needed to preserve the line.', lifecycleStage }); return;
+      clearMessageTimer(); setMessage({ error: true, text: 'Required glass detail is incomplete. Use Leave Glass Detail Needed to preserve the line.', lifecycleStage }); return false;
     }
     if (detailNeeded && normalized.value.glassCalcStatus !== 'Glass Detail Needed') {
-      clearMessageTimer(); setMessage({ error: true, text: 'Leave Glass Detail Needed is available only while required glass information is missing.', lifecycleStage }); return;
+      clearMessageTimer(); setMessage({ error: true, text: 'Leave Glass Detail Needed is available only while required glass information is missing.', lifecycleStage }); return false;
     }
     const saved = { ...candidate, ...normalized.value };
     if (editingIndex !== null) onChange(replaceDoorLineAtIndex(lines, editingIndex, saved));
     else onChange([...lines, saved]);
     showTransientMessage({ error: false, text: editingIndex !== null ? 'Door line updated. Save the job to persist it.' : 'Door line added. Save the job to persist it.' });
     const nextEditor = defaultDoorLine(mode); setEditor(nextEditor); setEditorBaseline(JSON.stringify(nextEditor)); setEditingIndex(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false);
+    return true;
   }
 
   function edit(line: DoorLineInput) {
@@ -334,7 +335,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
         <div className="mt-4 flex flex-wrap gap-2"><button className={`${button} border-sky-700 bg-sky-700 text-white`} onClick={() => commitEditor()} type="button">{editingIndex !== null ? 'Update Door' : 'Add Door'}</button>{editingIndex !== null ? <button className={button} onClick={resetEditor} type="button">Cancel Edit</button> : null}</div>
       </>}
       {visibleMessage ? <p aria-live="polite" className={`mt-4 rounded-xl p-3 text-sm ${visibleMessage.error ? 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100' : 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'}`} role="status">{visibleMessage.text}</p> : null}
-      {builderOpen ? <GlassUnitBuilder line={structuredClone(editor)} onCancel={() => setBuilderOpen(false)} onUse={(next, explicitDetailNeeded) => { setEditor(next); setExplicitGlassDetailNeeded(explicitDetailNeeded); setBuilderOpen(false); setCalculationStatus(null); clearWorkspaceMessage(); }}/>: null}
+      {builderOpen ? <GlassUnitBuilder commitLabel={editingIndex !== null ? 'Save Door Changes' : 'Add Door to Order'} line={structuredClone(editor)} onCancel={() => setBuilderOpen(false)} onUse={(next, explicitDetailNeeded) => { const committed = commitEditor(explicitDetailNeeded, next); if (committed) { setBuilderOpen(false); setCalculationStatus(null); clearWorkspaceMessage(); } return committed; }}/>: null}
     </div>
 
     <aside className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">

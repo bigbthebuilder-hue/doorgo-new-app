@@ -21,16 +21,16 @@ for (const required of [
   'retainCompatibleGlassFields', 'calculateGlassGeometry', 'Configure Glass Unit', 'Edit Glass Unit',
   'Apply Manual Override', 'Remove Override', 'GlassUnitBuilder', 'Needs Attention',
   '54, 54 1/2, 54-1/2, or 54.5', 'aria-label={`${label}, inches`',
-  'explicitGlassDetailNeeded', 'commitEditor()', 'setExplicitGlassDetailNeeded(explicitDetailNeeded)',
+  'explicitGlassDetailNeeded', 'commitEditor()', 'commitEditor(explicitDetailNeeded, next)',
   'resolvedConfiguration(config)', 'prepAfterHeightChange', 'replaceDoorLineAtIndex(lines, editingIndex, saved)',
 ]) assert.ok(workspace.includes(required), `J2B2 workspace missing ${required}`);
 assert.equal(workspace.includes('onChange((current)'), false, 'workspace must not update child state from a parent updater');
 const builder = await readFile('components/jobs/GlassUnitBuilder.tsx', 'utf8');
 for (const required of [
-  'Use Configuration', 'Leave Glass Detail Needed', 'Cancel', 'calculateGlassGeometry',
+  'commitLabel', 'Leave Glass Detail Needed', 'Cancel', 'calculateGlassGeometry',
   'calculateGlassCompositionSchematic', 'nextGlassBuilderDraft', 'GlassUnitDiagram',
-  'Sidelight positions', 'Custom Glass Sidelight Width', 'Custom Panel Sidelight Width',
-  'T-bar Size', 'Custom Transom Width', 'Copy Vendor Text', 'includeDiagramOnWorkOrder',
+  'Sidelight positions', 'Sidelight Product Width (inches)', 'Glass Order Size',
+  'Unit T-bar Size', 'Transom Product Width', 'Copy Vendor Text', 'includeDiagramOnWorkOrder',
   'EXTERIOR_WIDTHS', 'DOOR_HEIGHTS', 'Slab Width', 'Slab Height', 'prepAfterHeightChange',
 ]) assert.ok(builder.includes(required), `Glass Unit Builder missing ${required}`);
 assert.equal(builder.includes("normalizeSidelightType(draft.sidelightType) ?? 'Glass'"), false, 'builder must not display a sidelight type absent from the authoritative draft');
@@ -39,6 +39,7 @@ assert.ok(builder.includes("['Complete', 'Warning', 'Manual Override'].includes(
 assert.ok(builder.includes('tabIndex={-1}'), 'header Cancel must not interrupt normal forward tab order');
 assert.ok(builder.includes('}, []);'), 'modal focus management must initialize only once, not after each draft update');
 assert.equal(/repository\.|createBrowserClient|\.rpc\s*\(/.test(builder), false, 'builder must only update its isolated client draft');
+assert.equal((builder.match(/Unit T-bar Size/g) ?? []).length, 1, 'builder exposes one unit-wide T-bar selector');
 assert.deepEqual([...builder.matchAll(/<option value="(1\.5|2\.25)">/g)].map((match) => match[1]).filter((value, index, values) => values.indexOf(value) === index).sort(), ['1.5', '2.25'], 'builder exposes only canonical T-bar sizes');
 
 const diagram = await readFile('components/jobs/GlassUnitDiagram.tsx', 'utf8');

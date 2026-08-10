@@ -32,9 +32,9 @@ export function GlassUnitDiagram({ line, compact = false, layout: suppliedLayout
       </svg>
       {!compact && calc ? <figcaption>{[
         calc.roWidth ? `RO ${String(calc.roWidth)}${calc.roHeight ? ` × ${String(calc.roHeight)}` : ''}` : '',
-        calc.sidelightWidth ? `Sidelight ${String(calc.sidelightWidth)} × ${String(calc.sidelightHeight)}` : '',
+        calc.sidelightWidth ? `Sidelight product ${String(calc.sidelightWidth)} × ${String(calc.sidelightHeight)}` : '',
         calc.panelWidth ? `Panel ${String(calc.panelWidth)} × ${String(calc.panelHeight)}` : '',
-        calc.transomWidth ? `Transom ${String(calc.transomWidth)} × ${String(calc.transomHeight)}` : '',
+        calc.transomWidth ? `Transom product ${String(calc.transomWidth)} × ${String(calc.transomHeight)}` : '',
       ].filter(Boolean).join(' · ')}</figcaption> : null}
     </figure>
   );

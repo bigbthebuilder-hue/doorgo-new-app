@@ -24,6 +24,6 @@ export function StandaloneGlassCalculator() {
       {result.workorderDetail ? <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs dark:bg-slate-950">{result.workorderDetail}</pre> : null}
       <button className="mt-4 min-h-11 rounded-xl bg-sky-700 px-5 font-semibold text-white" onClick={() => setOpen(true)} type="button">Edit Glass Calculation</button>
     </section>
-    {open ? <GlassUnitBuilder line={structuredClone(line)} onCancel={() => setOpen(false)} onUse={(next) => { setLine(next); setOpen(false); }}/>: null}
+    {open ? <GlassUnitBuilder commitLabel="Use Calculation" line={structuredClone(line)} onCancel={() => setOpen(false)} onUse={(next) => { setLine(next); setOpen(false); return true; }}/>: null}
   </>;
 }

@@ -244,6 +244,9 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   if (input.transomTBarSize !== null && input.transomTBarSize !== undefined && !normalizeTBarSize(input.transomTBarSize)) invalid.push(issue('invalid_transom_t_bar', 'Transom T-bar must be 1.5 or 2.25.'));
   const structuredSpecifications = sideComponents.map((component) => suppliedSpecifications.find((entry) => entry?.side === component.side && entry?.index === component.index) ?? null);
   const hasStructuredSpecifications = suppliedSpecifications.length > 0;
+  const unitTBar = normalizeTBarSize(input.transomTBarSize)
+    ?? structuredSpecifications.map((entry) => normalizeTBarSize(entry?.tBarSize)).find(Boolean)
+    ?? (topology.hasTransom ? automaticTransomTBar(topology.doorCount) : automaticSidelightTBar(sidelightType ?? 'Glass'));
   if (hasStructuredSpecifications && (structuredSpecifications.some((entry) => !entry) || suppliedSpecifications.length !== sideComponents.length)) invalid.push(issue('invalid_sidelight_specifications', 'Structured sidelights must identify every configured sidelight exactly once.'));
   for (const entry of structuredSpecifications) {
     if (!entry) continue;
@@ -271,12 +274,12 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   const panel = !hasStructuredSpecifications && sidelightType === 'Panel' && sides > 0;
   const hasPanel = panel || structuredTypes.includes('Panel');
   const doubleCore = topology.doorCount === 2 && sides > 0;
-  const divider = panel ? 1.5 : 2.25;
+  const divider = Number(unitTBar);
   const resolvedSidelights: ResolvedSidelight[] = hasStructuredSpecifications ? structuredSpecifications.map((raw, index) => {
     const specification = raw as SidelightSpecification;
     const resolvedType = sidelightSpecificationType(specification, sidelightType) ?? 'Glass';
     const automaticDefault = automaticSidelightTBar(resolvedType);
-    const resolvedSize = normalizeTBarSize(specification.tBarSize) ?? automaticDefault;
+    const resolvedSize = unitTBar;
     const glassTypeCode = resolvedType === 'Glass' ? normalizeGlassTypeCode(specification.glassTypeCode ?? input.sidelightGlass ?? input.glass) : null;
     const parsedWidth = numericDimension(specification.finishedWidth);
     return {
@@ -319,7 +322,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   const structuredHeaderWidth = sides > 0 && resolvedSidelights.length === sides
     ? headerWidthFromResolvedSidelights(slab.width, topology.doorCount, resolvedSidelights.map((entry) => {
       const width = numericDimension(entry.finishedWidth);
-      return { finishedWidth: width.ok ? width.inches : 0, tBarSize: entry.tBar.resolvedSize };
+      return { finishedWidth: width.ok ? width.inches : 0, tBarSize: unitTBar };
     }))
     : null;
   const headerWidth = structuredHeaderWidth ?? (panel && parsedPanelWidth !== null
@@ -391,7 +394,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
     panelWidth: parsedPanelWidth === null ? '' : formatShopDimension(parsedPanelWidth), panelHeight: panel ? formatShopDimension(slab.height) : '',
     transomWidth: transomWidth === null ? '' : formatShopDimension(transomWidth), transomHeight: transomHeight === null ? '' : formatShopDimension(transomHeight),
     divider: formatShopDimension(divider), sidelightType, panelSidelights: panels, resolvedSidelights,
-    transomTBar: { resolvedSize: normalizeTBarSize(input.transomTBarSize) ?? automaticTransomTBar(topology.doorCount), automaticDefault: automaticTransomTBar(topology.doorCount), nonStandard: Boolean(normalizeTBarSize(input.transomTBarSize) && normalizeTBarSize(input.transomTBarSize) !== automaticTransomTBar(topology.doorCount)) },
+    transomTBar: { resolvedSize: unitTBar, automaticDefault: automaticTransomTBar(topology.doorCount), nonStandard: unitTBar !== automaticTransomTBar(topology.doorCount) },
   };
   const visibleWarnings = warnings.filter((entry) => entry.code !== 'door_cut_down');
   const detail = [

@@ -14,6 +14,8 @@ assert.match(css, /\.app-shell-nav-label\s*\{[^}]*white-space:\s*normal[^}]*\}/s
 assert.doesNotMatch(css.match(/\.app-shell-nav-label\s*\{[^}]*\}/gs)?.at(-1) ?? '', /text-overflow:\s*ellipsis|white-space:\s*nowrap/, 'Desktop labels must not ellipsize');
 assert.match(css, /\.app-shell-nav-link\[data-placement="bottom"\]\s*\{\s*margin-top:\s*auto/, 'Account must anchor at the bottom');
 assert.match(css, /\.app-context-bar\s*\{[^}]*position:\s*sticky[^}]*max-height:\s*4\.75rem/s, 'Desktop contextual bar must be sticky and bounded');
+assert.match(css, /\.app-shell\s*\{[^}]*height:\s*100vh[^}]*overflow:\s*hidden/s, 'Desktop shell must own a bounded viewport');
+assert.match(css, /\.app-shell-main\s*\{[^}]*height:\s*100vh[^}]*overflow-y:\s*auto/s, 'Desktop main must be the real vertical scroll surface');
 for (const token of ['--app-color-background', '--app-color-surface', '--app-color-border', '--app-color-primary', '--app-color-navy', '--app-color-toolbar']) {
   assert.ok(css.includes(token), `Missing shared shell token ${token}`);
 }

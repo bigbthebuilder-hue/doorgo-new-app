@@ -172,6 +172,7 @@ assert.deepEqual(changedPaths.filter((path) => /^lib\/production-board\//.test(p
   'lib/production-board/queries.ts',
 ].includes(path)), [], 'Only E2C read-only Board card metadata files may change');
 const approvedLaterUi = new Set([
+  'app/layout.tsx',
   'app/page.tsx',
   'app/account/page.tsx',
   'app/production-checkpoints/page.tsx',
@@ -181,6 +182,9 @@ const approvedLaterUi = new Set([
   'app/production-board/page.tsx',
   'app/production-schedule/page.tsx',
   'components/ProductionBoardSummary.tsx',
+  'components/app-shell/AppShell.tsx',
+  'components/app-shell/DesktopNav.tsx',
+  'components/app-shell/PageHeader.tsx',
   'components/ProductionBoardView.tsx',
   'components/ProductionBoardReadOnly.tsx',
   'app/globals.css',

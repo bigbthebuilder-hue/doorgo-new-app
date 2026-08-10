@@ -4,6 +4,7 @@ import { ProductionBoardView } from '@/components/ProductionBoardView';
 import { ProductionScheduleInteractiveBoard } from '@/components/ProductionScheduleInteractiveBoard';
 import { ProductionScheduleNavigation } from '@/components/ProductionScheduleNavigation';
 import { hasAtLeastView } from '@/lib/auth/access';
+import { buildProtectedAppNavigation } from '@/lib/app-shell/navigation';
 import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
 import {
   getCurrentDateInTimeZone,
@@ -70,6 +71,7 @@ export default async function ProductionSchedulePage({
     <ProductionScheduleInteractiveBoard
       board={board}
       presentation={PRODUCTION_SCHEDULE_PRESENTATION}
+      navigation={buildProtectedAppNavigation(access)}
       headerActions={headerActions}
       windowNavigation={windowNavigation}
       today={today}
@@ -78,6 +80,7 @@ export default async function ProductionSchedulePage({
     <ProductionBoardView
       board={board}
       presentation={PRODUCTION_SCHEDULE_PRESENTATION}
+      navigation={buildProtectedAppNavigation(access)}
       headerActions={headerActions}
       windowNavigation={windowNavigation}
     />

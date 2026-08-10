@@ -4,6 +4,7 @@ import {
   parseProductionBoardParams,
 } from '@/lib/production-board/date-utils';
 import { loadProductionBoardReadOnly } from '@/lib/production-board/queries';
+import { buildPublicAppNavigation } from '@/lib/app-shell/navigation';
 
 export default async function ProductionBoardPage({
   searchParams,
@@ -25,6 +26,7 @@ export default async function ProductionBoardPage({
     <ProductionBoardView
       board={board}
       presentation={{ title: 'Production Board', statusLabel: 'Read only' }}
+      navigation={buildPublicAppNavigation()}
     />
   );
 }

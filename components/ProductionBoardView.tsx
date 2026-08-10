@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { AppShell } from '@/components/app-shell/AppShell';
+import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { ProductionBoardWeekSection } from '@/components/ProductionBoardWeekSection';
 import { ProductionBoardSummary, type ProductionBoardPresentation } from '@/components/ProductionBoardSummary';
 import type { AppNavigationItem } from '@/lib/app-shell/navigation';
+import { formatFriendlyDateRange } from '@/lib/production-board/date-utils';
 import type { ProductionBoardViewModel } from '@/lib/production-board/types';
 import type { ProductionBoardInteraction } from './production-board-interaction';
 
@@ -25,9 +27,17 @@ export function ProductionBoardView({
   const empty = !board.days.length && !hasWeekendExceptions;
 
   return (
-    <AppShell navigation={navigation}>
+    <AppShell
+      navigation={navigation}
+      topBar={<ContextTopBar
+        title={presentation.title}
+        status={<span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">{presentation.statusLabel}</span>}
+        secondary={<>{formatFriendlyDateRange(board.startDate, board.visibleWeekdayEndExclusive)} · {board.weeks} week{board.weeks === 1 ? '' : 's'} · date-only view</>}
+        actions={headerActions}
+      />}
+    >
       <div className="app-workspace">
-        <ProductionBoardSummary board={board} presentation={presentation} headerActions={headerActions}/>
+        <ProductionBoardSummary board={board}/>
         {windowNavigation}
         {empty ? (
           <section className="app-workspace-panel rounded-lg border-dashed p-6 text-center">

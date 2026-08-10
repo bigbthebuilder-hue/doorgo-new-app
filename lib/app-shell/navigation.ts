@@ -7,6 +7,7 @@ export type AppNavigationItem = {
   label: string;
   icon: AppNavigationIcon;
   match?: 'exact' | 'section';
+  placement?: 'bottom';
 };
 
 const productionBoard: AppNavigationItem = {
@@ -32,11 +33,11 @@ export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNav
   if (hasAtLeastView(access, 'production')) {
     items.push(
       { href: '/production-schedule', label: 'Production Schedule', icon: 'schedule' },
-      { href: '/production-recovery', label: 'Past Scheduled Bookings', icon: 'recovery' },
+      { href: '/production-recovery', label: 'Past Schedule', icon: 'recovery' },
     );
   }
   if (hasAtLeastView(access, 'production_checkpoints')) {
-    items.push({ href: '/production-checkpoints', label: 'Production Carry Checkpoint', icon: 'checkpoint' });
+    items.push({ href: '/production-checkpoints', label: 'Carry Checkpoint', icon: 'checkpoint' });
   }
   if (hasAtLeastView(access, 'jobs')) {
     items.push(
@@ -45,6 +46,6 @@ export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNav
     );
   }
 
-  items.push({ href: '/account', label: 'Account', icon: 'account' });
+  items.push({ href: '/account', label: 'Account', icon: 'account', placement: 'bottom' });
   return items;
 }

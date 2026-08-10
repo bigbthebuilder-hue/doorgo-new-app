@@ -15,6 +15,7 @@ export function DesktopNav({ items }: { items: AppNavigationItem[] }) {
             aria-label={item.label}
             aria-current={active ? 'page' : undefined}
             className="app-shell-nav-link"
+            data-placement={item.placement}
             href={item.href}
             key={item.href}
             title={item.label}

@@ -1,6 +1,3 @@
-import type { ReactNode } from 'react';
-import { PageHeader } from '@/components/app-shell/PageHeader';
-import { formatFriendlyDateRange } from '@/lib/production-board/date-utils';
 import type { ProductionBoardViewModel } from '@/lib/production-board/types';
 
 export type ProductionBoardPresentation = {
@@ -14,25 +11,14 @@ function formatHours(value: number): string {
 
 export function ProductionBoardSummary({
   board,
-  presentation,
-  headerActions,
 }: {
   board: ProductionBoardViewModel;
-  presentation: ProductionBoardPresentation;
-  headerActions?: ReactNode;
 }) {
   const { summary } = board;
 
   return (
     <section>
-      <PageHeader
-        title={presentation.title}
-        badge={<span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">{presentation.statusLabel}</span>}
-        actions={headerActions}
-        description={<>{formatFriendlyDateRange(board.startDate, board.visibleWeekdayEndExclusive)} · {board.weeks} week{board.weeks === 1 ? '' : 's'} · date-only view</>}
-      />
-
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5">
         <SummaryCard label="Bookings" value={summary.totalBookings.toString()} />
         <SummaryCard label="Known shop hours" value={formatHours(summary.totalKnownShopHours)} />
         <SummaryCard label="Scheduled days" value={summary.scheduledDays.toString()} />

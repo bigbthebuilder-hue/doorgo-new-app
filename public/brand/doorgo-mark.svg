@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">DoorGo mark</title>
+  <desc id="desc">Simplified T/SD door configuration mark with a navy transom, navy sidelight, and blue door.</desc>
+
+  <!-- DoorGo approved colors: Navy #0B1D3A, Blue #1E6BFF -->
+  <!-- Standard recommended refinement with restrained 8px corner radius -->
+
+  <rect x="56" y="64" width="400" height="96" rx="8" fill="#0B1D3A"/>
+  <rect x="56" y="184" width="112" height="264" rx="8" fill="#0B1D3A"/>
+  <rect x="192" y="184" width="264" height="264" rx="8" fill="#1E6BFF"/>
+</svg>

@@ -152,7 +152,7 @@ assert.match(boardNormalize, /const weekdayEndExclusive = addDaysToDateOnly\(sta
 assert.match(boardTypes, /dateState: ProductionBoardDayState/);
 assert.match(boardTypes, /weekdayEndExclusive: string/);
 assert.match(boardTypes, /visibleWeekdayEndExclusive: string/);
-assert.match(read(paths.summary), /board\.visibleWeekdayEndExclusive/);
+assert.match(read(paths.view), /board\.visibleWeekdayEndExclusive/);
 assert.match(read(paths.week), /week\.weekdayEndExclusive/);
 assert.match(day, /data-day-state=\{day\.dateState\}/);
 assert.match(day, /day\.dateState === 'past'[\s\S]*bg-slate-200/);

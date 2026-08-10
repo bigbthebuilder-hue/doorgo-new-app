@@ -76,8 +76,8 @@ assert.match(account, /hasAtLeastView\(access, 'production'\)[\s\S]*href="\/prod
 assert.match(sharedView, /ProductionBoardSummary/);
 assert.match(sharedView, /ProductionBoardWeekSection/);
 assert.match(sharedView, /headerActions\?: ReactNode/);
-assert.match(summary, /presentation\.title/);
-assert.match(summary, /presentation\.statusLabel/);
+assert.match(sharedView, /title=\{presentation\.title\}/);
+assert.match(sharedView, /\{presentation\.statusLabel\}/);
 for (const code of [sharedView, summary]) {
   assert.doesNotMatch(code, /use client|use server|@\/lib\/auth|@\/lib\/supabase|server action|\.rpc\(|calendar|checkpoint-actions|production-booking-actions/i);
 }

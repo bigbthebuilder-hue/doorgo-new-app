@@ -1,18 +1,25 @@
 import type { ReactNode } from 'react';
+import Image from 'next/image';
 import type { AppNavigationItem } from '@/lib/app-shell/navigation';
 import { DesktopNav } from './DesktopNav';
 
-export function AppShell({ children, navigation }: { children: ReactNode; navigation: AppNavigationItem[] }) {
+export function AppShell({ children, navigation, topBar }: {
+  children: ReactNode;
+  navigation: AppNavigationItem[];
+  topBar?: ReactNode;
+}) {
   return (
     <div className="app-shell">
       <aside className="app-shell-sidebar">
         <div className="app-shell-brand" title="DoorGo · Door Shop Operations">
-          <span className="app-shell-brand-mark" aria-hidden="true">D</span>
-          <span className="app-shell-brand-copy"><strong>DoorGo</strong><small>Door Shop Operations</small></span>
+          <Image className="app-shell-brand-mark" src="/brand/doorgo-mark.svg" alt="DoorGo" width={44} height={44} priority />
         </div>
         <DesktopNav items={navigation}/>
       </aside>
-      <main className="app-shell-main">{children}</main>
+      <main className="app-shell-main">
+        {topBar}
+        {children}
+      </main>
     </div>
   );
 }

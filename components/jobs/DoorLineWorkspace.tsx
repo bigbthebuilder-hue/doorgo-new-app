@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import {
   DOOR_HEIGHTS, EXTERIOR_WIDTHS, INTERIOR_WIDTHS, J2A_CONFIGS,
   CONFIRMED_JOB_LINE_MESSAGE, calculateJ2AShopHours, defaultDoorLine,
-  doorLineEquivalenceKey, normalizeDoorLineInput, prepAfterHeightChange, prepChoices,
+  doorLineEquivalenceKey, jambWidthChoices, normalizeDoorLineInput, prepAfterHeightChange, prepChoices,
 } from '@/lib/jobs/door-line-contract';
 import {
   calculateGlassGeometry, geometryChanged, glassConfigurationTopology, glassLineNeedsAttention,
@@ -206,30 +206,31 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     const next = defaultDoorLine(mode); setEditor(next); setEditorBaseline(JSON.stringify(next)); setEditingIndex(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
-  function commitEditor(detailNeeded = explicitGlassDetailNeeded) {
-    if (Object.values(fieldErrors).some(Boolean)) {
-      clearMessageTimer(); setMessage({ error: true, text: Object.values(fieldErrors)[0], lifecycleStage }); return;
+  function commitEditor(detailNeeded = explicitGlassDetailNeeded, submittedEditor: DoorLineInput = editor): boolean {
+    if (submittedEditor === editor && Object.values(fieldErrors).some(Boolean)) {
+      clearMessageTimer(); setMessage({ error: true, text: Object.values(fieldErrors)[0], lifecycleStage }); return false;
     }
-    const candidate = { ...editor, lineId: editor.lineId ?? globalThis.crypto.randomUUID(), lineStatus: 'Active' as const };
+    const candidate = { ...submittedEditor, lineId: submittedEditor.lineId ?? globalThis.crypto.randomUUID(), lineStatus: 'Active' as const };
     const normalized = normalizeDoorLineInput(candidate);
     if (!normalized.ok) {
       const special = lifecycleStage === 'Confirmed Job' && editingIndex !== null && active.length === 1 ? CONFIRMED_JOB_LINE_MESSAGE : Object.values(normalized.fieldErrors)[0] ?? normalized.message;
       setFieldErrors(normalized.fieldErrors);
       clearMessageTimer();
       setMessage({ error: true, text: special, lifecycleStage });
-      return;
+      return false;
     }
     if (!canCommitGlassCalculation(normalized.value.glassCalcStatus ?? 'Ready', detailNeeded)) {
-      clearMessageTimer(); setMessage({ error: true, text: 'Required glass detail is incomplete. Use Leave Glass Detail Needed to preserve the line.', lifecycleStage }); return;
+      clearMessageTimer(); setMessage({ error: true, text: 'Required glass detail is incomplete. Use Leave Glass Detail Needed to preserve the line.', lifecycleStage }); return false;
     }
     if (detailNeeded && normalized.value.glassCalcStatus !== 'Glass Detail Needed') {
-      clearMessageTimer(); setMessage({ error: true, text: 'Leave Glass Detail Needed is available only while required glass information is missing.', lifecycleStage }); return;
+      clearMessageTimer(); setMessage({ error: true, text: 'Leave Glass Detail Needed is available only while required glass information is missing.', lifecycleStage }); return false;
     }
     const saved = { ...candidate, ...normalized.value };
     if (editingIndex !== null) onChange(replaceDoorLineAtIndex(lines, editingIndex, saved));
     else onChange([...lines, saved]);
     showTransientMessage({ error: false, text: editingIndex !== null ? 'Door line updated. Save the job to persist it.' : 'Door line added. Save the job to persist it.' });
     const nextEditor = defaultDoorLine(mode); setEditor(nextEditor); setEditorBaseline(JSON.stringify(nextEditor)); setEditingIndex(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false);
+    return true;
   }
 
   function edit(line: DoorLineInput) {
@@ -322,7 +323,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
         </section>
 
         <details className="mt-4 rounded-xl border border-slate-200 p-3 dark:border-slate-700"><summary className="cursor-pointer font-semibold">More Details</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {!noJamb ? <><label className="grid gap-1 text-sm font-semibold">Jamb Width{ripMode ? <input className={control} onChange={(event) => set('jambWidth', event.target.value)} placeholder="Completed RIP size" value={String(editor.jambWidth === 'RIP' ? '' : editor.jambWidth ?? '')}/> : <select className={control} onChange={(event) => set('jambWidth', event.target.value)} value={String(editor.jambWidth ?? '')}><option>{mode === 'Exterior' ? `6-9/16"` : `4-9/16"`}</option><option>{mode === 'Exterior' ? `4-9/16"` : `6-9/16"`}</option><option>{`7-1/4"`}</option></select>}</label><label className="flex min-h-12 items-center gap-3 self-end rounded-xl border border-slate-300 px-3 dark:border-slate-600"><input checked={ripMode} onChange={(event) => { setRipMode(event.target.checked); set('ripJamb', event.target.checked ? 'Yes' : ''); if (event.target.checked) set('jambWidth', ''); }} type="checkbox"/>RIP jamb</label><label className="grid gap-1 text-sm font-semibold">Jamb Type<select className={control} onChange={(event) => set('jambType', event.target.value)} value={String(editor.jambType ?? 'Primed')}><option>Primed</option><option>Fir</option>{mode === 'Exterior' ? <><option>Smooth Composite</option><option>Textured Composite</option></> : null}</select></label><label className="grid gap-1 text-sm font-semibold">Hinge Type<select className={control} onChange={(event) => set('hingeType', event.target.value)} value={String(editor.hingeType ?? 'REG')}>{hingeTypeOptions(mode).map((value) => <option key={value} value={value}>{value}</option>)}</select></label></> : null}
+          {!noJamb ? <><label className="grid gap-1 text-sm font-semibold">Jamb Width{ripMode ? <input className={control} onChange={(event) => set('jambWidth', event.target.value)} placeholder="Completed RIP size" value={String(editor.jambWidth === 'RIP' ? '' : editor.jambWidth ?? '')}/> : <select className={control} onChange={(event) => set('jambWidth', event.target.value)} value={String(editor.jambWidth ?? '')}>{jambWidthChoices(mode).map((value) => <option key={value} value={value}>{value}</option>)}</select>}</label><label className="flex min-h-12 items-center gap-3 self-end rounded-xl border border-slate-300 px-3 dark:border-slate-600"><input checked={ripMode} onChange={(event) => { setRipMode(event.target.checked); set('ripJamb', event.target.checked ? 'Yes' : ''); if (event.target.checked) set('jambWidth', ''); }} type="checkbox"/>RIP jamb</label><label className="grid gap-1 text-sm font-semibold">Jamb Type<select className={control} onChange={(event) => set('jambType', event.target.value)} value={String(editor.jambType ?? 'Primed')}><option>Primed</option><option>Fir</option>{mode === 'Exterior' ? <><option>Smooth Composite</option><option>Textured Composite</option></> : null}</select></label><label className="grid gap-1 text-sm font-semibold">Hinge Type<select className={control} onChange={(event) => set('hingeType', event.target.value)} value={String(editor.hingeType ?? 'REG')}>{hingeTypeOptions(mode).map((value) => <option key={value} value={value}>{value}</option>)}</select></label></> : null}
           {mode === 'Exterior' ? <><label className="grid gap-1 text-sm font-semibold">Material<select className={control} onChange={(event) => set('material', event.target.value)} value={String(editor.material)}><option value="fiberglass">Fiberglass</option><option value="wood">Wood</option></select></label><label className="grid gap-1 text-sm font-semibold">Sill<input className={control} onChange={(event) => set('sill', event.target.value)} value={String(editor.sill ?? '')}/></label><label className="grid gap-1 text-sm font-semibold">Weatherstrip<input className={control} onChange={(event) => set('weatherstrip', event.target.value)} value={String(editor.weatherstrip ?? '')}/></label></> : null}
           <label className="grid gap-1 text-sm font-semibold">Custom Slab / RO<select className={control} onChange={(event) => set('customSlab', event.target.value)} value={String(editor.customSlab ?? 'No')}><option value="No">Standard</option>{!noJamb ? <option value="RO">Custom RO / Cut Down</option> : null}<option disabled={editor.material !== 'wood'} value="WoodCustom">Custom Wood Slab</option></select></label>
           {editor.customSlab === 'WoodCustom' ? <><DimensionInput error={fieldErrors.customSlabWidth} label="Custom Slab Width" onValue={(value) => setDimension('customSlabWidth', value)} required value={String(editor.customSlabWidth ?? '')}/><DimensionInput error={fieldErrors.customSlabHeight} label="Custom Slab Height" onValue={(value) => setDimension('customSlabHeight', value)} required value={String(editor.customSlabHeight ?? '')}/></> : null}
@@ -334,7 +335,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
         <div className="mt-4 flex flex-wrap gap-2"><button className={`${button} border-sky-700 bg-sky-700 text-white`} onClick={() => commitEditor()} type="button">{editingIndex !== null ? 'Update Door' : 'Add Door'}</button>{editingIndex !== null ? <button className={button} onClick={resetEditor} type="button">Cancel Edit</button> : null}</div>
       </>}
       {visibleMessage ? <p aria-live="polite" className={`mt-4 rounded-xl p-3 text-sm ${visibleMessage.error ? 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100' : 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'}`} role="status">{visibleMessage.text}</p> : null}
-      {builderOpen ? <GlassUnitBuilder line={structuredClone(editor)} onCancel={() => setBuilderOpen(false)} onUse={(next, explicitDetailNeeded) => { setEditor(next); setExplicitGlassDetailNeeded(explicitDetailNeeded); setBuilderOpen(false); setCalculationStatus(null); clearWorkspaceMessage(); }}/>: null}
+      {builderOpen ? <GlassUnitBuilder commitLabel={editingIndex !== null ? 'Save Door Changes' : 'Add Door to Order'} line={structuredClone(editor)} onCancel={() => setBuilderOpen(false)} onUse={(next, explicitDetailNeeded) => { const committed = commitEditor(explicitDetailNeeded, next); if (committed) { setBuilderOpen(false); setCalculationStatus(null); clearWorkspaceMessage(); } return committed; }}/>: null}
     </div>
 
     <aside className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">

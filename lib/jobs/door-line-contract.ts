@@ -18,6 +18,12 @@ export const EXTERIOR_WIDTHS = [
   `2'0"`, `2'4"`, `2'6"`, `2'8"`, `2'10"`, `3'0"`, `3'6"`, `4'0"`,
 ] as const;
 export const DOOR_HEIGHTS = [`6'8"`, `7'0"`, `8'0"`] as const;
+export const JAMB_WIDTHS = [`4-9/16"`, `6-9/16"`, `7-1/4"`, `8-7/8"`] as const;
+
+export function jambWidthChoices(mode: DoorLineMode): readonly string[] {
+  const preferred = mode === 'Exterior' ? `6-9/16"` : `4-9/16"`;
+  return [preferred, ...JAMB_WIDTHS.filter((value) => value !== preferred)];
+}
 export const J2A_CONFIGS = {
   Interior: ['D', 'DD', 'PKT', 'B.P.'],
   Exterior: ['D', 'DD'],
@@ -108,7 +114,8 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
     glassUnits: [], glassCalc: null, vendorCopyText: '',
     sidelightType: 'Glass', sidelightGlass: '', transomGlass: '',
     sidelightMeasurementLeft: '', sidelightMeasurementRight: '',
-    panelSidelightWidth: '', panelSidelights: [],
+    panelSidelightWidth: '', panelSidelights: [], sidelightSpecifications: [],
+    transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
     includeDiagramOnWorkOrder: false,
   };
 }
@@ -205,7 +212,8 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
         glassCalcStatus: 'Ready' as const, glassWorkorderDetail: null, glassWarnings: [], glassBlockers: [],
         glassOverride: null, glassUnits: [], glassCalc: null, vendorCopyText: null, sidelightType: null,
         sidelightGlass: null, transomGlass: null, sidelightMeasurementLeft: null,
-        sidelightMeasurementRight: null, panelSidelightWidth: null, panelSidelights: [],
+        sidelightMeasurementRight: null, panelSidelightWidth: null, panelSidelights: [], sidelightSpecifications: [],
+        transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
       }),
     },
   };
@@ -268,6 +276,7 @@ const DEPLOYED_MERGE_FIELDS = [
   'doorThickness', 'glassCalcStatus', 'glassWorkorderDetail', 'glassWarnings',
   'vendorCopyText', 'sidelightType', 'sidelightGlass', 'transomGlass',
   'sidelightMeasurementLeft', 'sidelightMeasurementRight', 'panelSidelightWidth',
+  'sidelightSpecifications', 'transomTBarSize', 'transomGlassTypeCode', 'transomCustomGlassDescription',
 ] as const;
 
 export function doorLineEquivalenceKey(line: DoorLineInput): string {

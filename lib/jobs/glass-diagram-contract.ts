@@ -1,6 +1,6 @@
 import { parseStoredShopDimension } from './dimension-contract';
-import { calculateGlassGeometry, glassConfigurationTopology, isGlassConfiguration, normalizeSidelightType } from './glass-geometry-contract';
-import type { DoorLineInput, GlassGeometryValues } from './job-intake-types';
+import { calculateGlassGeometry, glassConfigurationTopology, isGlassConfiguration, normalizeSidelightType, sidelightSpecificationType } from './glass-geometry-contract';
+import type { DoorLineInput, GlassGeometryValues, ResolvedSidelight } from './job-intake-types';
 import { parseGlassUnitConfiguration } from './glass-unit-composition-contract';
 
 export type GlassDiagramPart = {
@@ -50,7 +50,8 @@ export function calculateGlassCompositionSchematic(line: DoorLineInput): GlassDi
   const parts: GlassDiagramPart[] = [];
   let x = 0;
   for (let index = 1; index <= parsed.value.leftSidelightCount; index += 1) {
-    parts.push({ id: `left-sidelight-${index}`, kind: type === 'Panel' ? 'panel' : 'glass', x, y: bodyY, width: sideWidth, height: doorHeight });
+    const positionType = sidelightSpecificationType(line.sidelightSpecifications?.find((entry) => entry.side === 'left' && entry.index === index), type) ?? type;
+    parts.push({ id: `left-sidelight-${index}`, kind: positionType === 'Panel' ? 'panel' : 'glass', x, y: bodyY, width: sideWidth, height: doorHeight });
     x += sideWidth;
     parts.push({ id: `left-divider-${index}`, kind: 'divider', x, y: bodyY, width: dividerWidth, height: doorHeight });
     x += dividerWidth;
@@ -62,7 +63,8 @@ export function calculateGlassCompositionSchematic(line: DoorLineInput): GlassDi
   for (let index = 1; index <= parsed.value.rightSidelightCount; index += 1) {
     parts.push({ id: `right-divider-${index}`, kind: 'divider', x, y: bodyY, width: dividerWidth, height: doorHeight });
     x += dividerWidth;
-    parts.push({ id: `right-sidelight-${index}`, kind: type === 'Panel' ? 'panel' : 'glass', x, y: bodyY, width: sideWidth, height: doorHeight });
+    const positionType = sidelightSpecificationType(line.sidelightSpecifications?.find((entry) => entry.side === 'right' && entry.index === index), type) ?? type;
+    parts.push({ id: `right-sidelight-${index}`, kind: positionType === 'Panel' ? 'panel' : 'glass', x, y: bodyY, width: sideWidth, height: doorHeight });
     x += sideWidth;
   }
   if (parsed.value.hasTransom) {
@@ -82,6 +84,16 @@ function diagramLayoutFromValues(line: DoorLineInput, calc: GlassGeometryValues)
   const dividerWidth = inches(calc.divider);
   const sideWidth = inches(type === 'Panel' ? calc.panelWidth : calc.sidelightWidth);
   const sideHeight = inches(type === 'Panel' ? calc.panelHeight : calc.sidelightHeight);
+  const resolved = Array.isArray(calc.resolvedSidelights) ? calc.resolvedSidelights as ResolvedSidelight[] : [];
+  const resolvedPosition = (side: 'left' | 'right', index: number) => {
+    const entry = resolved.find((candidate) => candidate.side === side && candidate.index === index);
+    return entry ? {
+      type: entry.sidelightType,
+      width: inches(entry.finishedWidth),
+      height: entry.sidelightType === 'Panel' ? inches(calc.slabHeight) : inches(calc.finalDoorHeight) + 0.125,
+      divider: Number(entry.tBar?.resolvedSize) || dividerWidth,
+    } : { type, width: sideWidth, height: sideHeight, divider: dividerWidth };
+  };
   const transomWidth = inches(calc.transomWidth);
   const transomHeight = inches(calc.transomHeight);
   if (!(width > 0 && doorHeight > 0 && dividerWidth > 0)) return null;
@@ -95,13 +107,14 @@ function diagramLayoutFromValues(line: DoorLineInput, calc: GlassGeometryValues)
   const parts: GlassDiagramPart[] = [];
   let cursor = 0;
   for (let index = 1; index <= leftCount; index += 1) {
-    parts.push({ id: `left-sidelight-${index}`, kind: type === 'Panel' ? 'panel' : 'glass', x: cursor, y: bodyY, width: sideWidth, height: sideHeight, label: sideWidth < 24 ? `L${leftCount > 1 ? index : ''}` : `L ${type}${leftCount > 1 ? ` ${index}` : ''}` });
-    cursor += sideWidth;
-    parts.push({ id: `left-divider-${index}`, kind: 'divider', x: cursor, y: bodyY, width: dividerWidth, height: bodyHeight });
-    cursor += dividerWidth;
+    const position = resolvedPosition('left', index);
+    parts.push({ id: `left-sidelight-${index}`, kind: position.type === 'Panel' ? 'panel' : 'glass', x: cursor, y: bodyY, width: position.width, height: position.height, label: position.width < 24 ? `L${leftCount > 1 ? index : ''}` : `L ${position.type}${leftCount > 1 ? ` ${index}` : ''}` });
+    cursor += position.width;
+    parts.push({ id: `left-divider-${index}`, kind: 'divider', x: cursor, y: bodyY, width: position.divider, height: bodyHeight });
+    cursor += position.divider;
   }
 
-  const rightAssemblyWidth = rightCount * (sideWidth + dividerWidth);
+  const rightAssemblyWidth = Array.from({ length: rightCount }, (_, offset) => resolvedPosition('right', offset + 1)).reduce((sum, position) => sum + position.width + position.divider, 0);
   const doorAssemblyWidth = width - cursor - rightAssemblyWidth;
   if (topology.doorCount === 2) {
     const mullionWidth = Math.max(0, doorAssemblyWidth - slabWidth * 2);
@@ -120,10 +133,11 @@ function diagramLayoutFromValues(line: DoorLineInput, calc: GlassGeometryValues)
   }
 
   for (let index = 1; index <= rightCount; index += 1) {
-    parts.push({ id: `right-divider-${index}`, kind: 'divider', x: cursor, y: bodyY, width: dividerWidth, height: bodyHeight });
-    cursor += dividerWidth;
-    parts.push({ id: `right-sidelight-${index}`, kind: type === 'Panel' ? 'panel' : 'glass', x: cursor, y: bodyY, width: sideWidth, height: sideHeight, label: sideWidth < 24 ? `R${rightCount > 1 ? index : ''}` : `R ${type}${rightCount > 1 ? ` ${index}` : ''}` });
-    cursor += sideWidth;
+    const position = resolvedPosition('right', index);
+    parts.push({ id: `right-divider-${index}`, kind: 'divider', x: cursor, y: bodyY, width: position.divider, height: bodyHeight });
+    cursor += position.divider;
+    parts.push({ id: `right-sidelight-${index}`, kind: position.type === 'Panel' ? 'panel' : 'glass', x: cursor, y: bodyY, width: position.width, height: position.height, label: position.width < 24 ? `R${rightCount > 1 ? index : ''}` : `R ${position.type}${rightCount > 1 ? ` ${index}` : ''}` });
+    cursor += position.width;
   }
   if (topology.hasTransom) {
     parts.push({ id: 'transom-divider', kind: 'transom-divider', x: 0, y: transomHeight, width, height: dividerWidth });

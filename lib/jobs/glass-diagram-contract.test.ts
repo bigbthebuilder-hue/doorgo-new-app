@@ -33,4 +33,17 @@ assert.deepEqual(
   calculateGlassCompositionSchematic({ mode: 'Exterior', config: 'SSSD', sidelightType: 'Glass' })?.parts.filter((part) => part.kind === 'glass').map((part) => part.id),
   ['left-sidelight-1', 'left-sidelight-2', 'left-sidelight-3'],
 );
+const mixedLine: DoorLineInput = {
+  ...fixture('SDS'), roWidth: '76.75',
+  sidelightSpecifications: [
+    { side: 'left', index: 1, finishedWidth: '11.75', tBarSize: '1.5', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+    { side: 'right', index: 1, finishedWidth: '20', tBarSize: '2.25', glassTypeCode: 'SATIN_ETCH', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+  ],
+};
+mixedLine.glassCalc = calculateGlassGeometry(mixedLine).glassCalc;
+const mixedLayout = calculateGlassDiagramLayout(mixedLine);
+assert.equal(mixedLayout?.parts.find((part) => part.id === 'left-sidelight-1')?.kind, 'glass');
+assert.equal(mixedLayout?.parts.find((part) => part.id === 'right-sidelight-1')?.kind, 'glass');
+assert.equal(mixedLayout?.parts.find((part) => part.id === 'left-divider-1')?.width, 1.5);
+assert.equal(mixedLayout?.parts.find((part) => part.id === 'right-divider-1')?.width, 1.5, 'one unit-wide T-bar drives every divider');
 console.log('Glass Unit Builder diagram contract: PASS');

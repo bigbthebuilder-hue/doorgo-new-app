@@ -144,8 +144,8 @@ async function main() {
     const transom = createWorkOrderRowGroup(line({ mode: 'Exterior', config, material: 'fiberglass', glassCalcStatus: 'Complete', roWidth: '75', roHeight: '100', glassCalc: { transomWidth: `72 7/16"`, transomHeight: `15"`, headerWidth: `72 9/16"` }, glassUnits: [{ position: 'Transom', width: `72 7/16"`, height: `15"`, glassType: 'Clear', termCode: 'CLR', qty: 1 }] }), null);
     assert.match(transom.detailRows.flatMap((row) => row.lines).join('\n'), /Transom/);
   }
-  const fiberglassPanel = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'SD', material: 'fiberglass', glassCalcStatus: 'Complete', sidelightType: 'Panel', glassCalc: { divider: `1 1/2"`, panelWidth: `11 3/4"` }, panelSidelights: [{ position: 'Left Panel', material: 'Fiberglass', width: `11 3/4"`, height: `79"`, qty: 1 }] }), null);
-  assert.match(fiberglassPanel.detailRows.flatMap((row) => row.lines).join('\n'), /Fiberglass 11 3\/4" × 79"/);
+  const fiberglassPanel = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'SD', material: 'fiberglass', glassCalcStatus: 'Complete', sidelightType: 'Panel', glassCalc: { divider: `1 1/2"`, panelWidth: `11 3/4"` }, panelSidelights: [{ position: 'Left Panel', material: 'Fiberglass', width: `11 3/4"`, height: `79"`, qty: 1, constructionNotes: 'w/ 764 Adelaide glass' }] }), null);
+  assert.match(fiberglassPanel.detailRows.flatMap((row) => row.lines).join('\n'), /1 sidelight panel @ Fiberglass 11 3\/4" × 79" — w\/ 764 Adelaide glass/);
   const woodPanel = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'DS', material: 'wood', glassCalcStatus: 'Complete', sidelightType: 'Panel', glassCalc: { divider: `1 1/2"`, panelWidth: `15 1/8"` }, panelSidelights: [{ position: 'Right Panel', material: 'Wood', width: `15.125`, height: `80`, qty: 1 }] }), null);
   assert.match(woodPanel.detailRows.flatMap((row) => row.lines).join('\n'), /Wood 15 1\/8" × 80"/);
   const repeatedGlass = createWorkOrderRowGroup(line({
@@ -216,6 +216,10 @@ async function main() {
     ],
   }), null);
   assert.match(groupedPanels.detailRows.flatMap((row) => row.lines).join('\n'), /2 sidelight panels @ Fiberglass 11 3\/4" × 79"/);
+  assert.equal(groupedPanels.detailRows.flatMap((row) => row.lines).join('\n').includes(' — '), false, 'blank shared notes add no work-order suffix');
+
+  const deepJamb = createWorkOrderRowGroup(line({ mode: 'Exterior', jambWidth: `8-7/8"` }), null);
+  assert.equal(deepJamb.primaryRow.cells.jamb, `8-7/8"`);
 
   assert.equal(formatWorkOrderNotesGlass('Glass'), '');
   assert.equal(formatWorkOrderNotesGlass('Glass | RO 75" × 99"'), 'RO 75" × 99"');

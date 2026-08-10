@@ -1,6 +1,6 @@
 import { parseStoredShopDimension } from './dimension-contract';
 import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-glass-frame-cut-contract';
-import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate } from './job-intake-types';
+import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate, ResolvedSidelight, ResolvedTBar } from './job-intake-types';
 import { normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
 import { calculatePersistedGlassDiagramLayout, type GlassDiagramLayout } from './glass-diagram-contract';
 import { withDerivedGlassGeometry } from './glass-geometry-contract';
@@ -198,6 +198,10 @@ function calculatedGlassProductionLine(line: NativeDoorLine): string {
   const parts: string[] = [];
   if (text(calc.jambLeg)) parts.push(`Jamb legs: ${text(calc.jambLeg)}`);
   if (text(calc.headerWidth)) parts.push(`${line.config.startsWith('T/') ? 'Header/Sill/T-bar' : 'Header/Sill'}: ${text(calc.headerWidth)}`);
+  const sidelights = Array.isArray(calc.resolvedSidelights) ? calc.resolvedSidelights as ResolvedSidelight[] : [];
+  const transomTBar = calc.transomTBar as ResolvedTBar | undefined;
+  const unitTBar = transomTBar?.resolvedSize ?? sidelights[0]?.tBar.resolvedSize;
+  if (unitTBar) parts.push(`Unit T-bar: ${unitTBar}`);
   const cutDown = canonicalStoredDimension(calc.cutDown);
   if (cutDown && cutDown !== '0"' && text(calc.finalDoorHeight)) parts.push(`Door cut to: ${text(calc.finalDoorHeight)}`);
   return parts.join(' | ');
@@ -227,18 +231,16 @@ function glassDetailRows(line: NativeDoorLine): WorkOrderDetailRow[] {
     if (production) rows.push({ kind: 'frame', lines: [production] });
   }
   if (status !== 'Blocked' && status !== 'Glass Detail Needed' && line.panelSidelights.length) {
-    const grouped = new Map<string, { count: number; material: string; width: string; height: string; position: string }>();
+    const grouped = new Map<string, { count: number; material: string; width: string; height: string; constructionNotes: string }>();
     for (const panel of line.panelSidelights) {
       const width = canonicalStoredDimension(panel.width);
       const height = canonicalStoredDimension(panel.height);
       const key = `${panel.material}\u0000${width}\u0000${height}`;
       const existing = grouped.get(key);
       if (existing) existing.count += Number(panel.qty) || 1;
-      else grouped.set(key, { count: Number(panel.qty) || 1, material: panel.material, width, height, position: panel.position });
+      else grouped.set(key, { count: Number(panel.qty) || 1, material: panel.material, width, height, constructionNotes: text(panel.constructionNotes) });
     }
-    rows.push({ kind: 'panel', lines: [...grouped.values()].map((panel) => panel.count > 1
-      ? `${panel.count} sidelight panels @ ${panel.material} ${panel.width} × ${panel.height}`
-      : `${panel.position}: ${panel.material} ${panel.width} × ${panel.height}`) });
+    rows.push({ kind: 'panel', lines: [...grouped.values()].map((panel) => `${panel.count} sidelight panel${panel.count === 1 ? '' : 's'} @ ${panel.material} ${panel.width} × ${panel.height}${panel.constructionNotes ? ` — ${panel.constructionNotes}` : ''}`) });
   }
   if (status !== 'Blocked' && status !== 'Glass Detail Needed' && line.glassUnits.length) {
     const fixed = line.glassUnits.filter((unit) => !/sidelight/i.test(unit.position));

@@ -6,11 +6,13 @@ import {
   calculateJ2AShopHours,
   defaultDoorLine,
   doorLineEquivalenceKey,
+  jambWidthChoices,
   mergeEquivalentActiveLines,
   normalizeDoorLineInput,
   prepAfterHeightChange,
   prepChoices,
 } from './door-line-contract';
+
 import { canReadJobs, canWriteJobs } from './job-intake-contract';
 import { createLocalJobIntakeRepository } from './local-job-intake-repository';
 import { JobIntakeFailure, type DoorLineInput, type NativeDoorLine } from './job-intake-types';
@@ -29,6 +31,10 @@ function failure(code: string) {
 }
 
 async function main() {
+  assert.deepEqual(jambWidthChoices('Exterior'), [`6-9/16"`, `4-9/16"`, `7-1/4"`, `8-7/8"`]);
+  assert.deepEqual(jambWidthChoices('Interior'), [`4-9/16"`, `6-9/16"`, `7-1/4"`, `8-7/8"`]);
+  const deepJamb = normalizeDoorLineInput(validLine({ jambWidth: `8-7/8"` }));
+  assert.equal(deepJamb.ok && deepJamb.value.jambWidth, `8-7/8"`, 'line commit preserves the canonical deep-jamb option');
   const directory = await mkdtemp(path.join(os.tmpdir(), 'doorgo-j2a-'));
   const filePath = path.join(directory, 'intake.json');
   try {

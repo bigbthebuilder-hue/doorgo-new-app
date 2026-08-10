@@ -63,3 +63,28 @@ test('T/SDS unit type, Clear selection, and committed custom width remain canoni
   await expect(dialog.getByText('Transom Product Size')).toBeVisible();
   await expect(dialog.getByText(/Choose glass for the right sidelight 1/i)).toHaveCount(0);
 });
+
+test('RO height normalization and one space-safe unit panel note survive commit and reopen', async ({ mount }) => {
+  const component = await mount(<DirectDimensionGlassBuilderHarness/>);
+  let dialog = component.getByRole('dialog');
+  const roHeight = dialog.getByLabel('RO Height (inches)');
+  for (const [raw, formatted] of [['94.25', '94 1/4"'], ['94.125', '94 1/8"'], ['94 1/4', '94 1/4"'], ['94-1/4', '94 1/4"']]) {
+    await roHeight.fill(raw);
+    await roHeight.press('Enter');
+    await expect(roHeight).toHaveValue(formatted);
+  }
+  await roHeight.fill('invalid height');
+  await roHeight.press('Enter');
+  await expect(roHeight).toHaveValue('invalid height');
+  await expect(dialog.getByText('Enter a valid RO height in inches.')).toBeVisible();
+  await roHeight.fill('96');
+  await roHeight.press('Enter');
+  await dialog.getByLabel('Sidelight Type').selectOption('Panel');
+  await expect(dialog.getByLabel('Sidelight Panel Construction Notes')).toHaveCount(1);
+  await dialog.getByLabel('Sidelight Panel Construction Notes').fill('w/ 764 Adelaide glass');
+  await expect(dialog.getByLabel('Sidelight Panel Construction Notes')).toHaveValue('w/ 764 Adelaide glass');
+  await dialog.getByRole('button', { name: 'Add Door to Order' }).click();
+  await component.getByRole('button', { name: 'Reopen Glass Builder' }).click();
+  dialog = component.getByRole('dialog');
+  await expect(dialog.getByLabel('Sidelight Panel Construction Notes')).toHaveValue('w/ 764 Adelaide glass');
+});

@@ -222,6 +222,15 @@ assert.equal(transomAuthoritative.blockers.length, 0);
 assert.equal(transomAuthoritative.calculatedGeometry.glassCalc?.transomWidth, `80"`, 'committed transom width remains authoritative');
 assert.equal(transomAuthoritative.sourcePatch.roWidth, `82 1/8"`, 'transom authority recalculates RO');
 assert.deepEqual(transomAuthoritative.sourcePatch.sidelightSpecifications?.map((entry) => entry.finishedWidth), [`19 11/16"`, `19 11/16"`], 'transom authority preserves one common sidelight product width');
+for (const [raw, formatted] of [['94.25', `94 1/4"`], ['94.125', `94 1/8"`], ['94 1/4', `94 1/4"`], ['94-1/4', `94 1/4"`]] as const) {
+  const committedHeight = reconcileGlassDimensionCommit(line({ config: 'T/SD', roHeight: raw }), { kind: 'roHeight', value: raw });
+  assert.equal(committedHeight.blockers.length, 0);
+  assert.equal(committedHeight.sourcePatch.roHeight, formatted);
+  assert.equal(committedHeight.calculatedGeometry.glassCalc?.roHeight, formatted);
+}
+const invalidHeight = reconcileGlassDimensionCommit(line({ config: 'T/SD', roHeight: 'invalid height' }), { kind: 'roHeight', value: 'invalid height' });
+assert.equal(invalidHeight.sourcePatch.roHeight, undefined);
+assert.equal(invalidHeight.blockers[0]?.code, 'invalid_ro_height');
 for (const [type, expected] of [['Panel', '1.5'], ['Glass', '2.25']] as const) {
   const reconciled = reconcileGlassDimensionCommit(line({ sidelightType: type, panelSidelightWidth: type === 'Panel' ? '11.75' : null }), { kind: 'roWidth', value: '60' });
   assert.equal(reconciled.sourcePatch.sidelightSpecifications?.[0].tBarSize, expected);
@@ -231,6 +240,11 @@ const customPanel = calculateGlassGeometry(line({ roWidth: '61', sidelightType: 
 ] }));
 assert.equal(customPanel.status, 'Complete');
 assert.equal(customPanel.panelSidelights[0].constructionNotes, 'Build from slab.');
+const sharedPanelNote = reconcileGlassDimensionCommit(line({ config: 'SDS', roWidth: '78', sidelightType: 'Panel', sidelightSpecifications: [
+  { side: 'left', index: 1, finishedWidth: '18', tBarSize: '1.5', glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: 'w/ 764 Adelaide glass' },
+  { side: 'right', index: 1, finishedWidth: '18', tBarSize: '1.5', glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: 'conflicting old note' },
+] }), { kind: 'roWidth', value: '78' });
+assert.deepEqual(sharedPanelNote.sourcePatch.sidelightSpecifications?.map((entry) => entry.panelConstructionNotes), ['w/ 764 Adelaide glass', 'w/ 764 Adelaide glass'], 'the first nonblank persisted note in position order becomes the unit-wide compatibility value');
 const customPanelNoNotes = calculateGlassGeometry(line({ roWidth: '61', sidelightType: 'Panel', panelSidelightWidth: null, sidelightGlass: null, sidelightSpecifications: [
   { side: 'left', index: 1, finishedWidth: '20', tBarSize: null, glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: null },
 ] }));

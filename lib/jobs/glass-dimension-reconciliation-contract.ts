@@ -21,12 +21,13 @@ export type SidelightIdentity = { side: 'left' | 'right'; index: number };
 export type GlassDimensionAuthority = { kind: 'roWidth' } | { kind: 'transomWidth' } | ({ kind: 'sidelightWidth' } & SidelightIdentity);
 export type GlassCommittedEdit =
   | { kind: 'roWidth'; value: unknown }
+  | { kind: 'roHeight'; value: unknown }
   | { kind: 'transomWidth'; value: unknown }
   | ({ kind: 'sidelightWidth'; value: unknown } & SidelightIdentity)
   | ({ kind: 'sidelightTBar'; value: unknown } & SidelightIdentity);
 
 export type GlassDimensionReconciliation = {
-  sourcePatch: Pick<DoorLineInput, 'roWidth' | 'sidelightSpecifications'>;
+  sourcePatch: Pick<DoorLineInput, 'roWidth' | 'roHeight' | 'sidelightSpecifications'>;
   calculatedGeometry: GlassGeometryResult;
   blockers: GlassIssue[];
   warnings: GlassIssue[];
@@ -48,6 +49,10 @@ function orderedPositions(input: DoorLineInput): SidelightIdentity[] {
 export function canonicalSidelightSpecifications(input: DoorLineInput, positions = orderedPositions(input)): SidelightSpecification[] {
   const supplied = Array.isArray(input.sidelightSpecifications) ? input.sidelightSpecifications : [];
   const type = normalizeSidelightType(input.sidelightType) ?? 'Glass';
+  const sharedPanelConstructionNotes = type === 'Panel'
+    ? positions.map((position) => supplied.find((entry) => entry && samePosition(entry, position))?.panelConstructionNotes)
+      .find((value) => value !== null && value !== undefined && value !== '') ?? null
+    : null;
   return positions.map((position) => {
     const found = supplied.find((entry) => entry && samePosition(entry, position));
     const resolvedType = type;
@@ -59,7 +64,7 @@ export function canonicalSidelightSpecifications(input: DoorLineInput, positions
       glassTypeCode: resolvedType === 'Glass' ? normalizeGlassTypeCode(found?.glassTypeCode ?? input.sidelightGlass ?? input.glass) : null,
       customGlassDescription: found?.customGlassDescription?.trim() || null,
       panelSizeMode: resolvedType === 'Panel' ? found?.panelSizeMode ?? 'standard' : null,
-      panelConstructionNotes: found?.panelConstructionNotes?.trim() || null,
+      panelConstructionNotes: resolvedType === 'Panel' ? sharedPanelConstructionNotes : null,
     };
   });
 }
@@ -99,6 +104,13 @@ export function reconcileGlassDimensionCommit(input: DoorLineInput, edit: GlassC
   };
   const positions = orderedPositions(input);
   const fixed = fixedHeaderWidth(input);
+  if (edit.kind === 'roHeight') {
+    const height = numericDimension(edit.value);
+    if (!height.ok) return { ...unchanged(), blockers: [issue('invalid_ro_height', 'Enter a valid RO height in inches.')] };
+    const patched = { ...input, roHeight: height.formatted };
+    const calculatedGeometry = calculateGlassGeometry(patched);
+    return { sourcePatch: { roHeight: height.formatted }, calculatedGeometry, blockers: calculatedGeometry.blockers, warnings: calculatedGeometry.warnings, informationalNotices: [] };
+  }
   if (fixed === null) return unchanged();
   if (!positions.length) {
     if (edit.kind !== 'transomWidth' || !glassConfigurationTopology(String(input.config)).hasTransom) return unchanged();

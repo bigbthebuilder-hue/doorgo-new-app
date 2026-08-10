@@ -18,6 +18,12 @@ export const EXTERIOR_WIDTHS = [
   `2'0"`, `2'4"`, `2'6"`, `2'8"`, `2'10"`, `3'0"`, `3'6"`, `4'0"`,
 ] as const;
 export const DOOR_HEIGHTS = [`6'8"`, `7'0"`, `8'0"`] as const;
+export const JAMB_WIDTHS = [`4-9/16"`, `6-9/16"`, `7-1/4"`, `8-7/8"`] as const;
+
+export function jambWidthChoices(mode: DoorLineMode): readonly string[] {
+  const preferred = mode === 'Exterior' ? `6-9/16"` : `4-9/16"`;
+  return [preferred, ...JAMB_WIDTHS.filter((value) => value !== preferred)];
+}
 export const J2A_CONFIGS = {
   Interior: ['D', 'DD', 'PKT', 'B.P.'],
   Exterior: ['D', 'DD'],

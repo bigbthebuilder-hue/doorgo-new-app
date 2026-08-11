@@ -56,7 +56,7 @@ export default async function ProductionRecoveryPage({
 
   return (
     <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Past Schedule" secondary="Review recent past production bookings"/>}>
-      <div className="app-workspace max-w-3xl">
+      <div className="app-workspace max-w-6xl">
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="today-summary-heading">
           <div className="flex flex-wrap items-center justify-between gap-2">

@@ -13,7 +13,6 @@ import {
   formatRecoveryDate,
   PARTLY_COMPLETED_GUIDANCE,
   productionRecoveryIdentifier,
-  productionRecoveryOriginLabel,
   projectedCapacityMessage,
   recoveryMoveMessage,
   retainCommandForRetry,
@@ -93,7 +92,6 @@ export function ProductionRecoveryList({ bookings, canMove, capacity, today }: P
         {bookings.length ? bookings.map((booking) => {
           const capacityMessage = projectedCapacityMessage(capacity, booking.shopHours);
           const isSelected = selectedBookingId === booking.bookingId;
-          const originLabel = productionRecoveryOriginLabel(booking.bookingOrigin);
           const identifier = productionRecoveryIdentifier(
             booking.bookingOrigin,
             booking.jobId,
@@ -105,12 +103,7 @@ export function ProductionRecoveryList({ bookings, canMove, capacity, today }: P
                 <div className="min-w-0 flex-1"><h3 className="break-words text-sm font-semibold">{booking.displayTitle}</h3><p className="mt-0.5 text-xs text-slate-600">{formatRecoveryDate(booking.productionDate)}</p></div>
                 <p className="shrink-0 rounded bg-slate-100 px-2 py-1 text-sm font-semibold">{booking.shopHours.toFixed(2)} hrs</p>
               </div>
-              {(originLabel || identifier) ? (
-                <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-xs">
-                  {originLabel ? <span className="max-w-full break-words font-medium text-slate-500">{originLabel}</span> : null}
-                  {identifier ? <p className="max-w-full break-words font-medium text-slate-700">{identifier}</p> : null}
-                </div>
-              ) : null}
+              {identifier ? <p className="mt-2 max-w-full break-words text-xs font-medium text-slate-700">{identifier}</p> : null}
 
               {canMove && !isSelected ? <button className="mt-3 min-h-9 w-full rounded-lg bg-sky-700 px-3 text-sm font-semibold text-white sm:w-auto" type="button" onClick={() => openConfirmation(booking.bookingId)}>Move to today</button> : null}
 

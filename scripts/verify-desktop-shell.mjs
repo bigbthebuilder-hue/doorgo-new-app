@@ -17,6 +17,9 @@ const mark = read('public/brand/doorgo-mark.svg');
 const bookingCard = read('components/ProductionBookingCard.tsx');
 const schedulePage = read('app/production-schedule/page.tsx');
 const productionDay = read('components/ProductionBoardDay.tsx');
+const productionSummary = read('components/ProductionBoardSummary.tsx');
+const recoveryList = read('app/production-recovery/production-recovery-list.tsx');
+const recoveryPage = read('app/production-recovery/page.tsx');
 
 assert.match(css, /--app-shell-nav-width:\s*4\.75rem/, 'Desktop rail width must remain 4.75rem');
 assert.match(css, /\.app-shell-nav-label\s*\{[^}]*white-space:\s*normal[^}]*\}/s, 'Desktop labels must wrap');
@@ -51,7 +54,12 @@ assert.match(jobForm, /placeholder="Not entered"/, 'Blank contextual values must
 assert.match(jobForm, /app-workspace job-editor-workspace/, 'Job editor must use the full shell workspace');
 assert.match(jobForm, /backHref="\/jobs"/, 'Job editor must provide contextual Back navigation');
 assert.match(bookingCard, /production-booking-card/, 'Production bookings must use the compact rendered contract');
-assert.match(bookingCard, /aria-label="DoorGo job"/, 'Native Production bookings must use a subtle accessible indicator');
+assert.doesNotMatch(bookingCard, /aria-label="DoorGo job"|src="\/brand\/doorgo-mark\.svg"/, 'Primary Production cards must not expose transitional source indicators');
+assert.doesNotMatch(bookingCard, /card\.typeLabel/, 'Primary Production cards must not expose transitional source labels');
+assert.doesNotMatch(productionSummary, /label="(?:DoorGo-linked|BizTrack-only)"/, 'Primary Production summary must not expose transitional source counts');
+assert.doesNotMatch(recoveryList, /productionRecoveryOriginLabel/, 'Past Schedule cards must not expose transitional source labels');
+assert.match(recoveryPage, /app-workspace max-w-6xl/, 'Past Schedule must use the wider desktop workspace');
+assert.doesNotMatch(calculator, /backHref=/, 'Top-level Glass Calculator must rely on permanent navigation');
 assert.doesNotMatch(schedulePage, /href="\/(?:production-board|production-recovery|production-checkpoints|account)"/, 'Production context must not duplicate rail navigation');
 assert.match(productionDay, /day\.cards\.slice\(0, visibleCardLimit\)/, 'Busy Production days must use an explicit visible-card limit');
 assert.match(productionDay, /aria-expanded=\{expanded\}/, 'Busy-day overflow must expose accessible expansion state');

@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/experimental-ct-react';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { ProductionBookingCard } from '@/components/ProductionBookingCard';
 import { ProductionBoardDay } from '@/components/ProductionBoardDay';
-import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel } from '@/lib/production-board/types';
+import { ProductionBoardSummary } from '@/components/ProductionBoardSummary';
+import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel, ProductionBoardViewModel } from '@/lib/production-board/types';
 
 const desktopShellLabels = ['Production Board', 'Production Schedule', 'Past Schedule', 'Carry Checkpoint', 'Glass Calculator', 'Account'];
 
@@ -130,8 +131,20 @@ test('compact production cards keep several bookings visible in one desktop view
   expect(Math.max(...heights)).toBeLessThanOrEqual(96);
   const groupHeight = await cards.locator('..').evaluate((element) => element.getBoundingClientRect().height);
   expect(groupHeight).toBeLessThan(520);
-  await expect(cards.first().getByTitle('DoorGo job')).toBeVisible();
+  await expect(cards.first().getByTitle('DoorGo job')).toHaveCount(0);
   await expect(cards.first()).not.toContainText('DoorGo-linked');
+});
+
+test('primary production summary omits transitional source counts', async ({ mount, page }) => {
+  const board = {
+    startDate: '2026-08-10', endDateExclusive: '2026-08-15', visibleWeekdayEndExclusive: '2026-08-15',
+    weeks: 1, days: [], weekGroups: [], calculationStartDate: '2026-08-10',
+    summary: { totalBookings: 4, totalKnownShopHours: 12, scheduledDays: 3, doorGoLinkedCount: 2, bizTrackOnlyCount: 2, missingShopHoursCount: 0 },
+  } satisfies ProductionBoardViewModel;
+  await mount(<ProductionBoardSummary board={board}/>);
+  await expect(page.getByText('Bookings', { exact: true })).toBeVisible();
+  await expect(page.getByText('DoorGo-linked', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('BizTrack-only', { exact: true })).toHaveCount(0);
 });
 
 test('busy production days collapse explicitly and keep every booking reachable', async ({ mount, page }) => {

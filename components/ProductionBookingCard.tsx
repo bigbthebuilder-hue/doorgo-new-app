@@ -1,6 +1,5 @@
 import type { ProductionBoardCard } from '@/lib/production-board/types';
 import type { ProductionBoardInteraction } from './production-board-interaction';
-import Image from 'next/image';
 
 export function ProductionBookingCard({
   card,
@@ -38,11 +37,7 @@ export function ProductionBookingCard({
       onDragStart={canDrag ? (event) => interaction?.onCardDragStart(card, event) : undefined}
       onDragEnd={canDrag ? () => interaction?.onCardDragEnd(card) : undefined}
       onClickCapture={interaction ? (event) => interaction.onCardClickCapture(card, event) : undefined}
-      className={`production-booking-card rounded-md border border-slate-200 p-1.5 ${completed ? 'bg-slate-200 text-slate-700' : 'bg-slate-50'} ${
-        card.type === 'doorgo_linked'
-          ? 'border-l-4 border-l-sky-400'
-          : 'border-l-4 border-l-slate-400'
-      } ${canDrag ? 'cursor-grab transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md active:cursor-grabbing' : ''
+      className={`production-booking-card rounded-md border border-l-4 border-slate-200 border-l-slate-400 p-1.5 ${completed ? 'bg-slate-200 text-slate-700' : 'bg-slate-50'} ${canDrag ? 'cursor-grab transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md active:cursor-grabbing' : ''
       } ${pending ? 'pointer-events-none opacity-65 ring-2 ring-sky-300' : ''
       }`}
     >
@@ -58,8 +53,6 @@ export function ProductionBookingCard({
             }`}>
               {completed ? 'Completed' : 'Ready'}
             </span>
-            {card.type === 'doorgo_linked' ? <span className="inline-flex" aria-label="DoorGo job" title="DoorGo job"><Image alt="" aria-hidden="true" src="/brand/doorgo-mark.svg" width={12} height={12}/></span> : null}
-
             <span
               className={`text-[11px] font-semibold ${
                 card.shopHoursKnown ? 'text-slate-700' : 'text-amber-700'

@@ -22,8 +22,6 @@ export function ProductionBoardSummary({
         <SummaryCard label="Bookings" value={summary.totalBookings.toString()} />
         <SummaryCard label="Known shop hours" value={formatHours(summary.totalKnownShopHours)} />
         <SummaryCard label="Scheduled days" value={summary.scheduledDays.toString()} />
-        <SummaryCard label="DoorGo-linked" value={summary.doorGoLinkedCount.toString()} />
-        <SummaryCard label="BizTrack-only" value={summary.bizTrackOnlyCount.toString()} />
         {summary.missingShopHoursCount > 0 ? <SummaryCard label="Missing shop hours" value={summary.missingShopHoursCount.toString()} /> : null}
       </div>
     </section>

@@ -46,13 +46,16 @@ function initialBuilderDraft(line: DoorLineInput): DoorLineInput {
   return initialized;
 }
 
-export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Calculation', embedded = false, defaultEmptyTransomGlassToClear = false }: {
+export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitLabel = 'Use Calculation', embedded = false, defaultEmptyTransomGlassToClear = false, showCalculationOutput = true, showCommitActions = true }: {
   line: DoorLineInput;
   onCancel: () => void;
   onUse: (line: DoorLineInput, explicitDetailNeeded: boolean) => boolean | void;
+  onDraftChange?: (line: DoorLineInput) => void;
   commitLabel?: string;
   embedded?: boolean;
   defaultEmptyTransomGlassToClear?: boolean;
+  showCalculationOutput?: boolean;
+  showCommitActions?: boolean;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
   const embeddedRef = useRef(embedded);
@@ -69,12 +72,18 @@ export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Cal
   const dirty = JSON.stringify(draft) !== baseline || resolveGlassUnitConfiguration(composition) !== String(line.config);
   const dirtyRef = useRef(dirty);
   const onCancelRef = useRef(onCancel);
+  const onDraftChangeRef = useRef(onDraftChange);
   const dimensionAuthority = useRef<GlassDimensionAuthority>({ kind: 'roWidth' });
 
   useEffect(() => {
     dirtyRef.current = dirty;
     onCancelRef.current = onCancel;
-  }, [dirty, onCancel]);
+    onDraftChangeRef.current = onDraftChange;
+  }, [dirty, onCancel, onDraftChange]);
+
+  useEffect(() => {
+    onDraftChangeRef.current?.(structuredClone(draft));
+  }, [draft]);
 
   function close() {
     if (!dirty || window.confirm('Discard Glass Unit Builder changes?')) onCancel();
@@ -299,14 +308,14 @@ export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Cal
           {sideCount && type === 'Panel' ? <label className="grid gap-1 font-semibold">Sidelight Panel Construction Notes<textarea className={control} onChange={(event) => setUnitPanelConstructionNotes(event.target.value)} value={specifications[0]?.panelConstructionNotes ?? ''}/></label> : null}
           {composition.hasTransom ? <fieldset className="grid gap-3 rounded-xl border border-slate-300 p-3 dark:border-slate-600"><legend className="px-2 font-bold">Transom</legend><label className="grid gap-1 font-semibold">Transom Glass Type<select className={control} onChange={(event) => setField('transomGlassTypeCode', event.target.value)} value={String(draft.transomGlassTypeCode ?? '')}><option value="">Choose glass</option><option value="CLEAR">Clear</option><option value="SATIN_ETCH">Satin Etch</option><option value="CUSTOM">Custom</option></select></label>{draft.transomGlassTypeCode === 'CUSTOM' ? <label className="grid gap-1 font-semibold">Custom Transom Glass Description<input className={control} onChange={(event) => setField('transomCustomGlassDescription', event.target.value)} value={String(draft.transomCustomGlassDescription ?? '')}/></label> : null}<label className="grid gap-1 font-semibold">Transom Product Width (inches)<input className={control} onBlur={(event) => commitTransomWidth(event.target.value)} onChange={(event) => setTransomWidthInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} value={transomWidthInput}/></label></fieldset> : null}
           <label className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-300 px-3"><input checked={draft.includeDiagramOnWorkOrder !== false} onChange={(event) => setField('includeDiagramOnWorkOrder', event.target.checked)} type="checkbox"/>Include diagram on work order</label>
-          <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><strong>Status: {calculation.status}</strong>{calculation.glassCalc ? <><dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm" aria-label="Calculated measurements">{specifications[0]?.finishedWidth ? <div><dt className="font-semibold">Sidelight Product Width</dt><dd>{specifications[0].finishedWidth}</dd></div> : null}{calculation.glassUnits.filter((unit) => /sidelight/i.test(unit.position)).map((unit) => <div key={`${unit.position}:glass-size`}><dt className="font-semibold">{unit.position} Glass Order Size</dt><dd>{unit.width} × {unit.height}</dd></div>)}{calculation.glassCalc.transomWidth ? <div><dt className="font-semibold">Transom Product Size</dt><dd>{String(calculation.glassCalc.transomWidth)} × {String(calculation.glassCalc.transomHeight)}</dd></div> : null}</dl><pre className="mt-2 whitespace-pre-wrap text-xs">{calculation.workorderDetail}</pre></> : null}</div>
-          {calculation.vendorCopyText ? <details className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><summary className="font-semibold">Vendor-copy preview</summary><pre className="mt-2 whitespace-pre-wrap text-xs">{calculation.vendorCopyText}</pre><button className={`${button} mt-2`} onClick={() => void navigator.clipboard.writeText(calculation.vendorCopyText)} type="button">Copy Vendor Text</button></details> : null}
+          {showCalculationOutput ? <><div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><strong>Status: {calculation.status}</strong>{calculation.glassCalc ? <><dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm" aria-label="Calculated measurements">{specifications[0]?.finishedWidth ? <div><dt className="font-semibold">Sidelight Product Width</dt><dd>{specifications[0].finishedWidth}</dd></div> : null}{calculation.glassUnits.filter((unit) => /sidelight/i.test(unit.position)).map((unit) => <div key={`${unit.position}:glass-size`}><dt className="font-semibold">{unit.position} Glass Order Size</dt><dd>{unit.width} × {unit.height}</dd></div>)}{calculation.glassCalc.transomWidth ? <div><dt className="font-semibold">Transom Product Size</dt><dd>{String(calculation.glassCalc.transomWidth)} × {String(calculation.glassCalc.transomHeight)}</dd></div> : null}</dl><pre className="mt-2 whitespace-pre-wrap text-xs">{calculation.workorderDetail}</pre></> : null}</div>
+          {calculation.vendorCopyText ? <details className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><summary className="font-semibold">Vendor-copy preview</summary><pre className="mt-2 whitespace-pre-wrap text-xs">{calculation.vendorCopyText}</pre><button className={`${button} mt-2`} onClick={() => void navigator.clipboard.writeText(calculation.vendorCopyText)} type="button">Copy Vendor Text</button></details> : null}</> : null}
           {[...calculation.incompleteDetails, ...calculation.warnings, ...calculation.blockers].map((issue, index) => <p className="rounded-lg bg-amber-100 p-2 text-sm text-amber-950" key={`${issue.code}:${issue.message}:${index}`}>{issue.message}</p>)}
           {draft.glassOverride ? <p className="rounded-lg bg-violet-100 p-2 text-sm text-violet-950">Manual Override: {draft.glassOverride.reason}</p> : null}
           {message ? <p aria-live="assertive" className="rounded-lg bg-rose-100 p-3 text-rose-950">{message}</p> : null}
         </section>
       </div>
-      <footer className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900"><button className={button} onClick={close} type="button">{embedded ? 'Reset' : 'Cancel'}</button>{calculation.status === 'Glass Detail Needed' ? <button className={`${button} bg-amber-600 text-white`} onClick={() => applyConfiguration(true)} type="button">Leave Glass Detail Needed</button> : null}{['Complete', 'Warning', 'Manual Override'].includes(calculation.status) ? <button className={`${button} bg-sky-700 text-white`} onClick={() => applyConfiguration(false)} type="button">{commitLabel}</button> : null}</footer>
+      <footer className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900"><button className={button} onClick={close} type="button">{embedded ? 'Reset' : 'Cancel'}</button>{showCommitActions && calculation.status === 'Glass Detail Needed' ? <button className={`${button} bg-amber-600 text-white`} onClick={() => applyConfiguration(true)} type="button">Leave Glass Detail Needed</button> : null}{showCommitActions && ['Complete', 'Warning', 'Manual Override'].includes(calculation.status) ? <button className={`${button} bg-sky-700 text-white`} onClick={() => applyConfiguration(false)} type="button">{commitLabel}</button> : null}</footer>
     </div>
   </div>;
 }

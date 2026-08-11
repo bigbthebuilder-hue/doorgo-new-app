@@ -67,9 +67,16 @@ assert.match(recoveryPage, /app-workspace app-workspace-fluid/, 'Past Schedule m
 assert.doesNotMatch(calculator, /backHref=/, 'Top-level Glass Calculator must rely on permanent navigation');
 assert.match(jobsList, /sm:grid-cols-\[8rem_8rem_minmax\(9rem,1fr\)/, 'Jobs must use the dense desktop row contract');
 assert.doesNotMatch(jobsList, /Archived lines:/, 'Zero archived counts must not consume a dedicated Jobs row');
+assert.match(jobsList, /placeholder="Identifier, customer or site"/, 'Jobs filter copy must match the fields present in the loaded list projection');
+assert.doesNotMatch(jobsList, /placeholder="[^"]*salesperson/i, 'Jobs must not claim salesperson filtering without salesperson in the list projection');
+assert.match(jobForm, /job-confirmation-note/, 'Job confirmation guidance must use the compact strip');
+assert.match(jobForm, /job-work-order-menu/, 'Work Order actions must remain reachable through the compact toolbar menu');
 assert.match(glassBuilder, /embedded = false/, 'Shared Glass Unit Builder must expose an embedded presentation without forking calculations');
 assert.match(standaloneGlass, /<GlassUnitBuilder embedded/, 'Standalone Glass Calculator must embed the shared builder');
 assert.match(standaloneGlass, /window\.print\(\)/, 'Valid Glass Calculator output must support browser printing');
+assert.match(standaloneGlass, /<GlassUnitDiagram line=/, 'Glass Calculator print document must contain the authoritative diagram');
+assert.match(glassBuilder, /aria-label="Add left sidelight"/, 'Authoritative Glass diagram must expose keyboard-operable topology actions');
+assert.doesNotMatch(glassBuilder, /<strong>Left: \{composition\.leftSidelightCount\}/, 'Duplicate blank structural control must be removed');
 assert.match(standaloneGlass, /Send unavailable/, 'Glass Calculator Send must fail closed pending an approved message contract');
 assert.match(archiveControl, /app-overlay-workspace/, 'Normal archive overlay must preserve shell geometry');
 assert.doesNotMatch(schedulePage, /href="\/(?:production-board|production-recovery|production-checkpoints|account)"/, 'Production context must not duplicate rail navigation');

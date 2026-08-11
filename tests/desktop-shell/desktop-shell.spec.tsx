@@ -159,6 +159,8 @@ test('dense Jobs rows keep many records visible at desktop and laptop widths', a
     activeLineCount: 1, archivedLineCount: 0, archivedAt: null,
   })) as NativeJobListItem[];
   await mount(<div className="app-workspace app-workspace-fluid"><JobsList jobs={jobs}/></div>);
+  await expect(page.getByPlaceholder('Identifier, customer or site')).toBeVisible();
+  await expect(page.getByPlaceholder(/salesperson/i)).toHaveCount(0);
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);
     const rows = page.locator('article');
@@ -169,7 +171,7 @@ test('dense Jobs rows keep many records visible at desktop and laptop widths', a
   }
 });
 
-test('standalone Glass Calculator embeds the shared builder beside results', async ({ mount, page }) => {
+test('standalone Glass Calculator embeds one interactive diagram beside a purpose-built print result', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await mount(<div className="app-workspace app-workspace-fluid"><StandaloneGlassCalculator/></div>);
   const editor = page.locator('.glass-calculator-editor');
@@ -178,8 +180,17 @@ test('standalone Glass Calculator embeds the shared builder beside results', asy
   await expect(results).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send unavailable' })).toBeDisabled();
   await expect(page.locator('.glass-unit-builder[role="dialog"]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add left sidelight' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add right sidelight' })).toBeVisible();
+  await expect(editor.locator('.glass-unit-diagram')).toHaveCount(1);
   const editorBox = await editor.boundingBox(); const resultsBox = await results.boundingBox();
   expect((resultsBox?.x ?? 0)).toBeGreaterThan((editorBox?.x ?? 0));
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.getByRole('region', { name: 'Glass Calculation printout' })).toBeVisible();
+  await expect(page.getByText('DoorGo', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Glass Calculation' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Print' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Add right sidelight' })).toBeHidden();
 });
 
 test('busy production days collapse explicitly and keep every booking reachable', async ({ mount, page }) => {

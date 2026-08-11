@@ -110,6 +110,8 @@
   .app-context-secondary { margin-top: .1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--app-color-muted); font-size: .75rem; line-height: 1rem; }
   .app-context-controls, .app-context-actions { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: .5rem; }
   .app-context-actions { margin-left: auto; justify-content: flex-end; }
+  .app-jobs-filter { display: grid; width: min(30rem, 40vw); min-width: 14rem; gap: .05rem; color: var(--app-color-muted); font-size: .6rem; font-weight: 700; text-transform: uppercase; }
+  .app-jobs-filter input { width: 100%; text-transform: none; }
   .app-workspace { display: flex; width: 100%; flex-direction: column; gap: var(--app-section-gap); padding: var(--app-workspace-padding) var(--app-shell-gutter) 1rem; font-size: var(--app-font-size); }
   .app-workspace-fluid { max-width: none; }
   .app-workspace-focused { margin-inline: auto; max-width: 48rem; }
@@ -168,6 +170,7 @@
   .app-shell-nav-label { display: block; max-width: 4rem; overflow: visible; text-overflow: clip !important; white-space: normal !important; font-size: .625rem; line-height: 1.05; overflow-wrap: normal; }
   .app-shell-main { height: 100vh; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
   .app-context-bar { position: sticky; top: 0; z-index: var(--app-layer-shell); min-height: var(--app-context-bar-height); max-height: 4.75rem; flex-wrap: nowrap; }
+  .app-context-controls:has(.app-jobs-filter) { flex: 1 1 24rem; justify-content: center; }
   .app-overlay-workspace { inset: var(--app-context-bar-height) 0 0 var(--app-shell-nav-width); }
 }
 

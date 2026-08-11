@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { visibleJobIdentifier } from '@/lib/jobs/job-intake-contract';
 import type { NativeJobListItem } from '@/lib/jobs/job-intake-types';
 
@@ -12,8 +12,7 @@ function formattedUpdatedAt(value: string): string {
   }).format(new Date(value));
 }
 
-export function JobsList({ jobs }: { jobs: NativeJobListItem[] }) {
-  const [filter, setFilter] = useState('');
+export function JobsList({ jobs, filter = '' }: { jobs: NativeJobListItem[]; filter?: string }) {
   const normalizedFilter = filter.trim().toLocaleLowerCase();
   const filteredJobs = useMemo(
     () => jobs.filter((job) => [
@@ -25,25 +24,7 @@ export function JobsList({ jobs }: { jobs: NativeJobListItem[] }) {
   );
 
   return (
-    <section aria-labelledby="saved-jobs-heading" className="app-workspace-panel rounded-lg p-2">
-      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-200 pb-2">
-        <div>
-          <h2 id="saved-jobs-heading" className="text-base font-semibold">Saved draft jobs</h2>
-          <p className="text-xs text-slate-600">Saved DoorGo jobs</p>
-        </div>
-        <label className="grid w-full max-w-md gap-0.5 text-xs font-semibold" htmlFor="job-filter">
-          Filter jobs
-          <input
-            className="app-compact-input"
-            id="job-filter"
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder="Identifier, customer or site"
-            type="search"
-            value={filter}
-          />
-        </label>
-      </div>
-
+    <section aria-label="Saved jobs" className="app-workspace-panel rounded-lg p-2">
       <div>
         {filteredJobs.map((job) => (
           <article className="grid min-h-10 gap-x-3 border-b border-slate-200 px-1 py-0.5 last:border-b-0 sm:grid-cols-[8rem_8rem_minmax(9rem,1fr)_minmax(10rem,1.3fr)_9rem_5rem_auto] sm:items-center" key={job.internalJobId}>

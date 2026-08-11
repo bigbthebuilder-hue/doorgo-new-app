@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell/AppShell';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
-import { JobsList } from '@/components/jobs/JobsList';
+import { JobsWorkspace } from '@/components/jobs/JobsWorkspace';
 import { getPermissionAccess, hasAtLeastView } from '@/lib/auth/access';
 import { buildProtectedAppNavigation } from '@/lib/app-shell/navigation';
 import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
@@ -33,18 +33,5 @@ export default async function JobsPage() {
   }
 
   const canCreate = getPermissionAccess(access, 'jobs') === 'use';
-  return (
-    <AppShell
-      navigation={buildProtectedAppNavigation(access)}
-      topBar={<ContextTopBar
-        title="Jobs"
-        secondary="DoorGo jobs"
-        actions={canCreate ? <><Link className="app-button app-button-secondary" href="/jobs/import">Import Legacy Job</Link><Link className="app-button app-button-primary" href="/jobs/new">New Draft Job</Link></> : null}
-      />}
-    >
-      <div className="app-workspace app-workspace-fluid">
-        <JobsList jobs={jobs}/>
-      </div>
-    </AppShell>
-  );
+  return <JobsWorkspace canCreate={canCreate} jobs={jobs} navigation={buildProtectedAppNavigation(access)}/>;
 }

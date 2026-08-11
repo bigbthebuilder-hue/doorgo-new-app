@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getPermissionAccess, hasAtLeastView } from '@/lib/auth/access';
 import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
@@ -61,7 +60,7 @@ export default async function ProductionCheckpointsPage({ searchParams }: { sear
   const recentGroups = Map.groupBy(reads.recent, (item) => item.productionDate);
 
   return (
-    <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Carry Checkpoint" secondary="Record actual unfinished shop hours" actions={<Link className="app-button app-button-secondary" href="/production-board">Production Board</Link>}/> }>
+    <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Carry Checkpoint" secondary="Record actual unfinished shop hours"/>}>
       <div className="app-workspace max-w-2xl">
 
         <form className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" method="get">

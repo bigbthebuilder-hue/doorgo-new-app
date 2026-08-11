@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { AppShell } from '@/components/app-shell/AppShell';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { ProductionBoardWeekSection } from '@/components/ProductionBoardWeekSection';
@@ -12,15 +11,13 @@ export function ProductionBoardView({
   board,
   presentation,
   navigation,
-  headerActions,
   windowNavigation,
   interaction,
 }: {
   board: ProductionBoardViewModel;
   presentation: ProductionBoardPresentation;
   navigation: AppNavigationItem[];
-  headerActions?: ReactNode;
-  windowNavigation?: ReactNode;
+  windowNavigation?: React.ReactNode;
   interaction?: ProductionBoardInteraction;
 }) {
   const hasWeekendExceptions = board.weekGroups.some((week) => week.weekendExceptions.length > 0);
@@ -33,7 +30,6 @@ export function ProductionBoardView({
         title={presentation.title}
         status={<span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">{presentation.statusLabel}</span>}
         secondary={<>{formatFriendlyDateRange(board.startDate, board.visibleWeekdayEndExclusive)} · {board.weeks} week{board.weeks === 1 ? '' : 's'} · date-only view</>}
-        actions={headerActions}
       />}
     >
       <div className="app-workspace">

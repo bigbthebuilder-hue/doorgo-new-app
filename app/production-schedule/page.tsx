@@ -1,9 +1,7 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ProductionBoardView } from '@/components/ProductionBoardView';
 import { ProductionScheduleInteractiveBoard } from '@/components/ProductionScheduleInteractiveBoard';
 import { ProductionScheduleNavigation } from '@/components/ProductionScheduleNavigation';
-import { hasAtLeastView } from '@/lib/auth/access';
 import { buildProtectedAppNavigation } from '@/lib/app-shell/navigation';
 import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
 import {
@@ -50,20 +48,6 @@ export default async function ProductionSchedulePage({
     />
   );
 
-  const headerActions = (
-    <nav
-      className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-sm font-medium text-sky-700"
-      aria-label="Production schedule navigation"
-    >
-      <Link href="/production-board">Production Board</Link>
-      <Link href="/production-recovery">Past Scheduled Bookings</Link>
-      {hasAtLeastView(access, 'production_checkpoints') ? (
-        <Link href="/production-checkpoints">Production Carry Checkpoint</Link>
-      ) : null}
-      <Link href="/account">Account</Link>
-    </nav>
-  );
-
   const canMoveBookings = canRescheduleProductionBooking(access);
   const canChangeCompletion = getProductionCompletionAuthorizationError(access) === null;
 
@@ -72,7 +56,6 @@ export default async function ProductionSchedulePage({
       board={board}
       presentation={PRODUCTION_SCHEDULE_PRESENTATION}
       navigation={buildProtectedAppNavigation(access)}
-      headerActions={headerActions}
       windowNavigation={windowNavigation}
       today={today}
     />
@@ -81,7 +64,6 @@ export default async function ProductionSchedulePage({
       board={board}
       presentation={PRODUCTION_SCHEDULE_PRESENTATION}
       navigation={buildProtectedAppNavigation(access)}
-      headerActions={headerActions}
       windowNavigation={windowNavigation}
     />
   );

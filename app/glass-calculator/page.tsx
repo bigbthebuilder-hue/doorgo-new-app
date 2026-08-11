@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { StandaloneGlassCalculator } from '@/components/jobs/StandaloneGlassCalculator';
 import { AppShell } from '@/components/app-shell/AppShell';
@@ -10,7 +9,7 @@ import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
 export default async function GlassCalculatorPage() {
   const access = await requireDoorGoProtectedAccess();
   if (!hasAtLeastView(access, 'jobs')) redirect('/account');
-  return <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Glass Calculator" secondary="Local calculation workspace" actions={<Link className="app-button app-button-secondary" href="/jobs">Back to Jobs</Link>}/>}>
+  return <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar backHref="/jobs" backLabel="Jobs" title="Glass Calculator" secondary="Local calculation workspace"/>}>
     <div className="app-workspace max-w-5xl">
       <StandaloneGlassCalculator/>
     </div>

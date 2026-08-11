@@ -55,12 +55,7 @@ export default async function ProductionRecoveryPage({
   const productionAccess = getPermissionAccess(access, 'production');
 
   return (
-    <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Past Schedule" secondary="Review recent past production bookings" actions={
-          <nav className="flex flex-wrap gap-2" aria-label="Production recovery navigation">
-            <Link className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium" href="/production-board">Production Board</Link>
-            {hasAtLeastView(access, 'production_checkpoints') ? <Link className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium" href="/production-checkpoints">Production Carry Checkpoint</Link> : null}
-          </nav>
-    }/>}>
+    <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Past Schedule" secondary="Review recent past production bookings"/>}>
       <div className="app-workspace max-w-3xl">
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="today-summary-heading">

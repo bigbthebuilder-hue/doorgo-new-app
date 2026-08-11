@@ -61,10 +61,8 @@ assert.ok(
   privatePage.indexOf('canViewProductionSchedule(access)') < privatePage.indexOf('await loadProductionBoardReadOnly({'),
   'Production permission must precede trusted loading',
 );
-assert.match(privatePage, /href="\/production-board"/);
-assert.match(privatePage, /href="\/production-recovery"/);
-assert.match(privatePage, /hasAtLeastView\(access, 'production_checkpoints'\)[\s\S]*href="\/production-checkpoints"/);
-assert.match(privatePage, /href="\/account"/);
+assert.match(privatePage, /buildProtectedAppNavigation\(access\)/);
+assert.doesNotMatch(privatePage, /href="\/(?:production-board|production-recovery|production-checkpoints|account)"/, 'Global navigation belongs only in the shared rail');
 assert.doesNotMatch(privatePage, /isManager|calendar['"]|production_checkpoints['"]\s*\)\s*\|\||\.rpc\(|checkpoint-actions|production-booking-actions/);
 
 assert.match(access, /getPermissionAccess\(access, 'production'\)/);
@@ -72,10 +70,11 @@ assert.match(access, /title: 'Production Schedule'/);
 assert.match(access, /statusLabel: 'Schedule view'/);
 assert.doesNotMatch(access, /isManager|calendar|production_checkpoints/);
 assert.match(navigation, /hasAtLeastView\(access, 'production'\)[\s\S]*href: '\/production-schedule'[\s\S]*Production Schedule/);
+for (const route of ['/production-board', '/production-recovery', '/production-checkpoints', '/account']) assert.ok(navigation.includes(`href: '${route}'`));
 
 assert.match(sharedView, /ProductionBoardSummary/);
 assert.match(sharedView, /ProductionBoardWeekSection/);
-assert.match(sharedView, /headerActions\?: ReactNode/);
+assert.doesNotMatch(sharedView, /headerActions/, 'Shared Production top bar must not duplicate global navigation');
 assert.match(sharedView, /title=\{presentation\.title\}/);
 assert.match(sharedView, /\{presentation\.statusLabel\}/);
 for (const code of [sharedView, summary]) {

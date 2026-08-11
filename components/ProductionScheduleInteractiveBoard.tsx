@@ -85,7 +85,6 @@ export function ProductionScheduleInteractiveBoard(props: {
   board: ProductionBoardViewModel;
   presentation: ProductionBoardPresentation;
   navigation: AppNavigationItem[];
-  headerActions: ReactNode;
   windowNavigation: ReactNode;
   today: string;
 }) {
@@ -97,14 +96,12 @@ function ProductionScheduleInteractiveBoardSession({
   board,
   presentation,
   navigation,
-  headerActions,
   windowNavigation,
   today,
 }: {
   board: ProductionBoardViewModel;
   presentation: ProductionBoardPresentation;
   navigation: AppNavigationItem[];
-  headerActions: ReactNode;
   windowNavigation: ReactNode;
   today: string;
 }) {
@@ -469,7 +466,6 @@ function ProductionScheduleInteractiveBoardSession({
         board={displayBoard}
         presentation={presentation}
         navigation={navigation}
-        headerActions={headerActions}
         windowNavigation={windowNavigation}
         interaction={interaction}
       />

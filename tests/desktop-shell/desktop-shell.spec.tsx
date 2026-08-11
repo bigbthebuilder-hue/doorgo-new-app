@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/experimental-ct-react';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { ProductionBookingCard } from '@/components/ProductionBookingCard';
+import type { ProductionBoardCard } from '@/lib/production-board/types';
 
 const desktopShellLabels = ['Production Board', 'Production Schedule', 'Past Schedule', 'Carry Checkpoint', 'Glass Calculator', 'Account'];
 
@@ -22,6 +24,7 @@ async function prepareShell(page: ShellPage) {
       const link = document.createElement('a');
       link.className = 'app-shell-nav-link';
       if (label === 'Account') link.dataset.placement = 'bottom';
+      if (label === 'Production Schedule') link.setAttribute('aria-current', 'page');
       const icon = document.createElement('span'); icon.className = 'app-shell-nav-icon';
       const text = document.createElement('span'); text.className = 'app-shell-nav-label'; text.textContent = label;
       link.append(icon, text); nav.append(link);
@@ -74,6 +77,10 @@ test('desktop rail keeps full wrapped labels without ellipsis', async ({ mount, 
     expect(box.scrollHeight).toBeLessThanOrEqual(box.clientHeight);
     expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth);
   }
+  await expect(page.getByText('Production Schedule', { exact: true }).locator('..')).toHaveAttribute('aria-current', 'page');
+  const accountY = (await page.getByText('Account', { exact: true }).locator('..').boundingBox())?.y ?? 0;
+  const calculatorY = (await page.getByText('Glass Calculator', { exact: true }).locator('..').boundingBox())?.y ?? 0;
+  expect(accountY).toBeGreaterThan(calculatorY + 100);
 });
 
 test('phone fallback leaves the contextual bar non-sticky', async ({ mount, page }) => {
@@ -86,15 +93,35 @@ test('phone fallback leaves the contextual bar non-sticky', async ({ mount, page
 
 test('job identity remains visible while its editor workspace scrolls', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1440, height: 800 });
-  await mount(<ContextTopBar title="DG-000123" secondary="Fixture Customer" status={<span>Confirmed Job · Rev 3</span>}/>);
+  await mount(<ContextTopBar backHref="/jobs" backLabel="Jobs" title="DG-000123" secondary="Fixture Customer" status={<span>Confirmed Job · Rev 3</span>}/>);
   await prepareShell(page);
   const topBar = page.locator('.app-context-bar');
   await page.getByTestId('workspace-scroll').evaluate((element) => { element.scrollTop = 1200; });
   await expect(topBar.getByText('DG-000123')).toBeVisible();
   await expect(topBar.getByText('Fixture Customer')).toBeVisible();
   await expect(topBar.getByText('Confirmed Job · Rev 3')).toBeVisible();
+  await expect(topBar.getByRole('link', { name: 'Jobs' })).toHaveAttribute('href', '/jobs');
   const height = await topBar.evaluate((element) => element.getBoundingClientRect().height);
   expect(height).toBeLessThanOrEqual(76);
+});
+
+test('compact production cards keep several bookings visible in one desktop viewport', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const card: ProductionBoardCard = {
+    bookingId: 'booking-1', type: 'doorgo_linked', typeLabel: 'DoorGo-linked', productionDate: '2026-08-11',
+    title: 'DG-000123 · Fixture Customer', customer: 'Fixture Customer', jobId: 'DG-000123',
+    calendarId: null, calendarEventId: null, shopHours: 4.25, shopHoursKnown: true,
+    salesperson: 'Barrett', source: null, sourceSystem: null, bookingKind: null, locked: false, completedAt: null,
+  };
+  await mount(<div className="grid w-[280px] gap-1">{[0, 1, 2, 3, 4].map((index) => <ProductionBookingCard key={index} card={{ ...card, bookingId: `booking-${index}` }}/>)}</div>);
+  const cards = page.locator('.production-booking-card');
+  await expect(cards).toHaveCount(5);
+  const heights = await cards.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height));
+  expect(Math.max(...heights)).toBeLessThanOrEqual(96);
+  const groupHeight = await cards.locator('..').evaluate((element) => element.getBoundingClientRect().height);
+  expect(groupHeight).toBeLessThan(520);
+  await expect(cards.first().getByTitle('DoorGo job')).toBeVisible();
+  await expect(cards.first()).not.toContainText('DoorGo-linked');
 });
 
 test('entry and login contracts render branded, accessible actions without an app rail', async ({ mount, page }) => {

@@ -14,6 +14,8 @@ const jobForm = read('components/jobs/JobHeaderForm.tsx');
 const home = read('app/page.tsx');
 const login = read('app/login/page.tsx');
 const mark = read('public/brand/doorgo-mark.svg');
+const bookingCard = read('components/ProductionBookingCard.tsx');
+const schedulePage = read('app/production-schedule/page.tsx');
 
 assert.match(css, /--app-shell-nav-width:\s*4\.75rem/, 'Desktop rail width must remain 4.75rem');
 assert.match(css, /\.app-shell-nav-label\s*\{[^}]*white-space:\s*normal[^}]*\}/s, 'Desktop labels must wrap');
@@ -44,6 +46,10 @@ assert.match(jobForm, /<ContextTopBar[\s\S]{0,240}title=\{visibleIdentifier\}/, 
 assert.equal((jobForm.match(/id="customer"/g) ?? []).length, 1, 'Customer must have one editor input');
 assert.equal((jobForm.match(/id="salesperson"/g) ?? []).length, 1, 'Salesperson must have one editor input');
 assert.match(jobForm, /app-workspace job-editor-workspace/, 'Job editor must use the full shell workspace');
+assert.match(jobForm, /backHref="\/jobs"/, 'Job editor must provide contextual Back navigation');
+assert.match(bookingCard, /production-booking-card/, 'Production bookings must use the compact rendered contract');
+assert.match(bookingCard, /aria-label="DoorGo job"/, 'Native Production bookings must use a subtle accessible indicator');
+assert.doesNotMatch(schedulePage, /href="\/(?:production-board|production-recovery|production-checkpoints|account)"/, 'Production context must not duplicate rail navigation');
 assert.match(home, /getCurrentDoorGoAccess/);
 assert.match(home, /Measure\. Build\. Schedule\./);
 assert.match(home, /buildProtectedAppNavigation\(access\)/, 'Authenticated Home must reuse permission-aware navigation');

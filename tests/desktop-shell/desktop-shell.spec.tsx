@@ -83,3 +83,34 @@ test('phone fallback leaves the contextual bar non-sticky', async ({ mount, page
   await expect(page.locator('.app-context-bar')).toHaveCSS('position', 'static');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });
+
+test('job identity remains visible while its editor workspace scrolls', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await mount(<ContextTopBar title="DG-000123" secondary="Fixture Customer" status={<span>Confirmed Job · Rev 3</span>}/>);
+  await prepareShell(page);
+  const topBar = page.locator('.app-context-bar');
+  await page.getByTestId('workspace-scroll').evaluate((element) => { element.scrollTop = 1200; });
+  await expect(topBar.getByText('DG-000123')).toBeVisible();
+  await expect(topBar.getByText('Fixture Customer')).toBeVisible();
+  await expect(topBar.getByText('Confirmed Job · Rev 3')).toBeVisible();
+  const height = await topBar.evaluate((element) => element.getBoundingClientRect().height);
+  expect(height).toBeLessThanOrEqual(76);
+});
+
+test('entry and login contracts render branded, accessible actions without an app rail', async ({ mount, page }) => {
+  await mount(<ContextTopBar title="fixture"/>);
+  await page.evaluate(() => {
+    document.body.innerHTML = `<main class="doorgo-entry"><section class="doorgo-entry-card"><img src="/brand/doorgo-mark.svg" alt="DoorGo"><p>Door Shop Operations</p><h1>DoorGo</h1><p>Measure. Build. Schedule.</p><a href="/login">Sign In</a></section></main>`;
+  });
+  await expect(page.getByRole('img', { name: 'DoorGo' })).toBeVisible();
+  await expect(page.getByText('Door Shop Operations')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Sign In' })).toHaveAttribute('href', '/login');
+  await expect(page.locator('.app-shell-sidebar')).toHaveCount(0);
+  await page.evaluate(() => {
+    document.body.innerHTML = `<main class="doorgo-entry"><img src="/brand/doorgo-mark.svg" alt="DoorGo"><h1>Sign in to DoorGo</h1><form><label>Email<input type="email" required></label><label>Password<input type="password" required></label><button>Sign in</button></form></main>`;
+  });
+  await expect(page.getByLabel('Email')).toBeVisible();
+  await expect(page.getByLabel('Password')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  await expect(page.locator('.app-shell-sidebar')).toHaveCount(0);
+});

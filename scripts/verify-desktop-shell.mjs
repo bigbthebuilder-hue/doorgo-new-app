@@ -7,6 +7,12 @@ const shell = read('components/app-shell/AppShell.tsx');
 const nav = read('lib/app-shell/navigation.ts');
 const jobs = read('app/jobs/page.tsx');
 const production = read('components/ProductionBoardView.tsx');
+const account = read('app/account/page.tsx');
+const calculator = read('app/glass-calculator/page.tsx');
+const editor = read('app/jobs/[internalJobId]/edit/page.tsx');
+const jobForm = read('components/jobs/JobHeaderForm.tsx');
+const home = read('app/page.tsx');
+const login = read('app/login/page.tsx');
 const mark = read('public/brand/doorgo-mark.svg');
 
 assert.match(css, /--app-shell-nav-width:\s*4\.75rem/, 'Desktop rail width must remain 4.75rem');
@@ -33,5 +39,13 @@ assert.match(nav, /label: 'Account'.*placement: 'bottom'/);
 assert.match(jobs, /<ContextTopBar/);
 assert.match(production, /<ContextTopBar/);
 assert.match(production, /<ProductionBoardSummary board=\{board\}/);
+for (const [name, source] of [['Account', account], ['Glass Calculator', calculator], ['job editor', editor]]) assert.match(source, /<AppShell/, `${name} must use AppShell`);
+assert.match(jobForm, /<ContextTopBar title=\{visibleIdentifier\}/, 'Job editor context must use its live authoritative identifier');
+assert.match(jobForm, /values\.customer\.trim\(\)/, 'Job editor context must use live customer state');
+assert.match(home, /getCurrentDoorGoAccess/);
+assert.match(home, /Measure\. Build\. Schedule\./);
+assert.match(home, /buildProtectedAppNavigation\(access\)/, 'Authenticated Home must reuse permission-aware navigation');
+assert.match(login, /\/brand\/doorgo-mark\.svg/);
+assert.doesNotMatch(login, /<AppShell/, 'Unauthenticated login must not render the authenticated rail');
 
 console.log('Desktop shell static verification passed.');

@@ -262,26 +262,28 @@ export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Cal
   const diagramLayout = calculation.glassCalc
     ? undefined
     : calculateGlassCompositionSchematic(projected);
+  function toggleTransom() {
+    if (composition.hasTransom && (draft.transomGlass || draft.roHeight) && !window.confirm('Remove the transom and discard its entered data?')) return;
+    updateComposition({ ...composition, hasTransom: !composition.hasTransom });
+    if (composition.hasTransom) setDraft((current) => ({ ...current, transomGlass: null, roHeight: null }));
+  }
   return <div className={embedded ? 'glass-calculator-editor min-w-0' : 'app-overlay-workspace grid bg-slate-950/70 p-0 sm:p-4'} onMouseDown={embedded ? undefined : (event) => { if (event.target === event.currentTarget) close(); }}>
     <div aria-labelledby="glass-builder-title" aria-modal={embedded ? undefined : true} className={`glass-unit-builder grid w-full overflow-hidden bg-white dark:bg-slate-900 ${embedded ? 'h-[calc(100vh-6rem)] rounded-lg border border-slate-200' : 'm-auto h-full max-h-[96vh] max-w-[min(1500px,98vw)] shadow-2xl sm:rounded-2xl'}`} ref={dialog} role={embedded ? undefined : 'dialog'} tabIndex={embedded ? undefined : -1}>
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900"><div><h2 className="text-xl font-bold" id="glass-builder-title">Exterior Glass Unit Builder</h2><p className="font-mono text-lg font-bold text-sky-700 dark:text-sky-300">{canonical}</p></div><button aria-label={embedded ? 'Reset calculation editor' : 'Close builder'} className={button} onClick={close} tabIndex={embedded ? undefined : -1} type="button">{embedded ? 'Reset' : 'Cancel'}</button></header>
-      <div className="grid min-h-0 overflow-y-auto p-3 lg:grid-cols-2 lg:gap-4">
-        <section className="grid content-start gap-4">
+      <div className="grid min-h-0 overflow-y-auto p-2 lg:grid-cols-2 lg:gap-3">
+        <section className="grid content-start gap-2">
           <div className="grid grid-cols-2 gap-2"><button className={button} onClick={() => updateComposition({ ...composition, door: 'D' })} type="button">Single Door</button><button className={button} onClick={() => updateComposition({ ...composition, door: 'DD' })} type="button">Double Door</button></div>
-          <button className={button} onClick={() => {
-            if (composition.hasTransom && (draft.transomGlass || draft.roHeight) && !window.confirm('Remove the transom and discard its entered data?')) return;
-            updateComposition({ ...composition, hasTransom: !composition.hasTransom });
-            if (composition.hasTransom) setDraft((current) => ({ ...current, transomGlass: null, roHeight: null }));
-          }} type="button">{composition.hasTransom ? '− Remove Transom' : '+ Add Transom Above'}</button>
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl bg-slate-100 p-4 dark:bg-slate-800">
-            <div className="grid gap-2 text-center"><strong>Left: {composition.leftSidelightCount}</strong><button className={button} disabled={sideCount === 0 && latchSide !== 'left'} onClick={() => updateComposition({ ...composition, leftSidelightCount: Math.min(3, composition.leftSidelightCount + 1) })} type="button">+ Left</button><button className={button} disabled={!composition.leftSidelightCount} onClick={() => updateComposition({ ...composition, leftSidelightCount: Math.max(0, composition.leftSidelightCount - 1) })} type="button">− Left</button></div>
-            <div className="rounded-lg border-2 border-slate-500 px-8 py-16 font-bold">{composition.door}</div>
-            <div className="grid gap-2 text-center"><strong>Right: {composition.rightSidelightCount}</strong><button className={button} disabled={sideCount === 0 && latchSide !== 'right'} onClick={() => updateComposition({ ...composition, rightSidelightCount: Math.min(3, composition.rightSidelightCount + 1) })} type="button">+ Right</button><button className={button} disabled={!composition.rightSidelightCount} onClick={() => updateComposition({ ...composition, rightSidelightCount: Math.max(0, composition.rightSidelightCount - 1) })} type="button">− Right</button></div>
+          <div className="glass-structure-control" aria-label="Door unit configuration controls">
+            <GlassUnitDiagram layout={diagramLayout} line={calculation.glassCalc ? { ...projected, glassCalc: calculation.glassCalc } : projected}/>
+            <button aria-label="Add left sidelight" className="glass-structure-action glass-structure-action--left-add" disabled={sideCount === 0 && latchSide !== 'left'} onClick={() => updateComposition({ ...composition, leftSidelightCount: Math.min(3, composition.leftSidelightCount + 1) })} type="button">+</button>
+            {composition.leftSidelightCount ? <button aria-label="Remove left sidelight" className="glass-structure-action glass-structure-action--left-remove" onClick={() => updateComposition({ ...composition, leftSidelightCount: Math.max(0, composition.leftSidelightCount - 1) })} type="button">−</button> : null}
+            <button aria-label="Add right sidelight" className="glass-structure-action glass-structure-action--right-add" disabled={sideCount === 0 && latchSide !== 'right'} onClick={() => updateComposition({ ...composition, rightSidelightCount: Math.min(3, composition.rightSidelightCount + 1) })} type="button">+</button>
+            {composition.rightSidelightCount ? <button aria-label="Remove right sidelight" className="glass-structure-action glass-structure-action--right-remove" onClick={() => updateComposition({ ...composition, rightSidelightCount: Math.max(0, composition.rightSidelightCount - 1) })} type="button">−</button> : null}
+            <button aria-label={composition.hasTransom ? 'Remove transom' : 'Add transom'} className="glass-structure-action glass-structure-action--transom" onClick={toggleTransom} type="button">{composition.hasTransom ? '− Transom' : '+ Transom'}</button>
           </div>
-          <p className="text-sm text-slate-600 dark:text-slate-300">Viewed from outside. The first sidelight stays on the latch side; multi-sidelight arrangements remain explicit.</p>
-          <GlassUnitDiagram layout={diagramLayout} line={calculation.glassCalc ? { ...projected, glassCalc: calculation.glassCalc } : projected}/>
+          <p className="text-xs text-slate-600 dark:text-slate-300">Viewed from outside. Add/remove controls use the accepted latch-side and multi-sidelight rules.</p>
         </section>
-        <section className="mt-5 grid content-start gap-3 lg:mt-0">
+        <section className="mt-3 grid content-start gap-2 lg:mt-0">
           <label className="grid gap-1 font-semibold">Swing<select className={control} onChange={(event) => changeSwing(event.target.value)} value={String(draft.hand ?? 'LH')}><option>LH</option><option>RH</option><option>LHOUT</option><option>RHOUT</option></select></label>
           <div className="grid grid-cols-2 gap-3"><label className="grid gap-1 font-semibold">Slab Width<select className={control} onChange={(event) => setField('width', event.target.value)} value={String(draft.width ?? '')}>{EXTERIOR_WIDTHS.map((value) => <option key={value}>{value}</option>)}</select></label><label className="grid gap-1 font-semibold">Slab Height<select className={control} onChange={(event) => setHeight(event.target.value)} value={String(draft.height ?? '')}>{DOOR_HEIGHTS.map((value) => <option key={value}>{value}</option>)}</select></label></div>
           <div className="grid grid-cols-2 gap-3"><label className="grid gap-1 font-semibold">RO Width (inches)<input className={control} onBlur={(event) => commitDimension({ kind: 'roWidth', value: event.target.value })} onChange={(event) => setField('roWidth', event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} value={String(draft.roWidth ?? '')}/></label><label className="grid gap-1 font-semibold">RO Height (inches)<input className={control} onBlur={(event) => commitRoHeight(event.target.value)} onChange={(event) => setField('roHeight', event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitRoHeight(event.currentTarget.value); event.currentTarget.blur(); } }} value={String(draft.roHeight ?? '')}/></label></div>

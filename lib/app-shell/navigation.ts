@@ -1,6 +1,6 @@
 import { hasAtLeastView, type CurrentDoorGoAccess } from '../auth/access';
 
-export type AppNavigationIcon = 'account' | 'calculator' | 'jobs' | 'production' | 'recovery' | 'schedule' | 'checkpoint';
+export type AppNavigationIcon = 'home' | 'account' | 'calculator' | 'jobs' | 'production' | 'recovery' | 'schedule' | 'checkpoint';
 
 export type AppNavigationItem = {
   href: string;
@@ -28,7 +28,7 @@ export function isAppNavigationItemActive(pathname: string, item: AppNavigationI
 }
 
 export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNavigationItem[] {
-  const items: AppNavigationItem[] = [productionBoard];
+  const items: AppNavigationItem[] = [{ href: '/', label: 'Home', icon: 'home', match: 'exact' }, productionBoard];
 
   if (hasAtLeastView(access, 'production')) {
     items.push(

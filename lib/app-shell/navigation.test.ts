@@ -19,7 +19,10 @@ assert.equal(isAppNavigationItemActive('/production-board', buildPublicAppNaviga
 assert.equal(isAppNavigationItemActive('/production-schedule', buildPublicAppNavigation()[0]), false);
 
 const none = buildProtectedAppNavigation(access({})).map((item) => item.href);
-assert.deepEqual(none, ['/production-board', '/account']);
+assert.deepEqual(none, ['/', '/production-board', '/account']);
+const homeItem = buildProtectedAppNavigation(access({}))[0];
+assert.equal(isAppNavigationItemActive('/', homeItem), true);
+assert.equal(isAppNavigationItemActive('/jobs', homeItem), false);
 
 const jobs = buildProtectedAppNavigation(access({ jobs: 'view' })).map((item) => item.href);
 assert.ok(jobs.includes('/jobs'));
@@ -48,7 +51,7 @@ const inactive: CurrentDoorGoAccess = {
 };
 assert.deepEqual(
   buildProtectedAppNavigation(inactive).map((item) => item.href),
-  ['/production-board', '/account'],
+  ['/', '/production-board', '/account'],
 );
 
 console.log('Desktop shell navigation contract passed');

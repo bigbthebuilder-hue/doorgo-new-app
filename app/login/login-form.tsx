@@ -34,7 +34,7 @@ export function LoginForm() {
         />
       </label>
       <button
-        className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white disabled:opacity-60"
+        className="app-button app-button-primary w-full disabled:opacity-60"
         type="submit"
         disabled={pending}
       >

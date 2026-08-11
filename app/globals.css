@@ -102,6 +102,13 @@
   .app-button-primary { border: 1px solid rgb(3 105 161); background: rgb(3 105 161); color: white; }
   .app-workspace-panel { border: 1px solid rgb(226 232 240); background: white; box-shadow: 0 1px 2px rgb(15 23 42 / .05); }
   .app-compact-input { min-height: 2.25rem; border-radius: .5rem; border: 1px solid rgb(203 213 225); background: white; padding: .4rem .65rem; font-size: .875rem; }
+  .doorgo-entry { display: grid; min-height: 100vh; place-items: center; background: linear-gradient(135deg, var(--app-color-background), #dbe8f5); padding: 2rem; color: var(--app-color-text); }
+  .doorgo-entry-card { display: grid; width: min(100%, 42rem); grid-template-columns: auto 1fr; align-items: center; gap: 1.5rem; border: 1px solid var(--app-color-border); border-radius: 1rem; background: var(--app-color-surface); padding: 2rem; box-shadow: 0 8px 24px rgb(11 29 58 / .08); }
+  .doorgo-entry-card h1 { font-size: 2.5rem; line-height: 1; font-weight: 750; letter-spacing: -.04em; }
+  .doorgo-entry-kicker { color: var(--app-color-muted); font-size: .75rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+  .doorgo-entry-tagline { margin-top: .5rem; color: var(--app-color-primary); font-size: 1.125rem; font-weight: 650; }
+  .doorgo-entry-copy { grid-column: 1 / -1; color: var(--app-color-muted); }
+  .doorgo-entry-card > .app-button { grid-column: 1 / -1; justify-self: start; }
 }
 
 @media (min-width: 768px) {

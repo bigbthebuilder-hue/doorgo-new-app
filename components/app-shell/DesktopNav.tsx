@@ -31,6 +31,7 @@ export function DesktopNav({ items }: { items: AppNavigationItem[] }) {
 
 function NavIcon({ name }: { name: AppNavigationIcon }) {
   const paths: Record<AppNavigationIcon, React.ReactNode> = {
+    home: <><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></>,
     production: <><path d="M4 5h16v14H4z"/><path d="M8 9h2v6H8zm5-2h2v8h-2zm5 4h2v4h-2"/></>,
     schedule: <><path d="M5 4h14v16H5zM8 2v4m8-4v4M5 9h14"/><path d="M8 13h3m2 0h3m-8 3h3"/></>,
     recovery: <><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6"/><path d="M4 4v4.6h4.6M12 8v4l3 2"/></>,

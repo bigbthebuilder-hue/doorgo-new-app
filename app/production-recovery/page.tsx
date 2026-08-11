@@ -15,6 +15,9 @@ import {
   selectRecoveryDateRange,
 } from '@/lib/production-bookings/production-recovery-page-contract';
 import { ProductionRecoveryList } from './production-recovery-list';
+import { AppShell } from '@/components/app-shell/AppShell';
+import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { buildProtectedAppNavigation } from '@/lib/app-shell/navigation';
 
 const hours = (value: number | null) => value === null ? 'Unavailable' : `${value.toFixed(2)} hrs`;
 
@@ -52,21 +55,13 @@ export default async function ProductionRecoveryPage({
   const productionAccess = getPermissionAccess(access, 'production');
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:py-10">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold sm:text-3xl">Past Scheduled Bookings</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Review recent past production bookings. DoorGo does not automatically know whether work was started.
-            </p>
-          </div>
+    <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Past Schedule" secondary="Review recent past production bookings" actions={
           <nav className="flex flex-wrap gap-2" aria-label="Production recovery navigation">
             <Link className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium" href="/production-board">Production Board</Link>
             {hasAtLeastView(access, 'production_checkpoints') ? <Link className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium" href="/production-checkpoints">Production Carry Checkpoint</Link> : null}
-            <Link className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium" href="/account">Account</Link>
           </nav>
-        </header>
+    }/>}>
+      <div className="app-workspace max-w-3xl">
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="today-summary-heading">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -100,6 +95,6 @@ export default async function ProductionRecoveryPage({
           <ProductionRecoveryList bookings={bookings} canMove={productionAccess === 'use'} capacity={capacity} today={today} />
         ) : null}
       </div>
-    </main>
+    </AppShell>
   );
 }

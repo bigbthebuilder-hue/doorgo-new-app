@@ -1,9 +1,10 @@
-import Link from 'next/link';
 import {
   DOORGO_PERMISSION_KEYS,
   getPermissionAccess,
-  hasAtLeastView,
 } from '@/lib/auth/access';
+import { AppShell } from '@/components/app-shell/AppShell';
+import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { buildProtectedAppNavigation } from '@/lib/app-shell/navigation';
 import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
 
 export default async function AccountPage({
@@ -15,18 +16,9 @@ export default async function AccountPage({
   const access = await requireDoorGoProtectedAccess();
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900">
-      <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">DoorGo account</h1>
-          </div>
-          <form action="/auth/logout" method="post">
-            <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium">
-              Sign out
-            </button>
-          </form>
-        </div>
+    <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Account" secondary={access.profile?.displayName || access.user?.email || 'DoorGo account'} actions={<form action="/auth/logout" method="post"><button className="app-button app-button-secondary">Sign out</button></form>}/>}>
+      <div className="app-workspace max-w-2xl">
+        <section className="app-workspace-panel rounded-xl p-6">
 
         {params?.error === 'signout_failed' ? (
           <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -60,14 +52,8 @@ export default async function AccountPage({
           </>
         )}
 
-        <nav className="mt-6 flex flex-wrap gap-4 text-sm text-sky-700" aria-label="DoorGo modules">
-          <Link href="/production-board">Open Production Board</Link>
-          {hasAtLeastView(access, 'production') ? <Link href="/production-schedule">Production Schedule</Link> : null}
-          {hasAtLeastView(access, 'production') ? <Link href="/production-recovery">Past Scheduled Bookings</Link> : null}
-          {hasAtLeastView(access, 'production_checkpoints') ? <Link href="/production-checkpoints">Production Carry Checkpoint</Link> : null}
-          {hasAtLeastView(access, 'jobs') ? <Link href="/jobs">Jobs</Link> : null}
-        </nav>
+        </section>
       </div>
-    </main>
+    </AppShell>
   );
 }

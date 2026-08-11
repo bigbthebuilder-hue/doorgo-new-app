@@ -10,6 +10,9 @@ import {
   type CheckpointReadItem,
 } from '@/lib/production-flow/checkpoint-page-contract';
 import { CheckpointOperationForms } from './checkpoint-operation-forms';
+import { AppShell } from '@/components/app-shell/AppShell';
+import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { buildProtectedAppNavigation } from '@/lib/app-shell/navigation';
 
 const hours = (value: number | null) => value === null ? 'Unavailable' : `${value.toFixed(2)} hrs`;
 const friendlyDate = (value: string) => new Intl.DateTimeFormat('en-CA', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
@@ -46,7 +49,7 @@ export default async function ProductionCheckpointsPage({ searchParams }: { sear
     reads = await loadAuthorizedCheckpointReads(access, selection.selectedDate, RECENT_CHECKPOINT_HISTORY_LIMIT);
   } catch (error) {
     if (error instanceof CheckpointReadFailure && error.code === 'access_denied') redirect('/account');
-    return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900"><div className="mx-auto max-w-2xl rounded-2xl border bg-white p-6"><h1 className="text-2xl font-semibold">Production Carry Checkpoint</h1><p className="mt-4 rounded-lg bg-amber-50 p-4 text-amber-900">Checkpoint information is temporarily unavailable. Please try again.</p></div></main>;
+    return <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Carry Checkpoint"/>}><div className="app-workspace max-w-2xl"><div className="app-workspace-panel rounded-xl p-6"><p className="rounded-lg bg-amber-50 p-4 text-amber-900">Checkpoint information is temporarily unavailable. Please try again.</p></div></div></AppShell>;
   }
 
   const live = selection.selectedDate === today ? await loadAuthorizedTodayCalculatedCarry(access, today) : { calculatedCarryHours: null };
@@ -58,11 +61,8 @@ export default async function ProductionCheckpointsPage({ searchParams }: { sear
   const recentGroups = Map.groupBy(reads.recent, (item) => item.productionDate);
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:py-10">
-      <div className="mx-auto max-w-2xl space-y-6">
-        <header>
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold sm:text-3xl">Production Carry Checkpoint</h1><p className="mt-2 text-sm text-slate-600">Record the actual unfinished shop hours carrying into the selected day.</p></div><nav className="flex flex-wrap gap-2" aria-label="Checkpoint navigation"><Link className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium" href="/production-board">Production Board</Link><Link className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium" href="/account">Account</Link></nav></div>
-        </header>
+    <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Carry Checkpoint" secondary="Record actual unfinished shop hours" actions={<Link className="app-button app-button-secondary" href="/production-board">Production Board</Link>}/> }>
+      <div className="app-workspace max-w-2xl">
 
         <form className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" method="get">
           <label className="grid gap-2 font-medium" htmlFor="checkpoint-date">Production date</label>
@@ -89,6 +89,6 @@ export default async function ProductionCheckpointsPage({ searchParams }: { sear
 
         <section aria-labelledby="recent-history-heading"><h2 id="recent-history-heading" className="text-xl font-semibold">Recent history</h2><div className="mt-3 space-y-5">{reads.recent.length ? Array.from(recentGroups, ([date, items]) => <div key={date}><h3 className="mb-2 font-semibold">{friendlyDate(date)}</h3><div className="grid gap-3">{items.map((item, index) => <HistoryCard key={item.checkpointId} item={item} current={index === 0}/>)}</div></div>) : <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">No recent checkpoint history.</p>}</div></section>
       </div>
-    </main>
+    </AppShell>
   );
 }

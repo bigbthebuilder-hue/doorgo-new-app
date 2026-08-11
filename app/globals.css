@@ -105,6 +105,10 @@
   .app-button-primary { border: 1px solid rgb(3 105 161); background: rgb(3 105 161); color: white; }
   .app-workspace-panel { border: 1px solid rgb(226 232 240); background: white; box-shadow: 0 1px 2px rgb(15 23 42 / .05); }
   .app-compact-input { min-height: 2.25rem; border-radius: .5rem; border: 1px solid rgb(203 213 225); background: white; padding: .4rem .65rem; font-size: .875rem; }
+  .job-editor-workspace { max-width: none; }
+  .app-job-context-fields { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(7rem, .7fr); gap: .4rem; }
+  .app-job-context-field { display: grid; min-width: 0; gap: .05rem; color: var(--app-color-muted); font-size: .6rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .app-job-context-field input { min-width: 0; width: 100%; height: 1.75rem; border: 1px solid var(--app-color-border); border-radius: .35rem; background: white; padding: .2rem .45rem; color: var(--app-color-text); font-size: .75rem; font-weight: 500; letter-spacing: normal; text-transform: none; }
   .doorgo-entry { display: grid; min-height: 100vh; place-items: center; background: linear-gradient(135deg, var(--app-color-background), #dbe8f5); padding: 2rem; color: var(--app-color-text); }
   .doorgo-entry-card { display: grid; width: min(100%, 42rem); grid-template-columns: auto 1fr; align-items: center; gap: 1.5rem; border: 1px solid var(--app-color-border); border-radius: 1rem; background: var(--app-color-surface); padding: 2rem; box-shadow: 0 8px 24px rgb(11 29 58 / .08); }
   .doorgo-entry-card h1 { font-size: 2.5rem; line-height: 1; font-weight: 750; letter-spacing: -.04em; }

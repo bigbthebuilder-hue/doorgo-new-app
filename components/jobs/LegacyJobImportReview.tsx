@@ -39,9 +39,8 @@ export function LegacyJobImportReview({ defaultSalesperson, inAppShell = false }
     return <JobHeaderForm canEdit defaultSalesperson={defaultSalesperson} initialDraft={{ header: result.editor.header, lines: result.editor.lines }} initialJob={null} transferReview={context} inAppShell={inAppShell}/>;
   }
 
-  const content = <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6">
-    <h1 className="text-2xl font-semibold">Import Legacy Job</h1>
-    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Select one downloaded DoorGo legacy-transfer JSON file. Reviewing or cancelling creates no native job.</p>
+  const content = <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <p className="text-sm text-slate-600 dark:text-slate-300">Select one downloaded DoorGo legacy-transfer JSON file. Reviewing or cancelling creates no native job.</p>
     <label className="mt-5 grid gap-2 font-semibold" htmlFor="legacy-transfer-file">Legacy transfer file
       <input accept="application/json,.json" className="min-h-12 rounded-xl border border-slate-300 p-3 dark:border-slate-600" disabled={isPending} id="legacy-transfer-file" onChange={(event) => selectFile(event.target.files?.[0])} type="file"/>
     </label>
@@ -50,5 +49,5 @@ export function LegacyJobImportReview({ defaultSalesperson, inAppShell = false }
     {issues.length ? <ul className="mt-3 list-disc pl-5 text-sm text-rose-800 dark:text-rose-200">{issues.map((issue, index) => <li key={legacyTransferIssueKey('validation', issue, index)}>{issue.path}: {issue.message}</li>)}</ul> : null}
     <p className="mt-5 text-xs text-slate-500">Maximum file size: 1 MiB. Duplicate JSON keys, unknown identifiers, reverse transfers, secrets, and operational commands are rejected.</p>
   </section>;
-  return inAppShell ? <><ContextTopBar title="Import Legacy Job" secondary="Review before saving as a native job"/><div className="app-workspace max-w-6xl">{content}</div></> : content;
+  return inAppShell ? <><ContextTopBar backHref="/jobs" backLabel="Jobs" title="Import Legacy Job" secondary="Review before saving as a native job"/><div className="app-workspace max-w-6xl">{content}</div></> : content;
 }

@@ -37,7 +37,7 @@ export function JobsList({ jobs }: { jobs: NativeJobListItem[] }) {
             className="app-compact-input"
             id="job-filter"
             onChange={(event) => setFilter(event.target.value)}
-            placeholder="Identifier, customer, site or salesperson"
+            placeholder="Identifier, customer or site"
             type="search"
             value={filter}
           />

@@ -300,7 +300,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
 
   return <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,440px)]" aria-labelledby="door-lines-heading">
     <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-      <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-slate-500">Door editor</p><h2 className="text-xl font-semibold">{editingIndex !== null ? 'Edit Door Line' : 'Add Door Line'}</h2></div><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold dark:bg-slate-800">{isGlass ? 'J2B · Glass geometry' : 'J2A · Door line'}</span></div>
+      <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Door editor</p><h2 className="text-base font-semibold">{editingIndex !== null ? 'Edit Door Line' : 'Add Door Line'}</h2></div><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold dark:bg-slate-800">{isGlass ? 'Glass unit' : 'Door line'}</span></div>
       {!canEdit ? <p className="mt-4 rounded-xl bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-100">Door lines and geometry are read-only with jobs = view.</p> : <>
         <div className="mt-4 grid grid-cols-2 gap-2" aria-label="Door mode">{(['Exterior', 'Interior'] as const).map((value) => <button className={`${button} ${mode === value ? 'border-sky-700 bg-sky-700 text-white' : ''}`} key={value} onClick={() => chooseMode(value)} type="button">{value}</button>)}</div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">

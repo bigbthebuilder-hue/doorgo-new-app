@@ -62,7 +62,7 @@ assert.ok(form.indexOf('const saved = await persistAggregate()') < form.indexOf(
 assert.ok(form.includes("openWorkOrder('download')") && form.includes("openWorkOrder('print')"));
 assert.equal(/Save the job before printing the work order/.test(form), false, 'old generic Save-first blocker must be absent');
 assert.ok(form.includes('onUnappliedChange={setHasUnappliedLineChanges}'));
-assert.ok(form.includes('Preview Work Order'));
+assert.ok(form.includes('job-work-order-menu') && form.includes("openWorkOrder('preview')"), 'compact Work Order menu must preserve Preview access');
 assert.ok(form.includes('<select') && form.includes('HINGE_COLOR_OPTIONS'), 'job hinge color must use the controlled selector');
 assert.equal(/label="Hinge Color"[\s\S]{0,160}<input/.test(form), false, 'job hinge color must not accept free text');
 const lineEditor = await readFile('components/jobs/DoorLineWorkspace.tsx', 'utf8');

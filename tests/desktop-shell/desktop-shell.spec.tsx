@@ -131,9 +131,9 @@ test('compact production cards keep several bookings visible in one desktop view
   const cards = page.locator('.production-booking-card');
   await expect(cards).toHaveCount(5);
   const heights = await cards.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height));
-  expect(Math.max(...heights)).toBeLessThanOrEqual(96);
+  expect(Math.max(...heights)).toBeLessThanOrEqual(56);
   const groupHeight = await cards.locator('..').evaluate((element) => element.getBoundingClientRect().height);
-  expect(groupHeight).toBeLessThan(520);
+  expect(groupHeight).toBeLessThan(300);
   await expect(cards.first().getByTitle('DoorGo job')).toHaveCount(0);
   await expect(cards.first()).not.toContainText('DoorGo-linked');
 });
@@ -164,6 +164,7 @@ test('dense Jobs rows keep many records visible at desktop and laptop widths', a
     const rows = page.locator('article');
     await expect(rows).toHaveCount(12);
     expect(await rows.first().evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(44);
+    await expect(rows.last()).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   }
 });

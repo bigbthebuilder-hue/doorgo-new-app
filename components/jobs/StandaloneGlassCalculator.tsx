@@ -20,7 +20,7 @@ export function StandaloneGlassCalculator() {
   const result = calculateGlassGeometry(line);
   const printable = ['Complete', 'Warning', 'Manual Override'].includes(result.status);
   return <div className="grid min-w-0 gap-2 xl:grid-cols-[minmax(38rem,1.6fr)_minmax(20rem,.8fr)]">
-    <GlassUnitBuilder embedded key={editorKey} commitLabel="Update Result" line={structuredClone(line)} onCancel={() => setEditorKey((value) => value + 1)} onUse={(next) => { setLine(next); return true; }}/>
+    <GlassUnitBuilder defaultEmptyTransomGlassToClear embedded key={editorKey} commitLabel="Update Result" line={structuredClone(line)} onCancel={() => setEditorKey((value) => value + 1)} onUse={(next) => { setLine(next); return true; }}/>
     <aside className="glass-calculator-results min-w-0 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       <div className="flex items-start justify-between gap-2"><div><h2 className="text-base font-semibold">Current calculation</h2><p className="text-xs text-slate-500">Review the current unit measurements and output.</p></div><span className="rounded bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-800">{result.status}</span></div>
       <div className="glass-calculator-actions mt-2 flex flex-wrap gap-1.5">

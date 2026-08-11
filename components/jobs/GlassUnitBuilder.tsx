@@ -46,17 +46,23 @@ function initialBuilderDraft(line: DoorLineInput): DoorLineInput {
   return initialized;
 }
 
-export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Calculation', embedded = false }: {
+export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Calculation', embedded = false, defaultEmptyTransomGlassToClear = false }: {
   line: DoorLineInput;
   onCancel: () => void;
   onUse: (line: DoorLineInput, explicitDetailNeeded: boolean) => boolean | void;
   commitLabel?: string;
   embedded?: boolean;
+  defaultEmptyTransomGlassToClear?: boolean;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
   const embeddedRef = useRef(embedded);
   const [baseline] = useState(() => JSON.stringify(initialBuilderDraft(line)));
-  const [draft, setDraft] = useState<DoorLineInput>(() => initialBuilderDraft(line));
+  const [draft, setDraft] = useState<DoorLineInput>(() => {
+    const initial = initialBuilderDraft(line);
+    return defaultEmptyTransomGlassToClear && (initial.config ?? '').startsWith('T/') && !normalizeGlassTypeCode(initial.transomGlassTypeCode ?? initial.transomGlass)
+      ? { ...initial, transomGlassTypeCode: 'CLEAR' }
+      : initial;
+  });
   const [composition, setComposition] = useState(() => initialComposition(line));
   const [message, setMessage] = useState('');
   const [transomWidthInput, setTransomWidthInput] = useState(() => String(calculateGlassGeometry(initialBuilderDraft(line)).glassCalc?.transomWidth ?? ''));
@@ -116,6 +122,7 @@ export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Cal
         ...retained,
         sidelightSpecifications: canonicalSidelightSpecifications({ ...retained, config }).map((entry) => ({ ...entry, tBarSize: normalizeTBarSize(retained.transomTBarSize) ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticSidelightTBar(normalizeSidelightType(retained.sidelightType) ?? 'Glass') })),
         transomTBarSize: positioned.hasTransom ? normalizeTBarSize(retained.transomTBarSize) ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticTransomTBar(positioned.door === 'DD' ? 2 : 1) : null,
+        transomGlassTypeCode: positioned.hasTransom && defaultEmptyTransomGlassToClear && !normalizeGlassTypeCode(retained.transomGlassTypeCode ?? retained.transomGlass) ? 'CLEAR' : retained.transomGlassTypeCode,
       };
     });
     setMessage('');

@@ -23,6 +23,7 @@ const recoveryPage = read('app/production-recovery/page.tsx');
 const jobsList = read('components/jobs/JobsList.tsx');
 const glassBuilder = read('components/jobs/GlassUnitBuilder.tsx');
 const standaloneGlass = read('components/jobs/StandaloneGlassCalculator.tsx');
+const lineWorkspace = read('components/jobs/DoorLineWorkspace.tsx');
 const archiveControl = read('components/jobs/JobArchiveControl.tsx');
 
 assert.match(css, /--app-shell-nav-width:\s*4\.75rem/, 'Desktop rail width must remain 4.75rem');
@@ -72,7 +73,10 @@ assert.doesNotMatch(jobsList, /placeholder="[^"]*salesperson/i, 'Jobs must not c
 assert.match(jobForm, /job-confirmation-note/, 'Job confirmation guidance must use the compact strip');
 assert.match(jobForm, /job-work-order-menu/, 'Work Order actions must remain reachable through the compact toolbar menu');
 assert.match(glassBuilder, /embedded = false/, 'Shared Glass Unit Builder must expose an embedded presentation without forking calculations');
-assert.match(standaloneGlass, /<GlassUnitBuilder embedded/, 'Standalone Glass Calculator must embed the shared builder');
+assert.match(standaloneGlass, /<GlassUnitBuilder defaultEmptyTransomGlassToClear embedded/, 'Standalone Glass Calculator must opt into the shared builder transom-glass default');
+assert.match(glassBuilder, /defaultEmptyTransomGlassToClear && \(initial\.config \?\? ''\)\.startsWith\('T\/'\)/, 'Standalone opt-in must initialize an empty transom glass type only when a transom exists');
+assert.match(glassBuilder, /!normalizeGlassTypeCode\(retained\.transomGlassTypeCode \?\? retained\.transomGlass\) \? 'CLEAR' : retained\.transomGlassTypeCode/, 'Topology changes must preserve an explicit transom glass selection');
+assert.doesNotMatch(lineWorkspace, /defaultEmptyTransomGlassToClear/, 'Native job editing must not opt into the standalone-only default');
 assert.match(standaloneGlass, /window\.print\(\)/, 'Valid Glass Calculator output must support browser printing');
 assert.match(standaloneGlass, /<GlassUnitDiagram line=/, 'Glass Calculator print document must contain the authoritative diagram');
 assert.match(glassBuilder, /aria-label="Add left sidelight"/, 'Authoritative Glass diagram must expose keyboard-operable topology actions');

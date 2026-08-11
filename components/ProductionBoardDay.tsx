@@ -154,40 +154,10 @@ export function ProductionBoardDay({
         {(day.openingCarryIn ?? 0) !== 0 || (day.endingCarryOut ?? 0) !== 0 ? <p className="mt-0.5 text-[10px] text-slate-500">Carry {day.openingCarryKnown ? formatHours(day.openingCarryIn ?? 0) : 'unresolved'} in · {day.endingCarryOut === null ? 'unresolved' : formatHours(day.endingCarryOut)} out</p> : null}
 
         {day.hasActualCarryCheckpoint ? (
-          <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-2 py-2 text-[10px] text-sky-950">
-            <p className="font-semibold">Actual carry checkpoint</p>
-            <div className="mt-1 grid grid-cols-3 gap-1">
-              <CheckpointMetric
-                label="Calculated carry in"
-                value={day.calculatedOpeningCarry}
-              />
-              <CheckpointMetric label="Actual carry in" value={day.actualOpeningCarry} />
-              <CheckpointMetric
-                label="Adjustment"
-                value={day.adjustmentHours}
-                signed
-              />
-            </div>
-            <p className="mt-1 text-sky-800">
-              Revision {day.checkpointRevisionNumber}
-              {day.checkpointActorType ? ` • ${day.checkpointActorType}` : ''}
-              {day.checkpointSourceSystem ? ` • ${day.checkpointSourceSystem}` : ''}
-            </p>
-            {day.checkpointRecordedAt || day.checkpointConfirmedAt ? (
-              <p className="mt-0.5 text-sky-800">
-                {day.checkpointRecordedAt
-                  ? `Recorded ${formatCheckpointTime(day.checkpointRecordedAt)}`
-                  : ''}
-                {day.checkpointRecordedAt && day.checkpointConfirmedAt ? ' • ' : ''}
-                {day.checkpointConfirmedAt
-                  ? `Confirmed ${formatCheckpointTime(day.checkpointConfirmedAt)}`
-                  : ''}
-              </p>
-            ) : null}
-            {day.checkpointNote ? (
-              <p className="mt-1 leading-snug text-sky-900">{day.checkpointNote}</p>
-            ) : null}
-          </div>
+          <p className="mt-1 rounded bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-900">
+            ✓ Carry checkpoint recorded · {day.actualOpeningCarry === null ? 'actual carry unknown' : `${formatHours(day.actualOpeningCarry)} hrs actual`}
+            {day.adjustmentHours ? ` · ${day.adjustmentHours > 0 ? '+' : ''}${formatHours(day.adjustmentHours)} hrs adjustment` : ''}
+          </p>
         ) : null}
 
         {day.weekendBookingException ? (
@@ -246,43 +216,6 @@ export function ProductionBoardDay({
       )}
     </section>
   );
-}
-
-function CheckpointMetric({
-  label,
-  value,
-  signed = false,
-}: {
-  label: string;
-  value: number | null;
-  signed?: boolean;
-}) {
-  return (
-    <div className="rounded bg-white/80 px-1 py-1">
-      <p className="text-[8px] uppercase tracking-wide text-sky-700">{label}</p>
-      <p className="font-semibold">
-        {value === null
-          ? 'Unknown'
-          : `${signed && value > 0 ? '+' : ''}${formatHours(value)} hrs`}
-      </p>
-    </div>
-  );
-}
-
-function formatCheckpointTime(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'America/Vancouver',
-  }).format(date);
 }
 
 function flowReasonLabel(

@@ -46,13 +46,15 @@ function initialBuilderDraft(line: DoorLineInput): DoorLineInput {
   return initialized;
 }
 
-export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Calculation' }: {
+export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Calculation', embedded = false }: {
   line: DoorLineInput;
   onCancel: () => void;
   onUse: (line: DoorLineInput, explicitDetailNeeded: boolean) => boolean | void;
   commitLabel?: string;
+  embedded?: boolean;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
+  const embeddedRef = useRef(embedded);
   const [baseline] = useState(() => JSON.stringify(initialBuilderDraft(line)));
   const [draft, setDraft] = useState<DoorLineInput>(() => initialBuilderDraft(line));
   const [composition, setComposition] = useState(() => initialComposition(line));
@@ -73,6 +75,7 @@ export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Cal
   }
 
   useEffect(() => {
+    if (embeddedRef.current) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     dialog.current?.focus();
@@ -259,9 +262,9 @@ export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Cal
   const diagramLayout = calculation.glassCalc
     ? undefined
     : calculateGlassCompositionSchematic(projected);
-  return <div className="fixed inset-0 z-50 grid bg-slate-950/70 p-0 sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-    <div aria-labelledby="glass-builder-title" aria-modal="true" className="glass-unit-builder m-auto grid h-full max-h-[96vh] w-full max-w-[min(1500px,98vw)] overflow-hidden bg-white shadow-2xl dark:bg-slate-900 sm:rounded-2xl" ref={dialog} role="dialog" tabIndex={-1}>
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900"><div><h2 className="text-xl font-bold" id="glass-builder-title">Exterior Glass Unit Builder</h2><p className="font-mono text-lg font-bold text-sky-700 dark:text-sky-300">{canonical}</p></div><button aria-label="Close builder" className={button} onClick={close} tabIndex={-1} type="button">Cancel</button></header>
+  return <div className={embedded ? 'glass-calculator-editor min-w-0' : 'app-overlay-workspace grid bg-slate-950/70 p-0 sm:p-4'} onMouseDown={embedded ? undefined : (event) => { if (event.target === event.currentTarget) close(); }}>
+    <div aria-labelledby="glass-builder-title" aria-modal={embedded ? undefined : true} className={`glass-unit-builder grid w-full overflow-hidden bg-white dark:bg-slate-900 ${embedded ? 'h-[calc(100vh-6rem)] rounded-lg border border-slate-200' : 'm-auto h-full max-h-[96vh] max-w-[min(1500px,98vw)] shadow-2xl sm:rounded-2xl'}`} ref={dialog} role={embedded ? undefined : 'dialog'} tabIndex={embedded ? undefined : -1}>
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900"><div><h2 className="text-xl font-bold" id="glass-builder-title">Exterior Glass Unit Builder</h2><p className="font-mono text-lg font-bold text-sky-700 dark:text-sky-300">{canonical}</p></div><button aria-label={embedded ? 'Reset calculation editor' : 'Close builder'} className={button} onClick={close} tabIndex={embedded ? undefined : -1} type="button">{embedded ? 'Reset' : 'Cancel'}</button></header>
       <div className="grid min-h-0 overflow-y-auto p-3 lg:grid-cols-2 lg:gap-4">
         <section className="grid content-start gap-4">
           <div className="grid grid-cols-2 gap-2"><button className={button} onClick={() => updateComposition({ ...composition, door: 'D' })} type="button">Single Door</button><button className={button} onClick={() => updateComposition({ ...composition, door: 'DD' })} type="button">Double Door</button></div>
@@ -294,7 +297,7 @@ export function GlassUnitBuilder({ line, onCancel, onUse, commitLabel = 'Use Cal
           {message ? <p aria-live="assertive" className="rounded-lg bg-rose-100 p-3 text-rose-950">{message}</p> : null}
         </section>
       </div>
-      <footer className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900"><button className={button} onClick={close} type="button">Cancel</button>{calculation.status === 'Glass Detail Needed' ? <button className={`${button} bg-amber-600 text-white`} onClick={() => applyConfiguration(true)} type="button">Leave Glass Detail Needed</button> : null}{['Complete', 'Warning', 'Manual Override'].includes(calculation.status) ? <button className={`${button} bg-sky-700 text-white`} onClick={() => applyConfiguration(false)} type="button">{commitLabel}</button> : null}</footer>
+      <footer className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900"><button className={button} onClick={close} type="button">{embedded ? 'Reset' : 'Cancel'}</button>{calculation.status === 'Glass Detail Needed' ? <button className={`${button} bg-amber-600 text-white`} onClick={() => applyConfiguration(true)} type="button">Leave Glass Detail Needed</button> : null}{['Complete', 'Warning', 'Manual Override'].includes(calculation.status) ? <button className={`${button} bg-sky-700 text-white`} onClick={() => applyConfiguration(false)} type="button">{commitLabel}</button> : null}</footer>
     </div>
   </div>;
 }

@@ -93,16 +93,25 @@ test('phone fallback leaves the contextual bar non-sticky', async ({ mount, page
 
 test('job identity remains visible while its editor workspace scrolls', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1440, height: 800 });
-  await mount(<ContextTopBar backHref="/jobs" backLabel="Jobs" title="DG-000123" secondary="Fixture Customer" status={<span>Confirmed Job · Rev 3</span>}/>);
+  await mount(<ContextTopBar backHref="/jobs" backLabel="Jobs" title="DG-000123" status={<span>Confirmed Job · Rev 3</span>} controls={<div className="app-job-context-fields"><label className="app-job-context-field"><span>Customer</span><input aria-label="Customer" value="A very long customer name that must remain contained in its compact field" readOnly/></label><label className="app-job-context-field"><span>Site / Address</span><input aria-label="Site / Address" value="12345 Extremely Long Industrial Site Address, Vancouver" readOnly/></label><label className="app-job-context-field"><span>Salesperson</span><input aria-label="Salesperson" value="Barrett Longname" readOnly/></label></div>}/>);
   await prepareShell(page);
   const topBar = page.locator('.app-context-bar');
   await page.getByTestId('workspace-scroll').evaluate((element) => { element.scrollTop = 1200; });
   await expect(topBar.getByText('DG-000123')).toBeVisible();
-  await expect(topBar.getByText('Fixture Customer')).toBeVisible();
+  await expect(topBar.getByLabel('Customer')).toBeVisible();
   await expect(topBar.getByText('Confirmed Job · Rev 3')).toBeVisible();
   await expect(topBar.getByRole('link', { name: 'Jobs' })).toHaveAttribute('href', '/jobs');
   const height = await topBar.evaluate((element) => element.getBoundingClientRect().height);
   expect(height).toBeLessThanOrEqual(76);
+  for (const label of ['Customer', 'Site / Address', 'Salesperson']) {
+    const field = topBar.getByLabel(label);
+    const geometry = await field.evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
+    expect(geometry.scrollWidth).toBeGreaterThanOrEqual(geometry.clientWidth);
+    await expect(field.locator('..')).toHaveCSS('border-top-style', 'solid');
+  }
+  await topBar.evaluate((element) => element.querySelector<HTMLInputElement>('input[aria-label="Customer"]')!.value = '');
+  await expect(topBar.getByLabel('Customer')).toHaveValue('');
+  await expect(topBar.getByLabel('Customer')).not.toHaveAttribute('placeholder', 'Customer');
 });
 
 test('compact production cards keep several bookings visible in one desktop viewport', async ({ mount, page }) => {

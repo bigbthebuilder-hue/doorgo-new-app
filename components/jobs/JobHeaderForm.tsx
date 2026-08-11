@@ -225,10 +225,11 @@ export function JobHeaderForm({
       backHref="/jobs"
       backLabel="Jobs"
       title={visibleIdentifier}
-      secondary={values.siteAddress.trim() || 'Site not entered'}
+      secondary={values.siteAddress.trim() || undefined}
       status={<span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-900">{contextStatus}{job ? ` · Rev ${job.revision}` : ''}</span>}
       controls={<div className="app-job-context-fields">
-        <label className="app-job-context-field" htmlFor="customer"><span>Customer</span><input aria-invalid={fieldErrors.customer ? true : undefined} disabled={!canEdit} id="customer" onChange={(event) => update('customer', event.target.value)} placeholder="Customer" title={fieldErrors.customer || undefined} value={values.customer}/></label>
+        <label className="app-job-context-field" htmlFor="customer"><span>Customer</span><input aria-invalid={fieldErrors.customer ? true : undefined} disabled={!canEdit} id="customer" onChange={(event) => update('customer', event.target.value)} placeholder="Not entered" title={fieldErrors.customer || undefined} value={values.customer}/></label>
+        <label className="app-job-context-field" htmlFor="siteAddress"><span>Site / Address</span><input aria-invalid={fieldErrors.siteAddress ? true : undefined} disabled={!canEdit} id="siteAddress" onChange={(event) => update('siteAddress', event.target.value)} placeholder="Not entered" title={fieldErrors.siteAddress || undefined} value={values.siteAddress}/></label>
         <label className="app-job-context-field" htmlFor="salesperson"><span>Salesperson</span><input disabled={!canEdit} id="salesperson" onChange={(event) => update('salesperson', event.target.value)} placeholder="Not assigned" value={values.salesperson}/></label>
       </div>}
     /> : null}
@@ -270,13 +271,13 @@ export function JobHeaderForm({
       <div className="mt-5 grid gap-4">
         <section aria-labelledby="job-identity-heading">
           <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" id="job-identity-heading">Job details and contact</h2>
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
             <Field error={fieldErrors.bizTrackSalesOrder} label="BizTrack Sales Order" name="bizTrackSalesOrder"><input className={inputClass} disabled={!canEdit || Boolean(transferReview)} id="bizTrackSalesOrder" onChange={(e) => update('bizTrackSalesOrder', e.target.value)} placeholder="Optional" value={values.bizTrackSalesOrder}/></Field>
-            <Field error={fieldErrors.siteAddress} label="Site / Address" name="siteAddress"><input className={inputClass} disabled={!canEdit} id="siteAddress" onChange={(e) => update('siteAddress', e.target.value)} placeholder="Site or address" value={values.siteAddress}/></Field>
             <Field label="Phone" name="phone"><input autoComplete="tel" className={inputClass} disabled={!canEdit} id="phone" onChange={(e) => update('phone', e.target.value)} placeholder="Phone number" type="tel" value={values.phone}/></Field>
             <Field error={fieldErrors.email} label="Email" name="email"><input autoComplete="email" className={inputClass} disabled={!canEdit} id="email" onChange={(e) => update('email', e.target.value)} placeholder="Email address" type="email" value={values.email}/></Field>
           </div>
           {inAppShell && fieldErrors.customer ? <p className="mt-2 text-sm text-rose-700" role="alert">Customer: {fieldErrors.customer}</p> : null}
+          {inAppShell && fieldErrors.siteAddress ? <p className="mt-2 text-sm text-rose-700" role="alert">Site / Address: {fieldErrors.siteAddress}</p> : null}
         </section>
 
         <details className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" open={Boolean(values.hingeColor || values.shopHours || values.fulfillmentPlan || values.shopDate || values.poNumbers.length)}>

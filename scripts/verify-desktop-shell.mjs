@@ -45,6 +45,8 @@ for (const [name, source] of [['Account', account], ['Glass Calculator', calcula
 assert.match(jobForm, /<ContextTopBar[\s\S]{0,240}title=\{visibleIdentifier\}/, 'Job editor context must use its live authoritative identifier');
 assert.equal((jobForm.match(/id="customer"/g) ?? []).length, 1, 'Customer must have one editor input');
 assert.equal((jobForm.match(/id="salesperson"/g) ?? []).length, 1, 'Salesperson must have one editor input');
+assert.equal((jobForm.match(/id="siteAddress"/g) ?? []).length, 1, 'Site / Address must have one editor input');
+assert.match(jobForm, /placeholder="Not entered"/, 'Blank contextual values must not repeat their labels');
 assert.match(jobForm, /app-workspace job-editor-workspace/, 'Job editor must use the full shell workspace');
 assert.match(jobForm, /backHref="\/jobs"/, 'Job editor must provide contextual Back navigation');
 assert.match(bookingCard, /production-booking-card/, 'Production bookings must use the compact rendered contract');

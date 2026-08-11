@@ -36,7 +36,7 @@ for (const required of [
 assert.equal(builder.includes("normalizeSidelightType(draft.sidelightType) ?? 'Glass'"), false, 'builder must not display a sidelight type absent from the authoritative draft');
 assert.ok(builder.includes("calculation.status === 'Glass Detail Needed'"), 'progressive action must be limited to incomplete detail');
 assert.ok(builder.includes("['Complete', 'Warning', 'Manual Override'].includes(calculation.status)"), 'normal use must be limited to applicable calculated states');
-assert.ok(builder.includes('tabIndex={-1}'), 'header Cancel must not interrupt normal forward tab order');
+assert.ok(builder.includes('tabIndex={embedded ? undefined : -1}'), 'modal header Cancel must stay out of forward tab order while embedded Reset remains keyboard reachable');
 assert.ok(builder.includes('}, []);'), 'modal focus management must initialize only once, not after each draft update');
 assert.equal(/repository\.|createBrowserClient|\.rpc\s*\(/.test(builder), false, 'builder must only update its isolated client draft');
 assert.equal((builder.match(/Unit T-bar Size/g) ?? []).length, 1, 'builder exposes one unit-wide T-bar selector');

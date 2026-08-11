@@ -17,7 +17,7 @@ export default async function AccountPage({
 
   return (
     <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Account" secondary={access.profile?.displayName || access.user?.email || 'DoorGo account'} actions={<form action="/auth/logout" method="post"><button className="app-button app-button-secondary">Sign out</button></form>}/>}>
-      <div className="app-workspace max-w-2xl">
+      <div className="app-workspace app-workspace-focused">
         <section className="app-workspace-panel rounded-xl p-6">
 
         {params?.error === 'signout_failed' ? (

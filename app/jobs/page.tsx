@@ -22,7 +22,7 @@ export default async function JobsPage() {
       : 'Hosted Job Intake is temporarily unavailable.';
     return (
       <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Jobs" secondary="Native DoorGo jobs · hosted persistence" />}>
-        <div className="app-workspace max-w-4xl">
+        <div className="app-workspace app-workspace-fluid">
           <div className="app-workspace-panel rounded-lg border-amber-200 p-4">
             <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">{message}</p>
             <Link className="app-button app-button-secondary mt-4" href="/account">Back to account</Link>
@@ -42,7 +42,7 @@ export default async function JobsPage() {
         actions={canCreate ? <><Link className="app-button app-button-secondary" href="/jobs/import">Import Legacy Job</Link><Link className="app-button app-button-primary" href="/jobs/new">New Draft Job</Link></> : null}
       />}
     >
-      <div className="app-workspace">
+      <div className="app-workspace app-workspace-fluid">
         <JobsList jobs={jobs}/>
       </div>
     </AppShell>

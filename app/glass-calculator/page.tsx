@@ -10,7 +10,7 @@ export default async function GlassCalculatorPage() {
   const access = await requireDoorGoProtectedAccess();
   if (!hasAtLeastView(access, 'jobs')) redirect('/account');
   return <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Glass Calculator" secondary="Local calculation workspace"/>}>
-    <div className="app-workspace max-w-5xl">
+    <div className="app-workspace app-workspace-fluid">
       <StandaloneGlassCalculator/>
     </div>
   </AppShell>;

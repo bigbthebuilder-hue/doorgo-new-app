@@ -48,7 +48,7 @@ export default async function ProductionCheckpointsPage({ searchParams }: { sear
     reads = await loadAuthorizedCheckpointReads(access, selection.selectedDate, RECENT_CHECKPOINT_HISTORY_LIMIT);
   } catch (error) {
     if (error instanceof CheckpointReadFailure && error.code === 'access_denied') redirect('/account');
-    return <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Carry Checkpoint"/>}><div className="app-workspace max-w-2xl"><div className="app-workspace-panel rounded-xl p-6"><p className="rounded-lg bg-amber-50 p-4 text-amber-900">Checkpoint information is temporarily unavailable. Please try again.</p></div></div></AppShell>;
+    return <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Carry Checkpoint"/>}><div className="app-workspace app-workspace-focused"><div className="app-workspace-panel rounded-lg p-3"><p className="rounded-md bg-amber-50 p-3 text-amber-900">Checkpoint information is temporarily unavailable. Please try again.</p></div></div></AppShell>;
   }
 
   const live = selection.selectedDate === today ? await loadAuthorizedTodayCalculatedCarry(access, today) : { calculatedCarryHours: null };
@@ -61,7 +61,7 @@ export default async function ProductionCheckpointsPage({ searchParams }: { sear
 
   return (
     <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Carry Checkpoint" secondary="Record actual unfinished shop hours"/>}>
-      <div className="app-workspace max-w-2xl">
+      <div className="app-workspace app-workspace-focused">
 
         <form className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" method="get">
           <label className="grid gap-2 font-medium" htmlFor="checkpoint-date">Production date</label>

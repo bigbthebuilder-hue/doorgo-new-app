@@ -40,6 +40,11 @@ assert.ok(!production.includes('/production-checkpoints'));
 const checkpoints = buildProtectedAppNavigation(access({ production_checkpoints: 'view' })).map((item) => item.href);
 assert.ok(checkpoints.includes('/production-checkpoints'));
 
+const homeDestinations = buildProtectedAppNavigation(access({ jobs: 'view', production: 'view', production_checkpoints: 'view' }))
+  .filter((item) => item.showOnHome)
+  .map((item) => item.href);
+assert.deepEqual(homeDestinations, ['/production-board', '/production-schedule', '/jobs', '/glass-calculator']);
+
 const inactive: CurrentDoorGoAccess = {
   state: 'inactive_profile',
   user: { id: 'user-1', email: 'test@example.invalid' },

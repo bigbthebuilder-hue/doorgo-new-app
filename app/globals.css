@@ -87,6 +87,9 @@
   .app-shell-nav-label { display: none; font-size: .75rem; font-weight: 650; }
   .app-shell-main { min-width: 0; }
   .app-context-bar { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; border-bottom: 1px solid var(--app-color-border); background: var(--app-color-surface); padding: .5rem var(--app-shell-gutter); }
+  .app-context-back { display: inline-flex; min-height: 2rem; flex: none; align-items: center; gap: .2rem; border-radius: .4rem; padding: .25rem .4rem; color: var(--app-color-muted); font-size: .75rem; font-weight: 650; }
+  .app-context-back:hover { background: var(--app-color-background); color: var(--app-color-text); }
+  .app-context-back svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .app-context-primary { min-width: 0; flex: 1 1 14rem; }
   .app-context-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.125rem; line-height: 1.35rem; font-weight: 700; letter-spacing: -.015em; }
   .app-context-secondary { margin-top: .1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--app-color-muted); font-size: .75rem; line-height: 1rem; }

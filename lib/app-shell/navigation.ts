@@ -8,6 +8,7 @@ export type AppNavigationItem = {
   icon: AppNavigationIcon;
   match?: 'exact' | 'section';
   placement?: 'bottom';
+  showOnHome?: boolean;
 };
 
 const productionBoard: AppNavigationItem = {
@@ -15,6 +16,7 @@ const productionBoard: AppNavigationItem = {
   label: 'Production Board',
   icon: 'production',
   match: 'exact',
+  showOnHome: true,
 };
 
 export function buildPublicAppNavigation(): AppNavigationItem[] {
@@ -32,7 +34,7 @@ export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNav
 
   if (hasAtLeastView(access, 'production')) {
     items.push(
-      { href: '/production-schedule', label: 'Production Schedule', icon: 'schedule' },
+      { href: '/production-schedule', label: 'Production Schedule', icon: 'schedule', showOnHome: true },
       { href: '/production-recovery', label: 'Past Schedule', icon: 'recovery' },
     );
   }
@@ -41,8 +43,8 @@ export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNav
   }
   if (hasAtLeastView(access, 'jobs')) {
     items.push(
-      { href: '/jobs', label: 'Jobs', icon: 'jobs', match: 'section' },
-      { href: '/glass-calculator', label: 'Glass Calculator', icon: 'calculator' },
+      { href: '/jobs', label: 'Jobs', icon: 'jobs', match: 'section', showOnHome: true },
+      { href: '/glass-calculator', label: 'Glass Calculator', icon: 'calculator', showOnHome: true },
     );
   }
 

@@ -3,7 +3,10 @@ import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { ProductionBookingCard } from '@/components/ProductionBookingCard';
 import { ProductionBoardDay } from '@/components/ProductionBoardDay';
 import { ProductionBoardSummary } from '@/components/ProductionBoardSummary';
+import { JobsList } from '@/components/jobs/JobsList';
+import { StandaloneGlassCalculator } from '@/components/jobs/StandaloneGlassCalculator';
 import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel, ProductionBoardViewModel } from '@/lib/production-board/types';
+import type { NativeJobListItem } from '@/lib/jobs/job-intake-types';
 
 const desktopShellLabels = ['Production Board', 'Production Schedule', 'Past Schedule', 'Carry Checkpoint', 'Glass Calculator', 'Account'];
 
@@ -147,6 +150,37 @@ test('primary production summary omits transitional source counts', async ({ mou
   await expect(page.getByText('BizTrack-only', { exact: true })).toHaveCount(0);
 });
 
+test('dense Jobs rows keep many records visible at desktop and laptop widths', async ({ mount, page }) => {
+  const jobs = Array.from({ length: 12 }, (_, index) => ({
+    internalJobId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`, doorGoReference: `DG-${String(index + 1).padStart(6, '0')}`,
+    bizTrackSalesOrder: null, customer: `Customer ${index + 1}`, siteAddress: `Site ${index + 1}`, lifecycleStage: 'Draft',
+    createdAt: '2026-08-11T12:00:00.000Z', updatedAt: '2026-08-11T12:00:00.000Z', revision: 1,
+    visibleIdentifier: `DG-${String(index + 1).padStart(6, '0')}`, visibleIdentifierKind: 'door_go_reference', legacyJobId: null,
+    activeLineCount: 1, archivedLineCount: 0, archivedAt: null,
+  })) as NativeJobListItem[];
+  await mount(<div className="app-workspace app-workspace-fluid"><JobsList jobs={jobs}/></div>);
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(viewport);
+    const rows = page.locator('article');
+    await expect(rows).toHaveCount(12);
+    expect(await rows.first().evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  }
+});
+
+test('standalone Glass Calculator embeds the shared builder beside results', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await mount(<div className="app-workspace app-workspace-fluid"><StandaloneGlassCalculator/></div>);
+  const editor = page.locator('.glass-calculator-editor');
+  const results = page.locator('.glass-calculator-results');
+  await expect(editor).toBeVisible();
+  await expect(results).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send unavailable' })).toBeDisabled();
+  await expect(page.locator('.glass-unit-builder[role="dialog"]')).toHaveCount(0);
+  const editorBox = await editor.boundingBox(); const resultsBox = await results.boundingBox();
+  expect((resultsBox?.x ?? 0)).toBeGreaterThan((editorBox?.x ?? 0));
+});
+
 test('busy production days collapse explicitly and keep every booking reachable', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const card = (index: number): ProductionBoardCard => ({
@@ -156,7 +190,7 @@ test('busy production days collapse explicitly and keep every booking reachable'
     source: null, sourceSystem: null, bookingKind: null, locked: false, completedAt: null,
   });
   const day: ProductionBoardDayModel = {
-    date: '2026-08-11', dateState: 'today', totalKnownShopHours: 6, bookingCount: 6, missingShopHoursCount: 0,
+    date: '2026-08-11', dateState: 'today', totalKnownShopHours: 9, bookingCount: 9, missingShopHoursCount: 0,
     availableHours: 8, staffCapacityHours: 8, deductionHours: 0, capacitySource: 'calculated', capacityKnown: true,
     isClosed: false, isExplicitlyClosed: false, capacityNotes: null, remainingHours: 2, overloadHours: 0,
     plannedStarts: 6, plannedStartsKnown: true, openingCarryIn: 0, openingCarryKnown: true, calculatedOpeningCarry: 0,
@@ -164,17 +198,17 @@ test('busy production days collapse explicitly and keep every booking reachable'
     checkpointId: null, checkpointProductionDate: null, checkpointRevisionNumber: null, checkpointRecordedAt: null,
     checkpointRecordedByUserId: null, checkpointConfirmedAt: null, checkpointConfirmedByUserId: null,
     checkpointActorType: null, checkpointSourceSystem: null, checkpointNote: null, checkpointCalculationVersion: null,
-    flowLoad: 6, endingCarryOut: 0, openFlowCapacity: 8, flowStatus: 'resolved', flowUnresolvedReason: null,
-    weekendBookingException: false, cards: [1, 2, 3, 4, 5, 6].map(card),
+    flowLoad: 9, endingCarryOut: 1, openFlowCapacity: 8, flowStatus: 'resolved', flowUnresolvedReason: null,
+    weekendBookingException: false, cards: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(card),
   };
   await mount(<ProductionBoardDay day={day}/>);
-  await expect(page.locator('.production-booking-card')).toHaveCount(3);
+  await expect(page.locator('.production-booking-card')).toHaveCount(6);
   const expansion = page.getByRole('button', { name: '+ 3 more' });
   await expect(expansion).toBeVisible();
   await expect(expansion).toHaveAttribute('aria-expanded', 'false');
   await expansion.click();
-  await expect(page.locator('.production-booking-card')).toHaveCount(6);
-  await expect(page.getByText('Booking 6', { exact: true })).toBeVisible();
+  await expect(page.locator('.production-booking-card')).toHaveCount(9);
+  await expect(page.getByText('Booking 9', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Show fewer' })).toHaveAttribute('aria-expanded', 'true');
 });
 

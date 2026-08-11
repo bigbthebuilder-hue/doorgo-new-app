@@ -20,6 +20,10 @@ const productionDay = read('components/ProductionBoardDay.tsx');
 const productionSummary = read('components/ProductionBoardSummary.tsx');
 const recoveryList = read('app/production-recovery/production-recovery-list.tsx');
 const recoveryPage = read('app/production-recovery/page.tsx');
+const jobsList = read('components/jobs/JobsList.tsx');
+const glassBuilder = read('components/jobs/GlassUnitBuilder.tsx');
+const standaloneGlass = read('components/jobs/StandaloneGlassCalculator.tsx');
+const archiveControl = read('components/jobs/JobArchiveControl.tsx');
 
 assert.match(css, /--app-shell-nav-width:\s*4\.75rem/, 'Desktop rail width must remain 4.75rem');
 assert.match(css, /\.app-shell-nav-label\s*\{[^}]*white-space:\s*normal[^}]*\}/s, 'Desktop labels must wrap');
@@ -31,6 +35,7 @@ assert.match(css, /\.app-shell-main\s*\{[^}]*height:\s*100vh[^}]*overflow-y:\s*a
 for (const token of ['--app-color-background', '--app-color-surface', '--app-color-border', '--app-color-primary', '--app-color-navy', '--app-color-toolbar']) {
   assert.ok(css.includes(token), `Missing shared shell token ${token}`);
 }
+for (const token of ['--app-control-height', '--app-dense-row-height', '--app-panel-padding', '--app-compact-gap', '--app-section-gap', '--app-meta-font-size', '--app-workspace-padding']) assert.ok(css.includes(token), `Missing density token ${token}`);
 
 assert.match(shell, /src="\/brand\/doorgo-mark\.svg"/, 'Shell must use the approved DoorGo mark');
 assert.match(shell, /topBar\?: ReactNode/, 'Shell must expose the contextual top-bar slot');
@@ -51,15 +56,22 @@ assert.equal((jobForm.match(/id="customer"/g) ?? []).length, 1, 'Customer must h
 assert.equal((jobForm.match(/id="salesperson"/g) ?? []).length, 1, 'Salesperson must have one editor input');
 assert.equal((jobForm.match(/id="siteAddress"/g) ?? []).length, 1, 'Site / Address must have one editor input');
 assert.match(jobForm, /placeholder="Not entered"/, 'Blank contextual values must not repeat their labels');
-assert.match(jobForm, /app-workspace job-editor-workspace/, 'Job editor must use the full shell workspace');
+assert.match(jobForm, /app-workspace app-workspace-fluid job-editor-workspace/, 'Job editor must use the fluid shell workspace');
 assert.match(jobForm, /backHref="\/jobs"/, 'Job editor must provide contextual Back navigation');
 assert.match(bookingCard, /production-booking-card/, 'Production bookings must use the compact rendered contract');
 assert.doesNotMatch(bookingCard, /aria-label="DoorGo job"|src="\/brand\/doorgo-mark\.svg"/, 'Primary Production cards must not expose transitional source indicators');
 assert.doesNotMatch(bookingCard, /card\.typeLabel/, 'Primary Production cards must not expose transitional source labels');
 assert.doesNotMatch(productionSummary, /label="(?:DoorGo-linked|BizTrack-only)"/, 'Primary Production summary must not expose transitional source counts');
 assert.doesNotMatch(recoveryList, /productionRecoveryOriginLabel/, 'Past Schedule cards must not expose transitional source labels');
-assert.match(recoveryPage, /app-workspace max-w-6xl/, 'Past Schedule must use the wider desktop workspace');
+assert.match(recoveryPage, /app-workspace app-workspace-fluid/, 'Past Schedule must use the fluid desktop workspace');
 assert.doesNotMatch(calculator, /backHref=/, 'Top-level Glass Calculator must rely on permanent navigation');
+assert.match(jobsList, /sm:grid-cols-\[8rem_8rem_minmax\(9rem,1fr\)/, 'Jobs must use the dense desktop row contract');
+assert.doesNotMatch(jobsList, /Archived lines:/, 'Zero archived counts must not consume a dedicated Jobs row');
+assert.match(glassBuilder, /embedded = false/, 'Shared Glass Unit Builder must expose an embedded presentation without forking calculations');
+assert.match(standaloneGlass, /<GlassUnitBuilder embedded/, 'Standalone Glass Calculator must embed the shared builder');
+assert.match(standaloneGlass, /window\.print\(\)/, 'Valid Glass Calculator output must support browser printing');
+assert.match(standaloneGlass, /Send unavailable/, 'Glass Calculator Send must fail closed pending an approved message contract');
+assert.match(archiveControl, /app-overlay-workspace/, 'Normal archive overlay must preserve shell geometry');
 assert.doesNotMatch(schedulePage, /href="\/(?:production-board|production-recovery|production-checkpoints|account)"/, 'Production context must not duplicate rail navigation');
 assert.match(productionDay, /day\.cards\.slice\(0, visibleCardLimit\)/, 'Busy Production days must use an explicit visible-card limit');
 assert.match(productionDay, /aria-expanded=\{expanded\}/, 'Busy-day overflow must expose accessible expansion state');

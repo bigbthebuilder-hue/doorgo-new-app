@@ -58,14 +58,14 @@ export default async function ProductionRecoveryPage({
     <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Past Schedule" secondary="Review recent past production bookings"/>}>
       <div className="app-workspace app-workspace-fluid">
 
-        <section className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 border-y border-slate-200 bg-white px-2 py-1" aria-labelledby="today-summary-heading">
+        <section className="flex min-h-8 flex-wrap items-center gap-x-4 gap-y-1 border-y border-slate-200 bg-white px-2 py-0.5" aria-labelledby="today-summary-heading">
           <h2 id="today-summary-heading" className="text-sm font-semibold">Today · {formatRecoveryDate(today)}</h2>
           <dl className="flex flex-wrap gap-x-4 text-xs"><div className="flex gap-1"><dt className="text-slate-500">Planned</dt><dd className="font-semibold">{hours(capacity.plannedHours)}</dd></div><div className="flex gap-1"><dt className="text-slate-500">Available</dt><dd className="font-semibold">{hours(capacity.availableHours)}</dd></div><div className="flex gap-1"><dt className="text-slate-500">Remaining</dt><dd className="font-semibold">{hours(capacity.remainingHours)}</dd></div>{(capacity.overloadHours ?? 0) > 0 ? <div className="flex gap-1 text-rose-700"><dt>Over</dt><dd className="font-semibold">{hours(capacity.overloadHours)}</dd></div> : null}</dl>
           {capacity.isClosed ? <span className="ml-auto rounded bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">Closed</span> : !capacity.capacityKnown ? <span className="ml-auto rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Capacity unknown</span> : null}
         </section>
 
-        <details className="border-b border-slate-200 bg-white px-2 py-1" open={selection.kind === 'search' || selection.kind === 'invalid'}>
-          <summary className="flex min-h-8 cursor-pointer items-center text-xs font-semibold">Older dates</summary>
+        <details className="border-b border-slate-200 bg-white px-2 py-0.5" open={selection.kind === 'search' || selection.kind === 'invalid'}>
+          <summary className="flex min-h-6 cursor-pointer items-center text-xs font-semibold">Older dates</summary>
           <form className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto]" method="get">
             <label className="grid gap-1 text-xs font-medium" htmlFor="recovery-start">Start date<input className="app-compact-input" id="recovery-start" name="start" type="date" defaultValue={selection.valid && selection.kind === 'search' ? selection.startDate : ''} max={latestSearchDate} required /></label>
             <label className="grid gap-1 text-xs font-medium" htmlFor="recovery-end">End date<input className="app-compact-input" id="recovery-end" name="end" type="date" defaultValue={selection.valid && selection.kind === 'search' ? selection.endDate : ''} max={latestSearchDate} required /></label>

@@ -33,9 +33,9 @@ test('completed imported T/DS glass state renders visibly and survives applicati
   await component.getByRole('button', { name: 'Reopen Glass Builder' }).click();
   await expect(component.getByRole('dialog').getByText('Status: Complete', { exact: false })).toBeVisible();
   page.once('dialog', (confirmation) => confirmation.accept());
-  await component.getByRole('dialog').getByRole('button', { name: '− Remove Transom' }).click();
+  await component.getByRole('dialog').getByRole('button', { name: 'Remove transom' }).click();
   await expect(component.getByRole('dialog').getByText('Status: Complete', { exact: false })).toBeVisible();
-  await component.getByRole('dialog').getByRole('button', { name: '+ Add Transom Above' }).click();
+  await component.getByRole('dialog').getByRole('button', { name: 'Add transom' }).click();
   await expect(component.getByRole('dialog').getByText('Status: Glass Detail Needed', { exact: false })).toBeVisible();
   await component.getByRole('dialog').getByLabel('Transom Glass Type').selectOption('CLEAR');
   await component.getByRole('dialog').getByLabel('RO Height (inches)').fill('98');

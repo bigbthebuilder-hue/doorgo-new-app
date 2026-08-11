@@ -115,7 +115,7 @@ export function ProductionBoardDay({
                 {day.dateState === 'today' ? 'Today' : 'Past'}
               </span>
             ) : null}
-            <span
+            {operationalStatus !== 'clear' ? <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                 operationalStatus === 'building'
                   ? 'bg-rose-100 text-rose-700'
@@ -127,7 +127,7 @@ export function ProductionBoardDay({
               }`}
             >
               {dailyFlowStatusLabel(operationalStatus)}
-            </span>
+            </span> : null}
           {sourceLabel ? (
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -145,10 +145,9 @@ export function ProductionBoardDay({
         </div>
 
         <p className="mt-1 text-[11px] font-medium text-slate-600">
-          {formatHours(day.totalKnownShopHours)} planned
-          {' • '}
+          {formatHours(day.totalKnownShopHours)} /{' '}
           {day.capacityKnown && day.availableHours !== null
-            ? `${formatHours(day.availableHours)} available`
+            ? `${formatHours(day.availableHours)} hrs${overloaded ? ` · ${formatHours(day.overloadHours ?? 0)} over` : day.remainingHours !== null ? ` · ${formatHours(day.remainingHours)} free` : ''}`
             : 'capacity unknown'}
         </p>
 
@@ -203,7 +202,7 @@ export function ProductionBoardDay({
           </p>
         ) : null}
 
-        <p
+        {overloaded || needsReview ? <p
           className={`mt-1 text-xs font-semibold ${
             overloaded
               ? 'text-rose-700'
@@ -213,7 +212,7 @@ export function ProductionBoardDay({
           }`}
         >
           {resultLabel}
-        </p>
+        </p> : null}
 
         <p className="mt-0.5 text-[10px] text-slate-500">
           {day.bookingCount} booking{day.bookingCount === 1 ? '' : 's'}

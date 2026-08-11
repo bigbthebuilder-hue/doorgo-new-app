@@ -44,7 +44,7 @@ export function ProductionBoardWeekSection({
             <h2 className="text-base font-semibold text-slate-900">
               Week {week.weekIndex + 1}
             </h2>
-            <span
+            {status !== 'clear' ? <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                 status === 'building'
                   ? 'bg-rose-100 text-rose-700'
@@ -56,19 +56,15 @@ export function ProductionBoardWeekSection({
               }`}
             >
               {weeklyFlowStatusLabel(status)}
-            </span>
+            </span> : null}
           </div>
 
           <p className="mt-0.5 text-xs text-slate-600">
             {formatFriendlyDateRange(week.startDate, week.weekdayEndExclusive)}
           </p>
 
-          <p className="mt-1 text-xs text-slate-500">
-            {week.bookingCount} booking{week.bookingCount === 1 ? '' : 's'} •{' '}
-            {week.closureCount} closure{week.closureCount === 1 ? '' : 's'} •{' '}
-            {week.unknownCapacityDayCount} capacity day
-            {week.unknownCapacityDayCount === 1 ? '' : 's'} unknown
-          </p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-700">{formatHours(week.totalKnownShopHours)} / {formatHours(week.totalAvailableHours)} hrs · {weeklyOverload ? `${formatHours(week.overloadHours ?? 0)} hrs over` : `${formatHours(week.remainingHours ?? 0)} hrs free`}</p>
+          <p className="text-[10px] text-slate-500">{week.bookingCount} booking{week.bookingCount === 1 ? '' : 's'}{week.closureCount ? ` · ${week.closureCount} closure${week.closureCount === 1 ? '' : 's'}` : ''}{week.unknownCapacityDayCount ? ` · ${week.unknownCapacityDayCount} capacity unknown` : ''}</p>
 
           {week.missingShopHoursCount > 0 ? (
             <p className="mt-1 text-xs font-medium text-amber-700">
@@ -78,8 +74,9 @@ export function ProductionBoardWeekSection({
           ) : null}
         </div>
 
-        <div className="w-full xl:w-auto">
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+        {interaction ? <details className="w-full text-[11px] xl:w-auto">
+          <summary className="cursor-pointer font-semibold text-sky-800">Capacity details</summary>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
           <WeeklyMetric
             label="Planned"
             value={`${formatHours(week.totalKnownShopHours)} hrs`}
@@ -150,12 +147,11 @@ export function ProductionBoardWeekSection({
             }
             emphasis={week.unresolvedFlow ? 'warning' : 'normal'}
           />
-          </div>
-          <p className="mt-1 text-[10px] text-slate-500">
+          </div><p className="mt-1 text-[10px] text-slate-500">
             Remaining/Over is the starts-only scheduled balance. Ending Carry is
             the full rolling-flow result.
           </p>
-        </div>
+        </details> : null}
       </div>
 
       {week.dailyOverloadCount > 0 && !weeklyOverload ? (
@@ -177,13 +173,7 @@ export function ProductionBoardWeekSection({
           Rolling flow is unresolved because required values are unknown. No numeric
           carry is inferred.
         </p>
-      ) : (
-        <p className="mt-2 text-xs font-medium text-slate-600">
-          {week.carriesIntoNextShopDay
-            ? 'Carry flows into the next shop day.'
-            : 'No carry flows into the next shop day.'}
-        </p>
-      )}
+      ) : week.carriesIntoNextShopDay ? <p className="mt-1 text-xs font-medium text-amber-800">Carry flows into the next shop day.</p> : null}
 
       {week.hasActualCarryReset ? (
         <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">

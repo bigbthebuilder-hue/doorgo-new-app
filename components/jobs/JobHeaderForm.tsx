@@ -56,8 +56,8 @@ export type LegacyTransferReviewContext = {
   warnings: LegacyTransferIssue[]; blockers: LegacyTransferIssue[]; unsupportedFields: string[];
 };
 
-const inputClass = 'min-h-12 w-full border-0 bg-transparent px-3 py-2 text-base outline-none disabled:cursor-not-allowed disabled:opacity-70 sm:min-h-11';
-const fieldClass = 'job-intake-field grid overflow-hidden rounded-xl border border-slate-300 bg-white focus-within:border-sky-600 focus-within:ring-2 focus-within:ring-sky-200 dark:border-slate-600 dark:bg-slate-950';
+const inputClass = 'min-h-9 w-full border-0 bg-transparent px-2 py-1 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-70';
+const fieldClass = 'job-intake-field grid overflow-hidden rounded-md border border-slate-300 bg-white focus-within:border-sky-600 focus-within:ring-1 focus-within:ring-sky-200 dark:border-slate-600 dark:bg-slate-950';
 
 function Field({ label, name, children, error }: { label: string; name: string; children: React.ReactNode; error?: string }) {
   return (
@@ -233,8 +233,8 @@ export function JobHeaderForm({
         <label className="app-job-context-field" htmlFor="salesperson"><span>Salesperson</span><input disabled={!canEdit} id="salesperson" onChange={(event) => update('salesperson', event.target.value)} placeholder="Not assigned" value={values.salesperson}/></label>
       </div>}
     /> : null}
-    <div className={inAppShell ? 'app-workspace job-editor-workspace' : undefined}>
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div className={inAppShell ? 'app-workspace app-workspace-fluid job-editor-workspace' : undefined}>
+    <section className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       {!inAppShell ? (
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
@@ -259,16 +259,16 @@ export function JobHeaderForm({
         <p>The legacy source must be archived manually only after the saved native job is reopened and verified.</p>
         <LegacyTransferEvidenceSummary blockers={transferReview.blockers} unsupportedFields={transferReview.unsupportedFields} warnings={transferReview.warnings}/>
       </section> : null}
-      <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">Confirmation requires at least one valid active door line. Saving or confirming does not schedule production or create fulfillment or Calendar records.</p>
+      <p className="mt-2 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">Confirmation requires at least one valid active door line. Saving or confirming does not schedule production or create fulfillment or Calendar records.</p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 p-2 dark:border-slate-700">
         <span className="font-semibold">Lifecycle</span>
         <button className={`min-h-11 rounded-xl px-4 font-semibold ${lifecycleStage === 'Draft' ? 'bg-amber-600 text-white' : 'border border-slate-300 dark:border-slate-600'}`} disabled={!canEdit} onClick={() => setLifecycleStage('Draft')} type="button">Draft</button>
         <button className={`min-h-11 rounded-xl px-4 font-semibold ${lifecycleStage === 'Confirmed Job' ? 'bg-emerald-700 text-white' : 'border border-slate-300 dark:border-slate-600'}`} disabled={!canEdit || !hasValidActiveDoorLine(lines)} onClick={() => setLifecycleStage('Confirmed Job')} type="button">Confirmed Job</button>
         {!hasValidActiveDoorLine(lines) ? <span className="text-sm text-slate-500">Add a valid active line before confirming.</span> : null}
       </div>
 
-      <div className="mt-5 grid gap-4">
+      <div className="mt-3 grid gap-2.5">
         <section aria-labelledby="job-identity-heading">
           <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" id="job-identity-heading">Job details and contact</h2>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
@@ -280,7 +280,7 @@ export function JobHeaderForm({
           {inAppShell && fieldErrors.siteAddress ? <p className="mt-2 text-sm text-rose-700" role="alert">Site / Address: {fieldErrors.siteAddress}</p> : null}
         </section>
 
-        <details className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" open={Boolean(values.hingeColor || values.shopHours || values.fulfillmentPlan || values.shopDate || values.poNumbers.length)}>
+        <details className="rounded-md border border-slate-200 p-2.5 dark:border-slate-700" open={Boolean(values.hingeColor || values.shopHours || values.fulfillmentPlan || values.shopDate || values.poNumbers.length)}>
           <summary className="cursor-pointer font-semibold">Production Setup (optional in Draft)</summary>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <Field label="Hinge Color" name="hingeColor"><select className={inputClass} disabled={!canEdit} id="hingeColor" onChange={(e) => update('hingeColor', e.target.value)} value={values.hingeColor}>{!normalizeHingeColor(values.hingeColor).ok ? <option disabled value={values.hingeColor}>Invalid saved value — choose a valid finish</option> : null}{HINGE_COLOR_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
@@ -301,11 +301,11 @@ export function JobHeaderForm({
         <Field label="Job Notes" name="notes"><textarea className={`${inputClass} min-h-24 resize-y`} disabled={!canEdit} id="notes" onChange={(e) => update('notes', e.target.value)} placeholder="Job notes" value={values.notes}/></Field>
       </div>
 
-      <div className="mt-6"><DoorLineWorkspace canEdit={canEdit} lifecycleStage={lifecycleStage} lines={lines} onChange={setLines} onUnappliedChange={setHasUnappliedLineChanges}/></div>
+      <div className="mt-3"><DoorLineWorkspace canEdit={canEdit} lifecycleStage={lifecycleStage} lines={lines} onChange={setLines} onUnappliedChange={setHasUnappliedLineChanges}/></div>
 
       {message ? <p className={`mt-5 rounded-xl p-3 text-sm ${message.kind === 'success' ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100'}`} role="status">{message.text}</p> : null}
 
-      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap">
+      <div className="job-editor-actions sticky bottom-0 z-10 mt-3 flex flex-col-reverse gap-1.5 border-t border-slate-200 bg-white/95 py-2 backdrop-blur sm:flex-row sm:flex-wrap dark:border-slate-700 dark:bg-slate-900/95">
         <button className="min-h-12 rounded-xl border border-slate-300 px-5 font-semibold dark:border-slate-600" onClick={leave} type="button">Back / Exit</button>
         {job ? <><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print Work Order</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></> : null}
         {canEdit ? <>

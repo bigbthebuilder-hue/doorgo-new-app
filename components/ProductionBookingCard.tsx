@@ -1,5 +1,6 @@
 import type { ProductionBoardCard } from '@/lib/production-board/types';
 import type { ProductionBoardInteraction } from './production-board-interaction';
+import Image from 'next/image';
 
 export function ProductionBookingCard({
   card,
@@ -37,7 +38,7 @@ export function ProductionBookingCard({
       onDragStart={canDrag ? (event) => interaction?.onCardDragStart(card, event) : undefined}
       onDragEnd={canDrag ? () => interaction?.onCardDragEnd(card) : undefined}
       onClickCapture={interaction ? (event) => interaction.onCardClickCapture(card, event) : undefined}
-      className={`rounded-lg border border-slate-200 p-2 ${completed ? 'bg-slate-200 text-slate-700' : 'bg-slate-50'} ${
+      className={`production-booking-card rounded-md border border-slate-200 p-1.5 ${completed ? 'bg-slate-200 text-slate-700' : 'bg-slate-50'} ${
         card.type === 'doorgo_linked'
           ? 'border-l-4 border-l-sky-400'
           : 'border-l-4 border-l-slate-400'
@@ -51,21 +52,13 @@ export function ProductionBookingCard({
             {title}
           </h4>
 
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <div className="mt-0.5 flex flex-wrap items-center gap-1">
             <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
               completed ? 'bg-slate-700 text-white' : 'bg-emerald-100 text-emerald-800'
             }`}>
               {completed ? 'Completed' : 'Ready'}
             </span>
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
-                card.type === 'doorgo_linked'
-                  ? 'bg-sky-100 text-sky-700'
-                  : 'bg-slate-200 text-slate-700'
-              }`}
-            >
-              {card.typeLabel}
-            </span>
+            {card.type === 'doorgo_linked' ? <span className="inline-flex" aria-label="DoorGo job" title="DoorGo job"><Image alt="" aria-hidden="true" src="/brand/doorgo-mark.svg" width={12} height={12}/></span> : null}
 
             <span
               className={`text-[11px] font-semibold ${
@@ -76,7 +69,7 @@ export function ProductionBookingCard({
             </span>
           </div>
 
-          <p className="mt-1 text-[11px] leading-snug text-slate-600">
+          <p className="mt-0.5 text-[10px] leading-tight text-slate-600">
             {[salesperson, card.jobId ? `Job ${card.jobId}` : null]
               .filter(Boolean)
               .join(' • ')}
@@ -91,15 +84,15 @@ export function ProductionBookingCard({
       </div>
 
       {interaction ? (
-        <div className="mt-2 border-t border-slate-200 pt-2">
-          <div className="flex flex-wrap gap-2">
+        <div className="mt-1.5 border-t border-slate-200 pt-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {!completed ? (
               <button
                 type="button"
                 disabled={!canMove || pending}
                 onDragStart={(event) => event.preventDefault()}
                 onClick={(event) => interaction.onMoveRequest(card, event.currentTarget)}
-                className="min-h-10 rounded-md border border-sky-300 bg-white px-3 py-2 text-xs font-semibold text-sky-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                className="min-h-8 rounded-md border border-sky-300 bg-white px-2 py-1 text-[11px] font-semibold text-sky-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
               >
                 {pending ? 'Move pending' : 'Move'}
               </button>
@@ -110,7 +103,7 @@ export function ProductionBookingCard({
               aria-label={`${completed ? 'Reopen' : 'Complete'} ${title}`}
               onDragStart={(event) => event.preventDefault()}
               onClick={(event) => interaction.onCompletionRequest(card, event.currentTarget)}
-              className={`min-h-10 rounded-md border px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 ${
+              className={`min-h-8 rounded-md border px-2 py-1 text-[11px] font-semibold disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 ${
                 completed
                   ? 'border-amber-300 bg-amber-50 text-amber-900'
                   : 'border-emerald-300 bg-emerald-50 text-emerald-900'

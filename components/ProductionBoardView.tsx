@@ -49,7 +49,7 @@ export function ProductionBoardView({
             {board.summary.totalBookings === 0 ? (
               <section className="app-workspace-panel rounded-lg px-3 py-2 text-sm text-slate-600">No production bookings are scheduled in this window. Resolved capacity is shown below.</section>
             ) : null}
-            <div className="grid gap-3">
+            <div className="production-week-list grid gap-2">
               {board.weekGroups.map((week) => <ProductionBoardWeekSection key={week.startDate} week={week} interaction={interaction}/>) }
             </div>
           </>

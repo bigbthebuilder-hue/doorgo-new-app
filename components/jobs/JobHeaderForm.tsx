@@ -14,6 +14,7 @@ import { DoorLineWorkspace } from './DoorLineWorkspace';
 import { JobArchiveControl, jobArchiveTarget } from './JobArchiveControl';
 import { WorkOrderSendEntryButton } from './WorkOrderSendEntryButton';
 import { LegacyTransferEvidenceSummary } from './LegacyTransferEvidenceSummary';
+import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 
 type FormValues = {
   bizTrackSalesOrder: string;
@@ -76,12 +77,14 @@ export function JobHeaderForm({
   defaultSalesperson,
   initialDraft,
   transferReview,
+  inAppShell = false,
 }: {
   initialJob: NativeJobAggregate | null;
   canEdit: boolean;
   defaultSalesperson: string;
   initialDraft?: { header: JobHeaderInput; lines: DoorLineInput[] };
   transferReview?: LegacyTransferReviewContext;
+  inAppShell?: boolean;
 }) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
@@ -215,8 +218,13 @@ export function JobHeaderForm({
     });
   }
 
+  const contextStatus = canEdit ? lifecycleStage : `${lifecycleStage} · Read only`;
   return (
+    <>
+    {inAppShell ? <ContextTopBar title={visibleIdentifier} secondary={values.customer.trim() || 'Customer not entered'} status={<span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">{contextStatus}{job ? ` · Rev ${job.revision}` : ''}</span>}/> : null}
+    <div className={inAppShell ? 'app-workspace max-w-6xl' : undefined}>
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6">
+      {!inAppShell ? (
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Current Job</p>
@@ -229,6 +237,7 @@ export function JobHeaderForm({
           {canEdit ? lifecycleStage : `${lifecycleStage} · Read only`}
         </span>
       </div>
+      ) : null}
 
       {!canEdit ? <p className="mt-4 rounded-xl bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-100">You have jobs = view access. This draft is read-only.</p> : null}
       {transferReview ? <section className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100" aria-labelledby="legacy-transfer-review-heading">
@@ -301,5 +310,7 @@ export function JobHeaderForm({
         target={jobArchiveTarget(job, canEdit)}
       />
     </section>
+    </div>
+    </>
   );
 }

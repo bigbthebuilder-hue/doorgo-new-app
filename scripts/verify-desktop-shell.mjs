@@ -16,6 +16,7 @@ const login = read('app/login/page.tsx');
 const mark = read('public/brand/doorgo-mark.svg');
 const bookingCard = read('components/ProductionBookingCard.tsx');
 const schedulePage = read('app/production-schedule/page.tsx');
+const productionDay = read('components/ProductionBoardDay.tsx');
 
 assert.match(css, /--app-shell-nav-width:\s*4\.75rem/, 'Desktop rail width must remain 4.75rem');
 assert.match(css, /\.app-shell-nav-label\s*\{[^}]*white-space:\s*normal[^}]*\}/s, 'Desktop labels must wrap');
@@ -52,6 +53,8 @@ assert.match(jobForm, /backHref="\/jobs"/, 'Job editor must provide contextual B
 assert.match(bookingCard, /production-booking-card/, 'Production bookings must use the compact rendered contract');
 assert.match(bookingCard, /aria-label="DoorGo job"/, 'Native Production bookings must use a subtle accessible indicator');
 assert.doesNotMatch(schedulePage, /href="\/(?:production-board|production-recovery|production-checkpoints|account)"/, 'Production context must not duplicate rail navigation');
+assert.match(productionDay, /day\.cards\.slice\(0, visibleCardLimit\)/, 'Busy Production days must use an explicit visible-card limit');
+assert.match(productionDay, /aria-expanded=\{expanded\}/, 'Busy-day overflow must expose accessible expansion state');
 assert.match(home, /getCurrentDoorGoAccess/);
 assert.match(home, /Measure\. Build\. Schedule\./);
 assert.match(home, /buildProtectedAppNavigation\(access\)/, 'Authenticated Home must reuse permission-aware navigation');

@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/experimental-ct-react';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { ProductionBookingCard } from '@/components/ProductionBookingCard';
-import type { ProductionBoardCard } from '@/lib/production-board/types';
+import { ProductionBoardDay } from '@/components/ProductionBoardDay';
+import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel } from '@/lib/production-board/types';
 
 const desktopShellLabels = ['Production Board', 'Production Schedule', 'Past Schedule', 'Carry Checkpoint', 'Glass Calculator', 'Account'];
 
@@ -131,6 +132,37 @@ test('compact production cards keep several bookings visible in one desktop view
   expect(groupHeight).toBeLessThan(520);
   await expect(cards.first().getByTitle('DoorGo job')).toBeVisible();
   await expect(cards.first()).not.toContainText('DoorGo-linked');
+});
+
+test('busy production days collapse explicitly and keep every booking reachable', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const card = (index: number): ProductionBoardCard => ({
+    bookingId: `busy-${index}`, type: 'doorgo_linked', typeLabel: 'DoorGo-linked', productionDate: '2026-08-11',
+    title: `Booking ${index}`, customer: `Customer ${index}`, jobId: `DG-${String(index).padStart(6, '0')}`,
+    calendarId: null, calendarEventId: null, shopHours: 1, shopHoursKnown: true, salesperson: 'Barrett',
+    source: null, sourceSystem: null, bookingKind: null, locked: false, completedAt: null,
+  });
+  const day: ProductionBoardDayModel = {
+    date: '2026-08-11', dateState: 'today', totalKnownShopHours: 6, bookingCount: 6, missingShopHoursCount: 0,
+    availableHours: 8, staffCapacityHours: 8, deductionHours: 0, capacitySource: 'calculated', capacityKnown: true,
+    isClosed: false, isExplicitlyClosed: false, capacityNotes: null, remainingHours: 2, overloadHours: 0,
+    plannedStarts: 6, plannedStartsKnown: true, openingCarryIn: 0, openingCarryKnown: true, calculatedOpeningCarry: 0,
+    actualOpeningCarry: null, authoritativeOpeningCarry: 0, adjustmentHours: null, hasActualCarryCheckpoint: false,
+    checkpointId: null, checkpointProductionDate: null, checkpointRevisionNumber: null, checkpointRecordedAt: null,
+    checkpointRecordedByUserId: null, checkpointConfirmedAt: null, checkpointConfirmedByUserId: null,
+    checkpointActorType: null, checkpointSourceSystem: null, checkpointNote: null, checkpointCalculationVersion: null,
+    flowLoad: 6, endingCarryOut: 0, openFlowCapacity: 8, flowStatus: 'resolved', flowUnresolvedReason: null,
+    weekendBookingException: false, cards: [1, 2, 3, 4, 5, 6].map(card),
+  };
+  await mount(<ProductionBoardDay day={day}/>);
+  await expect(page.locator('.production-booking-card')).toHaveCount(3);
+  const expansion = page.getByRole('button', { name: '+ 3 more' });
+  await expect(expansion).toBeVisible();
+  await expect(expansion).toHaveAttribute('aria-expanded', 'false');
+  await expansion.click();
+  await expect(page.locator('.production-booking-card')).toHaveCount(6);
+  await expect(page.getByText('Booking 6', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show fewer' })).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('entry and login contracts render branded, accessible actions without an app rail', async ({ mount, page }) => {

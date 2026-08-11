@@ -112,6 +112,7 @@ const approvedLaterUi = new Set([
   'components/jobs/DoorLineWorkspace.tsx',
   'components/jobs/GlassUnitBuilder.tsx',
   'components/jobs/GlassUnitDiagram.tsx',
+  'components/jobs/StandaloneGlassCalculator.tsx',
   'components/jobs/WorkOrderPreview.tsx',
   'components/jobs/WorkOrderSendEntryButton.tsx',
 ]);

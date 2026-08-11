@@ -3,6 +3,7 @@ import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { ProductionBookingCard } from '@/components/ProductionBookingCard';
 import { ProductionBoardDay } from '@/components/ProductionBoardDay';
 import { ProductionBoardSummary } from '@/components/ProductionBoardSummary';
+import { BoardNavigationHarness } from './BoardNavigationHarness';
 import { JobsList } from '@/components/jobs/JobsList';
 import { StandaloneGlassCalculator } from '@/components/jobs/StandaloneGlassCalculator';
 import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel, ProductionBoardViewModel } from '@/lib/production-board/types';
@@ -148,6 +149,28 @@ test('primary production summary omits transitional source counts', async ({ mou
   await expect(page.getByText('Bookings', { exact: true })).toBeVisible();
   await expect(page.getByText('DoorGo-linked', { exact: true })).toHaveCount(0);
   await expect(page.getByText('BizTrack-only', { exact: true })).toHaveCount(0);
+});
+
+test('read-only Production Board navigation changes only the viewed week in the sticky top bar', async ({ mount, page }) => {
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(viewport);
+    const component = await mount(<BoardNavigationHarness/>);
+    const navigation = component.getByLabel('Production Board date window');
+    await expect(navigation.getByRole('button', { name: 'Previous week' })).toBeVisible();
+    await expect(navigation.getByRole('button', { name: 'Today' })).toBeVisible();
+    await expect(navigation.getByRole('button', { name: 'Next week' })).toBeVisible();
+    await navigation.getByRole('button', { name: 'Previous week' }).click();
+    await expect(component.getByTestId('board-navigation-href')).toHaveText('/production-board?week=2026-08-03');
+    await navigation.getByLabel('Go to date').fill('2026-09-02');
+    await navigation.getByRole('button', { name: 'Go' }).click();
+    await expect(component.getByTestId('board-navigation-href')).toHaveText('/production-board?week=2026-08-31');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+    const topBefore = await component.locator('.app-context-bar').evaluate((element) => element.getBoundingClientRect().top);
+    await component.evaluate((element) => { element.scrollTop = 500; });
+    const topAfter = await component.locator('.app-context-bar').evaluate((element) => element.getBoundingClientRect().top);
+    expect(Math.abs(topAfter - topBefore)).toBeLessThanOrEqual(1);
+    await component.unmount();
+  }
 });
 
 test('dense Jobs rows keep many records visible at desktop and laptop widths', async ({ mount, page }) => {

@@ -55,7 +55,9 @@ assert.doesNotMatch(publicPage, /ProductionScheduleInteractiveBoard|interaction=
 assert.match(publicPage, /ProductionBoardView/);
 assert.match(publicPage, /statusLabel: 'Read only'/);
 assert.match(publicPage, /parseProductionBoardParams\(params, today\)/);
-assert.doesNotMatch(publicPage, /ProductionScheduleNavigation/);
+assert.match(publicPage, /ProductionScheduleNavigation/);
+assert.match(publicPage, /pathname="\/production-board"/);
+assert.doesNotMatch(publicPage, /ProductionScheduleInteractiveBoard|interaction=|reschedule|destination-preview|use server|requireDoorGoProtectedAccess|redirect\s*\(/i);
 assert.match(privatePage, /requireDoorGoProtectedAccess/);
 assert.match(privatePage, /canViewProductionSchedule\(access\)/);
 assert.match(privatePage, /canRescheduleProductionBooking\(access\)[\s\S]*ProductionScheduleInteractiveBoard/);
@@ -124,7 +126,9 @@ assert.match(navigation, /^'use client';/);
 for (const label of ['Previous week', 'Today', 'Next week', 'Go to date']) {
   assert.ok(navigation.includes(label), `Missing Schedule navigation control: ${label}`);
 }
-assert.match(navigation, /router\.push\(`\/production-schedule\?week=\$\{encodeURIComponent\(monday\)\}`\)/);
+assert.match(navigation, /onNavigate=\{\(href\) => router\.push\(href\)\}/);
+assert.match(navigation, /onNavigate\(`\$\{pathname\}\?week=\$\{encodeURIComponent\(monday\)\}`\)/);
+assert.match(navigation, /pathname\?: '\/production-board' \| '\/production-schedule'/);
 assert.match(navigation, /normalizeProductionWeekAnchor\(selectedDate, currentMonday\)/);
 assert.match(navigation, /Loading schedule…/);
 assert.doesNotMatch(navigation, /rescheduleProductionBooking|createSecureCommandId|\.rpc\(/);

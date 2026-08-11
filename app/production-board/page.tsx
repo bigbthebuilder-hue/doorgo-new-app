@@ -1,10 +1,12 @@
 import { ProductionBoardView } from '@/components/ProductionBoardView';
 import {
   getCurrentDateInTimeZone,
+  getMondayForDate,
   parseProductionBoardParams,
 } from '@/lib/production-board/date-utils';
 import { loadProductionBoardReadOnly } from '@/lib/production-board/queries';
 import { buildPublicAppNavigation } from '@/lib/app-shell/navigation';
+import { ProductionScheduleNavigation } from '@/components/ProductionScheduleNavigation';
 
 export default async function ProductionBoardPage({
   searchParams,
@@ -27,6 +29,7 @@ export default async function ProductionBoardPage({
       board={board}
       presentation={{ title: 'Production Board', statusLabel: 'Read only' }}
       navigation={buildPublicAppNavigation()}
+      windowNavigation={<ProductionScheduleNavigation anchorMonday={startDate} currentMonday={getMondayForDate(today)} label="Production Board date window" pathname="/production-board" visibleWeekdayEndExclusive={board.visibleWeekdayEndExclusive}/>}
     />
   );
 }

@@ -6,7 +6,7 @@ const read = (path) => readFileSync(path, 'utf8');
 const paths = {
   publicPage: 'app/production-board/page.tsx',
   privatePage: 'app/production-schedule/page.tsx',
-  account: 'app/account/page.tsx',
+  navigation: 'lib/app-shell/navigation.ts',
   sharedView: 'components/ProductionBoardView.tsx',
   summary: 'components/ProductionBoardSummary.tsx',
   access: 'lib/production-schedule/view-access.ts',
@@ -23,7 +23,7 @@ for (const path of Object.values(paths)) {
 
 const publicPage = read(paths.publicPage);
 const privatePage = read(paths.privatePage);
-const account = read(paths.account);
+const navigation = read(paths.navigation);
 const sharedView = read(paths.sharedView);
 const summary = read(paths.summary);
 const access = read(paths.access);
@@ -71,7 +71,7 @@ assert.match(access, /getPermissionAccess\(access, 'production'\)/);
 assert.match(access, /title: 'Production Schedule'/);
 assert.match(access, /statusLabel: 'Schedule view'/);
 assert.doesNotMatch(access, /isManager|calendar|production_checkpoints/);
-assert.match(account, /hasAtLeastView\(access, 'production'\)[\s\S]*href="\/production-schedule"[\s\S]*Production Schedule/);
+assert.match(navigation, /hasAtLeastView\(access, 'production'\)[\s\S]*href: '\/production-schedule'[\s\S]*Production Schedule/);
 
 assert.match(sharedView, /ProductionBoardSummary/);
 assert.match(sharedView, /ProductionBoardWeekSection/);

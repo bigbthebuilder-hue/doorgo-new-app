@@ -74,6 +74,8 @@ assert.deepEqual(changed.filter((path) => path.startsWith('supabase/migrations/'
 const approvedLaterUi = new Set([
   'app/layout.tsx',
   'app/page.tsx',
+  'app/login/page.tsx',
+  'app/login/login-form.tsx',
   'app/account/page.tsx',
   'app/production-checkpoints/page.tsx',
   'app/production-checkpoints/checkpoint-operation-forms.tsx',
@@ -102,6 +104,7 @@ const approvedLaterUi = new Set([
   'app/jobs/[internalJobId]/edit/page.tsx',
   'app/jobs/[internalJobId]/work-order/page.tsx',
   'app/jobs/[internalJobId]/work-order/pdf/route.ts',
+  'app/glass-calculator/page.tsx',
   'components/jobs/JobHeaderForm.tsx',
   'components/jobs/JobArchiveControl.tsx',
   'components/jobs/LegacyJobImportReview.tsx',

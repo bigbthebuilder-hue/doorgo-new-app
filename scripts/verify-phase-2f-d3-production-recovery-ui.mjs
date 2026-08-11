@@ -10,7 +10,6 @@ const paths = {
   service: 'lib/production-bookings/production-booking-service.ts',
   actions: 'lib/production-bookings/production-booking-actions.ts',
   capacity: 'lib/production-bookings/production-recovery-capacity-server.ts',
-  account: 'app/account/page.tsx',
   navigation: 'lib/app-shell/navigation.ts',
   board: 'app/production-board/page.tsx',
   checkpoints: 'app/production-checkpoints/page.tsx',
@@ -21,7 +20,7 @@ for (const path of Object.values(paths)) assert.ok(existsSync(path), `Missing D3
 const read = (path) => readFileSync(path, 'utf8');
 const page = read(paths.page); const client = read(paths.client); const contract = read(paths.contract);
 const tests = read(paths.tests); const service = read(paths.service); const actions = read(paths.actions);
-const capacity = read(paths.capacity); const account = read(paths.account); const navigation = read(paths.navigation); const docs = read(paths.docs);
+const capacity = read(paths.capacity); const navigation = read(paths.navigation); const docs = read(paths.docs);
 
 assert.match(page, /requireDoorGoProtectedAccess\(\)/);
 assert.match(page, /hasAtLeastView\(access, 'production'\)/);

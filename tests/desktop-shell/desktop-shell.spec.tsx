@@ -4,7 +4,8 @@ import { ProductionBookingCard } from '@/components/ProductionBookingCard';
 import { ProductionBoardDay } from '@/components/ProductionBoardDay';
 import { ProductionBoardSummary } from '@/components/ProductionBoardSummary';
 import { BoardNavigationHarness } from './BoardNavigationHarness';
-import { JobsList } from '@/components/jobs/JobsList';
+import { DoorLineWorkspaceHarness } from './DoorLineWorkspaceHarness';
+import { JobsWorkspace } from '@/components/jobs/JobsWorkspace';
 import { StandaloneGlassCalculator } from '@/components/jobs/StandaloneGlassCalculator';
 import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel, ProductionBoardViewModel } from '@/lib/production-board/types';
 import type { NativeJobListItem } from '@/lib/jobs/job-intake-types';
@@ -155,6 +156,7 @@ test('read-only Production Board navigation changes only the viewed week in the 
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);
     const component = await mount(<BoardNavigationHarness/>);
+    for (const label of ['Home', 'Production Board', 'Production Schedule', 'Past Schedule', 'Carry Checkpoint', 'Jobs', 'Glass Calculator', 'Account']) await expect(component.getByRole('link', { name: label })).toBeVisible();
     const navigation = component.getByLabel('Production Board date window');
     await expect(navigation.getByRole('button', { name: 'Previous week' })).toBeVisible();
     await expect(navigation.getByRole('button', { name: 'Today' })).toBeVisible();
@@ -166,7 +168,7 @@ test('read-only Production Board navigation changes only the viewed week in the 
     await expect(component.getByTestId('board-navigation-href')).toHaveText('/production-board?week=2026-08-31');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
     const topBefore = await component.locator('.app-context-bar').evaluate((element) => element.getBoundingClientRect().top);
-    await component.evaluate((element) => { element.scrollTop = 500; });
+    await component.locator('.app-shell-main').evaluate((element) => { element.scrollTop = 500; });
     const topAfter = await component.locator('.app-context-bar').evaluate((element) => element.getBoundingClientRect().top);
     expect(Math.abs(topAfter - topBefore)).toBeLessThanOrEqual(1);
     await component.unmount();
@@ -181,8 +183,12 @@ test('dense Jobs rows keep many records visible at desktop and laptop widths', a
     visibleIdentifier: `DG-${String(index + 1).padStart(6, '0')}`, visibleIdentifierKind: 'door_go_reference', legacyJobId: null,
     activeLineCount: 1, archivedLineCount: 0, archivedAt: null,
   })) as NativeJobListItem[];
-  await mount(<div className="app-workspace app-workspace-fluid"><JobsList jobs={jobs}/></div>);
+  await mount(<JobsWorkspace canCreate jobs={jobs} navigation={[]}/>);
   await expect(page.getByPlaceholder('Identifier, customer or site')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Import Legacy Job' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'New Draft Job' })).toBeVisible();
+  await expect(page.locator('.app-context-bar').getByRole('heading', { name: 'Jobs' })).toBeVisible();
+  await expect(page.locator('.app-shell-main > .app-workspace').getByText('Filter jobs')).toHaveCount(0);
   await expect(page.getByPlaceholder(/salesperson/i)).toHaveCount(0);
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);
@@ -194,6 +200,17 @@ test('dense Jobs rows keep many records visible at desktop and laptop widths', a
   }
 });
 
+test('routine native door choices share one compact desktop workspace', async ({ mount, page }) => {
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(viewport);
+    const component = await mount(<DoorLineWorkspaceHarness/>);
+    for (const label of ['Door Type', 'Configuration', 'Width', 'Height', 'Swing', 'Prep', 'Quantity', 'Jamb Width', 'Jamb Type', 'Hinge Type', 'Material', 'Sill', 'Weatherstrip', 'Custom Slab / RO', 'Door Thickness']) await expect(component.getByLabel(label, { exact: true })).toBeVisible();
+    await expect(component.getByText('More Details', { exact: true })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+    await component.unmount();
+  }
+});
+
 test('standalone Glass Calculator embeds one interactive diagram beside a purpose-built print result', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await mount(<div className="app-workspace app-workspace-fluid"><StandaloneGlassCalculator/></div>);
@@ -202,6 +219,7 @@ test('standalone Glass Calculator embeds one interactive diagram beside a purpos
   await expect(editor).toBeVisible();
   await expect(results).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send unavailable' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Update Result' })).toHaveCount(0);
   await expect(page.locator('.glass-unit-builder[role="dialog"]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add left sidelight' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add right sidelight' })).toBeVisible();
@@ -212,8 +230,9 @@ test('standalone Glass Calculator embeds one interactive diagram beside a purpos
   await page.getByRole('button', { name: 'Add transom' }).click();
   const transomGlassType = page.getByLabel('Transom Glass Type');
   await expect(transomGlassType).toHaveValue('CLEAR');
-  await expect(editor.getByText('Status: Complete', { exact: true })).toBeVisible();
-  await expect(editor.getByText('Transom Product Size', { exact: true })).toBeVisible();
+  await expect(results.getByText('Complete', { exact: true }).first()).toBeVisible();
+  await expect(results.getByText('Transom product size', { exact: true })).toBeVisible();
+  await expect(editor.getByLabel('Calculated measurements')).toHaveCount(0);
   await transomGlassType.selectOption('SATIN_ETCH');
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Remove transom' }).click();
@@ -223,8 +242,8 @@ test('standalone Glass Calculator embeds one interactive diagram beside a purpos
   await expect(transomGlassType).toHaveValue('SATIN_ETCH');
   await transomGlassType.selectOption('CUSTOM');
   await expect(page.getByLabel('Custom Transom Glass Description')).toBeVisible();
-  await expect(editor.getByText('Status: Glass Detail Needed', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Leave Glass Detail Needed' })).toBeVisible();
+  await expect(results.getByText('Glass Detail Needed', { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Leave Glass Detail Needed' })).toHaveCount(0);
   const editorBox = await editor.boundingBox(); const resultsBox = await results.boundingBox();
   expect((resultsBox?.x ?? 0)).toBeGreaterThan((editorBox?.x ?? 0));
   await page.emulateMedia({ media: 'print' });
@@ -248,14 +267,16 @@ test('busy production days collapse explicitly and keep every booking reachable'
     availableHours: 8, staffCapacityHours: 8, deductionHours: 0, capacitySource: 'calculated', capacityKnown: true,
     isClosed: false, isExplicitlyClosed: false, capacityNotes: null, remainingHours: 2, overloadHours: 0,
     plannedStarts: 6, plannedStartsKnown: true, openingCarryIn: 0, openingCarryKnown: true, calculatedOpeningCarry: 0,
-    actualOpeningCarry: null, authoritativeOpeningCarry: 0, adjustmentHours: null, hasActualCarryCheckpoint: false,
-    checkpointId: null, checkpointProductionDate: null, checkpointRevisionNumber: null, checkpointRecordedAt: null,
+    actualOpeningCarry: 0, authoritativeOpeningCarry: 0, adjustmentHours: 0, hasActualCarryCheckpoint: true,
+    checkpointId: 'checkpoint-1', checkpointProductionDate: '2026-08-11', checkpointRevisionNumber: 4, checkpointRecordedAt: '2026-08-11T18:00:00Z',
     checkpointRecordedByUserId: null, checkpointConfirmedAt: null, checkpointConfirmedByUserId: null,
     checkpointActorType: null, checkpointSourceSystem: null, checkpointNote: null, checkpointCalculationVersion: null,
     flowLoad: 9, endingCarryOut: 1, openFlowCapacity: 8, flowStatus: 'resolved', flowUnresolvedReason: null,
     weekendBookingException: false, cards: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(card),
   };
   await mount(<ProductionBoardDay day={day}/>);
+  await expect(page.getByText('✓ Carry checkpoint recorded · 0.00 hrs actual')).toBeVisible();
+  await expect(page.getByText(/Revision 4/)).toHaveCount(0);
   await expect(page.locator('.production-booking-card')).toHaveCount(6);
   const expansion = page.getByRole('button', { name: '+ 3 more' });
   await expect(expansion).toBeVisible();

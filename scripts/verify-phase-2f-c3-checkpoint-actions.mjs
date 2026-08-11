@@ -109,6 +109,7 @@ const approvedLaterUi = new Set([
   'components/jobs/JobArchiveControl.tsx',
   'components/jobs/LegacyJobImportReview.tsx',
   'components/jobs/JobsList.tsx',
+  'components/jobs/JobsWorkspace.tsx',
   'components/jobs/DoorLineWorkspace.tsx',
   'components/jobs/GlassUnitBuilder.tsx',
   'components/jobs/GlassUnitDiagram.tsx',

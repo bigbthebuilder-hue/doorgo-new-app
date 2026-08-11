@@ -47,7 +47,8 @@ for (const route of [publicPage, privatePage]) {
 
 assert.match(publicPage, /title: 'Production Board'/);
 assert.match(publicPage, /statusLabel: 'Read only'/);
-assert.doesNotMatch(publicPage, /requireDoorGoProtectedAccess|getCurrentDoorGoAccess|getPermissionAccess|hasAtLeastView|canViewProductionSchedule|redirect\s*\(/);
+assert.doesNotMatch(publicPage, /requireDoorGoProtectedAccess|getPermissionAccess|hasAtLeastView|canViewProductionSchedule|redirect\s*\(/);
+assert.match(publicPage, /getCurrentDoorGoAccess[\s\S]*access\.state === 'active' \? buildProtectedAppNavigation\(access\) : buildPublicAppNavigation\(\)/);
 assert.doesNotMatch(publicPage, /production-schedule|production-recovery|production-checkpoints|use server|checkpoint-actions|production-booking-actions/);
 
 assert.match(privatePage, /requireDoorGoProtectedAccess/);

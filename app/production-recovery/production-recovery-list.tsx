@@ -88,7 +88,7 @@ export function ProductionRecoveryList({ bookings, canMove, capacity, today }: P
 
       {feedback && (feedback.kind === 'success' || !selected) ? <p className={`mt-4 rounded-xl border p-4 text-sm font-medium ${feedback.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-rose-200 bg-rose-50 text-rose-900'}`} aria-live="polite">{feedback.message}</p> : null}
 
-      <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-2">
+      <div className="mt-2 divide-y divide-slate-200 border-y border-slate-200 bg-white">
         {bookings.length ? bookings.map((booking) => {
           const capacityMessage = projectedCapacityMessage(capacity, booking.shopHours);
           const isSelected = selectedBookingId === booking.bookingId;
@@ -98,14 +98,14 @@ export function ProductionRecoveryList({ bookings, canMove, capacity, today }: P
             booking.salesOrder,
           );
           return (
-            <article className={`min-w-0 rounded-lg border border-slate-200 bg-white p-3 shadow-sm ${isSelected ? 'lg:col-span-2' : ''}`} key={booking.bookingId}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1"><h3 className="break-words text-sm font-semibold">{booking.displayTitle}</h3><p className="mt-0.5 text-xs text-slate-600">{formatRecoveryDate(booking.productionDate)}</p></div>
-                <p className="shrink-0 rounded bg-slate-100 px-2 py-1 text-sm font-semibold">{booking.shopHours.toFixed(2)} hrs</p>
+            <article className="min-w-0 px-2 py-1.5" key={booking.bookingId}>
+              <div className="grid min-h-9 items-center gap-2 sm:grid-cols-[minmax(12rem,1fr)_8rem_7rem_minmax(8rem,1fr)_auto]">
+                <h3 className="truncate text-xs font-semibold">{booking.displayTitle}</h3>
+                <p className="text-xs text-slate-600">{formatRecoveryDate(booking.productionDate)}</p>
+                <p className="text-xs font-semibold">{booking.shopHours.toFixed(2)} hrs</p>
+                {identifier ? <p className="truncate text-xs font-medium text-slate-700">{identifier}</p> : <span/>}
+                {canMove && !isSelected ? <button className="min-h-8 rounded-md bg-sky-700 px-2 text-xs font-semibold text-white" type="button" onClick={() => openConfirmation(booking.bookingId)}>Move to today</button> : null}
               </div>
-              {identifier ? <p className="mt-2 max-w-full break-words text-xs font-medium text-slate-700">{identifier}</p> : null}
-
-              {canMove && !isSelected ? <button className="mt-3 min-h-9 w-full rounded-lg bg-sky-700 px-3 text-sm font-semibold text-white sm:w-auto" type="button" onClick={() => openConfirmation(booking.bookingId)}>Move to today</button> : null}
 
               {canMove && isSelected ? (
                 <div className="mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4" role="dialog" aria-labelledby={`move-heading-${booking.bookingId}`}>

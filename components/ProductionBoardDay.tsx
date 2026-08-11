@@ -50,7 +50,7 @@ export function ProductionBoardDay({
   interaction?: ProductionBoardInteraction;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const visibleCardLimit = 3;
+  const visibleCardLimit = interaction ? 4 : 6;
   const hiddenCardCount = Math.max(0, day.cards.length - visibleCardLimit);
   const visibleCards = expanded ? day.cards : day.cards.slice(0, visibleCardLimit);
   const bookingListId = `production-bookings-${day.date}`;
@@ -87,7 +87,7 @@ export function ProductionBoardDay({
       onDragOver={interaction ? (event) => interaction.onDayDragOver(day.date, event) : undefined}
       onDragLeave={interaction ? (event) => interaction.onDayDragLeave(day.date, event) : undefined}
       onDrop={interaction ? (event) => interaction.onDayDrop(day.date, event) : undefined}
-      className={`overflow-hidden rounded-lg border shadow-sm ${calendarStateClasses} ${
+      className={`overflow-hidden rounded-md border ${calendarStateClasses} ${
         operationalStatus === 'building'
           ? 'border-rose-400 bg-rose-50/30'
           : operationalStatus === 'reducing' ||
@@ -99,7 +99,7 @@ export function ProductionBoardDay({
       } ${interaction?.hoveredDate === day.date ? 'relative -translate-y-0.5 border-sky-600 shadow-xl ring-4 ring-sky-400' : ''
       }`}
     >
-      <div className={`border-b border-slate-300 px-2 py-1.5 ${headerStateClasses}`}>
+      <div className={`border-b border-slate-300 px-1.5 py-1 ${headerStateClasses}`}>
         <div className="flex flex-wrap items-center justify-between gap-1.5">
           <h3 className="text-sm font-semibold text-slate-900">
             {formatCompactDate(day.date)}
@@ -152,28 +152,7 @@ export function ProductionBoardDay({
             : 'capacity unknown'}
         </p>
 
-        <div className="mt-1 grid grid-cols-4 gap-1 text-center">
-          <FlowMetric
-            label="Carry in"
-            value={day.openingCarryKnown ? day.openingCarryIn : null}
-            unknownLabel="Unresolved"
-          />
-          <FlowMetric
-            label="Starts"
-            value={day.plannedStartsKnown ? day.plannedStarts : null}
-            unknownLabel="Unknown"
-          />
-          <FlowMetric
-            label="Capacity"
-            value={day.capacityKnown ? day.availableHours : null}
-            unknownLabel="Unknown"
-          />
-          <FlowMetric
-            label="Carry out"
-            value={day.endingCarryOut}
-            unknownLabel="Unresolved"
-          />
-        </div>
+        {(day.openingCarryIn ?? 0) !== 0 || (day.endingCarryOut ?? 0) !== 0 ? <p className="mt-0.5 text-[10px] text-slate-500">Carry {day.openingCarryKnown ? formatHours(day.openingCarryIn ?? 0) : 'unresolved'} in · {day.endingCarryOut === null ? 'unresolved' : formatHours(day.endingCarryOut)} out</p> : null}
 
         {day.hasActualCarryCheckpoint ? (
           <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-2 py-2 text-[10px] text-sky-950">
@@ -251,7 +230,7 @@ export function ProductionBoardDay({
       </div>
 
       {day.cards.length > 0 ? (
-        <div className="grid gap-1 p-1.5" id={bookingListId}>
+        <div className="p-1" id={bookingListId}>
           {visibleCards.map((card) => (
             <ProductionBookingCard
               key={card.bookingId}
@@ -305,27 +284,6 @@ function formatCheckpointTime(value: string): string {
     minute: '2-digit',
     timeZone: 'America/Vancouver',
   }).format(date);
-}
-
-function FlowMetric({
-  label,
-  value,
-  unknownLabel,
-}: {
-  label: string;
-  value: number | null;
-  unknownLabel: 'Unknown' | 'Unresolved';
-}) {
-  return (
-    <div className="rounded bg-slate-100 px-1 py-1">
-      <p className="text-[8px] font-medium uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-      <p className="mt-0.5 text-[10px] font-semibold text-slate-800">
-        {value === null ? unknownLabel : formatHours(value)}
-      </p>
-    </div>
-  );
 }
 
 function flowReasonLabel(

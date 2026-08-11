@@ -31,9 +31,8 @@ assert.match(navigation, /hasAtLeastView\(access, 'production'\)[\s\S]*href: '\/
 assert.match(page, /productionAccess === 'view'[\s\S]*view-only production access/);
 assert.match(page, /canMove=\{productionAccess === 'use'\}/);
 assert.match(client, /canMove && !isSelected[\s\S]*Move to today/);
-assert.match(client, /grid-cols-1[\s\S]*lg:grid-cols-2/);
-assert.doesNotMatch(client, /(?:[a-z0-9]+:)?grid-cols-(?:3|4|5|6|7|8|9|10|11|12)/);
-assert.match(client, /isSelected \? 'lg:col-span-2' : ''/);
+assert.match(client, /divide-y divide-slate-200/);
+assert.match(client, /sm:grid-cols-\[minmax\(12rem,1fr\)_8rem_7rem_minmax\(8rem,1fr\)_auto\]/);
 assert.doesNotMatch(client, /productionRecoveryOriginLabel\(booking\.bookingOrigin\)/);
 assert.match(client, /productionRecoveryIdentifier\([\s\S]*booking\.jobId,[\s\S]*booking\.salesOrder/);
 assert.match(contract, /bookingOrigin === 'doorgo'[\s\S]*return 'DoorGo-linked'/);

@@ -28,13 +28,13 @@ export function ProductionBoardView({
       navigation={navigation}
       topBar={<ContextTopBar
         title={presentation.title}
+        actions={windowNavigation}
         status={<span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">{presentation.statusLabel}</span>}
         secondary={<>{formatFriendlyDateRange(board.startDate, board.visibleWeekdayEndExclusive)} · {board.weeks} week{board.weeks === 1 ? '' : 's'} · date-only view</>}
       />}
     >
-      <div className="app-workspace">
+      <div className="app-workspace app-workspace-fluid">
         <ProductionBoardSummary board={board}/>
-        {windowNavigation}
         {empty ? (
           <section className="app-workspace-panel rounded-lg border-dashed p-6 text-center">
             <h2 className="text-base font-semibold text-slate-900">No Board data in this window</h2>

@@ -47,26 +47,20 @@ function initialBuilderDraft(line: DoorLineInput): DoorLineInput {
   return initialized;
 }
 
-export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitLabel = 'Use Calculation', embedded = false, defaultEmptyTransomGlassToClear = false, showCalculationOutput = true, showCommitActions = true }: {
+export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitLabel = 'Use Calculation', embedded = false, showCalculationOutput = true, showCommitActions = true }: {
   line: DoorLineInput;
   onCancel: () => void;
   onUse: (line: DoorLineInput, explicitDetailNeeded: boolean) => boolean | void;
   onDraftChange?: (line: DoorLineInput) => void;
   commitLabel?: string;
   embedded?: boolean;
-  defaultEmptyTransomGlassToClear?: boolean;
   showCalculationOutput?: boolean;
   showCommitActions?: boolean;
 }) {
   const dialog = useRef<HTMLDivElement>(null);
   const embeddedRef = useRef(embedded);
   const [baseline] = useState(() => JSON.stringify(initialBuilderDraft(line)));
-  const [draft, setDraft] = useState<DoorLineInput>(() => {
-    const initial = initialBuilderDraft(line);
-    return defaultEmptyTransomGlassToClear && (initial.config ?? '').startsWith('T/') && !normalizeGlassTypeCode(initial.transomGlassTypeCode ?? initial.transomGlass)
-      ? { ...initial, transomGlassTypeCode: 'CLEAR' }
-      : initial;
-  });
+  const [draft, setDraft] = useState<DoorLineInput>(() => initialBuilderDraft(line));
   const [composition, setComposition] = useState(() => initialComposition(line));
   const [message, setMessage] = useState('');
   const [confirmClose, setConfirmClose] = useState(false);
@@ -120,6 +114,7 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
   const calculation = useMemo(() => calculateGlassGeometry(projected), [projected]);
 
   function updateComposition(next: GlassUnitComposition) {
+    const previousComposition = composition;
     const positioned = totalSidelightCount(next) === 1 ? placeSingleSidelightForSwing(next, draft.hand) : next;
     const config = resolveGlassUnitConfiguration(positioned);
     setComposition(positioned);
@@ -133,9 +128,9 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
       );
       return {
         ...retained,
-        sidelightSpecifications: canonicalSidelightSpecifications({ ...retained, config }).map((entry) => ({ ...entry, tBarSize: normalizeTBarSize(retained.transomTBarSize) ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticSidelightTBar(normalizeSidelightType(retained.sidelightType) ?? 'Glass') })),
+        sidelightSpecifications: canonicalSidelightSpecifications({ ...retained, config }).map((entry) => { const existing = retained.sidelightSpecifications?.some((candidate) => candidate.side === entry.side && candidate.index === entry.index); return { ...entry, glassTypeCode: existing || (normalizeSidelightType(retained.sidelightType) ?? 'Glass') !== 'Glass' ? entry.glassTypeCode : 'CLEAR', tBarSize: normalizeTBarSize(retained.transomTBarSize) ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticSidelightTBar(normalizeSidelightType(retained.sidelightType) ?? 'Glass') }; }),
         transomTBarSize: positioned.hasTransom ? normalizeTBarSize(retained.transomTBarSize) ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticTransomTBar(positioned.door === 'DD' ? 2 : 1) : null,
-        transomGlassTypeCode: positioned.hasTransom && defaultEmptyTransomGlassToClear && !normalizeGlassTypeCode(retained.transomGlassTypeCode ?? retained.transomGlass) ? 'CLEAR' : retained.transomGlassTypeCode,
+        transomGlassTypeCode: positioned.hasTransom && !previousComposition.hasTransom && !normalizeGlassTypeCode(retained.transomGlassTypeCode ?? retained.transomGlass) ? 'CLEAR' : retained.transomGlassTypeCode,
       };
     });
     setMessage('');

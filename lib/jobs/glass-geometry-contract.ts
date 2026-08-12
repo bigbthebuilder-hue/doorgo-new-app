@@ -242,7 +242,17 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   if (topology.hasTransom && text(input.transomGlassTypeCode ?? input.transomGlass ?? input.glass) && !transomCode) invalid.push(issue('unknown_transom_glass_code', 'Unknown transom glass codes must not resolve to Clear.'));
   if (topology.hasTransom && transomCode === 'CUSTOM' && !text(input.transomCustomGlassDescription)) nonGeometricIncomplete.push(issue('custom_transom_glass_description_required', 'Enter a description for Custom transom glass.'));
   if (input.transomTBarSize !== null && input.transomTBarSize !== undefined && !normalizeTBarSize(input.transomTBarSize)) invalid.push(issue('invalid_transom_t_bar', 'Transom T-bar must be 1.5 or 2.25.'));
-  const structuredSpecifications = sideComponents.map((component) => suppliedSpecifications.find((entry) => entry?.side === component.side && entry?.index === component.index) ?? null);
+  const positionSpecifications = sideComponents.map((component) => suppliedSpecifications.find((entry) => entry?.side === component.side && entry?.index === component.index) ?? null);
+  const sharedSpecification = positionSpecifications.find((entry): entry is SidelightSpecification => Boolean(entry));
+  const structuredSpecifications = positionSpecifications.map((entry) => entry && sharedSpecification ? {
+    ...entry,
+    finishedWidth: sharedSpecification.finishedWidth,
+    tBarSize: sharedSpecification.tBarSize,
+    glassTypeCode: sharedSpecification.glassTypeCode,
+    customGlassDescription: sharedSpecification.customGlassDescription,
+    panelSizeMode: sharedSpecification.panelSizeMode,
+    panelConstructionNotes: sharedSpecification.panelConstructionNotes,
+  } : entry);
   const hasStructuredSpecifications = suppliedSpecifications.length > 0;
   const unitTBar = normalizeTBarSize(input.transomTBarSize)
     ?? structuredSpecifications.map((entry) => normalizeTBarSize(entry?.tBarSize)).find(Boolean)

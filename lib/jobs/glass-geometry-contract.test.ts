@@ -262,8 +262,9 @@ const independentGlassDetails = calculateGlassGeometry(line({ config: 'SDS', roW
   { side: 'left', index: 1, finishedWidth: '11.75', tBarSize: null, glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
   { side: 'right', index: 1, finishedWidth: '20', tBarSize: null, glassTypeCode: 'CUSTOM', customGlassDescription: 'Rain glass', panelSizeMode: null, panelConstructionNotes: null },
 ] }));
-assert.equal(independentGlassDetails.status, 'Complete', 'unit Glass type permits independent position details');
+assert.equal(independentGlassDetails.status, 'Complete', 'legacy position arrays remain compatible with unit-wide details');
 assert.deepEqual(independentGlassDetails.glassUnits.map((unit) => unit.position), ['Left sidelight 1', 'Right sidelight 1']);
+assert.deepEqual(independentGlassDetails.glassUnits.map((unit) => unit.glassType), ['Clear', 'Clear'], 'the first physical sidelight supplies the unit-wide glass selection');
 assert.deepEqual((independentGlassDetails.glassCalc?.resolvedSidelights as Array<{sidelightType:string;tBar:{resolvedSize:string}}>).map((entry) => [entry.sidelightType, entry.tBar.resolvedSize]), [['Glass', '2.25'], ['Glass', '2.25']]);
 const preservedSelections = calculateGlassGeometry(line({ config: 'SDS', roWidth: '77.5', sidelightSpecifications: [
   { side: 'left', index: 1, finishedWidth: '12', tBarSize: '2.25', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },

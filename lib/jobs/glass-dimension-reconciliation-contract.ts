@@ -49,6 +49,7 @@ function orderedPositions(input: DoorLineInput): SidelightIdentity[] {
 export function canonicalSidelightSpecifications(input: DoorLineInput, positions = orderedPositions(input)): SidelightSpecification[] {
   const supplied = Array.isArray(input.sidelightSpecifications) ? input.sidelightSpecifications : [];
   const type = normalizeSidelightType(input.sidelightType) ?? 'Glass';
+  const shared = positions.map((position) => supplied.find((entry) => entry && samePosition(entry, position))).find(Boolean);
   const sharedPanelConstructionNotes = type === 'Panel'
     ? positions.map((position) => supplied.find((entry) => entry && samePosition(entry, position))?.panelConstructionNotes)
       .find((value) => value !== null && value !== undefined && value !== '') ?? null
@@ -59,11 +60,11 @@ export function canonicalSidelightSpecifications(input: DoorLineInput, positions
     return {
       side: position.side,
       index: position.index,
-      finishedWidth: found?.finishedWidth ?? (resolvedType === 'Panel' ? String(input.panelSidelightWidth ?? '').trim() || null : null),
-      tBarSize: normalizeTBarSize(found?.tBarSize) ?? automaticSidelightTBar(resolvedType),
-      glassTypeCode: resolvedType === 'Glass' ? normalizeGlassTypeCode(found?.glassTypeCode ?? input.sidelightGlass ?? input.glass) : null,
-      customGlassDescription: found?.customGlassDescription?.trim() || null,
-      panelSizeMode: resolvedType === 'Panel' ? found?.panelSizeMode ?? 'standard' : null,
+      finishedWidth: shared?.finishedWidth ?? found?.finishedWidth ?? (resolvedType === 'Panel' ? String(input.panelSidelightWidth ?? '').trim() || null : null),
+      tBarSize: normalizeTBarSize(shared?.tBarSize ?? found?.tBarSize) ?? automaticSidelightTBar(resolvedType),
+      glassTypeCode: resolvedType === 'Glass' ? normalizeGlassTypeCode(shared?.glassTypeCode ?? found?.glassTypeCode ?? input.sidelightGlass ?? input.glass) : null,
+      customGlassDescription: shared?.customGlassDescription?.trim() || found?.customGlassDescription?.trim() || null,
+      panelSizeMode: resolvedType === 'Panel' ? shared?.panelSizeMode ?? found?.panelSizeMode ?? 'standard' : null,
       panelConstructionNotes: resolvedType === 'Panel' ? sharedPanelConstructionNotes : null,
     };
   });

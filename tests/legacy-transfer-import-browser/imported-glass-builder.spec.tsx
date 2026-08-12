@@ -52,8 +52,9 @@ test('T/SDS unit type, Clear selection, and committed custom width remain canoni
   await expect(dialog.getByLabel('Unit T-bar Size')).toHaveCount(1);
   await expect(dialog.getByText('Sidelight Product Width')).toBeVisible();
   await dialog.getByLabel('Sidelight Type').selectOption('Glass');
-  const right = dialog.getByRole('group', { name: 'Right sidelight 1' });
-  await right.getByLabel('Glass Type').selectOption('CLEAR');
+  const sharedGlassType = dialog.getByRole('region', { name: 'Shared sidelight specification' }).locator('label').filter({ hasText: /^Glass Type/ }).locator('select');
+  await expect(sharedGlassType).toHaveCount(1);
+  await sharedGlassType.selectOption('CLEAR');
   const width = dialog.getByLabel('Sidelight Product Width (inches)');
   await width.fill('14 1/8');
   await width.press('Enter');
@@ -103,6 +104,6 @@ test('Glass Builder distinguishes clean cancel from dirty modal draft discard', 
   await expect(builder).toBeVisible();
   await expect(builder.getByLabel('Swing')).toHaveValue('LH');
   await builder.getByRole('button', { name: 'Cancel' }).last().click();
-  await confirmation.getByRole('button', { name: 'Discard changes' }).click();
+  await confirmation.getByRole('button', { name: 'Leave without saving' }).click();
   await expect(component.getByRole('dialog')).toHaveCount(0);
 });

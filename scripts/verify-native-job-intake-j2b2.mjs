@@ -29,7 +29,7 @@ const builder = await readFile('components/jobs/GlassUnitBuilder.tsx', 'utf8');
 for (const required of [
   'commitLabel', 'Leave Glass Detail Needed', 'Cancel', 'calculateGlassGeometry',
   'calculateGlassCompositionSchematic', 'nextGlassBuilderDraft', 'GlassUnitDiagram',
-  'Sidelight positions', 'Sidelight Product Width (inches)', 'Glass Order Size',
+  'Shared sidelight specification', 'Sidelight Product Width (inches)', 'Glass Order Size',
   'Unit T-bar Size', 'Transom Product Width', 'Copy Vendor Text', 'includeDiagramOnWorkOrder',
   'EXTERIOR_WIDTHS', 'DOOR_HEIGHTS', 'Slab Width', 'Slab Height', 'prepAfterHeightChange',
 ]) assert.ok(builder.includes(required), `Glass Unit Builder missing ${required}`);
@@ -40,6 +40,8 @@ assert.ok(builder.includes('tabIndex={embedded ? undefined : -1}'), 'modal heade
 assert.ok(builder.includes('}, []);'), 'modal focus management must initialize only once, not after each draft update');
 assert.equal(/repository\.|createBrowserClient|\.rpc\s*\(/.test(builder), false, 'builder must only update its isolated client draft');
 assert.equal((builder.match(/Unit T-bar Size/g) ?? []).length, 1, 'builder exposes one unit-wide T-bar selector');
+assert.equal((builder.match(/>Glass Type</g) ?? []).length, 1, 'builder exposes one unit-wide sidelight glass selector');
+assert.ok(builder.includes('updateUnitSidelightSpecification'), 'shared sidelight choices must project across every persisted position');
 assert.deepEqual([...builder.matchAll(/<option value="(1\.5|2\.25)">/g)].map((match) => match[1]).filter((value, index, values) => values.indexOf(value) === index).sort(), ['1.5', '2.25'], 'builder exposes only canonical T-bar sizes');
 
 const diagram = await readFile('components/jobs/GlassUnitDiagram.tsx', 'utf8');

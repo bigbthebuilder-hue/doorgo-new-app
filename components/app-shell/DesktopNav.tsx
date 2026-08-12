@@ -38,6 +38,7 @@ function NavIcon({ name }: { name: AppNavigationIcon }) {
     checkpoint: <><path d="M6 3h12v18H6zM9 7h6m-6 4h6m-6 4h4"/><path d="m15 17 1.5 1.5L20 15"/></>,
     jobs: <><path d="M4 6h16v14H4zM9 6V4h6v2M4 11h16"/><path d="M10 11v2h4v-2"/></>,
     calculator: <><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M8 6h8v4H8zm0 8h2m3 0h2m-7 3h2m3 0h2"/></>,
+    documents: <><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4M9 11h6m-6 4h6"/></>,
     account: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
   };
   return <svg className="app-shell-nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;

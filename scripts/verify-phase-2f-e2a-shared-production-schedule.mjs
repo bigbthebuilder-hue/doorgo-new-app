@@ -63,15 +63,18 @@ assert.ok(
   'Production permission must precede trusted loading',
 );
 assert.match(privatePage, /buildProtectedAppNavigation\(access\)/);
-assert.doesNotMatch(privatePage, /href="\/(?:production-board|production-recovery|production-checkpoints|account)"/, 'Global navigation belongs only in the shared rail');
+assert.doesNotMatch(privatePage, /href="\/(?:production-board|account)"/, 'Global navigation belongs only in the shared rail');
+assert.match(privatePage, /href="\/production-recovery"/, 'Past Schedule must remain available as a contextual Edit Schedule utility');
+assert.match(privatePage, /href="\/production-checkpoints"/, 'Carry Checkpoint must remain available as a permission-aware contextual utility');
 assert.doesNotMatch(privatePage, /isManager|calendar['"]|production_checkpoints['"]\s*\)\s*\|\||\.rpc\(|checkpoint-actions|production-booking-actions/);
 
 assert.match(access, /getPermissionAccess\(access, 'production'\)/);
 assert.match(access, /title: 'Production Schedule'/);
 assert.match(access, /statusLabel: 'Schedule view'/);
 assert.doesNotMatch(access, /isManager|calendar|production_checkpoints/);
-assert.match(navigation, /hasAtLeastView\(access, 'production'\)[\s\S]*href: '\/production-schedule'[\s\S]*Production Schedule/);
-for (const route of ['/production-board', '/production-recovery', '/production-checkpoints', '/account']) assert.ok(navigation.includes(`href: '${route}'`));
+assert.match(navigation, /hasAtLeastView\(access, 'production'\)[\s\S]*href: '\/production-schedule'[\s\S]*Edit Schedule/);
+for (const route of ['/production-board', '/production-schedule', '/account']) assert.ok(navigation.includes(`href: '${route}'`));
+for (const contextualRoute of ['/production-recovery', '/production-checkpoints']) assert.ok(!navigation.includes(`href: '${contextualRoute}'`));
 
 assert.match(sharedView, /ProductionBoardSummary/);
 assert.match(sharedView, /ProductionBoardWeekSection/);

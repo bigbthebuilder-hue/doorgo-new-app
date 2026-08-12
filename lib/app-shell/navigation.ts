@@ -1,6 +1,6 @@
 import { hasAtLeastView, type CurrentDoorGoAccess } from '../auth/access';
 
-export type AppNavigationIcon = 'home' | 'account' | 'calculator' | 'jobs' | 'production' | 'recovery' | 'schedule' | 'checkpoint';
+export type AppNavigationIcon = 'home' | 'account' | 'calculator' | 'documents' | 'jobs' | 'production' | 'recovery' | 'schedule' | 'checkpoint';
 
 export type AppNavigationItem = {
   href: string;
@@ -13,7 +13,7 @@ export type AppNavigationItem = {
 
 const productionBoard: AppNavigationItem = {
   href: '/production-board',
-  label: 'Production Board',
+  label: 'View Schedule',
   icon: 'production',
   match: 'exact',
   showOnHome: true,
@@ -34,13 +34,10 @@ export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNav
 
   if (hasAtLeastView(access, 'production')) {
     items.push(
-      { href: '/production-schedule', label: 'Production Schedule', icon: 'schedule', showOnHome: true },
-      { href: '/production-recovery', label: 'Past Schedule', icon: 'recovery' },
+      { href: '/production-schedule', label: 'Edit Schedule', icon: 'schedule', match: 'section', showOnHome: true },
     );
   }
-  if (hasAtLeastView(access, 'production_checkpoints')) {
-    items.push({ href: '/production-checkpoints', label: 'Carry Checkpoint', icon: 'checkpoint' });
-  }
+  if (hasAtLeastView(access, 'documents')) items.push({ href: '/documents', label: 'Documents', icon: 'documents', match: 'section', showOnHome: true });
   if (hasAtLeastView(access, 'jobs')) {
     items.push(
       { href: '/jobs', label: 'Jobs', icon: 'jobs', match: 'section', showOnHome: true },

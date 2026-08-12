@@ -34,16 +34,19 @@ assert.equal(isAppNavigationItemActive('/jobs/example/edit', jobsItem), true);
 
 const production = buildProtectedAppNavigation(access({ production: 'use', production_checkpoints: 'none' })).map((item) => item.href);
 assert.ok(production.includes('/production-schedule'));
-assert.ok(production.includes('/production-recovery'));
+assert.ok(!production.includes('/production-recovery'));
 assert.ok(!production.includes('/production-checkpoints'));
 
 const checkpoints = buildProtectedAppNavigation(access({ production_checkpoints: 'view' })).map((item) => item.href);
-assert.ok(checkpoints.includes('/production-checkpoints'));
+assert.ok(!checkpoints.includes('/production-checkpoints'));
 
 const homeDestinations = buildProtectedAppNavigation(access({ jobs: 'view', production: 'view', production_checkpoints: 'view' }))
   .filter((item) => item.showOnHome)
   .map((item) => item.href);
 assert.deepEqual(homeDestinations, ['/production-board', '/production-schedule', '/jobs', '/glass-calculator']);
+
+const documents = buildProtectedAppNavigation(access({ documents: 'view' })).map((item) => item.href);
+assert.ok(documents.includes('/documents'));
 
 const inactive: CurrentDoorGoAccess = {
   state: 'inactive_profile',

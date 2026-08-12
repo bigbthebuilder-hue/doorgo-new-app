@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { ProductionBoardView } from '@/components/ProductionBoardView';
 import { ProductionScheduleInteractiveBoard } from '@/components/ProductionScheduleInteractiveBoard';
 import { ProductionScheduleNavigation } from '@/components/ProductionScheduleNavigation';
@@ -16,6 +17,7 @@ import {
 } from '@/lib/production-schedule/view-access';
 import { canRescheduleProductionBooking } from '@/lib/production-bookings/production-booking-reschedule-contract';
 import { getProductionCompletionAuthorizationError } from '@/lib/production-bookings/production-booking-completion-contract';
+import { hasAtLeastView } from '@/lib/auth/access';
 
 export default async function ProductionSchedulePage({
   searchParams,
@@ -50,6 +52,7 @@ export default async function ProductionSchedulePage({
 
   const canMoveBookings = canRescheduleProductionBooking(access);
   const canChangeCompletion = getProductionCompletionAuthorizationError(access) === null;
+  const utilityActions = <nav className="production-schedule-utilities" aria-label="Edit Schedule tools"><Link className="app-button app-button-secondary" href="/production-recovery">Past Schedule</Link>{hasAtLeastView(access, 'production_checkpoints') ? <Link className="app-button app-button-secondary" href="/production-checkpoints">Carry Checkpoint</Link> : null}</nav>;
 
   return canMoveBookings && canChangeCompletion ? (
     <ProductionScheduleInteractiveBoard
@@ -57,6 +60,7 @@ export default async function ProductionSchedulePage({
       presentation={PRODUCTION_SCHEDULE_PRESENTATION}
       navigation={buildProtectedAppNavigation(access)}
       windowNavigation={windowNavigation}
+      utilityActions={utilityActions}
       today={today}
     />
   ) : (
@@ -65,6 +69,7 @@ export default async function ProductionSchedulePage({
       presentation={PRODUCTION_SCHEDULE_PRESENTATION}
       navigation={buildProtectedAppNavigation(access)}
       windowNavigation={windowNavigation}
+      utilityActions={utilityActions}
     />
   );
 }

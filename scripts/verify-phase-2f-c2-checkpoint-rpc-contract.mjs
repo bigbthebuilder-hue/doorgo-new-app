@@ -206,6 +206,7 @@ const approvedLaterUi = new Set([
   'app/jobs/[internalJobId]/work-order/page.tsx',
   'app/jobs/[internalJobId]/work-order/pdf/route.ts',
   'app/glass-calculator/page.tsx',
+  'app/documents/page.tsx',
   'components/jobs/JobHeaderForm.tsx',
   'components/jobs/JobArchiveControl.tsx',
   'components/jobs/LegacyJobImportReview.tsx',
@@ -217,6 +218,7 @@ const approvedLaterUi = new Set([
   'components/jobs/GlassUnitDiagram.tsx',
   'components/jobs/WorkOrderPreview.tsx',
   'components/jobs/WorkOrderSendEntryButton.tsx',
+  'lib/documents/document-definitions.ts',
 ]);
 assert.deepEqual(changedPaths.filter((path) => /^(?:app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only exact reviewed later-phase UI paths may follow C2');
 assert.deepEqual(changedPaths.filter((path) => /calendar/i.test(path)), [], 'No Calendar mutation file may be added');

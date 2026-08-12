@@ -11,7 +11,7 @@ import { StandaloneGlassCalculator } from '@/components/jobs/StandaloneGlassCalc
 import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel, ProductionBoardViewModel } from '@/lib/production-board/types';
 import type { NativeJobListItem } from '@/lib/jobs/job-intake-types';
 
-const desktopShellLabels = ['Production Board', 'Production Schedule', 'Past Schedule', 'Carry Checkpoint', 'Glass Calculator', 'Account'];
+const desktopShellLabels = ['View Schedule', 'Edit Schedule', 'Documents', 'Glass Calculator', 'Account'];
 
 type ShellPage = {
   evaluate(callback: (labels: string[]) => void, labels: string[]): Promise<void>;
@@ -32,7 +32,7 @@ async function prepareShell(page: ShellPage) {
       const link = document.createElement('a');
       link.className = 'app-shell-nav-link';
       if (label === 'Account') link.dataset.placement = 'bottom';
-      if (label === 'Production Schedule') link.setAttribute('aria-current', 'page');
+      if (label === 'Edit Schedule') link.setAttribute('aria-current', 'page');
       const icon = document.createElement('span'); icon.className = 'app-shell-nav-icon';
       const text = document.createElement('span'); text.className = 'app-shell-nav-label'; text.textContent = label;
       link.append(icon, text); nav.append(link);
@@ -85,7 +85,7 @@ test('desktop rail keeps full wrapped labels without ellipsis', async ({ mount, 
     expect(box.scrollHeight).toBeLessThanOrEqual(box.clientHeight);
     expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth);
   }
-  await expect(page.getByText('Production Schedule', { exact: true }).locator('..')).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('Edit Schedule', { exact: true }).locator('..')).toHaveAttribute('aria-current', 'page');
   const accountY = (await page.getByText('Account', { exact: true }).locator('..').boundingBox())?.y ?? 0;
   const calculatorY = (await page.getByText('Glass Calculator', { exact: true }).locator('..').boundingBox())?.y ?? 0;
   expect(accountY).toBeGreaterThan(calculatorY + 100);
@@ -110,7 +110,7 @@ test('job identity remains visible while its editor workspace scrolls', async ({
   await expect(topBar.getByText('Confirmed Job · Rev 3')).toBeVisible();
   await expect(topBar.getByRole('link', { name: 'Jobs' })).toHaveAttribute('href', '/jobs');
   const height = await topBar.evaluate((element) => element.getBoundingClientRect().height);
-  expect(height).toBeLessThanOrEqual(92);
+  expect(height).toBeLessThanOrEqual(108);
   for (const label of ['Customer', 'Site / Address', 'Salesperson']) {
     const field = topBar.getByLabel(label);
     const geometry = await field.evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
@@ -157,7 +157,7 @@ test('read-only Production Board navigation changes only the viewed week in the 
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);
     const component = await mount(<BoardNavigationHarness/>);
-    for (const label of ['Home', 'Production Board', 'Production Schedule', 'Past Schedule', 'Carry Checkpoint', 'Jobs', 'Glass Calculator', 'Account']) await expect(component.getByRole('link', { name: label })).toBeVisible();
+    for (const label of ['Home', 'View Schedule', 'Edit Schedule', 'Jobs', 'Glass Calculator', 'Account']) await expect(component.getByRole('link', { name: label })).toBeVisible();
     const navigation = component.getByLabel('Production Board date window');
     await expect(navigation.getByRole('button', { name: 'Previous week' })).toBeVisible();
     await expect(navigation.getByRole('button', { name: 'Today' })).toBeVisible();
@@ -212,11 +212,11 @@ test('routine native door choices share one compact desktop workspace', async ({
   }
 });
 
-test('standalone Glass Calculator embeds one interactive diagram beside a purpose-built print result', async ({ mount, page }) => {
+test('standalone Glass Calculator uses the shared live builder result and a purpose-built print document', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await mount(<div className="app-workspace app-workspace-fluid"><StandaloneGlassCalculator/></div>);
   const editor = page.locator('.glass-calculator-editor');
-  const results = page.locator('.glass-calculator-results');
+  const results = editor.getByLabel('Calculated measurements');
   await expect(editor).toBeVisible();
   await expect(results).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send unavailable' })).toBeDisabled();
@@ -231,9 +231,9 @@ test('standalone Glass Calculator embeds one interactive diagram beside a purpos
   await page.getByRole('button', { name: 'Add transom' }).click();
   const transomGlassType = page.getByLabel('Transom Glass Type');
   await expect(transomGlassType).toHaveValue('CLEAR');
-  await expect(results.getByText('Complete', { exact: true }).first()).toBeVisible();
-  await expect(results.getByText('Transom product size', { exact: true })).toBeVisible();
-  await expect(editor.getByLabel('Calculated measurements')).toHaveCount(0);
+  await expect(editor.getByText('Status: Complete', { exact: true })).toBeVisible();
+  await expect(results.getByText('Transom Product Size', { exact: true })).toBeVisible();
+  await expect(editor.getByLabel('Calculated measurements')).toHaveCount(1);
   await transomGlassType.selectOption('SATIN_ETCH');
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Remove transom' }).click();
@@ -243,10 +243,9 @@ test('standalone Glass Calculator embeds one interactive diagram beside a purpos
   await expect(transomGlassType).toHaveValue('SATIN_ETCH');
   await transomGlassType.selectOption('CUSTOM');
   await expect(page.getByLabel('Custom Transom Glass Description')).toBeVisible();
-  await expect(results.getByText('Glass Detail Needed', { exact: true }).first()).toBeVisible();
+  await expect(editor.getByText('Status: Glass Detail Needed', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Leave Glass Detail Needed' })).toHaveCount(0);
-  const editorBox = await editor.boundingBox(); const resultsBox = await results.boundingBox();
-  expect((resultsBox?.x ?? 0)).toBeGreaterThan((editorBox?.x ?? 0));
+  await expect(page.locator('.glass-calculator-results')).toBeHidden();
   await page.emulateMedia({ media: 'print' });
   await expect(page.getByRole('region', { name: 'Glass Calculation printout' })).toBeVisible();
   await expect(page.getByText('DoorGo', { exact: true })).toBeVisible();

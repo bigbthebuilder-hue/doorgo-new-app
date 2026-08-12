@@ -12,12 +12,14 @@ export function ProductionBoardView({
   presentation,
   navigation,
   windowNavigation,
+  utilityActions,
   interaction,
 }: {
   board: ProductionBoardViewModel;
   presentation: ProductionBoardPresentation;
   navigation: AppNavigationItem[];
   windowNavigation?: React.ReactNode;
+  utilityActions?: React.ReactNode;
   interaction?: ProductionBoardInteraction;
 }) {
   const hasWeekendExceptions = board.weekGroups.some((week) => week.weekendExceptions.length > 0);
@@ -28,7 +30,7 @@ export function ProductionBoardView({
       navigation={navigation}
       topBar={<ContextTopBar
         title={presentation.title}
-        actions={windowNavigation}
+        actions={<>{utilityActions}{windowNavigation}</>}
         status={<span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">{presentation.statusLabel}</span>}
         secondary={<>{formatFriendlyDateRange(board.startDate, board.visibleWeekdayEndExclusive)} · {board.weeks} week{board.weeks === 1 ? '' : 's'} · date-only view</>}
       />}

@@ -15,6 +15,7 @@ import { JobArchiveControl, jobArchiveTarget } from './JobArchiveControl';
 import { WorkOrderSendEntryButton } from './WorkOrderSendEntryButton';
 import { LegacyTransferEvidenceSummary } from './LegacyTransferEvidenceSummary';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
 import { useGuardedNavigation, useUnsavedChanges } from '@/components/app-shell/UnsavedChangesGuard';
 
 type FormValues = {
@@ -213,6 +214,12 @@ export function JobHeaderForm({
   }
 
   const contextStatus = canEdit ? lifecycleStage : `${lifecycleStage} · Read only`;
+  const bottomStatus = message?.text ?? (navigationDirty ? 'Unsaved changes' : job ? `Saved · Rev ${job.revision}` : 'Not saved yet');
+  const bottomActions = <>
+    <button className="app-button app-button-secondary" onClick={leave} type="button">Exit</button>
+    {job ? <details className="job-work-order-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
+    {canEdit ? <><button className="app-button app-button-primary" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button className="app-button app-button-dark" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button> : null}</> : null}
+  </>;
   return (
     <>
     {inAppShell ? <ContextTopBar
@@ -257,7 +264,7 @@ export function JobHeaderForm({
         <p>The legacy source must be archived manually only after the saved native job is reopened and verified.</p>
         <LegacyTransferEvidenceSummary blockers={transferReview.blockers} unsupportedFields={transferReview.unsupportedFields} warnings={transferReview.warnings}/>
       </section> : null}
-      <p className="job-confirmation-note mt-1.5 flex min-h-7 items-center rounded bg-slate-100 px-2 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-200"><span aria-hidden="true" className="mr-1.5 font-bold text-sky-700">i</span>Confirmation requires at least one valid active door line. Saving or confirming does not schedule production or create fulfillment or Calendar records.</p>
+      {!inAppShell ? <p className="job-confirmation-note mt-1.5 flex min-h-7 items-center rounded bg-slate-100 px-2 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-200"><span aria-hidden="true" className="mr-1.5 font-bold text-sky-700">i</span>Confirmation requires at least one valid active door line. Saving or confirming does not schedule production or create fulfillment or Calendar records.</p> : null}
 
       {!hasValidActiveDoorLine(lines) ? <p className="mt-1 text-[11px] text-slate-500">Add a valid active line before confirming.</p> : null}
 
@@ -291,16 +298,8 @@ export function JobHeaderForm({
 
       <div className="mt-3"><DoorLineWorkspace canEdit={canEdit} lifecycleStage={lifecycleStage} lines={lines} onChange={setLines} onUnappliedChange={setHasUnappliedLineChanges}/></div>
 
-      {message ? <p className={`mt-5 rounded-xl p-3 text-sm ${message.kind === 'success' ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100'}`} role="status">{message.text}</p> : null}
-
-      <div className="job-editor-actions sticky bottom-0 z-10 mt-2 flex flex-col-reverse gap-1 border-t border-slate-200 bg-white/95 py-1.5 backdrop-blur sm:flex-row sm:flex-wrap dark:border-slate-700 dark:bg-slate-900/95">
-        <button className="rounded-md border border-slate-300 px-3 text-xs font-semibold dark:border-slate-600" onClick={leave} type="button">Exit</button>
-        {job ? <details className="job-work-order-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Documents ▾</summary><div className="absolute bottom-full left-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
-        {canEdit ? <>
-          <button className="min-h-12 rounded-xl bg-sky-700 px-5 font-semibold text-white disabled:opacity-60" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>
-          {!transferReview ? <button className="min-h-12 rounded-xl bg-slate-900 px-5 font-semibold text-white disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button> : null}
-        </> : null}
-      </div>
+      {!inAppShell && message ? <p className={`mt-5 rounded-xl p-3 text-sm ${message.kind === 'success' ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100'}`} role="status">{message.text}</p> : null}
+      {!inAppShell ? <div className="job-editor-actions flex flex-wrap gap-1 border-t border-slate-200 py-1.5">{bottomActions}</div> : null}
 
       <JobArchiveControl
         onArchive={archiveDraftJobAction}
@@ -309,6 +308,7 @@ export function JobHeaderForm({
       />
     </section>
     </div>
+    {inAppShell ? <ContextBottomBar label="Job actions" status={<span className={message?.kind === 'error' ? 'text-rose-700' : undefined}>{bottomStatus}</span>} context="Confirmation requires one valid active door line · saving does not schedule production" actions={bottomActions}/> : null}
     </>
   );
 }

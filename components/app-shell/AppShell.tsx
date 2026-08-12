@@ -4,10 +4,11 @@ import type { AppNavigationItem } from '@/lib/app-shell/navigation';
 import { DesktopNav } from './DesktopNav';
 import { UnsavedChangesProvider } from './UnsavedChangesGuard';
 
-export function AppShell({ children, navigation, topBar }: {
+export function AppShell({ children, navigation, topBar, bottomBar }: {
   children: ReactNode;
   navigation: AppNavigationItem[];
   topBar?: ReactNode;
+  bottomBar?: ReactNode;
 }) {
   return (
     <UnsavedChangesProvider><div className="app-shell">
@@ -20,6 +21,7 @@ export function AppShell({ children, navigation, topBar }: {
       <main className="app-shell-main">
         {topBar}
         {children}
+        {bottomBar}
       </main>
     </div></UnsavedChangesProvider>
   );

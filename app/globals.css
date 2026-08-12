@@ -17,6 +17,7 @@
   --app-color-nav-hover: #132b4d;
   --app-color-toolbar: #f8fafc;
   --app-context-bar-height: 4rem;
+  --app-context-bottom-bar-height: 3.25rem;
   --app-font-size: .8125rem;
   --app-meta-font-size: .6875rem;
   --app-control-height: 2.125rem;
@@ -123,6 +124,7 @@
   .app-button { display: inline-flex; min-height: var(--app-control-height); align-items: center; justify-content: center; border-radius: var(--app-radius-md); padding: .3rem .7rem; font-size: var(--app-font-size); font-weight: 650; }
   .app-button-secondary { border: 1px solid rgb(203 213 225); background: white; color: rgb(30 41 59); }
   .app-button-primary { border: 1px solid rgb(3 105 161); background: rgb(3 105 161); color: white; }
+  .app-button-dark { border: 1px solid var(--app-color-navy); background: var(--app-color-navy); color: white; }
   .app-button-danger { border: 1px solid rgb(190 18 60); background: rgb(190 18 60); color: white; }
   .app-workspace-panel { border: 1px solid rgb(226 232 240); background: white; box-shadow: 0 1px 2px rgb(15 23 42 / .04); }
   .app-compact-input { min-height: var(--app-control-height); border-radius: var(--app-radius-md); border: 1px solid rgb(203 213 225); background: white; padding: .3rem .6rem; font-size: var(--app-font-size); }
@@ -168,6 +170,11 @@
   .app-unsaved-dialog h2 { font-size: 1.125rem; font-weight: 750; }
   .app-unsaved-dialog p { margin-top: .5rem; color: var(--app-color-muted); }
   .app-unsaved-dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
+  .app-context-bottom-bar { display: grid; min-width: 0; grid-template-columns: minmax(8rem, auto) minmax(0, 1fr) auto; align-items: center; gap: .75rem; border-top: 1px solid var(--app-color-border); background: var(--app-color-surface); padding: .45rem var(--app-shell-gutter); color: var(--app-color-text); }
+  .app-context-bottom-status { min-width: 0; font-size: .75rem; font-weight: 700; }
+  .app-context-bottom-context { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--app-color-muted); font-size: .7rem; }
+  .app-context-bottom-actions { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: .35rem; }
+  .app-context-bottom-actions .app-button { min-height: var(--app-toolbar-control-height); border-radius: var(--app-radius-sm); padding-inline: .65rem; font-size: .75rem; }
   .doorgo-entry { display: grid; min-height: 100vh; place-items: center; background: linear-gradient(135deg, var(--app-color-background), #dbe8f5); padding: 2rem; color: var(--app-color-text); }
   .doorgo-entry-card { display: grid; width: min(100%, 42rem); grid-template-columns: auto 1fr; align-items: center; gap: 1.5rem; border: 1px solid var(--app-color-border); border-radius: 1rem; background: var(--app-color-surface); padding: 2rem; box-shadow: 0 8px 24px rgb(11 29 58 / .08); }
   .doorgo-entry-card h1 { font-size: 2.5rem; line-height: 1; font-weight: 750; letter-spacing: -.04em; }
@@ -187,9 +194,11 @@
   .app-shell-nav-link[data-placement="bottom"] { margin-top: auto; }
   .app-shell-nav-label { display: block; max-width: 4rem; overflow: visible; text-overflow: clip !important; white-space: normal !important; font-size: .625rem; line-height: 1.05; overflow-wrap: normal; }
   .app-shell-main { height: 100vh; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
+  .app-shell-main:has(> .app-context-bottom-bar) { display: grid; grid-template-rows: auto minmax(0, 1fr) var(--app-context-bottom-bar-height); overflow: hidden; }
   .app-context-bar { position: sticky; top: 0; z-index: var(--app-layer-shell); min-height: var(--app-context-bar-height); max-height: 4.75rem; flex-wrap: nowrap; }
   .app-context-bar:has(.app-job-context-fields) { min-height: 6.25rem; max-height: 6.75rem; padding-block: .35rem; }
-  .app-context-bar:has(.app-job-context-fields) .app-context-primary { flex: 0 1 10rem; }
+  .app-context-bar:has(.app-job-context-fields) .app-context-primary { flex: 0 0 12rem; min-width: 12rem; }
+  .app-context-bar:has(.app-job-context-fields) .app-context-title { overflow: visible; text-overflow: clip; }
   .app-context-controls:has(.app-jobs-filter) { flex: 1 1 24rem; justify-content: center; }
   .app-overlay-workspace { inset: var(--app-context-bar-height) 0 0 var(--app-shell-nav-width); }
   .job-editor-workspace .app-overlay-workspace { inset-block-start: 6.75rem; }
@@ -199,13 +208,13 @@
   .app-shell-main:has(.job-editor-workspace) { overflow: hidden; }
   .app-context-bar:has(.app-job-context-fields) { min-height: 5.75rem; max-height: 6.5rem; }
   .app-context-bar:has(.app-job-context-fields) .app-job-context-fields { width: min(58rem, 61vw); grid-template-columns: repeat(3, minmax(7rem, 1fr)); }
-  .job-editor-workspace { height: calc(100vh - 6.5rem); min-height: 0; overflow: hidden; padding-block: .25rem; }
+  .app-shell-main:has(> .app-context-bottom-bar) > .app-workspace { min-height: 0; overflow: hidden; }
+  .job-editor-workspace { height: 100%; min-height: 0; overflow: hidden; padding-block: .25rem; }
   .job-editor-surface { display: grid; height: 100%; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto auto; overflow: hidden; }
   .job-editor-surface > .mt-3:has(.door-line-workbench) { min-height: 0; }
   .door-line-workbench { height: 100%; min-height: 0; grid-template-columns: minmax(0, 1.45fr) minmax(18rem, .72fr); }
   .door-input-pane { min-height: 0; overflow: hidden; }
   .job-lines-pane { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-  .job-editor-actions { position: sticky; bottom: 0; margin-top: .25rem !important; }
   .job-editor-workspace .app-overlay-workspace { inset-block-start: 6.5rem; }
   .job-confirmation-note { min-height: 1.4rem; }
   .job-operational-strip { grid-template-columns: minmax(0, 5fr) minmax(10rem, 1fr); align-items: end; }
@@ -249,7 +258,8 @@
   .glass-builder-fields > label.flex { align-self: start; }
   .glass-builder-fields > details { align-self: end; }
   .glass-builder-fields [aria-label="Calculated measurements"] { margin-top: .3rem; gap-block: .1rem; }
-  .glass-calculator-editor .glass-unit-builder { height: calc(100vh - 4.5rem); }
+  .glass-calculator-editor, .glass-calculator-editor > .glass-unit-builder { height: 100%; min-height: 0; }
+  .app-shell-main:has(> .app-context-bottom-bar) > .app-workspace > div { height: 100%; min-height: 0; }
 }
 
 @media (min-width: 768px) and (max-height: 760px) {
@@ -286,7 +296,7 @@
   :root { color-scheme: light; }
   body { background: white !important; color: black !important; }
   .work-order-preview-controls { display: none !important; }
-  .app-shell-sidebar, .app-context-bar, .glass-calculator-editor, .glass-calculator-actions { display: none !important; }
+  .app-shell-sidebar, .app-context-bar, .app-context-bottom-bar, .glass-calculator-editor, .glass-calculator-actions { display: none !important; }
   .glass-calculator-results > :not(.glass-calculator-print) { display: none !important; }
   .app-shell, .app-shell-main { display: block !important; height: auto !important; overflow: visible !important; }
   .glass-calculator-print { display: block !important; width: 100%; color: black !important; font-size: 10pt; }
@@ -341,6 +351,9 @@ body {
 @media (max-width: 767px) {
   .app-job-context-fields { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .app-job-lifecycle { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-context-bottom-bar { grid-template-columns: minmax(0, 1fr) auto; }
+  .app-context-bottom-context { display: none; }
+  .app-context-bottom-actions { flex-wrap: wrap; }
 }
 
 @media (max-width: 1023px) {

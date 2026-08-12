@@ -8,6 +8,7 @@ import { calculateGlassGeometry } from '@/lib/jobs/glass-geometry-contract';
 import type { DoorLineInput } from '@/lib/jobs/job-intake-types';
 import { GlassUnitBuilder } from './GlassUnitBuilder';
 import { GlassUnitDiagram } from './GlassUnitDiagram';
+import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
 
 const initialLine = (): DoorLineInput => ({
   ...defaultDoorLine('Exterior'),
@@ -20,7 +21,7 @@ export function StandaloneGlassCalculator() {
   const [editorKey, setEditorKey] = useState(0);
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setActionsTarget(document.getElementById('glass-calculator-context-actions')));
+    const frame = window.requestAnimationFrame(() => setActionsTarget(document.getElementById('glass-calculator-bottom-actions')));
     return () => window.cancelAnimationFrame(frame);
   }, []);
   const result = calculateGlassGeometry(line);
@@ -31,7 +32,7 @@ export function StandaloneGlassCalculator() {
   </div>;
 
   return <div className="min-w-0">
-    {actionsTarget ? createPortal(actions, actionsTarget) : actions}
+    {actionsTarget ? createPortal(actions, actionsTarget) : <ContextBottomBar actions={actions} label="Glass Calculator actions" status={<span>{result.status}</span>}/>}
     <GlassUnitBuilder embedded key={editorKey} line={structuredClone(line)} onCancel={() => setEditorKey((value) => value + 1)} onDraftChange={setLine} onUse={() => true} showCommitActions={false}/>
     <div className="glass-calculator-results">
       <section className="glass-calculator-print" aria-label="Glass Calculation printout">

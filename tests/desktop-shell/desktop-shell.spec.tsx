@@ -224,12 +224,36 @@ test('actual native job editor keeps its operational strip, door workbench, and 
   await page.setViewportSize({ width: 1280, height: 720 });
   const component = await mount(<JobEditorWorkbenchHarness/>);
   await expect(component.locator('.app-context-bar')).toBeVisible();
+  await expect(component.locator('.app-shell-sidebar')).toBeVisible();
+  await expect(component.locator('.app-context-title')).toHaveText('DG-000123');
+  await expect(component.locator('.app-context-title')).toHaveCSS('text-overflow', 'clip');
+  await expect(component.getByRole('region', { name: 'Job actions' })).toBeVisible();
   await expect(component.getByLabel('Production Setup')).toBeVisible();
   await expect(component.getByRole('button', { name: 'Add Door' })).toBeVisible();
   await expect(component.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   await expect(component.getByRole('button', { name: 'Save and Exit' })).toBeVisible();
   const inputFit = await component.locator('.door-input-pane').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
   expect(inputFit.scrollHeight).toBeLessThanOrEqual(inputFit.clientHeight);
+  const regions = await component.evaluate((root) => {
+    const top = root.querySelector('.app-context-bar')!.getBoundingClientRect();
+    const workspace = root.querySelector('.job-editor-workspace')!.getBoundingClientRect();
+    const bottom = root.querySelector('.app-context-bottom-bar')!.getBoundingClientRect();
+    return { topBottom: top.bottom, workspaceTop: workspace.top, workspaceBottom: workspace.bottom, bottomTop: bottom.top };
+  });
+  expect(regions.workspaceTop).toBeGreaterThanOrEqual(regions.topBottom);
+  expect(regions.workspaceBottom).toBeLessThanOrEqual(regions.bottomTop);
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const largeRegions = await component.evaluate((root) => {
+    const top = root.querySelector('.app-context-bar')!.getBoundingClientRect();
+    const workspace = root.querySelector('.job-editor-workspace')!.getBoundingClientRect();
+    const bottom = root.querySelector('.app-context-bottom-bar')!.getBoundingClientRect();
+    return { topBottom: top.bottom, workspaceTop: workspace.top, workspaceBottom: workspace.bottom, bottomTop: bottom.top };
+  });
+  expect(largeRegions.workspaceTop).toBeGreaterThanOrEqual(largeRegions.topBottom);
+  expect(largeRegions.workspaceBottom).toBeLessThanOrEqual(largeRegions.bottomTop);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await component.getByRole('textbox', { name: 'Customer', exact: true }).fill('Changed Customer');
+  await expect(component.getByRole('region', { name: 'Job actions' })).toContainText('Unsaved changes');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   await component.getByRole('button', { name: 'Configure Glass Unit' }).click();
   const glassWorkbench = component.locator('.glass-unit-builder');
@@ -253,8 +277,10 @@ test('standalone Glass Calculator uses the shared live builder result and a purp
   const editor = page.locator('.glass-calculator-editor');
   const results = editor.getByLabel('Calculated measurements');
   await expect(editor).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Glass Calculator actions' })).toBeVisible();
   await expect(results).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send unavailable' })).toBeDisabled();
+  await expect(page.getByRole('region', { name: 'Glass Calculator actions' }).getByRole('button', { name: 'Send unavailable' })).toBeDisabled();
+  await expect(page.locator('.app-context-bar').getByRole('button', { name: 'Print' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Update Result' })).toHaveCount(0);
   await expect(page.locator('.glass-unit-builder[role="dialog"]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add left sidelight' })).toBeVisible();

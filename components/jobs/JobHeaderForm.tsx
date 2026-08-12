@@ -232,7 +232,7 @@ export function JobHeaderForm({
       actions={<div className="app-job-lifecycle" aria-label="Job lifecycle"><button aria-pressed={lifecycleStage === 'Draft'} disabled={!canEdit} onClick={() => setLifecycleStage('Draft')} type="button">Draft</button><button aria-pressed={lifecycleStage === 'Confirmed Job'} disabled={!canEdit || !hasValidActiveDoorLine(lines)} onClick={() => setLifecycleStage('Confirmed Job')} type="button">Confirmed</button></div>}
     /> : null}
     <div className={inAppShell ? 'app-workspace app-workspace-fluid job-editor-workspace' : undefined}>
-    <section className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <section className="job-editor-surface rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       {!inAppShell ? (
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
@@ -269,9 +269,8 @@ export function JobHeaderForm({
           {inAppShell && fieldErrors.siteAddress ? <p className="mt-2 text-sm text-rose-700" role="alert">Site / Address: {fieldErrors.siteAddress}</p> : null}
         </section>
 
-        <details className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-700" open={Boolean(values.hingeColor || values.shopHours || values.fulfillmentPlan || values.shopDate || values.poNumbers.length)}>
-          <summary className="flex min-h-8 cursor-pointer items-center text-xs font-semibold">Production Setup (optional in Draft)</summary>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <section className="job-production-strip rounded-md border border-slate-200 p-1.5 dark:border-slate-700" aria-label="Production Setup">
+          <div className="grid gap-1.5 md:grid-cols-3 xl:grid-cols-6">
             <Field label="Hinge Color" name="hingeColor"><select className={inputClass} disabled={!canEdit} id="hingeColor" onChange={(e) => update('hingeColor', e.target.value)} value={values.hingeColor}>{!normalizeHingeColor(values.hingeColor).ok ? <option disabled value={values.hingeColor}>Invalid saved value — choose a valid finish</option> : null}{HINGE_COLOR_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
             <Field error={fieldErrors.shopHours} label="Shop Hours" name="shopHours"><input className={inputClass} disabled={!canEdit} id="shopHours" min="0" onChange={(e) => update('shopHours', e.target.value)} step="0.25" type="number" value={values.shopHours}/></Field>
             <Field label="Fulfillment Plan" name="fulfillmentPlan"><select className={inputClass} disabled={!canEdit} id="fulfillmentPlan" onChange={(e) => update('fulfillmentPlan', e.target.value)} value={values.fulfillmentPlan}><option value="">Not selected</option><option value="Delivery">Delivery</option><option value="Customer Pickup">Customer Pickup</option></select></Field>
@@ -279,13 +278,13 @@ export function JobHeaderForm({
             {values.fulfillmentPlan === 'Customer Pickup' ? <Field label="Customer Pickup Date" name="customerPickupDate"><input className={inputClass} disabled={!canEdit} id="customerPickupDate" onChange={(e) => update('customerPickupDate', e.target.value)} type="date" value={values.customerPickupDate}/></Field> : null}
             <Field label="Shop Date" name="shopDate"><input className={inputClass} disabled={!canEdit} id="shopDate" onChange={(e) => update('shopDate', e.target.value)} type="date" value={values.shopDate}/></Field>
           </div>
-          <div className="mt-4" aria-labelledby="po-numbers-label">
+          <div className="mt-1" aria-labelledby="po-numbers-label">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" id="po-numbers-label">PO Numbers</p>
             {values.poNumbers.length ? <ul className="mt-2 flex flex-wrap gap-2">{values.poNumbers.map((poNumber) => <li className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" key={poNumber}><span>{poNumber}</span>{canEdit ? <button aria-label={`Remove PO ${poNumber}`} className="min-h-10 rounded-lg px-3 font-semibold text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950" onClick={() => removePoNumber(poNumber)} type="button">Remove</button> : null}</li>)}</ul> : <p className="mt-2 text-sm text-slate-500">No PO Numbers saved.</p>}
             {canEdit ? <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input aria-describedby={fieldErrors.poNumbers ? 'poNumbers-error' : undefined} aria-label="PO Number" className={`${inputClass} rounded-xl border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-950`} inputMode="numeric" onChange={(event) => { setPendingPoNumber(event.target.value); setFieldErrors((current) => ({ ...current, poNumbers: '' })); }} placeholder="Digits only" value={pendingPoNumber}/><button className="min-h-12 rounded-xl bg-sky-700 px-5 font-semibold text-white" onClick={addPoNumber} type="button">Add PO</button></div> : null}
             {fieldErrors.poNumbers ? <p className="mt-2 text-sm text-rose-700 dark:text-rose-300" id="poNumbers-error">{fieldErrors.poNumbers}</p> : null}
           </div>
-        </details>
+        </section>
 
         <Field label="Job Notes" name="notes"><textarea className={`${inputClass} job-notes-compact resize-y`} disabled={!canEdit} id="notes" onChange={(e) => update('notes', e.target.value)} placeholder="Job notes" rows={values.notes ? 2 : 1} value={values.notes}/></Field>
       </div>

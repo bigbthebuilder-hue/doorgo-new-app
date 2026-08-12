@@ -193,6 +193,36 @@
   .app-context-controls:has(.app-jobs-filter) { flex: 1 1 24rem; justify-content: center; }
   .app-overlay-workspace { inset: var(--app-context-bar-height) 0 0 var(--app-shell-nav-width); }
   .job-editor-workspace .app-overlay-workspace { inset-block-start: 6.75rem; }
+
+  /* Job editing is a desktop workbench: the shell and job chrome stay fixed;
+     only the saved-line collection owns routine vertical overflow. */
+  .app-shell-main:has(.job-editor-workspace) { overflow: hidden; }
+  .app-context-bar:has(.app-job-context-fields) { min-height: 7.5rem; max-height: 8rem; }
+  .app-context-bar:has(.app-job-context-fields) .app-job-context-fields { width: min(58rem, 61vw); grid-template-columns: repeat(3, minmax(7rem, 1fr)); }
+  .job-editor-workspace { height: calc(100vh - 8rem); min-height: 0; overflow: hidden; padding-block: .35rem; }
+  .job-editor-surface { display: grid; height: 100%; min-height: 0; grid-template-rows: auto auto auto minmax(0, 1fr) auto auto; overflow: hidden; }
+  .job-editor-surface > .mt-3:has(.door-line-workbench) { min-height: 0; }
+  .door-line-workbench { height: 100%; min-height: 0; grid-template-columns: minmax(0, 1.45fr) minmax(18rem, .72fr); }
+  .door-input-pane { min-height: 0; overflow: hidden; }
+  .job-lines-pane { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .job-editor-actions { position: sticky; bottom: 0; margin-top: .25rem !important; }
+  .job-editor-workspace .app-overlay-workspace { inset-block-start: 8rem; }
+
+  .glass-unit-builder { grid-template-rows: auto minmax(0, 1fr) auto; }
+  .glass-unit-builder > div:nth-child(2) { overflow: hidden; }
+  .glass-builder-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; font-size: .72rem; }
+  .glass-builder-fields > section[aria-label="Shared sidelight specification"] { grid-column: 1 / -1; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .glass-builder-fields textarea { min-height: 2rem; }
+  .glass-calculator-editor .glass-unit-builder { height: calc(100vh - 4.5rem); }
+}
+
+@media (min-width: 768px) and (max-height: 760px) {
+  .door-input-pane { font-size: .7rem; }
+  .door-input-pane input:not([type="checkbox"]), .door-input-pane select, .door-input-pane button { min-height: 1.8rem !important; }
+  .door-input-pane textarea { min-height: 2rem !important; }
+  .door-input-pane label { gap: .1rem; font-size: .7rem; }
+  .glass-unit-builder header { padding-block: .25rem; }
+  .glass-structure-control { min-height: 9rem; padding-block: 1.25rem; }
 }
 
 @media (min-width: 768px) and (max-width: 1279px) {

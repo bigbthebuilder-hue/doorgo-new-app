@@ -110,7 +110,7 @@ test('job identity remains visible while its editor workspace scrolls', async ({
   await expect(topBar.getByText('Confirmed Job · Rev 3')).toBeVisible();
   await expect(topBar.getByRole('link', { name: 'Jobs' })).toHaveAttribute('href', '/jobs');
   const height = await topBar.evaluate((element) => element.getBoundingClientRect().height);
-  expect(height).toBeLessThanOrEqual(108);
+  expect(height).toBeLessThanOrEqual(128);
   for (const label of ['Customer', 'Site / Address', 'Salesperson']) {
     const field = topBar.getByLabel(label);
     const geometry = await field.evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
@@ -207,6 +207,8 @@ test('routine native door choices share one compact desktop workspace', async ({
     const component = await mount(<DoorLineWorkspaceHarness/>);
     for (const label of ['Door Type', 'Configuration', 'Width', 'Height', 'Swing', 'Prep', 'Quantity', 'Jamb Width', 'Jamb Type', 'Hinge Type', 'Material', 'Sill', 'Weatherstrip', 'Custom Slab / RO', 'Door Thickness']) await expect(component.getByLabel(label, { exact: true })).toBeVisible();
     await expect(component.getByText('More Details', { exact: true })).toHaveCount(0);
+    await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', 'hidden');
+    await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', 'auto');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
     await component.unmount();
   }
@@ -224,6 +226,9 @@ test('standalone Glass Calculator uses the shared live builder result and a purp
   await expect(page.locator('.glass-unit-builder[role="dialog"]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add left sidelight' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add right sidelight' })).toBeVisible();
+  const sharedGlassType = page.getByRole('region', { name: 'Shared sidelight specification' }).locator('label').filter({ hasText: /^Glass Type/ }).locator('select');
+  await expect(sharedGlassType).toHaveCount(1);
+  await expect(sharedGlassType).toHaveValue('CLEAR');
   await expect(editor.locator('.glass-unit-diagram')).toHaveCount(1);
   await page.getByRole('button', { name: 'Remove left sidelight' }).click();
   await page.getByLabel('RO Height (inches)').fill('96');
@@ -246,6 +251,9 @@ test('standalone Glass Calculator uses the shared live builder result and a purp
   await expect(editor.getByText('Status: Glass Detail Needed', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Leave Glass Detail Needed' })).toHaveCount(0);
   await expect(page.locator('.glass-calculator-results')).toBeHidden();
+  const workspaceFit = await page.locator('.glass-unit-builder > div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(workspaceFit.scrollHeight).toBeLessThanOrEqual(workspaceFit.clientHeight);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   await page.emulateMedia({ media: 'print' });
   await expect(page.getByRole('region', { name: 'Glass Calculation printout' })).toBeVisible();
   await expect(page.getByText('DoorGo', { exact: true })).toBeVisible();

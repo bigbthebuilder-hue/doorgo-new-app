@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { defaultDoorLine } from '@/lib/jobs/door-line-contract';
 import { calculateGlassGeometry } from '@/lib/jobs/glass-geometry-contract';
@@ -17,14 +18,20 @@ const initialLine = (): DoorLineInput => ({
 export function StandaloneGlassCalculator() {
   const [line, setLine] = useState<DoorLineInput>(initialLine);
   const [editorKey, setEditorKey] = useState(0);
+  const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setActionsTarget(document.getElementById('glass-calculator-context-actions')));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
   const result = calculateGlassGeometry(line);
   const printable = ['Complete', 'Warning', 'Manual Override'].includes(result.status);
+  const actions = <div className="glass-calculator-actions flex flex-wrap justify-end gap-1.5">
+    {printable ? <button className="app-button app-button-primary" onClick={() => window.print()} type="button">Print</button> : null}
+    <button className="app-button app-button-secondary" disabled title="A calculation-specific recipient and message contract has not been approved." type="button">Send unavailable</button>
+  </div>;
 
   return <div className="min-w-0">
-    <div className="glass-calculator-actions mb-2 flex flex-wrap justify-end gap-1.5">
-      {printable ? <button className="app-button app-button-primary" onClick={() => window.print()} type="button">Print</button> : null}
-      <button className="app-button app-button-secondary" disabled title="A calculation-specific recipient and message contract has not been approved." type="button">Send unavailable</button>
-    </div>
+    {actionsTarget ? createPortal(actions, actionsTarget) : actions}
     <GlassUnitBuilder embedded key={editorKey} line={structuredClone(line)} onCancel={() => setEditorKey((value) => value + 1)} onDraftChange={setLine} onUse={() => true} showCommitActions={false}/>
     <div className="glass-calculator-results">
       <section className="glass-calculator-print" aria-label="Glass Calculation printout">

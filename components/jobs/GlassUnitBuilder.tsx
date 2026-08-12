@@ -8,7 +8,7 @@ import {
 import { calculateGlassCompositionSchematic } from '@/lib/jobs/glass-diagram-contract';
 import { nextGlassBuilderDraft } from '@/lib/jobs/glass-editor-contract';
 import { DOOR_HEIGHTS, EXTERIOR_WIDTHS, prepAfterHeightChange } from '@/lib/jobs/door-line-contract';
-import { automaticSidelightTBar, automaticTransomTBar, calculateGlassGeometry, glassConfigurationTopology, normalizeGlassTypeCode, normalizeSidelightType, normalizeTBarSize, numericDimension } from '@/lib/jobs/glass-geometry-contract';
+import { automaticSidelightTBar, automaticTransomTBar, calculateGlassGeometry, normalizeGlassTypeCode, normalizeSidelightType, normalizeTBarSize, numericDimension } from '@/lib/jobs/glass-geometry-contract';
 import { canonicalSidelightSpecifications, reconcileGlassDimensionCommit, type GlassDimensionAuthority } from '@/lib/jobs/glass-dimension-reconciliation-contract';
 import type { DoorLineInput, GlassTypeCode, SidelightSpecification, SidelightType } from '@/lib/jobs/job-intake-types';
 import { GlassUnitDiagram } from './GlassUnitDiagram';

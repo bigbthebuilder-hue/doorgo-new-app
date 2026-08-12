@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
+import { GuardedLink } from './UnsavedChangesGuard';
 
 export function ContextTopBar({ title, secondary, status, controls, actions, backHref, backLabel = 'Back' }: {
   title: string;
@@ -12,7 +12,7 @@ export function ContextTopBar({ title, secondary, status, controls, actions, bac
 }) {
   return (
     <header className="app-context-bar">
-      {backHref ? <Link className="app-context-back" href={backHref} aria-label={backLabel} title={backLabel}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/><path d="M9 12h10"/></svg><span>{backLabel}</span></Link> : null}
+      {backHref ? <GuardedLink className="app-context-back" href={backHref} aria-label={backLabel} title={backLabel}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/><path d="M9 12h10"/></svg><span>{backLabel}</span></GuardedLink> : null}
       <div className="app-context-primary">
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="app-context-title">{title}</h1>

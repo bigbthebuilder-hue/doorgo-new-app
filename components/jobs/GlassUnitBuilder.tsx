@@ -12,6 +12,7 @@ import { automaticSidelightTBar, automaticTransomTBar, calculateGlassGeometry, g
 import { canonicalSidelightSpecifications, reconcileGlassDimensionCommit, type GlassDimensionAuthority, type SidelightIdentity } from '@/lib/jobs/glass-dimension-reconciliation-contract';
 import type { DoorLineInput, GlassTypeCode, SidelightSpecification, SidelightType } from '@/lib/jobs/job-intake-types';
 import { GlassUnitDiagram } from './GlassUnitDiagram';
+import { UnsavedChangesDialog } from '@/components/app-shell/UnsavedChangesGuard';
 
 const control = 'min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-600 dark:bg-slate-950';
 const button = 'min-h-11 rounded-xl border border-slate-300 px-3 font-semibold dark:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40';
@@ -68,6 +69,7 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
   });
   const [composition, setComposition] = useState(() => initialComposition(line));
   const [message, setMessage] = useState('');
+  const [confirmClose, setConfirmClose] = useState(false);
   const [transomWidthInput, setTransomWidthInput] = useState(() => String(calculateGlassGeometry(initialBuilderDraft(line)).glassCalc?.transomWidth ?? ''));
   const dirty = JSON.stringify(draft) !== baseline || resolveGlassUnitConfiguration(composition) !== String(line.config);
   const dirtyRef = useRef(dirty);
@@ -86,7 +88,8 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
   }, [draft]);
 
   function close() {
-    if (!dirty || window.confirm('Discard Glass Unit Builder changes?')) onCancel();
+    if (dirty) setConfirmClose(true);
+    else onCancel();
   }
 
   useEffect(() => {
@@ -97,7 +100,8 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        if (!dirtyRef.current || window.confirm('Discard Glass Unit Builder changes?')) onCancelRef.current();
+        if (dirtyRef.current) setConfirmClose(true);
+        else onCancelRef.current();
       }
       if (event.key === 'Tab' && dialog.current) {
         const nodes = [...dialog.current.querySelectorAll<HTMLElement>('button,input,select,[tabindex]')].filter((node) => !node.hasAttribute('disabled') && node.tabIndex >= 0);
@@ -299,7 +303,7 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-300">Viewed from outside. Add/remove controls use the accepted latch-side and multi-sidelight rules.</p>
         </section>
-        <section className="mt-3 grid content-start gap-2 lg:mt-0">
+        <section className="glass-builder-fields mt-3 grid content-start gap-2 lg:mt-0">
           <label className="grid gap-1 font-semibold">Swing<select className={control} onChange={(event) => changeSwing(event.target.value)} value={String(draft.hand ?? 'LH')}><option>LH</option><option>RH</option><option>LHOUT</option><option>RHOUT</option></select></label>
           <div className="grid grid-cols-2 gap-3"><label className="grid gap-1 font-semibold">Slab Width<select className={control} onChange={(event) => setField('width', event.target.value)} value={String(draft.width ?? '')}>{EXTERIOR_WIDTHS.map((value) => <option key={value}>{value}</option>)}</select></label><label className="grid gap-1 font-semibold">Slab Height<select className={control} onChange={(event) => setHeight(event.target.value)} value={String(draft.height ?? '')}>{DOOR_HEIGHTS.map((value) => <option key={value}>{value}</option>)}</select></label></div>
           <div className="grid grid-cols-2 gap-3"><label className="grid gap-1 font-semibold">RO Width (inches)<input className={control} onBlur={(event) => commitDimension({ kind: 'roWidth', value: event.target.value })} onChange={(event) => setField('roWidth', event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} value={String(draft.roWidth ?? '')}/></label><label className="grid gap-1 font-semibold">RO Height (inches)<input className={control} onBlur={(event) => commitRoHeight(event.target.value)} onChange={(event) => setField('roHeight', event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitRoHeight(event.currentTarget.value); event.currentTarget.blur(); } }} value={String(draft.roHeight ?? '')}/></label></div>
@@ -316,6 +320,7 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
         </section>
       </div>
       <footer className="sticky bottom-0 z-10 flex justify-end gap-3 border-t border-slate-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900"><button className={button} onClick={close} type="button">{embedded ? 'Reset' : 'Cancel'}</button>{showCommitActions && calculation.status === 'Glass Detail Needed' ? <button className={`${button} bg-amber-600 text-white`} onClick={() => applyConfiguration(true)} type="button">Leave Glass Detail Needed</button> : null}{showCommitActions && ['Complete', 'Warning', 'Manual Override'].includes(calculation.status) ? <button className={`${button} bg-sky-700 text-white`} onClick={() => applyConfiguration(false)} type="button">{commitLabel}</button> : null}</footer>
+      <UnsavedChangesDialog description="The Glass Unit Builder has changes that have not been applied to this door line. Discard them?" onDiscard={() => { setConfirmClose(false); onCancel(); }} onStay={() => setConfirmClose(false)} open={confirmClose} title="Discard Glass changes?"/>
     </div>
   </div>;
 }

@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { isAppNavigationItemActive, type AppNavigationIcon, type AppNavigationItem } from '@/lib/app-shell/navigation';
+import { GuardedLink } from './UnsavedChangesGuard';
 
 export function DesktopNav({ items }: { items: AppNavigationItem[] }) {
   const pathname = usePathname();
@@ -11,7 +11,7 @@ export function DesktopNav({ items }: { items: AppNavigationItem[] }) {
       {items.map((item) => {
         const active = isAppNavigationItemActive(pathname, item);
         return (
-          <Link
+          <GuardedLink
             aria-label={item.label}
             aria-current={active ? 'page' : undefined}
             className="app-shell-nav-link"
@@ -22,7 +22,7 @@ export function DesktopNav({ items }: { items: AppNavigationItem[] }) {
           >
             <NavIcon name={item.icon}/>
             <span className="app-shell-nav-label">{item.label}</span>
-          </Link>
+          </GuardedLink>
         );
       })}
     </nav>

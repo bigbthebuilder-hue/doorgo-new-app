@@ -32,6 +32,7 @@
   --app-layer-sticky-actions: 10;
   --app-layer-workspace-dialog: 40;
   --app-layer-shell: 50;
+  --app-layer-confirmation: 60;
 }
 
 .glass-unit-diagram {
@@ -122,6 +123,7 @@
   .app-button { display: inline-flex; min-height: var(--app-control-height); align-items: center; justify-content: center; border-radius: var(--app-radius-md); padding: .3rem .7rem; font-size: var(--app-font-size); font-weight: 650; }
   .app-button-secondary { border: 1px solid rgb(203 213 225); background: white; color: rgb(30 41 59); }
   .app-button-primary { border: 1px solid rgb(3 105 161); background: rgb(3 105 161); color: white; }
+  .app-button-danger { border: 1px solid rgb(190 18 60); background: rgb(190 18 60); color: white; }
   .app-workspace-panel { border: 1px solid rgb(226 232 240); background: white; box-shadow: 0 1px 2px rgb(15 23 42 / .04); }
   .app-compact-input { min-height: var(--app-control-height); border-radius: var(--app-radius-md); border: 1px solid rgb(203 213 225); background: white; padding: .3rem .6rem; font-size: var(--app-font-size); }
   .job-editor-workspace { max-width: none; }
@@ -136,6 +138,12 @@
   .glass-unit-builder label { gap: .15rem; font-size: .75rem; }
   .glass-unit-builder input:not([type="checkbox"]), .glass-unit-builder select { min-height: 2rem; border-radius: .375rem; padding: .25rem .5rem; }
   .glass-unit-builder fieldset { gap: .4rem; border-radius: .5rem; padding: .5rem; }
+  .glass-builder-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .glass-builder-fields > section, .glass-builder-fields > fieldset, .glass-builder-fields > details, .glass-builder-fields > p { grid-column: 1 / -1; }
+  .glass-builder-fields > section[aria-label="Sidelight specifications"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .glass-builder-fields > section[aria-label="Sidelight specifications"] > h3,
+  .glass-builder-fields > section[aria-label="Sidelight specifications"] > fieldset { grid-column: 1 / -1; }
+  .glass-builder-fields > section[aria-label="Sidelight specifications"] > fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .glass-structure-control { position: relative; display: grid; min-height: 11rem; place-items: center; border: 1px solid var(--app-color-border); border-radius: var(--app-radius-md); background: var(--app-color-toolbar); padding: 2rem 2.75rem; }
   .glass-structure-control .glass-unit-diagram { max-width: 23rem; }
   .glass-structure-action { position: absolute; z-index: 2; display: inline-flex; min-width: 2rem; min-height: 2rem; align-items: center; justify-content: center; border: 1px solid #0284c7; border-radius: 999px; background: white; color: #075985; font-weight: 800; box-shadow: 0 1px 4px rgb(15 23 42 / .2); }
@@ -145,11 +153,20 @@
   .glass-structure-action--right-remove { right: .35rem; top: 50%; transform: translateY(20%); }
   .glass-structure-action--transom { left: 50%; top: .25rem; min-width: 7rem; transform: translateX(-50%); padding-inline: .5rem; font-size: .7rem; }
   .glass-calculator-print { display: none; }
-  .app-job-context-fields { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(9rem, 1.2fr) minmax(7rem, .8fr); gap: .4rem; }
+  .app-job-context-fields { display: grid; width: min(44rem, 48vw); grid-template-columns: repeat(3, minmax(7rem, 1fr)); gap: .25rem .4rem; }
   .app-job-context-field { display: grid; min-width: 0; gap: .05rem; border: 1px solid var(--app-color-border); border-radius: .4rem; background: var(--app-color-toolbar); padding: .18rem .4rem .22rem; color: var(--app-color-muted); font-size: .56rem; font-weight: 750; letter-spacing: .055em; line-height: .7rem; text-transform: uppercase; }
   .app-job-context-field:focus-within { border-color: var(--app-color-primary); box-shadow: 0 0 0 1px var(--app-color-primary); }
   .app-job-context-field input { min-width: 0; width: 100%; height: 1.25rem; border: 0; background: transparent; padding: 0; color: var(--app-color-text); font-size: .75rem; font-weight: 600; line-height: 1.25rem; letter-spacing: normal; outline: none; text-overflow: ellipsis; text-transform: none; }
   .app-job-context-field input::placeholder { color: #8290a3; font-weight: 500; }
+  .app-job-lifecycle { display: grid; gap: .2rem; }
+  .app-job-lifecycle button { min-height: 1.5rem; border: 1px solid var(--app-color-border); border-radius: .35rem; padding: .1rem .4rem; font-size: .65rem; font-weight: 700; }
+  .app-job-lifecycle button[aria-pressed="true"] { border-color: #047857; background: #047857; color: white; }
+  .app-unsaved-overlay { position: fixed; inset: 0; z-index: var(--app-layer-confirmation); display: grid; place-items: center; background: rgb(15 23 42 / .58); padding: 1rem; }
+  .app-unsaved-overlay--workspace { position: absolute; }
+  .app-unsaved-dialog { width: min(100%, 30rem); border: 1px solid var(--app-color-border); border-radius: .75rem; background: var(--app-color-surface); padding: 1rem; color: var(--app-color-text); box-shadow: 0 18px 48px rgb(15 23 42 / .28); }
+  .app-unsaved-dialog h2 { font-size: 1.125rem; font-weight: 750; }
+  .app-unsaved-dialog p { margin-top: .5rem; color: var(--app-color-muted); }
+  .app-unsaved-dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
   .doorgo-entry { display: grid; min-height: 100vh; place-items: center; background: linear-gradient(135deg, var(--app-color-background), #dbe8f5); padding: 2rem; color: var(--app-color-text); }
   .doorgo-entry-card { display: grid; width: min(100%, 42rem); grid-template-columns: auto 1fr; align-items: center; gap: 1.5rem; border: 1px solid var(--app-color-border); border-radius: 1rem; background: var(--app-color-surface); padding: 2rem; box-shadow: 0 8px 24px rgb(11 29 58 / .08); }
   .doorgo-entry-card h1 { font-size: 2.5rem; line-height: 1; font-weight: 750; letter-spacing: -.04em; }
@@ -170,8 +187,17 @@
   .app-shell-nav-label { display: block; max-width: 4rem; overflow: visible; text-overflow: clip !important; white-space: normal !important; font-size: .625rem; line-height: 1.05; overflow-wrap: normal; }
   .app-shell-main { height: 100vh; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
   .app-context-bar { position: sticky; top: 0; z-index: var(--app-layer-shell); min-height: var(--app-context-bar-height); max-height: 4.75rem; flex-wrap: nowrap; }
+  .app-context-bar:has(.app-job-context-fields) { min-height: 5.5rem; max-height: 5.75rem; padding-block: .35rem; }
+  .app-context-bar:has(.app-job-context-fields) .app-context-primary { flex: 0 1 10rem; }
   .app-context-controls:has(.app-jobs-filter) { flex: 1 1 24rem; justify-content: center; }
   .app-overlay-workspace { inset: var(--app-context-bar-height) 0 0 var(--app-shell-nav-width); }
+  .job-editor-workspace .app-overlay-workspace { inset-block-start: 5.75rem; }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .app-job-context-fields { width: min(37rem, 52vw); grid-template-columns: repeat(3, minmax(6.25rem, 1fr)); }
+  .app-context-bar:has(.app-job-context-fields) { gap: .35rem; padding-inline: .5rem; }
+  .app-context-bar:has(.app-job-context-fields) .app-context-secondary { max-width: 9rem; }
 }
 
 @media (min-width: 1536px) {
@@ -243,6 +269,16 @@ body {
 
 @media (max-width: 640px) {
   .glass-unit-builder { max-height: 100vh; border-radius: 0; }
+}
+
+@media (max-width: 767px) {
+  .app-job-context-fields { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-job-lifecycle { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1023px) {
+  .glass-builder-fields { grid-template-columns: minmax(0, 1fr); }
+  .glass-builder-fields > section[aria-label="Sidelight specifications"] { grid-template-columns: minmax(0, 1fr); }
 }
 
 @keyframes app-toast {

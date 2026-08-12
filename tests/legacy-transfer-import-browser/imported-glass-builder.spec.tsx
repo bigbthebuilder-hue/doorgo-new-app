@@ -88,3 +88,21 @@ test('RO height normalization and one space-safe unit panel note survive commit 
   dialog = component.getByRole('dialog');
   await expect(dialog.getByLabel('Sidelight Panel Construction Notes')).toHaveValue('w/ 764 Adelaide glass');
 });
+
+test('Glass Builder distinguishes clean cancel from dirty modal draft discard', async ({ mount }) => {
+  const component = await mount(<ImportedGlassBuilderHarness/>);
+  await component.getByRole('dialog').getByRole('button', { name: 'Cancel' }).last().click();
+  await expect(component.getByRole('dialog')).toHaveCount(0);
+  await component.getByRole('button', { name: 'Reopen Glass Builder' }).click();
+  const builder = component.getByRole('dialog');
+  await builder.getByLabel('Swing').selectOption('LH');
+  await builder.getByRole('button', { name: 'Cancel' }).last().click();
+  const confirmation = component.getByRole('alertdialog', { name: 'Discard Glass changes?' });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole('button', { name: 'Stay' }).click();
+  await expect(builder).toBeVisible();
+  await expect(builder.getByLabel('Swing')).toHaveValue('LH');
+  await builder.getByRole('button', { name: 'Cancel' }).last().click();
+  await confirmation.getByRole('button', { name: 'Discard changes' }).click();
+  await expect(component.getByRole('dialog')).toHaveCount(0);
+});

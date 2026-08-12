@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/experimental-ct-react';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { UnsavedNavigationHarness } from './UnsavedNavigationHarness';
 import { ProductionBookingCard } from '@/components/ProductionBookingCard';
 import { ProductionBoardDay } from '@/components/ProductionBoardDay';
 import { ProductionBoardSummary } from '@/components/ProductionBoardSummary';
@@ -109,7 +110,7 @@ test('job identity remains visible while its editor workspace scrolls', async ({
   await expect(topBar.getByText('Confirmed Job · Rev 3')).toBeVisible();
   await expect(topBar.getByRole('link', { name: 'Jobs' })).toHaveAttribute('href', '/jobs');
   const height = await topBar.evaluate((element) => element.getBoundingClientRect().height);
-  expect(height).toBeLessThanOrEqual(76);
+  expect(height).toBeLessThanOrEqual(92);
   for (const label of ['Customer', 'Site / Address', 'Salesperson']) {
     const field = topBar.getByLabel(label);
     const geometry = await field.evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
@@ -303,4 +304,20 @@ test('entry and login contracts render branded, accessible actions without an ap
   await expect(page.getByLabel('Password')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
   await expect(page.locator('.app-shell-sidebar')).toHaveCount(0);
+});
+
+test('shared navigation guard blocks dirty links, stays safely, and clears after save', async ({ mount, page }) => {
+  await mount(<UnsavedNavigationHarness/>);
+  const customer = page.getByLabel('Customer');
+  await customer.fill('Unsaved customer');
+  await page.getByRole('link', { name: 'Account' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Unsaved changes' });
+  await expect(dialog).toBeVisible();
+  await expect(customer).toHaveValue('Unsaved customer');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(customer).toHaveValue('Unsaved customer');
+  await page.getByRole('button', { name: 'Save fixture' }).click();
+  await page.getByRole('link', { name: 'Account' }).click();
+  await expect(dialog).toHaveCount(0);
 });

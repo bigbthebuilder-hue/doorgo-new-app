@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Image from 'next/image';
 import type { AppNavigationItem } from '@/lib/app-shell/navigation';
 import { DesktopNav } from './DesktopNav';
+import { UnsavedChangesProvider } from './UnsavedChangesGuard';
 
 export function AppShell({ children, navigation, topBar }: {
   children: ReactNode;
@@ -9,7 +10,7 @@ export function AppShell({ children, navigation, topBar }: {
   topBar?: ReactNode;
 }) {
   return (
-    <div className="app-shell">
+    <UnsavedChangesProvider><div className="app-shell">
       <aside className="app-shell-sidebar">
         <div className="app-shell-brand" title="DoorGo · Door Shop Operations">
           <Image className="app-shell-brand-mark" src="/brand/doorgo-mark.svg" alt="DoorGo" width={44} height={44} priority />
@@ -20,6 +21,6 @@ export function AppShell({ children, navigation, topBar }: {
         {topBar}
         {children}
       </main>
-    </div>
+    </div></UnsavedChangesProvider>
   );
 }

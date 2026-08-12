@@ -27,6 +27,9 @@ const glassBuilder = read('components/jobs/GlassUnitBuilder.tsx');
 const standaloneGlass = read('components/jobs/StandaloneGlassCalculator.tsx');
 const lineWorkspace = read('components/jobs/DoorLineWorkspace.tsx');
 const archiveControl = read('components/jobs/JobArchiveControl.tsx');
+const unsavedGuard = read('components/app-shell/UnsavedChangesGuard.tsx');
+const desktopNav = read('components/app-shell/DesktopNav.tsx');
+const contextTopBar = read('components/app-shell/ContextTopBar.tsx');
 
 assert.match(css, /--app-shell-nav-width:\s*4\.75rem/, 'Desktop rail width must remain 4.75rem');
 assert.match(css, /\.app-shell-nav-label\s*\{[^}]*white-space:\s*normal[^}]*\}/s, 'Desktop labels must wrap');
@@ -64,6 +67,15 @@ assert.equal((jobForm.match(/id="siteAddress"/g) ?? []).length, 1, 'Site / Addre
 assert.match(jobForm, /placeholder="Not entered"/, 'Blank contextual values must not repeat their labels');
 assert.match(jobForm, /app-workspace app-workspace-fluid job-editor-workspace/, 'Job editor must use the fluid shell workspace');
 assert.match(jobForm, /backHref="\/jobs"/, 'Job editor must provide contextual Back navigation');
+assert.match(shell, /<UnsavedChangesProvider>/, 'Shell must provide one reusable unsaved-change contract');
+assert.match(desktopNav, /<GuardedLink/, 'Permanent navigation must use the shared guard');
+assert.match(contextTopBar, /<GuardedLink/, 'Contextual Back navigation must use the shared guard');
+assert.match(jobForm, /useUnsavedChanges\(navigationDirty\)/, 'Native editor must register authoritative job and unapplied-line dirty state');
+assert.doesNotMatch(jobForm, /window\.confirm\('Exit without saving/, 'Job Exit must not use a route-specific confirmation');
+assert.match(unsavedGuard, /beforeunload/, 'Dirty participating screens must receive browser-level leave protection');
+assert.match(unsavedGuard, /Leave without saving/, 'Shared guard must expose an explicit destructive leave action');
+assert.match(unsavedGuard, /event\.key === 'Escape'/, 'Shared confirmation must default Escape to staying');
+assert.doesNotMatch(glassBuilder, /window\.confirm\('Discard Glass Unit Builder changes/, 'Glass modal cancellation must use the accessible shared confirmation presentation');
 assert.match(bookingCard, /production-booking-card/, 'Production bookings must use the compact rendered contract');
 assert.doesNotMatch(bookingCard, /aria-label="DoorGo job"|src="\/brand\/doorgo-mark\.svg"/, 'Primary Production cards must not expose transitional source indicators');
 assert.doesNotMatch(bookingCard, /card\.typeLabel/, 'Primary Production cards must not expose transitional source labels');

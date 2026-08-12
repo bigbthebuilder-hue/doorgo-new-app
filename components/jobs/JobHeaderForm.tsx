@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import { archiveDraftJobAction, createDraftJobAction, createTransferredJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine } from '@/lib/jobs/door-line-contract';
 import { jobAggregateDirtySnapshot, jobSaveConfirmation, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
@@ -15,6 +15,7 @@ import { JobArchiveControl, jobArchiveTarget } from './JobArchiveControl';
 import { WorkOrderSendEntryButton } from './WorkOrderSendEntryButton';
 import { LegacyTransferEvidenceSummary } from './LegacyTransferEvidenceSummary';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { useGuardedNavigation, useUnsavedChanges } from '@/components/app-shell/UnsavedChangesGuard';
 
 type FormValues = {
   bizTrackSalesOrder: string;
@@ -87,6 +88,7 @@ export function JobHeaderForm({
   inAppShell?: boolean;
 }) {
   const router = useRouter();
+  const requestNavigation = useGuardedNavigation();
   const [job, setJob] = useState(initialJob);
   const [values, setValues] = useState(() => initialValues(initialJob, defaultSalesperson, initialDraft?.header));
   const [lines, setLines] = useState<DoorLineInput[]>(() => initialJob?.lines ?? initialDraft?.lines ?? []);
@@ -100,17 +102,9 @@ export function JobHeaderForm({
   const [isPending, startTransition] = useTransition();
   const commandId = useRef<string | null>(null);
   const dirty = snapshot() !== baseline;
+  const navigationDirty = dirty || hasUnappliedLineChanges;
   const visibleIdentifier = transferReview?.primaryIdentifier.value || values.bizTrackSalesOrder.trim() || job?.visibleIdentifier || job?.doorGoReference || 'New Draft';
-
-  useEffect(() => {
-    const preventExit = (event: BeforeUnloadEvent) => {
-      if (!dirty) return;
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', preventExit);
-    return () => window.removeEventListener('beforeunload', preventExit);
-  }, [dirty]);
+  useUnsavedChanges(navigationDirty);
 
   const input = useMemo<JobHeaderInput>(() => ({
     ...values,
@@ -128,7 +122,7 @@ export function JobHeaderForm({
   }
 
   function leave() {
-    if (!dirty || window.confirm('Exit without saving your changes?')) router.push('/jobs');
+    requestNavigation('/jobs');
   }
 
   function outputPath(internalJobId: string, intent: WorkOrderOutputIntent) {
@@ -231,7 +225,11 @@ export function JobHeaderForm({
         <label className="app-job-context-field" htmlFor="customer"><span>Customer</span><input aria-invalid={fieldErrors.customer ? true : undefined} disabled={!canEdit} id="customer" onChange={(event) => update('customer', event.target.value)} placeholder="Not entered" title={fieldErrors.customer || undefined} value={values.customer}/></label>
         <label className="app-job-context-field" htmlFor="siteAddress"><span>Site / Address</span><input aria-invalid={fieldErrors.siteAddress ? true : undefined} disabled={!canEdit} id="siteAddress" onChange={(event) => update('siteAddress', event.target.value)} placeholder="Not entered" title={fieldErrors.siteAddress || undefined} value={values.siteAddress}/></label>
         <label className="app-job-context-field" htmlFor="salesperson"><span>Salesperson</span><input disabled={!canEdit} id="salesperson" onChange={(event) => update('salesperson', event.target.value)} placeholder="Not assigned" value={values.salesperson}/></label>
+        <label className="app-job-context-field" htmlFor="bizTrackSalesOrder"><span>BizTrack Sales Order</span><input aria-invalid={fieldErrors.bizTrackSalesOrder ? true : undefined} disabled={!canEdit || Boolean(transferReview)} id="bizTrackSalesOrder" onChange={(event) => update('bizTrackSalesOrder', event.target.value)} placeholder="Optional" title={fieldErrors.bizTrackSalesOrder || undefined} value={values.bizTrackSalesOrder}/></label>
+        <label className="app-job-context-field" htmlFor="phone"><span>Phone</span><input autoComplete="tel" disabled={!canEdit} id="phone" onChange={(event) => update('phone', event.target.value)} placeholder="Not entered" type="tel" value={values.phone}/></label>
+        <label className="app-job-context-field" htmlFor="email"><span>Email</span><input aria-invalid={fieldErrors.email ? true : undefined} autoComplete="email" disabled={!canEdit} id="email" onChange={(event) => update('email', event.target.value)} placeholder="Not entered" title={fieldErrors.email || undefined} type="email" value={values.email}/></label>
       </div>}
+      actions={<div className="app-job-lifecycle" aria-label="Job lifecycle"><button aria-pressed={lifecycleStage === 'Draft'} disabled={!canEdit} onClick={() => setLifecycleStage('Draft')} type="button">Draft</button><button aria-pressed={lifecycleStage === 'Confirmed Job'} disabled={!canEdit || !hasValidActiveDoorLine(lines)} onClick={() => setLifecycleStage('Confirmed Job')} type="button">Confirmed</button></div>}
     /> : null}
     <div className={inAppShell ? 'app-workspace app-workspace-fluid job-editor-workspace' : undefined}>
     <section className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -261,21 +259,12 @@ export function JobHeaderForm({
       </section> : null}
       <p className="job-confirmation-note mt-1.5 flex min-h-7 items-center rounded bg-slate-100 px-2 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-200"><span aria-hidden="true" className="mr-1.5 font-bold text-sky-700">i</span>Confirmation requires at least one valid active door line. Saving or confirming does not schedule production or create fulfillment or Calendar records.</p>
 
-      <div className="job-lifecycle-control mt-1.5 flex min-h-9 flex-wrap items-center gap-1.5 border-b border-slate-200 pb-1.5 dark:border-slate-700">
-        <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Lifecycle</span>
-        <button className={`min-h-8 rounded-md px-3 text-xs font-semibold ${lifecycleStage === 'Draft' ? 'bg-amber-600 text-white' : 'border border-slate-300 dark:border-slate-600'}`} disabled={!canEdit} onClick={() => setLifecycleStage('Draft')} type="button">Draft</button>
-        <button className={`min-h-8 rounded-md px-3 text-xs font-semibold ${lifecycleStage === 'Confirmed Job' ? 'bg-emerald-700 text-white' : 'border border-slate-300 dark:border-slate-600'}`} disabled={!canEdit || !hasValidActiveDoorLine(lines)} onClick={() => setLifecycleStage('Confirmed Job')} type="button">Confirmed Job</button>
-        {!hasValidActiveDoorLine(lines) ? <span className="text-[11px] text-slate-500">Add a valid active line before confirming.</span> : null}
-      </div>
+      {!hasValidActiveDoorLine(lines) ? <p className="mt-1 text-[11px] text-slate-500">Add a valid active line before confirming.</p> : null}
 
       <div className="mt-3 grid gap-2.5">
-        <section aria-labelledby="job-identity-heading">
-          <h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" id="job-identity-heading">Job details and contact</h2>
-          <div className="mt-1 grid gap-2 md:grid-cols-3">
-            <Field error={fieldErrors.bizTrackSalesOrder} label="BizTrack Sales Order" name="bizTrackSalesOrder"><input className={inputClass} disabled={!canEdit || Boolean(transferReview)} id="bizTrackSalesOrder" onChange={(e) => update('bizTrackSalesOrder', e.target.value)} placeholder="Optional" value={values.bizTrackSalesOrder}/></Field>
-            <Field label="Phone" name="phone"><input autoComplete="tel" className={inputClass} disabled={!canEdit} id="phone" onChange={(e) => update('phone', e.target.value)} placeholder="Phone number" type="tel" value={values.phone}/></Field>
-            <Field error={fieldErrors.email} label="Email" name="email"><input autoComplete="email" className={inputClass} disabled={!canEdit} id="email" onChange={(e) => update('email', e.target.value)} placeholder="Email address" type="email" value={values.email}/></Field>
-          </div>
+        <section aria-label="Job header validation">
+          {fieldErrors.bizTrackSalesOrder ? <p className="text-sm text-rose-700" role="alert">BizTrack Sales Order: {fieldErrors.bizTrackSalesOrder}</p> : null}
+          {fieldErrors.email ? <p className="text-sm text-rose-700" role="alert">Email: {fieldErrors.email}</p> : null}
           {inAppShell && fieldErrors.customer ? <p className="mt-2 text-sm text-rose-700" role="alert">Customer: {fieldErrors.customer}</p> : null}
           {inAppShell && fieldErrors.siteAddress ? <p className="mt-2 text-sm text-rose-700" role="alert">Site / Address: {fieldErrors.siteAddress}</p> : null}
         </section>

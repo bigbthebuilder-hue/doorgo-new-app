@@ -18,7 +18,7 @@ for (const [label, pattern] of [
 
 const workspace = await readFile('components/jobs/DoorLineWorkspace.tsx', 'utf8');
 for (const required of [
-  'retainCompatibleGlassFields', 'calculateGlassGeometry', 'Configure Glass Unit', 'Edit Glass Unit',
+  'retainCompatibleGlassFields', 'calculateGlassGeometry', 'With SL / T', 'Edit Glass Unit',
   'Apply Manual Override', 'Remove Override', 'GlassUnitBuilder', 'Needs Attention',
   '54, 54 1/2, 54-1/2, or 54.5', 'aria-label={`${label}, inches`',
   'explicitGlassDetailNeeded', 'commitEditor()', 'commitEditor(explicitDetailNeeded, next)',

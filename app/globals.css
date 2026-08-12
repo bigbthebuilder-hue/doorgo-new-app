@@ -253,8 +253,10 @@
   .glass-builder-fields > div.rounded-xl, .glass-builder-fields > details { padding: .4rem; }
   .glass-builder-fields > div.rounded-xl:has([aria-label="Calculated measurements"]) { grid-column: span 2; }
   .glass-builder-fields > fieldset { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .glass-builder-fields:has(> fieldset) > label.flex, .glass-builder-fields:has(> fieldset) > details { grid-column: 1; grid-row: 4; }
-  .glass-builder-fields:not(:has(> fieldset)) > label.flex, .glass-builder-fields:not(:has(> fieldset)) > details { grid-column: 1; grid-row: 3; }
+  .glass-builder-fields:has(> fieldset) > label.flex { grid-column: 1; grid-row: 4; }
+  .glass-builder-fields:has(> fieldset) > details { grid-column: 2; grid-row: 4; }
+  .glass-builder-fields:not(:has(> fieldset)) > label.flex { grid-column: 1; grid-row: 3; }
+  .glass-builder-fields:not(:has(> fieldset)) > details { grid-column: 2; grid-row: 3; }
   .glass-builder-fields > label.flex { align-self: start; }
   .glass-builder-fields > details { align-self: end; }
   .glass-builder-fields [aria-label="Calculated measurements"] { margin-top: .3rem; gap-block: .1rem; }

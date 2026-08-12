@@ -17,7 +17,7 @@ import { hingeTypeAfterModeChange, hingeTypeOptions } from '@/lib/jobs/hinge-con
 import type { DoorLineInput, GlassCalculationStatus, GlassGeometryValues, GlassIssue, JobLifecycleStage } from '@/lib/jobs/job-intake-types';
 import { GlassUnitBuilder } from './GlassUnitBuilder';
 import { GlassUnitDiagram } from './GlassUnitDiagram';
-import { parseGlassUnitConfiguration, placeSingleSidelightForSwing, resolveGlassUnitConfiguration } from '@/lib/jobs/glass-unit-composition-contract';
+import { parseGlassUnitConfiguration, resolveGlassUnitConfiguration } from '@/lib/jobs/glass-unit-composition-contract';
 import { importedLineRenderKey } from '@/lib/jobs/legacy-transfer-review-presentation';
 import { replaceDoorLineAtIndex } from '@/lib/jobs/door-line-editor-state';
 
@@ -91,6 +91,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   const mode = editor.mode === 'Interior' ? 'Interior' : 'Exterior';
   const config = String(editor.config ?? 'D');
   const isGlass = mode === 'Exterior' && isGlassConfiguration(config);
+  const staffConfiguration = isGlass ? 'With SL / T' : config;
   const noJamb = mode === 'Interior' && (config === 'PKT' || config === 'B.P.');
   const widths = mode === 'Interior' ? INTERIOR_WIDTHS : EXTERIOR_WIDTHS;
   const visibleMessage = message?.lifecycleStage === lifecycleStage ? message : null;
@@ -160,13 +161,6 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
 
   function setSwing(value: string) {
     setExplicitGlassDetailNeeded(false);
-    const parsed = parseGlassUnitConfiguration(editor.config);
-    if (mode === 'Exterior' && parsed.ok && isGlassConfiguration(editor.config)) {
-      const composition = placeSingleSidelightForSwing(parsed.value, value);
-      setEditor((current) => clearCalculated({ ...current, hand: value, config: resolveGlassUnitConfiguration(composition) }));
-      clearWorkspaceMessage();
-      return;
-    }
     set('hand', value);
   }
 
@@ -200,6 +194,14 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
       setRipMode(false);
     }
     setEditor(next); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+  }
+
+  function chooseStaffConfiguration(nextConfig: string) {
+    if (nextConfig === 'With SL / T') {
+      setBuilderOpen(true);
+      return;
+    }
+    chooseConfig(nextConfig);
   }
 
   function resetEditor() {
@@ -305,8 +307,8 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
         <div className="mt-2 grid grid-cols-2 gap-1.5" aria-label="Door mode">{(['Exterior', 'Interior'] as const).map((value) => <button className={`${button} ${mode === value ? 'border-sky-700 bg-sky-700 text-white' : ''}`} key={value} onClick={() => chooseMode(value)} type="button">{value}</button>)}</div>
         <div className="door-primary-grid mt-2 grid gap-2 sm:grid-cols-3 2xl:grid-cols-4">
           <label className="grid gap-1 text-sm font-semibold">Door Type<input className={control} onChange={(event) => set('doorType', event.target.value)} value={String(editor.doorType ?? '')}/></label>
-          {isGlass
-            ? <label className="grid gap-1 text-sm font-semibold">Configuration<input className={control} readOnly value={resolvedConfiguration(config)}/></label>
+          {mode === 'Exterior'
+            ? <label className="grid gap-1 text-sm font-semibold">Configuration<span className="flex min-w-0 gap-1"><select className={control} onChange={(event) => chooseStaffConfiguration(event.target.value)} value={staffConfiguration}><option value="D">D</option><option value="DD">DD</option><option value="With SL / T">With SL / T</option></select>{isGlass ? <button aria-label="Edit Glass Unit" className={`${button} shrink-0`} onClick={() => setBuilderOpen(true)} type="button">Edit Unit</button> : null}</span></label>
             : <label className="grid gap-1 text-sm font-semibold">Configuration<select className={control} onChange={(event) => chooseConfig(event.target.value)} value={config}>{J2A_CONFIGS[mode].map((value) => <option key={value}>{value}</option>)}</select></label>}
           <label className="grid gap-1 text-sm font-semibold">Width<select className={control} onChange={(event) => set('width', event.target.value)} value={String(editor.width)}>{widths.map((value) => <option key={value}>{value}</option>)}</select></label>
           <label className="grid gap-1 text-sm font-semibold">Height<select className={control} onChange={(event) => setHeight(event.target.value)} value={String(editor.height)}>{DOOR_HEIGHTS.map((value) => <option key={value}>{value}</option>)}</select></label>
@@ -315,12 +317,12 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
           <label className="grid gap-1 text-sm font-semibold">Quantity<input className={control} min="1" onChange={(event) => set('qty', event.target.value)} step="1" type="number" value={String(editor.qty ?? 1)}/></label>
         </div>
 
-        <section className="mt-2 grid gap-2 rounded-md border border-sky-200 bg-sky-50/50 p-2 dark:border-sky-900 dark:bg-sky-950/30">
-          {isGlass ? <><p className="font-semibold">{[config, editor.hand, editor.roWidth ? `RO ${editor.roWidth}${editor.roHeight ? ` × ${editor.roHeight}` : ''}` : '', editor.sidelightType, editor.glassCalcStatus].filter(Boolean).join(' · ')}</p><button className={button} onClick={() => setBuilderOpen(true)} type="button">Edit Glass Unit</button></> : mode === 'Exterior' ? <button className={button} onClick={() => setBuilderOpen(true)} type="button">Configure Glass Unit</button> : null}
-          {isGlass ? <><div className="flex flex-wrap items-center gap-2"><StatusBadge status={calculationStatus ?? editor.glassCalcStatus}/>{glassLineNeedsAttention({ ...editor, lineStatus: 'Active' }).length ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold">Needs Attention</span> : null}</div><Issues issues={warnings} label="Review warnings"/><Issues blocker issues={blockers} label="Hard blockers"/></> : null}
+        {isGlass ? <section className="mt-2 grid gap-1.5 rounded-md border border-sky-200 bg-sky-50/50 p-2 dark:border-sky-900 dark:bg-sky-950/30">
+          <div className="flex flex-wrap items-center gap-2 text-sm"><strong>{resolvedConfiguration(config)}</strong><span>{[editor.hand, editor.roWidth ? `RO ${editor.roWidth}${editor.roHeight ? ` × ${editor.roHeight}` : ''}` : '', editor.sidelightType].filter(Boolean).join(' · ')}</span><StatusBadge status={calculationStatus ?? editor.glassCalcStatus}/>{glassLineNeedsAttention({ ...editor, lineStatus: 'Active' }).length ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold">Needs Attention</span> : null}</div>
+          <Issues issues={warnings} label="Review warnings"/><Issues blocker issues={blockers} label="Hard blockers"/>
           {editor.glassCalcStatus === 'Warning' ? <section className="grid gap-3 rounded-xl border border-violet-300 p-3 dark:border-violet-800"><h4 className="font-bold">Manual geometry override</h4><p className="text-sm">Confirm or edit the accepted values below. A reason is required and hard blockers cannot be overridden.</p><div className="grid gap-2 sm:grid-cols-2">{Object.entries(editor.glassCalc ?? {}).filter(([, value]) => typeof value === 'string' && value).map(([key, value]) => <label className="grid gap-1 text-xs font-semibold" key={key}>{key.replace(/([A-Z])/g, ' $1')}<input className={control} onChange={(event) => setAcceptedValues((current) => ({ ...current, [key]: event.target.value }))} value={String(acceptedValues[key] ?? value)}/></label>)}</div><label className="grid gap-1 text-sm font-semibold">Override Reason<textarea className={`${control} min-h-20 py-2`} onChange={(event) => setOverrideReason(event.target.value)} value={overrideReason}/></label><button className={`${button} border-violet-600 bg-violet-600 text-white`} disabled={isOverridePending || !overrideReason.trim()} onClick={applyOverride} type="button">Apply Manual Override</button></section> : null}
           {editor.glassOverride ? <section className="rounded-xl border border-violet-300 bg-violet-50 p-3 text-sm dark:border-violet-800 dark:bg-violet-950"><div className="flex flex-wrap items-center justify-between gap-2"><StatusBadge status="Manual Override"/><button className={button} disabled={isOverridePending} onClick={removeOverride} type="button">Remove Override</button></div><p className="mt-2"><strong>Reason:</strong> {editor.glassOverride.reason}</p><p><strong>Approved by:</strong> {editor.glassOverride.appliedByDisplayName ?? editor.glassOverride.appliedByUserId} · {new Date(editor.glassOverride.appliedAt).toLocaleString()}</p></section> : null}
-        </section>
+        </section> : null}
 
         <div className="door-production-grid mt-2 grid gap-2 border-t border-slate-200 pt-2 sm:grid-cols-3 2xl:grid-cols-4" aria-label="Door production configuration">
           {!noJamb ? <><label className="grid gap-1 text-sm font-semibold">Jamb Width{ripMode ? <input className={control} onChange={(event) => set('jambWidth', event.target.value)} placeholder="Completed RIP size" value={String(editor.jambWidth === 'RIP' ? '' : editor.jambWidth ?? '')}/> : <select className={control} onChange={(event) => set('jambWidth', event.target.value)} value={String(editor.jambWidth ?? '')}>{jambWidthChoices(mode).map((value) => <option key={value} value={value}>{value}</option>)}</select>}</label><label className="flex min-h-12 items-center gap-3 self-end rounded-xl border border-slate-300 px-3 dark:border-slate-600"><input checked={ripMode} onChange={(event) => { setRipMode(event.target.checked); set('ripJamb', event.target.checked ? 'Yes' : ''); if (event.target.checked) set('jambWidth', ''); }} type="checkbox"/>RIP jamb</label><label className="grid gap-1 text-sm font-semibold">Jamb Type<select className={control} onChange={(event) => set('jambType', event.target.value)} value={String(editor.jambType ?? 'Primed')}><option>Primed</option><option>Fir</option>{mode === 'Exterior' ? <><option>Smooth Composite</option><option>Textured Composite</option></> : null}</select></label><label className="grid gap-1 text-sm font-semibold">Hinge Type<select className={control} onChange={(event) => set('hingeType', event.target.value)} value={String(editor.hingeType ?? 'REG')}>{hingeTypeOptions(mode).map((value) => <option key={value} value={value}>{value}</option>)}</select></label></> : null}

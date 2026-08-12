@@ -255,7 +255,7 @@ test('actual native job editor keeps its operational strip, door workbench, and 
   await component.getByRole('textbox', { name: 'Customer', exact: true }).fill('Changed Customer');
   await expect(component.getByRole('region', { name: 'Job actions' })).toContainText('Unsaved changes');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
-  await component.getByRole('button', { name: 'Configure Glass Unit' }).click();
+  await component.getByRole('combobox', { name: 'Configuration', exact: true }).selectOption('With SL / T');
   const glassWorkbench = component.locator('.glass-unit-builder');
   await expect(glassWorkbench).toBeVisible();
   await component.getByRole('button', { name: 'Add right sidelight' }).click();
@@ -331,6 +331,30 @@ test('standalone Glass Calculator uses the shared live builder result and a purp
   await expect(page.getByRole('heading', { name: 'Glass Calculation' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Print' })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Add right sidelight' })).toBeHidden();
+});
+
+test('shared Glass Unit Builder keeps left and right topology independent of swing', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await mount(<div className="app-workspace app-workspace-fluid"><StandaloneGlassCalculator/></div>);
+  const configuration = page.locator('.glass-unit-builder header').locator('p');
+  await expect(configuration).toHaveText('SD');
+  await page.getByRole('button', { name: 'Remove left sidelight' }).click();
+  await expect(configuration).toHaveText('D');
+  await page.getByRole('button', { name: 'Add right sidelight' }).click();
+  await expect(configuration).toHaveText('DS');
+  await page.getByLabel('Swing').selectOption('RH');
+  await expect(configuration).toHaveText('DS');
+  await page.getByRole('button', { name: 'Add left sidelight' }).click();
+  await expect(configuration).toHaveText('SDS');
+  await page.getByRole('button', { name: 'Add left sidelight' }).click();
+  await page.getByRole('button', { name: 'Add right sidelight' }).click();
+  await expect(configuration).toHaveText('SSDSS');
+  await page.getByRole('button', { name: 'Add transom' }).click();
+  await expect(configuration).toHaveText('T/SSDSS');
+  await page.getByRole('button', { name: 'Double Door' }).click();
+  await expect(configuration).toHaveText('T/SSDDSS');
+  await expect(page.getByRole('region', { name: 'Shared sidelight specification' })).toHaveCount(1);
+  await expect(page.getByRole('region', { name: 'Shared sidelight specification' }).locator('label').filter({ hasText: /^Glass Type/ })).toHaveCount(1);
 });
 
 test('busy production days collapse explicitly and keep every booking reachable', async ({ mount, page }) => {

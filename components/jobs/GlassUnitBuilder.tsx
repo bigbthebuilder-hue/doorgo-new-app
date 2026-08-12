@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  parseGlassUnitConfiguration, placeSingleSidelightForSwing, resolveGlassUnitConfiguration,
+  parseGlassUnitConfiguration, resolveGlassUnitConfiguration,
   totalSidelightCount, type GlassUnitComposition,
 } from '@/lib/jobs/glass-unit-composition-contract';
 import { calculateGlassCompositionSchematic } from '@/lib/jobs/glass-diagram-contract';
@@ -115,12 +115,11 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
 
   function updateComposition(next: GlassUnitComposition) {
     const previousComposition = composition;
-    const positioned = totalSidelightCount(next) === 1 ? placeSingleSidelightForSwing(next, draft.hand) : next;
-    const config = resolveGlassUnitConfiguration(positioned);
-    setComposition(positioned);
+    const config = resolveGlassUnitConfiguration(next);
+    setComposition(next);
     setDraft((current) => {
       const retained = nextGlassBuilderDraft(
-      totalSidelightCount(positioned) > 0 && !normalizeSidelightType(current.sidelightType)
+      totalSidelightCount(next) > 0 && !normalizeSidelightType(current.sidelightType)
         ? { ...current, sidelightType: 'Glass' }
         : current,
       'config',
@@ -129,8 +128,8 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
       return {
         ...retained,
         sidelightSpecifications: canonicalSidelightSpecifications({ ...retained, config }).map((entry) => { const existing = retained.sidelightSpecifications?.some((candidate) => candidate.side === entry.side && candidate.index === entry.index); return { ...entry, glassTypeCode: existing || (normalizeSidelightType(retained.sidelightType) ?? 'Glass') !== 'Glass' ? entry.glassTypeCode : 'CLEAR', tBarSize: normalizeTBarSize(retained.transomTBarSize) ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticSidelightTBar(normalizeSidelightType(retained.sidelightType) ?? 'Glass') }; }),
-        transomTBarSize: positioned.hasTransom ? normalizeTBarSize(retained.transomTBarSize) ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticTransomTBar(positioned.door === 'DD' ? 2 : 1) : null,
-        transomGlassTypeCode: positioned.hasTransom && !previousComposition.hasTransom && !normalizeGlassTypeCode(retained.transomGlassTypeCode ?? retained.transomGlass) ? 'CLEAR' : retained.transomGlassTypeCode,
+        transomTBarSize: next.hasTransom ? normalizeTBarSize(retained.transomTBarSize) ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticTransomTBar(next.door === 'DD' ? 2 : 1) : null,
+        transomGlassTypeCode: next.hasTransom && !previousComposition.hasTransom && !normalizeGlassTypeCode(retained.transomGlassTypeCode ?? retained.transomGlass) ? 'CLEAR' : retained.transomGlassTypeCode,
       };
     });
     setMessage('');
@@ -248,7 +247,6 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
 
   function changeSwing(value: string) {
     setDraft((current) => ({ ...current, hand: value, glassCalc: null, glassOverride: null }));
-    if (totalSidelightCount(composition) === 1) setComposition((current) => placeSingleSidelightForSwing(current, value));
   }
 
   function applyConfiguration(explicitDetailNeeded: boolean) {
@@ -273,7 +271,6 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
   const type = normalizeSidelightType(draft.sidelightType);
   const sideCount = totalSidelightCount(composition);
   const specifications = canonicalSidelightSpecifications(projected);
-  const latchSide = ['LH', 'RHOUT'].includes(String(draft.hand)) ? 'right' : 'left';
   const diagramLayout = calculation.glassCalc
     ? undefined
     : calculateGlassCompositionSchematic(projected);
@@ -290,13 +287,13 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
           <div className="grid grid-cols-2 gap-2"><button className={button} onClick={() => updateComposition({ ...composition, door: 'D' })} type="button">Single Door</button><button className={button} onClick={() => updateComposition({ ...composition, door: 'DD' })} type="button">Double Door</button></div>
           <div className="glass-structure-control" aria-label="Door unit configuration controls">
             <GlassUnitDiagram layout={diagramLayout} line={calculation.glassCalc ? { ...projected, glassCalc: calculation.glassCalc } : projected}/>
-            <button aria-label="Add left sidelight" className="glass-structure-action glass-structure-action--left-add" disabled={sideCount === 0 && latchSide !== 'left'} onClick={() => updateComposition({ ...composition, leftSidelightCount: Math.min(3, composition.leftSidelightCount + 1) })} type="button">+</button>
+            <button aria-label="Add left sidelight" className="glass-structure-action glass-structure-action--left-add" disabled={composition.leftSidelightCount >= 3} onClick={() => updateComposition({ ...composition, leftSidelightCount: Math.min(3, composition.leftSidelightCount + 1) })} type="button">+</button>
             {composition.leftSidelightCount ? <button aria-label="Remove left sidelight" className="glass-structure-action glass-structure-action--left-remove" onClick={() => updateComposition({ ...composition, leftSidelightCount: Math.max(0, composition.leftSidelightCount - 1) })} type="button">−</button> : null}
-            <button aria-label="Add right sidelight" className="glass-structure-action glass-structure-action--right-add" disabled={sideCount === 0 && latchSide !== 'right'} onClick={() => updateComposition({ ...composition, rightSidelightCount: Math.min(3, composition.rightSidelightCount + 1) })} type="button">+</button>
+            <button aria-label="Add right sidelight" className="glass-structure-action glass-structure-action--right-add" disabled={composition.rightSidelightCount >= 3} onClick={() => updateComposition({ ...composition, rightSidelightCount: Math.min(3, composition.rightSidelightCount + 1) })} type="button">+</button>
             {composition.rightSidelightCount ? <button aria-label="Remove right sidelight" className="glass-structure-action glass-structure-action--right-remove" onClick={() => updateComposition({ ...composition, rightSidelightCount: Math.max(0, composition.rightSidelightCount - 1) })} type="button">−</button> : null}
             <button aria-label={composition.hasTransom ? 'Remove transom' : 'Add transom'} className="glass-structure-action glass-structure-action--transom" onClick={toggleTransom} type="button">{composition.hasTransom ? '− Transom' : '+ Transom'}</button>
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-300">Viewed from outside. Add/remove controls use the accepted latch-side and multi-sidelight rules.</p>
+          <p className="text-xs text-slate-600 dark:text-slate-300">Viewed from outside. Left and right positions are independent; each side supports up to three sidelights.</p>
         </section>
         <section className="glass-builder-fields mt-3 grid content-start gap-2 lg:mt-0">
           <label className="grid gap-1 font-semibold">Swing<select className={control} onChange={(event) => changeSwing(event.target.value)} value={String(draft.hand ?? 'LH')}><option>LH</option><option>RH</option><option>LHOUT</option><option>RHOUT</option></select></label>

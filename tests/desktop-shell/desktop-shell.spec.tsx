@@ -355,6 +355,9 @@ test('shared Glass Unit Builder keeps left and right topology independent of swi
   await expect(configuration).toHaveText('T/SSDDSS');
   await expect(page.getByRole('region', { name: 'Shared sidelight specification' })).toHaveCount(1);
   await expect(page.getByRole('region', { name: 'Shared sidelight specification' }).locator('label').filter({ hasText: /^Glass Type/ })).toHaveCount(1);
+  const fit = await page.locator('.glass-unit-builder > div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(fit.scrollHeight).toBeLessThanOrEqual(fit.clientHeight);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });
 
 test('busy production days collapse explicitly and keep every booking reachable', async ({ mount, page }) => {

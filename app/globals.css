@@ -129,6 +129,7 @@
   .job-editor-workspace { max-width: none; }
   .job-editor-workspace input:not([type="checkbox"]):not([type="radio"]), .job-editor-workspace select { min-height: var(--app-control-height) !important; }
   .job-editor-workspace textarea { min-height: 4rem !important; }
+  .job-editor-workspace textarea.job-notes-compact { min-height: 2rem !important; }
   .job-editor-workspace > section { border-radius: var(--app-radius-md); padding: var(--app-panel-padding); }
   .job-editor-actions { z-index: var(--app-layer-sticky-actions) !important; }
   .job-editor-actions button { min-height: var(--app-toolbar-control-height) !important; border-radius: var(--app-radius-sm) !important; padding-inline: .6rem !important; font-size: .75rem; }
@@ -187,11 +188,11 @@
   .app-shell-nav-label { display: block; max-width: 4rem; overflow: visible; text-overflow: clip !important; white-space: normal !important; font-size: .625rem; line-height: 1.05; overflow-wrap: normal; }
   .app-shell-main { height: 100vh; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
   .app-context-bar { position: sticky; top: 0; z-index: var(--app-layer-shell); min-height: var(--app-context-bar-height); max-height: 4.75rem; flex-wrap: nowrap; }
-  .app-context-bar:has(.app-job-context-fields) { min-height: 5.5rem; max-height: 5.75rem; padding-block: .35rem; }
+  .app-context-bar:has(.app-job-context-fields) { min-height: 6.25rem; max-height: 6.75rem; padding-block: .35rem; }
   .app-context-bar:has(.app-job-context-fields) .app-context-primary { flex: 0 1 10rem; }
   .app-context-controls:has(.app-jobs-filter) { flex: 1 1 24rem; justify-content: center; }
   .app-overlay-workspace { inset: var(--app-context-bar-height) 0 0 var(--app-shell-nav-width); }
-  .job-editor-workspace .app-overlay-workspace { inset-block-start: 5.75rem; }
+  .job-editor-workspace .app-overlay-workspace { inset-block-start: 6.75rem; }
 }
 
 @media (min-width: 768px) and (max-width: 1279px) {

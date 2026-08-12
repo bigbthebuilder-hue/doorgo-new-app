@@ -215,6 +215,10 @@
   .door-line-workbench { height: 100%; min-height: 0; grid-template-columns: minmax(0, 1.45fr) minmax(18rem, .72fr); }
   .door-input-pane { min-height: 0; overflow: hidden; }
   .job-lines-pane { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .job-line-card .glass-unit-diagram { margin: .2rem 0; max-width: 6.5rem; }
+  .job-line-glass-summary { display: flex; min-width: 0; align-items: center; gap: .5rem; }
+  .job-line-glass-summary details { min-width: 0; flex: 1; }
+  .job-line-actions button { min-height: 1.75rem !important; padding-inline: .45rem; font-size: .68rem; }
   .job-editor-workspace .app-overlay-workspace { inset-block-start: 6.5rem; }
   .job-confirmation-note { min-height: 1.4rem; }
   .job-operational-strip { grid-template-columns: minmax(0, 5fr) minmax(10rem, 1fr); align-items: end; }

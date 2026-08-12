@@ -261,7 +261,7 @@ export function JobHeaderForm({
 
       {!hasValidActiveDoorLine(lines) ? <p className="mt-1 text-[11px] text-slate-500">Add a valid active line before confirming.</p> : null}
 
-      <div className="mt-3 grid gap-2.5">
+      <div className="job-operational-strip mt-1 grid gap-1.5">
         <section aria-label="Job header validation">
           {fieldErrors.bizTrackSalesOrder ? <p className="text-sm text-rose-700" role="alert">BizTrack Sales Order: {fieldErrors.bizTrackSalesOrder}</p> : null}
           {fieldErrors.email ? <p className="text-sm text-rose-700" role="alert">Email: {fieldErrors.email}</p> : null}

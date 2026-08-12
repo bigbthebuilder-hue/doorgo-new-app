@@ -8,5 +8,9 @@ export default defineConfig({
   testDir: './tests/desktop-shell',
   outputDir: path.join(artifactRoot, 'results'),
   reporter: [['list']],
-  use: { ...devices['Desktop Chrome'], ctPort: 3120, ctCacheDir: path.join(artifactRoot, 'cache-phase-1c-final'), screenshot: 'only-on-failure', trace: 'retain-on-failure' },
+  use: { ...devices['Desktop Chrome'], ctPort: 3120, ctCacheDir: path.join(artifactRoot, 'cache-fixed-workbench'), screenshot: 'only-on-failure', trace: 'retain-on-failure', ctViteConfig: { resolve: { alias: [
+    { find: '@/lib/jobs/job-intake-actions', replacement: path.resolve('tests/desktop-shell/job-intake-actions-shim.ts') },
+    { find: 'next/navigation', replacement: path.resolve('tests/desktop-shell/next-navigation-shim.ts') },
+    { find: 'server-only', replacement: path.resolve('tests/desktop-shell/server-only-shim.ts') },
+  ] } } },
 });

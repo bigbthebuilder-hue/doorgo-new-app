@@ -197,22 +197,58 @@
   /* Job editing is a desktop workbench: the shell and job chrome stay fixed;
      only the saved-line collection owns routine vertical overflow. */
   .app-shell-main:has(.job-editor-workspace) { overflow: hidden; }
-  .app-context-bar:has(.app-job-context-fields) { min-height: 7.5rem; max-height: 8rem; }
+  .app-context-bar:has(.app-job-context-fields) { min-height: 5.75rem; max-height: 6.5rem; }
   .app-context-bar:has(.app-job-context-fields) .app-job-context-fields { width: min(58rem, 61vw); grid-template-columns: repeat(3, minmax(7rem, 1fr)); }
-  .job-editor-workspace { height: calc(100vh - 8rem); min-height: 0; overflow: hidden; padding-block: .35rem; }
-  .job-editor-surface { display: grid; height: 100%; min-height: 0; grid-template-rows: auto auto auto minmax(0, 1fr) auto auto; overflow: hidden; }
+  .job-editor-workspace { height: calc(100vh - 6.5rem); min-height: 0; overflow: hidden; padding-block: .25rem; }
+  .job-editor-surface { display: grid; height: 100%; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto auto; overflow: hidden; }
   .job-editor-surface > .mt-3:has(.door-line-workbench) { min-height: 0; }
   .door-line-workbench { height: 100%; min-height: 0; grid-template-columns: minmax(0, 1.45fr) minmax(18rem, .72fr); }
   .door-input-pane { min-height: 0; overflow: hidden; }
   .job-lines-pane { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .job-editor-actions { position: sticky; bottom: 0; margin-top: .25rem !important; }
-  .job-editor-workspace .app-overlay-workspace { inset-block-start: 8rem; }
+  .job-editor-workspace .app-overlay-workspace { inset-block-start: 6.5rem; }
+  .job-confirmation-note { min-height: 1.4rem; }
+  .job-operational-strip { grid-template-columns: minmax(0, 5fr) minmax(10rem, 1fr); align-items: end; }
+  .job-operational-strip > section[aria-label="Job header validation"]:not(:has(*)) { display: none; }
+  .job-operational-strip > section[aria-label="Job header validation"]:has(*) { grid-column: 1 / -1; }
+  .job-production-strip { display: grid; min-height: 0; grid-template-columns: minmax(0, 5fr) minmax(10rem, 1fr); gap: .4rem; align-items: end; }
+  .job-production-strip .job-intake-field span { padding-top: .2rem; font-size: .6rem; }
+  .job-production-strip input, .job-production-strip select { min-height: 1.75rem !important; }
+  .job-production-strip > div:first-child { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .job-production-strip [aria-labelledby="po-numbers-label"] { margin-top: 0; }
+  .job-production-strip [aria-labelledby="po-numbers-label"] > p:not(#po-numbers-label) { display: none; }
+  .job-production-strip [aria-labelledby="po-numbers-label"] > div { margin-top: .15rem; flex-direction: row; gap: .25rem; }
+  .job-production-strip [aria-labelledby="po-numbers-label"] button { min-height: 1.75rem; border-radius: .375rem; padding-inline: .55rem; font-size: .7rem; white-space: nowrap; }
+  .job-operational-strip .job-notes-compact { min-height: 1.75rem !important; resize: none; }
+
+  .door-primary-grid { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; }
+  .door-production-grid { grid-template-columns: repeat(9, minmax(0, 1fr)) !important; }
+  .door-input-pane { font-size: .72rem; }
+  .door-input-pane { padding: .35rem; }
+  .door-input-pane label { gap: .1rem; font-size: .7rem; }
+  .door-input-pane input:not([type="checkbox"]), .door-input-pane select, .door-input-pane button { min-height: 1.9rem !important; }
+  .door-input-pane textarea { min-height: 2rem !important; }
+  .door-input-pane .door-line-notes { grid-column: 1 / -1 !important; }
+  .door-input-pane .door-line-notes textarea { height: 1.9rem; min-height: 1.9rem !important; resize: none; }
+  .door-primary-grid + section { gap: .25rem; padding: .3rem; }
+  .door-input-pane > div.mt-2, .door-input-pane > section.mt-2 { margin-top: .35rem; }
+  .door-input-pane > div.mt-2.rounded-md { padding: .3rem; }
 
   .glass-unit-builder { grid-template-rows: auto minmax(0, 1fr) auto; }
-  .glass-unit-builder > div:nth-child(2) { overflow: hidden; }
-  .glass-builder-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; font-size: .72rem; }
+  .glass-unit-builder > div:nth-child(2) { overflow: hidden; padding: .25rem; }
+  .glass-builder-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .3rem; font-size: .72rem; }
   .glass-builder-fields > section[aria-label="Shared sidelight specification"] { grid-column: 1 / -1; grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .glass-builder-fields textarea { min-height: 2rem; }
+  .glass-builder-fields [aria-label="Calculated measurements"] + pre { display: none; }
+  .glass-builder-fields > label.flex { min-height: 2rem; padding-inline: .5rem; }
+  .glass-builder-fields > div.rounded-xl, .glass-builder-fields > details { padding: .4rem; }
+  .glass-builder-fields > div.rounded-xl:has([aria-label="Calculated measurements"]) { grid-column: span 2; }
+  .glass-builder-fields > fieldset { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .glass-builder-fields:has(> fieldset) > label.flex, .glass-builder-fields:has(> fieldset) > details { grid-column: 1; grid-row: 4; }
+  .glass-builder-fields:not(:has(> fieldset)) > label.flex, .glass-builder-fields:not(:has(> fieldset)) > details { grid-column: 1; grid-row: 3; }
+  .glass-builder-fields > label.flex { align-self: start; }
+  .glass-builder-fields > details { align-self: end; }
+  .glass-builder-fields [aria-label="Calculated measurements"] { margin-top: .3rem; gap-block: .1rem; }
   .glass-calculator-editor .glass-unit-builder { height: calc(100vh - 4.5rem); }
 }
 

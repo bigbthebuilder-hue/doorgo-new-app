@@ -6,6 +6,7 @@ import { ProductionBoardDay } from '@/components/ProductionBoardDay';
 import { ProductionBoardSummary } from '@/components/ProductionBoardSummary';
 import { BoardNavigationHarness } from './BoardNavigationHarness';
 import { DoorLineWorkspaceHarness } from './DoorLineWorkspaceHarness';
+import { JobEditorWorkbenchHarness } from './JobEditorWorkbenchHarness';
 import { JobsWorkspace } from '@/components/jobs/JobsWorkspace';
 import { StandaloneGlassCalculator } from '@/components/jobs/StandaloneGlassCalculator';
 import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel, ProductionBoardViewModel } from '@/lib/production-board/types';
@@ -205,13 +206,45 @@ test('routine native door choices share one compact desktop workspace', async ({
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);
     const component = await mount(<DoorLineWorkspaceHarness/>);
-    for (const label of ['Door Type', 'Configuration', 'Width', 'Height', 'Swing', 'Prep', 'Quantity', 'Jamb Width', 'Jamb Type', 'Hinge Type', 'Material', 'Sill', 'Weatherstrip', 'Custom Slab / RO', 'Door Thickness']) await expect(component.getByLabel(label, { exact: true })).toBeVisible();
+    for (const label of ['Door Type', 'Configuration', 'Width', 'Height', 'Swing', 'Prep', 'Quantity', 'Jamb Width', 'Jamb Type', 'Hinge Type', 'Material', 'Sill', 'Weatherstrip', 'Custom Slab / RO', 'Door Thickness']) await expect(component.locator('label').filter({ hasText: new RegExp(`^${label.replace('/', '\\/')}`) }).first().locator('input,select,textarea')).toBeVisible();
     await expect(component.getByText('More Details', { exact: true })).toHaveCount(0);
     await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', 'hidden');
     await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', 'auto');
+    const inputFit = await component.locator('.door-input-pane').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+    expect(inputFit.scrollHeight).toBeLessThanOrEqual(inputFit.clientHeight);
+    const inputTop = await component.locator('.door-input-pane').evaluate((element) => element.getBoundingClientRect().top);
+    await component.locator('.job-lines-pane').evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    expect(await component.locator('.door-input-pane').evaluate((element) => element.getBoundingClientRect().top)).toBe(inputTop);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
     await component.unmount();
   }
+});
+
+test('actual native job editor keeps its operational strip, door workbench, and save actions in one laptop viewport', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const component = await mount(<JobEditorWorkbenchHarness/>);
+  await expect(component.locator('.app-context-bar')).toBeVisible();
+  await expect(component.getByLabel('Production Setup')).toBeVisible();
+  await expect(component.getByRole('button', { name: 'Add Door' })).toBeVisible();
+  await expect(component.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+  await expect(component.getByRole('button', { name: 'Save and Exit' })).toBeVisible();
+  const inputFit = await component.locator('.door-input-pane').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(inputFit.scrollHeight).toBeLessThanOrEqual(inputFit.clientHeight);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  await component.getByRole('button', { name: 'Configure Glass Unit' }).click();
+  const glassWorkbench = component.locator('.glass-unit-builder');
+  await expect(glassWorkbench).toBeVisible();
+  await component.getByRole('button', { name: 'Add right sidelight' }).click();
+  await component.getByRole('button', { name: 'Add left sidelight' }).click();
+  await component.getByLabel('RO Width (inches)').fill('60');
+  await component.getByLabel('RO Width (inches)').blur();
+  await component.getByLabel('RO Height (inches)').fill('96');
+  await component.getByLabel('RO Height (inches)').blur();
+  await component.getByRole('button', { name: 'Add transom' }).click();
+  await expect(component.getByRole('region', { name: 'Shared sidelight specification' }).locator('label').filter({ hasText: /^Sidelight Type/ })).toHaveCount(1);
+  await expect(component.getByRole('button', { name: 'Add Door to Order' })).toBeVisible();
+  const glassFit = await glassWorkbench.locator('> div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(glassFit.scrollHeight).toBeLessThanOrEqual(glassFit.clientHeight);
 });
 
 test('standalone Glass Calculator uses the shared live builder result and a purpose-built print document', async ({ mount, page }) => {
@@ -230,6 +263,18 @@ test('standalone Glass Calculator uses the shared live builder result and a purp
   await expect(sharedGlassType).toHaveCount(1);
   await expect(sharedGlassType).toHaveValue('CLEAR');
   await expect(editor.locator('.glass-unit-diagram')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Add right sidelight' }).click();
+  await page.getByRole('button', { name: 'Add left sidelight' }).click();
+  await page.setViewportSize({ width: 1280, height: 720 });
+  let workspaceFit = await page.locator('.glass-unit-builder > div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(workspaceFit.scrollHeight).toBeLessThanOrEqual(workspaceFit.clientHeight);
+  await page.getByLabel('RO Height (inches)').fill('96');
+  await page.getByLabel('RO Height (inches)').blur();
+  await page.getByRole('button', { name: 'Add transom' }).click();
+  workspaceFit = await page.locator('.glass-unit-builder > div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(workspaceFit.scrollHeight).toBeLessThanOrEqual(workspaceFit.clientHeight);
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Remove transom' }).click();
   await page.getByRole('button', { name: 'Remove left sidelight' }).click();
   await page.getByLabel('RO Height (inches)').fill('96');
   await page.getByLabel('RO Height (inches)').blur();
@@ -251,7 +296,7 @@ test('standalone Glass Calculator uses the shared live builder result and a purp
   await expect(editor.getByText('Status: Glass Detail Needed', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Leave Glass Detail Needed' })).toHaveCount(0);
   await expect(page.locator('.glass-calculator-results')).toBeHidden();
-  const workspaceFit = await page.locator('.glass-unit-builder > div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  workspaceFit = await page.locator('.glass-unit-builder > div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
   expect(workspaceFit.scrollHeight).toBeLessThanOrEqual(workspaceFit.clientHeight);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   await page.emulateMedia({ media: 'print' });

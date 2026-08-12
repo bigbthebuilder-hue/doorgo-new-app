@@ -1,4 +1,13 @@
+import { useState } from 'react';
+import { DoorLineWorkspace } from '@/components/jobs/DoorLineWorkspace';
+import type { DoorLineInput } from '@/lib/jobs/job-intake-types';
+
 export function DoorLineWorkspaceHarness() {
-  const fields = ['Door Type', 'Configuration', 'Width', 'Height', 'Swing', 'Prep', 'Quantity', 'Jamb Width', 'Jamb Type', 'Hinge Type', 'Material', 'Sill', 'Weatherstrip', 'Custom Slab / RO', 'Door Thickness'];
-  return <div className="app-workspace app-workspace-fluid"><section className="door-line-workbench grid min-w-0 gap-2"><div className="door-input-pane min-w-0 rounded-lg border p-2.5"><div className="grid gap-2 sm:grid-cols-3 2xl:grid-cols-4">{fields.map((field) => <label className="grid gap-1 text-sm font-semibold" key={field}>{field}<input aria-label={field} className="app-compact-input"/></label>)}</div></div><aside className="job-lines-pane min-w-0 rounded-lg border p-2.5"><h2>Job Lines</h2></aside></section></div>;
+  const [lines, setLines] = useState<DoorLineInput[]>(Array.from({ length: 8 }, (_, index) => ({
+    lineId: `line-${index}`, lineIndex: index + 1, lineStatus: 'Active', mode: 'Exterior',
+    doorType: 'Madison', config: 'D', width: `2'8"`, height: `6'8"`, hand: 'LH', prep: 'D', qty: 1,
+    jambWidth: '4-9/16', jambType: 'Primed', hingeType: 'REG', material: 'fiberglass',
+    sill: 'Bronze', weatherstrip: 'Bronze', customSlab: 'No', doorThickness: '1-3/4',
+  })));
+  return <div className="app-workspace app-workspace-fluid"><DoorLineWorkspace canEdit lifecycleStage="Draft" lines={lines} onChange={setLines}/></div>;
 }

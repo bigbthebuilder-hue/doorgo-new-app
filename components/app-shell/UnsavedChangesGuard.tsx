@@ -127,7 +127,7 @@ export function UnsavedChangesDialog({ open, onStay, onDiscard, title = 'Unsaved
     return () => { document.removeEventListener('keydown', onKeyDown); previousFocus.current?.focus(); };
   }, [open, onStay]);
   if (!open) return null;
-  return <div className="app-unsaved-overlay app-unsaved-overlay--workspace" role="presentation"><section aria-describedby="local-unsaved-description" aria-labelledby="local-unsaved-title" aria-modal="true" className="app-unsaved-dialog" ref={dialog} role="alertdialog"><h2 id="local-unsaved-title">{title}</h2><p id="local-unsaved-description">{description}</p><div className="app-unsaved-dialog-actions"><button className="app-button app-button-secondary" onClick={onStay} ref={stayButton} type="button">Stay</button><button className="app-button app-button-danger" onClick={onDiscard} type="button">Discard changes</button></div></section></div>;
+  return <div className="app-unsaved-overlay app-unsaved-overlay--workspace" role="presentation"><section aria-describedby="local-unsaved-description" aria-labelledby="local-unsaved-title" aria-modal="true" className="app-unsaved-dialog" ref={dialog} role="alertdialog"><h2 id="local-unsaved-title">{title}</h2><p id="local-unsaved-description">{description}</p><div className="app-unsaved-dialog-actions"><button className="app-button app-button-secondary" onClick={onStay} ref={stayButton} type="button">Stay</button><button className="app-button app-button-danger" onClick={onDiscard} type="button">Leave without saving</button></div></section></div>;
 }
 
 function trapDialogFocus(event: KeyboardEvent, container: HTMLElement) {

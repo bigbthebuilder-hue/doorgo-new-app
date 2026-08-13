@@ -191,12 +191,19 @@ const repeatedPanelMissingTransom = calculateGlassGeometry(line({
 }));
 assert.equal(repeatedPanelMissingTransom.incompleteDetails.some((issue) => issue.code === 'sidelight_type_required'), false);
 
-const hours = calculateJ2AShopHours(GLASS_CONFIGS.map((config, index) => line({ config, lineId: String(index), qty: 1 })));
-assert.equal(hours.shopHours, 36.5, 'all ten J2B base rules total 2,190 minutes');
-assert.equal(calculateJ2AShopHours([line({ config: 'SDDS' })]).shopHours, 4.5);
-assert.equal(calculateJ2AShopHours([line({ config: 'T/SDDS' })]).shopHours, 5.5);
-assert.deepEqual(calculateJ2AShopHours([line({ config: 'DSS' })]).unknown, ['Line 1: Exterior DSS']);
+const structuralHours: Record<string, number> = {
+  D: 1, 'T/D': 1.5, SD: 3, SDS: 4, 'T/SD': 4, 'T/SDS': 5,
+  'T/SDSS': 6, 'T/SSDSS': 7, 'T/SSSDSS': 8, 'T/SSSDSSS': 9,
+  DD: 1.5, 'T/DD': 2, SDD: 3.5, SDDS: 4.5, 'T/SDD': 4.5, 'T/SSDDSS': 7.5,
+};
+for (const [config, expectedHours] of Object.entries(structuralHours)) assert.equal(calculateJ2AShopHours([line({ config })]).shopHours, expectedHours, `${config} derives hours from physical structure`);
+assert.equal(calculateJ2AShopHours([line({ config: 'T/SSSDSSS', qty: 2 })]).shopHours, 18, 'quantity applies to complete structural time');
+assert.deepEqual(calculateJ2AShopHours([line({ config: 'INVALID' })]).unknown, ['Line 1: Exterior INVALID']);
 assert.equal(calculateJ2AShopHours([line({ config: 'SD', qty: 2, prep: 'MULTI', ripJamb: 'Yes' })]).shopHours, 8, 'quantity, multipoint and RIP additions apply');
+assert.equal(calculateJ2AShopHours([line({ config: 'DD', prep: 'MULTI' })]).shopHours, 3, 'double-door multipoint remains 90 minutes');
+assert.equal(calculateJ2AShopHours([line({ config: 'D', customSlab: 'RO' })]).shopHours, 1.5, 'single-door custom RO remains 30 minutes');
+assert.equal(calculateJ2AShopHours([line({ config: 'DD', customSlab: 'RO' })]).shopHours, 2.25, 'double-door custom RO remains 45 minutes');
+for (const [config, expectedHours] of Object.entries({ D: .25, DD: .5, PKT: .25, 'B.P.': .25 })) assert.equal(calculateJ2AShopHours([line({ mode: 'Interior', config })]).shopHours, expectedHours, `Interior ${config} remains unchanged`);
 
 const unequalSource = line({ config: 'SDS', roWidth: '78', sidelightSpecifications: [
   { side: 'left', index: 1, finishedWidth: '15', tBarSize: null, glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },

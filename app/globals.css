@@ -371,6 +371,8 @@ body {
   .door-input-pane, .job-lines-pane { overflow-y: auto; }
   .door-primary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
   .door-production-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .glass-builder-workspace { grid-template-columns: minmax(0, 1fr) !important; gap: .75rem; overflow-y: auto !important; }
+  .glass-builder-workspace > * { min-width: 0; }
   .app-context-bottom-bar { grid-template-columns: minmax(8rem, auto) minmax(0, 1fr) auto; gap: .4rem; padding-inline: .5rem; }
   .app-context-bottom-actions { flex-wrap: wrap; justify-content: flex-end; }
 }

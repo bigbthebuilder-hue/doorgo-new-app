@@ -251,7 +251,7 @@ test('job shell keeps its accepted desktop layout and responsive fallback at req
     { width: 1280, height: 720 },
     { width: 1100, height: 720 },
     { width: 1024, height: 720 },
-    { width: 900, height: 720 },
+    { width: 900, height: 700 },
   ]) {
     await page.setViewportSize(viewport);
     const switcher = component.getByRole('group', { name: 'Door workspace view' });
@@ -270,8 +270,8 @@ test('shared glass builder stacks its workbench only at fallback widths', async 
   const workspace = page.locator('.glass-builder-workspace');
   await page.setViewportSize({ width: 1280, height: 720 });
   expect((await workspace.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length))).toBeGreaterThan(1);
-  for (const width of [1100, 1024, 900]) {
-    await page.setViewportSize({ width, height: 720 });
+  for (const viewport of [{ width: 1100, height: 720 }, { width: 1024, height: 720 }, { width: 900, height: 700 }]) {
+    await page.setViewportSize(viewport);
     const columns = await workspace.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length);
     expect(columns).toBe(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();

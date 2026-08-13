@@ -10,7 +10,7 @@ const paths = {
   service: 'lib/production-bookings/production-booking-service.ts',
   actions: 'lib/production-bookings/production-booking-actions.ts',
   capacity: 'lib/production-bookings/production-recovery-capacity-server.ts',
-  navigation: 'lib/app-shell/navigation.ts',
+  schedule: 'app/production-schedule/page.tsx',
   board: 'app/production-board/page.tsx',
   checkpoints: 'app/production-checkpoints/page.tsx',
   docs: 'docs/production-recovery-workflow.md',
@@ -20,14 +20,14 @@ for (const path of Object.values(paths)) assert.ok(existsSync(path), `Missing D3
 const read = (path) => readFileSync(path, 'utf8');
 const page = read(paths.page); const client = read(paths.client); const contract = read(paths.contract);
 const tests = read(paths.tests); const service = read(paths.service); const actions = read(paths.actions);
-const capacity = read(paths.capacity); const navigation = read(paths.navigation); const docs = read(paths.docs);
+const capacity = read(paths.capacity); const schedule = read(paths.schedule); const docs = read(paths.docs);
 
 assert.match(page, /requireDoorGoProtectedAccess\(\)/);
 assert.match(page, /hasAtLeastView\(access, 'production'\)/);
 assert.ok(page.indexOf("hasAtLeastView(access, 'production')") < page.indexOf('loadAuthorizedRecentProductionRecoveryBookings(access'), 'Production permission must precede reads');
 assert.match(page, /getPermissionAccess\(access, 'production'\)/);
 assert.doesNotMatch(page, /isManager|is_manager|companyLocation|permission[^\n]*['"](?:calendar|production_checkpoints)['"][^\n]*(?:read|move)/i);
-assert.match(navigation, /hasAtLeastView\(access, 'production'\)[\s\S]*href: '\/production-recovery'[\s\S]*Past Schedule/);
+assert.match(schedule, /aria-label="Edit Schedule tools"[\s\S]*<Link[^>]+href="\/production-recovery">Past Schedule<\/Link>/);
 assert.match(page, /productionAccess === 'view'[\s\S]*view-only production access/);
 assert.match(page, /canMove=\{productionAccess === 'use'\}/);
 assert.match(client, /canMove && !isSelected[\s\S]*Move to today/);

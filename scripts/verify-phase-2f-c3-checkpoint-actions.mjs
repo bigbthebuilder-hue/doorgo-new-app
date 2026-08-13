@@ -87,6 +87,7 @@ const approvedLaterUi = new Set([
   'components/app-shell/AppShell.tsx',
   'components/app-shell/DesktopNav.tsx',
   'components/app-shell/ContextTopBar.tsx',
+  'components/app-shell/ContextBottomBar.tsx',
   'components/app-shell/PageHeader.tsx',
   'components/app-shell/UnsavedChangesGuard.tsx',
   'components/ProductionBoardView.tsx',

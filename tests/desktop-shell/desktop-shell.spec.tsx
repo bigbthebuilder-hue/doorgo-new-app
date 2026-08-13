@@ -220,6 +220,51 @@ test('routine native door choices share one compact desktop workspace', async ({
   }
 });
 
+test('narrow job workspace switches panes without losing draft state or changing dirty state', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1024, height: 720 });
+  const component = await mount(<JobEditorWorkbenchHarness/>);
+  const switcher = component.getByRole('group', { name: 'Door workspace view' });
+  const inputTab = switcher.getByRole('button', { name: 'Door Input' });
+  const linesTab = switcher.getByRole('button', { name: 'Job Lines (1)' });
+  await expect(switcher).toBeVisible();
+  await expect(inputTab).toHaveAttribute('aria-pressed', 'true');
+  await component.getByRole('textbox', { name: 'Line Notes' }).fill('Responsive draft survives pane changes');
+  await expect(component.getByRole('region', { name: 'Job actions' })).toContainText('Unsaved changes');
+  await linesTab.click();
+  await expect(linesTab).toHaveAttribute('aria-pressed', 'true');
+  await expect(component.locator('.job-lines-pane')).toBeVisible();
+  await expect(component.locator('.door-input-pane')).toBeHidden();
+  await expect(component.getByRole('region', { name: 'Job actions' })).toContainText('Unsaved changes');
+  await inputTab.click();
+  await expect(component.getByRole('textbox', { name: 'Line Notes' })).toHaveValue('Responsive draft survives pane changes');
+  await linesTab.click();
+  await component.locator('.job-lines-pane').getByRole('button', { name: 'Edit' }).click();
+  await expect(inputTab).toHaveAttribute('aria-pressed', 'true');
+  await expect(component.getByRole('heading', { name: 'Edit Door Line' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+});
+
+test('job shell keeps its accepted desktop layout and responsive fallback at required widths', async ({ mount, page }) => {
+  const component = await mount(<JobEditorWorkbenchHarness/>);
+  for (const viewport of [
+    { width: 1600, height: 900 },
+    { width: 1280, height: 720 },
+    { width: 1100, height: 720 },
+    { width: 1024, height: 720 },
+    { width: 900, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const switcher = component.getByRole('group', { name: 'Door workspace view' });
+    if (viewport.width > 1160) await expect(switcher).toBeHidden();
+    else await expect(switcher).toBeVisible();
+    await expect(component.locator('.app-context-bar')).toBeVisible();
+    await expect(component.getByRole('region', { name: 'Job actions' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+    const actions = await component.getByRole('region', { name: 'Job actions' }).evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
+    expect(actions.scrollWidth).toBeLessThanOrEqual(actions.clientWidth);
+  }
+});
+
 test('actual native job editor keeps its operational strip, door workbench, and save actions in one laptop viewport', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   const component = await mount(<JobEditorWorkbenchHarness/>);

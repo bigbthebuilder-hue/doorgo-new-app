@@ -75,6 +75,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   const [editor, setEditor] = useState<DoorLineInput>(() => defaultDoorLine('Exterior'));
   const [editorBaseline, setEditorBaseline] = useState(() => JSON.stringify(defaultDoorLine('Exterior')));
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [workspacePane, setWorkspacePane] = useState<'input' | 'lines'>('input');
   const [ripMode, setRipMode] = useState(false);
   const [message, setMessage] = useState<{ error: boolean; text: string; lifecycleStage: JobLifecycleStage } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -240,6 +241,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     for (const name of ['roWidth', 'roHeight', 'customSlabWidth', 'customSlabHeight', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight'] as const) editable[name] = storedShopInput(editable[name]);
     setEditor(editable); setEditorBaseline(JSON.stringify(editable)); setEditingIndex(lines.indexOf(line)); setRipMode(String(line.ripJamb ?? '').toLowerCase() === 'yes'); setCalculationStatus(null);
     setFieldErrors({}); setOverrideReason(line.glassOverride?.reason ?? ''); setAcceptedValues(line.glassOverride?.acceptedValues ?? line.glassCalc ?? {}); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+    setWorkspacePane('input');
   }
 
   function duplicate(line: DoorLineInput) {
@@ -300,8 +302,12 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     });
   }
 
-  return <section className="door-line-workbench grid min-w-0 gap-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)]" aria-labelledby="door-lines-heading">
-    <div className="door-input-pane min-w-0 rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+  return <section className="door-line-workbench grid min-w-0 gap-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)]" aria-labelledby="door-lines-heading" data-workspace-pane={workspacePane}>
+    <div aria-label="Door workspace view" className="door-workspace-switcher" role="group">
+      <button aria-controls="door-input-pane" aria-pressed={workspacePane === 'input'} onClick={() => setWorkspacePane('input')} type="button">Door Input</button>
+      <button aria-controls="job-lines-pane" aria-pressed={workspacePane === 'lines'} onClick={() => setWorkspacePane('lines')} type="button">Job Lines ({active.length})</button>
+    </div>
+    <div className="door-input-pane min-w-0 rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="door-input-pane">
       <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Door editor</p><h2 className="text-base font-semibold">{editingIndex !== null ? 'Edit Door Line' : 'Add Door Line'}</h2></div><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold dark:bg-slate-800">{isGlass ? 'Glass unit' : 'Door line'}</span></div>
       {!canEdit ? <p className="mt-4 rounded-xl bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-100">Door lines and geometry are read-only with jobs = view.</p> : <>
         <div className="mt-2 grid grid-cols-2 gap-1.5" aria-label="Door mode">{(['Exterior', 'Interior'] as const).map((value) => <button className={`${button} ${mode === value ? 'border-sky-700 bg-sky-700 text-white' : ''}`} key={value} onClick={() => chooseMode(value)} type="button">{value}</button>)}</div>
@@ -340,7 +346,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
       {builderOpen ? <GlassUnitBuilder commitLabel={editingIndex !== null ? 'Save Door Changes' : 'Add Door to Order'} line={structuredClone(editor)} onCancel={() => setBuilderOpen(false)} onUse={(next, explicitDetailNeeded) => { const committed = commitEditor(explicitDetailNeeded, next); if (committed) { setBuilderOpen(false); setCalculationStatus(null); clearWorkspaceMessage(); } return committed; }}/>: null}
     </div>
 
-    <aside className="job-lines-pane min-w-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <aside className="job-lines-pane min-w-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="job-lines-pane">
       <div className="flex flex-wrap items-center justify-between gap-1.5"><div><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Lines</p><h2 className="text-base font-semibold" id="door-lines-heading">{active.length} active · {archived.length} archived</h2></div>{canEdit ? <button className={button} onClick={merge} type="button">Merge Equivalent</button> : null}</div>
       <p className="mt-1.5 rounded bg-slate-100 px-2 py-1 text-xs dark:bg-slate-800">Shop Hours: {estimate.shopHours ?? '—'} · {estimate.shopHoursSource ?? 'No estimate'}</p>
       <div className="mt-2 grid gap-2">{active.length ? active.map((line, index) => { const presentedLine = withDerivedGlassGeometry(line); const attention = glassLineNeedsAttention(presentedLine); return <article className="job-line-card min-w-0 rounded-md border border-slate-200 p-2 dark:border-slate-700" key={importedLineRenderKey(line, index)}><div className="flex flex-wrap items-start justify-between gap-1"><h3 className="line-clamp-2 text-sm font-semibold leading-tight">{lineTitle(line)}</h3><StatusBadge status={presentedLine.glassCalcStatus}/></div><p className="mt-0.5 truncate text-xs text-slate-600 dark:text-slate-300" title={line.notes ?? undefined}>{`Qty ${String(line.qty)} · ${line.sidelightType ?? 'Door'} · ${lineShopHours(line)} shop hrs${line.notes ? ` · ${line.notes}` : ''}`}</p>{attention.length ? <p className="mt-1 text-xs font-bold text-amber-800 dark:text-amber-200">⚠ Needs Attention</p> : null}{isGlassConfiguration(line.config) ? <div className="job-line-glass-summary"><GlassUnitDiagram compact line={presentedLine}/>{presentedLine.glassWorkorderDetail ? <details className="text-xs"><summary className="cursor-pointer font-semibold">Line details</summary><pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-xs">{presentedLine.glassWorkorderDetail}</pre>{presentedLine.glassOverride ? <p className="mt-1"><strong>Override:</strong> {presentedLine.glassOverride.reason}</p> : null}</details> : null}</div> : null}{canEdit ? <div className="job-line-actions mt-1.5 flex flex-wrap gap-1"><button className={button} onClick={() => adjust(line.lineId, 1)} type="button">+ Qty</button><button className={button} onClick={() => adjust(line.lineId, -1)} type="button">− Qty</button><button className={button} onClick={() => edit(line)} type="button">Edit</button><button className={button} onClick={() => duplicate(line)} type="button">Duplicate</button><button className={button} disabled={index === 0} onClick={() => move(line.lineId, -1)} type="button">Move Up</button><button className={button} disabled={index === active.length - 1} onClick={() => move(line.lineId, 1)} type="button">Move Down</button><button className={`${button} border-rose-400 text-rose-800 dark:text-rose-200`} onClick={() => archive(line.lineId)} type="button">Archive / Remove</button></div> : null}</article>; }) : <p className="rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No active door lines.</p>}</div>

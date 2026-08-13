@@ -350,6 +350,31 @@ body {
 
 .glass-unit-builder { grid-template-rows: auto minmax(0, 1fr) auto; }
 
+.door-workspace-switcher { display: none; }
+
+@media (min-width: 768px) and (max-width: 1160px) {
+  .app-shell-main:has(.job-editor-workspace) { overflow: hidden; }
+  .app-context-bar:has(.app-job-context-fields) { max-height: none; flex-wrap: wrap; }
+  .app-context-bar:has(.app-job-context-fields) .app-context-primary { flex-basis: 10rem; min-width: 10rem; }
+  .app-context-bar:has(.app-job-context-fields) .app-job-context-fields { width: min(100%, 44rem); grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .job-editor-workspace { overflow-y: auto; overscroll-behavior: contain; }
+  .job-editor-surface { height: auto; min-height: 100%; overflow: visible; }
+  .job-editor-surface > .mt-3:has(.door-line-workbench) { min-height: 30rem; }
+  .door-line-workbench { height: auto; min-height: 30rem; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .door-workspace-switcher { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem; border-radius: .5rem; background: rgb(226 232 240); padding: .25rem; }
+  .dark .door-workspace-switcher { background: rgb(30 41 59); }
+  .door-workspace-switcher button { min-height: 2rem; border-radius: .375rem; padding-inline: .75rem; font-size: .75rem; font-weight: 700; }
+  .door-workspace-switcher button[aria-pressed="true"] { background: white; color: rgb(3 105 161); box-shadow: 0 1px 2px rgb(15 23 42 / .14); }
+  .dark .door-workspace-switcher button[aria-pressed="true"] { background: rgb(15 23 42); color: rgb(125 211 252); }
+  .door-line-workbench[data-workspace-pane="input"] .job-lines-pane,
+  .door-line-workbench[data-workspace-pane="lines"] .door-input-pane { display: none; }
+  .door-input-pane, .job-lines-pane { overflow-y: auto; }
+  .door-primary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .door-production-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .app-context-bottom-bar { grid-template-columns: minmax(8rem, auto) minmax(0, 1fr) auto; gap: .4rem; padding-inline: .5rem; }
+  .app-context-bottom-actions { flex-wrap: wrap; justify-content: flex-end; }
+}
+
 @media (max-width: 640px) {
   .glass-unit-builder { max-height: 100vh; border-radius: 0; }
 }

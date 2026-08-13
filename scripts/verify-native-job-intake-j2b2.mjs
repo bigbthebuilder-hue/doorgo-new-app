@@ -29,7 +29,8 @@ const builder = await readFile('components/jobs/GlassUnitBuilder.tsx', 'utf8');
 for (const required of [
   'commitLabel', 'Leave Glass Detail Needed', 'Cancel', 'calculateGlassGeometry',
   'calculateGlassCompositionSchematic', 'nextGlassBuilderDraft', 'GlassUnitDiagram',
-  'Shared sidelight specification', 'Sidelight Product Width (inches)', 'Glass Order Size',
+  'Shared sidelight specification', 'Sidelight Product Width (inches)', 'glassResultRows',
+  'data-glass-result={row.key}', 'aggregateVendorCopy',
   'Unit T-bar Size', 'Transom Product Width', 'Copy Vendor Text', 'includeDiagramOnWorkOrder',
   'EXTERIOR_WIDTHS', 'DOOR_HEIGHTS', 'Slab Width', 'Slab Height', 'prepAfterHeightChange',
 ]) assert.ok(builder.includes(required), `Glass Unit Builder missing ${required}`);

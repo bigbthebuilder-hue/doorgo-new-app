@@ -27,6 +27,7 @@ import {
   type ProductionScheduleMoveAttempt,
 } from '@/lib/production-schedule/move-ui-contract';
 import type { ProductionBoardCard, ProductionBoardViewModel } from '@/lib/production-board/types';
+import type { AppNavigationItem } from '@/lib/app-shell/navigation';
 import {
   applyProductionScheduleCompletionOutcome,
   beginProductionScheduleCompletionAttempt,
@@ -83,8 +84,9 @@ function getDesktopDragSnapshot(): boolean {
 export function ProductionScheduleInteractiveBoard(props: {
   board: ProductionBoardViewModel;
   presentation: ProductionBoardPresentation;
-  headerActions: ReactNode;
+  navigation: AppNavigationItem[];
   windowNavigation: ReactNode;
+  utilityActions?: ReactNode;
   today: string;
 }) {
   const version = JSON.stringify(props.board);
@@ -94,14 +96,16 @@ export function ProductionScheduleInteractiveBoard(props: {
 function ProductionScheduleInteractiveBoardSession({
   board,
   presentation,
-  headerActions,
+  navigation,
   windowNavigation,
+  utilityActions,
   today,
 }: {
   board: ProductionBoardViewModel;
   presentation: ProductionBoardPresentation;
-  headerActions: ReactNode;
+  navigation: AppNavigationItem[];
   windowNavigation: ReactNode;
+  utilityActions?: ReactNode;
   today: string;
 }) {
   const router = useRouter();
@@ -464,8 +468,9 @@ function ProductionScheduleInteractiveBoardSession({
       <ProductionBoardView
         board={displayBoard}
         presentation={presentation}
-        headerActions={headerActions}
+        navigation={navigation}
         windowNavigation={windowNavigation}
+        utilityActions={utilityActions}
         interaction={interaction}
       />
       {active?.showDialog ? (

@@ -76,7 +76,8 @@ requirePattern(access, /return access\.permissions\[permissionkey\] \?\? 'none'/
 rejectPattern(access, /raw_user_meta_data|user_metadata/, 'Raw metadata must not authorize access');
 rejectPattern(profiles, /salesperson|calendar_id|calendar_color/, 'Auth profiles must not own salesperson/calendar identity');
 requirePattern(contract, /america\/vancouver[\s\S]*production board intentionally remains public and unprotected/, 'Current scope must document timezone and public Board');
-rejectPattern(productionBoardPage, /getcurrentdoorgoaccess|redirect\(['"]\/login/, 'Production Board must remain unprotected');
+rejectPattern(productionBoardPage, /requiredorgoprotectedaccess|redirect\(['"]\/login/, 'Production Board must remain publicly reachable');
+requirePattern(productionBoardPage, /getcurrentdoorgoaccess[\s\S]*access\.state === 'active' \? buildprotectedappnavigation\(access\) : buildpublicappnavigation\(\)/, 'Public Board must enhance only authenticated sessions with permission-aware navigation');
 requirePattern(safeRedirect, /decoded\.startswith\(['"]\/\/['"]\)[\s\S]*decoded\.includes\(['"]\\\\['"]\)[\s\S]*target\.origin !== origin/, 'Redirect helper must reject protocol-relative, backslash, and foreign-origin targets');
 rejectPattern(login, /error\.message|setmessage\([^)]*error/, 'Login must not expose raw authentication errors');
 requirePattern(login, /email or password is incorrect/, 'Login must use a generic non-enumerating result');

@@ -6,7 +6,7 @@ const read = (path) => readFileSync(path, 'utf8');
 const paths = {
   publicPage: 'app/production-board/page.tsx',
   privatePage: 'app/production-schedule/page.tsx',
-  account: 'app/account/page.tsx',
+  navigation: 'lib/app-shell/navigation.ts',
   sharedView: 'components/ProductionBoardView.tsx',
   summary: 'components/ProductionBoardSummary.tsx',
   access: 'lib/production-schedule/view-access.ts',
@@ -23,7 +23,7 @@ for (const path of Object.values(paths)) {
 
 const publicPage = read(paths.publicPage);
 const privatePage = read(paths.privatePage);
-const account = read(paths.account);
+const navigation = read(paths.navigation);
 const sharedView = read(paths.sharedView);
 const summary = read(paths.summary);
 const access = read(paths.access);
@@ -47,7 +47,8 @@ for (const route of [publicPage, privatePage]) {
 
 assert.match(publicPage, /title: 'Production Board'/);
 assert.match(publicPage, /statusLabel: 'Read only'/);
-assert.doesNotMatch(publicPage, /requireDoorGoProtectedAccess|getCurrentDoorGoAccess|getPermissionAccess|hasAtLeastView|canViewProductionSchedule|redirect\s*\(/);
+assert.doesNotMatch(publicPage, /requireDoorGoProtectedAccess|getPermissionAccess|hasAtLeastView|canViewProductionSchedule|redirect\s*\(/);
+assert.match(publicPage, /getCurrentDoorGoAccess[\s\S]*access\.state === 'active' \? buildProtectedAppNavigation\(access\) : buildPublicAppNavigation\(\)/);
 assert.doesNotMatch(publicPage, /production-schedule|production-recovery|production-checkpoints|use server|checkpoint-actions|production-booking-actions/);
 
 assert.match(privatePage, /requireDoorGoProtectedAccess/);
@@ -61,23 +62,25 @@ assert.ok(
   privatePage.indexOf('canViewProductionSchedule(access)') < privatePage.indexOf('await loadProductionBoardReadOnly({'),
   'Production permission must precede trusted loading',
 );
-assert.match(privatePage, /href="\/production-board"/);
-assert.match(privatePage, /href="\/production-recovery"/);
-assert.match(privatePage, /hasAtLeastView\(access, 'production_checkpoints'\)[\s\S]*href="\/production-checkpoints"/);
-assert.match(privatePage, /href="\/account"/);
+assert.match(privatePage, /buildProtectedAppNavigation\(access\)/);
+assert.doesNotMatch(privatePage, /href="\/(?:production-board|account)"/, 'Global navigation belongs only in the shared rail');
+assert.match(privatePage, /href="\/production-recovery"/, 'Past Schedule must remain available as a contextual Edit Schedule utility');
+assert.match(privatePage, /href="\/production-checkpoints"/, 'Carry Checkpoint must remain available as a permission-aware contextual utility');
 assert.doesNotMatch(privatePage, /isManager|calendar['"]|production_checkpoints['"]\s*\)\s*\|\||\.rpc\(|checkpoint-actions|production-booking-actions/);
 
 assert.match(access, /getPermissionAccess\(access, 'production'\)/);
 assert.match(access, /title: 'Production Schedule'/);
 assert.match(access, /statusLabel: 'Schedule view'/);
 assert.doesNotMatch(access, /isManager|calendar|production_checkpoints/);
-assert.match(account, /hasAtLeastView\(access, 'production'\)[\s\S]*href="\/production-schedule"[\s\S]*Production Schedule/);
+assert.match(navigation, /hasAtLeastView\(access, 'production'\)[\s\S]*href: '\/production-schedule'[\s\S]*Edit Schedule/);
+for (const route of ['/production-board', '/production-schedule', '/account']) assert.ok(navigation.includes(`href: '${route}'`));
+for (const contextualRoute of ['/production-recovery', '/production-checkpoints']) assert.ok(!navigation.includes(`href: '${contextualRoute}'`));
 
 assert.match(sharedView, /ProductionBoardSummary/);
 assert.match(sharedView, /ProductionBoardWeekSection/);
-assert.match(sharedView, /headerActions\?: ReactNode/);
-assert.match(summary, /presentation\.title/);
-assert.match(summary, /presentation\.statusLabel/);
+assert.doesNotMatch(sharedView, /headerActions/, 'Shared Production top bar must not duplicate global navigation');
+assert.match(sharedView, /title=\{presentation\.title\}/);
+assert.match(sharedView, /\{presentation\.statusLabel\}/);
 for (const code of [sharedView, summary]) {
   assert.doesNotMatch(code, /use client|use server|@\/lib\/auth|@\/lib\/supabase|server action|\.rpc\(|calendar|checkpoint-actions|production-booking-actions/i);
 }

@@ -71,7 +71,7 @@ export function JobArchiveControl({
     <div className="mt-8 flex border-t border-slate-200 pt-4 dark:border-slate-700 sm:justify-end">
       <button className="min-h-11 rounded-xl border border-rose-500 px-4 font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-950" onClick={() => setDialogOpen(true)} type="button">Archive Job</button>
       {dialogOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-3 sm:items-center sm:p-6" onKeyDown={(event) => { if (event.key === 'Escape') closeDialog(); }}>
+        <div className="app-overlay-workspace flex items-end justify-center bg-slate-950/60 p-3 sm:items-center sm:p-6" onKeyDown={(event) => { if (event.key === 'Escape') closeDialog(); }}>
           <section aria-describedby="archive-job-description archive-job-unsaved-warning" aria-labelledby="archive-job-heading" aria-modal="true" className="max-h-[calc(100vh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 text-slate-950 shadow-2xl dark:bg-slate-900 dark:text-white sm:p-6" role="dialog">
             <h2 className="text-xl font-bold" id="archive-job-heading">Archive {target.visibleIdentifier}</h2>
             <p className="mt-3 text-sm" id="archive-job-description">Archiving removes this job from the active Jobs list but does not delete it or its lines.</p>

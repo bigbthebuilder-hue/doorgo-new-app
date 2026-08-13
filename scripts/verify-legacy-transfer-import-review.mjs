@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const read = (path) => readFileSync(path, 'utf8');
 const page = read('app/jobs/import/page.tsx');
 const jobs = read('app/jobs/page.tsx');
+const jobsWorkspace = read('components/jobs/JobsWorkspace.tsx');
 const review = read('components/jobs/LegacyJobImportReview.tsx');
 const form = read('components/jobs/JobHeaderForm.tsx');
 const action = read('lib/jobs/job-intake-actions.ts');
@@ -18,7 +19,8 @@ const glassBuilder = read('components/jobs/GlassUnitBuilder.tsx');
 const browserTest = read('tests/legacy-transfer-import-browser/legacy-transfer-review.spec.tsx');
 const glassBrowserTest = read('tests/legacy-transfer-import-browser/imported-glass-builder.spec.tsx');
 
-assert.match(jobs, /href="\/jobs\/import"[^>]*>Import Legacy Job/);
+assert.match(jobs, /<JobsWorkspace/);
+assert.match(jobsWorkspace, /href="\/jobs\/import"[^>]*>Import Legacy Job/);
 assert.match(page, /canUse\(access, 'jobs'\)[\s\S]*redirect\('\/account'\)/);
 assert.match(review, /legacyTransferFilePreflight\(file\)[\s\S]*await file\.text\(\)/, 'file size/type must be checked before parsing');
 assert.match(review, /accept="application\/json,\.json"/);

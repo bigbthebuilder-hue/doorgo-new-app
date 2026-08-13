@@ -25,6 +25,7 @@ const actions = await readFile('lib/jobs/job-intake-actions.ts', 'utf8');
 const service = await readFile('lib/jobs/job-intake-service.ts', 'utf8');
 const workspace = await readFile('components/jobs/DoorLineWorkspace.tsx', 'utf8');
 const form = await readFile('components/jobs/JobHeaderForm.tsx', 'utf8');
+const doorLineContractTests = await readFile('lib/jobs/door-line-contract.test.ts', 'utf8');
 assert.ok(actions.includes('actionWriteCheck(access)'));
 assert.ok(actions.includes('assertConfirmedJobActiveLineInvariant'));
 assert.ok(service.includes('assertJobsWriteAccess(access)'));
@@ -34,12 +35,24 @@ assert.ok(repository.includes('assertConfirmedJobActiveLineInvariant'));
 assert.ok(workspace.includes('CONFIRMED_JOB_LINE_MESSAGE'));
 assert.ok(form.includes('hasValidActiveDoorLine(lines)'));
 assert.equal(workspace.includes('onChange((current)'), false, 'DoorLineWorkspace must not update child state from a parent state updater');
-assert.ok(workspace.includes("showTransientMessage({ error: true, text: CONFIRMED_JOB_LINE_MESSAGE });\n      return;\n    }\n    onChange(lines.map"), 'final-line rejection must finish before the parent line update');
-assert.ok(workspace.includes('clearMessageTimer();\n    setMessage({ ...next, lifecycleStage });\n    messageTimer.current = setTimeout'), 'showing feedback must clear and restart its timer');
+const archiveBody = workspace.match(/function archive\(lineId: unknown\) \{([\s\S]*?)function restore/)?.[1] ?? '';
+const rejectionIndex = archiveBody.indexOf('showTransientMessage({ error: true, text: CONFIRMED_JOB_LINE_MESSAGE });');
+const rejectionReturnIndex = archiveBody.indexOf('return;', rejectionIndex);
+const parentUpdateIndex = archiveBody.indexOf('onChange(lines.map');
+assert.ok(rejectionIndex >= 0 && rejectionReturnIndex > rejectionIndex && parentUpdateIndex > rejectionReturnIndex, 'final-line rejection must finish before the parent line update');
+for (const behavior of [
+  'final valid line archive is blocked',
+  'rejected final archive does not change persisted data',
+  'rejected final archive does not change revision',
+  'another valid active line permits archive',
+]) {
+  assert.ok(doorLineContractTests.includes(behavior), `J2A behavioral contract missing: ${behavior}`);
+}
+assert.match(workspace, /clearMessageTimer\(\);\s*setMessage\(\{ \.\.\.next, lifecycleStage \}\);\s*messageTimer\.current = setTimeout/, 'showing feedback must clear and restart its timer');
 assert.ok(workspace.includes('}, 5000);'), 'transient workspace feedback must dismiss after approximately five seconds');
 assert.ok(workspace.includes("const visibleMessage = message?.lifecycleStage === lifecycleStage ? message : null;"), 'a successful lifecycle correction must hide prior feedback immediately');
-assert.ok(workspace.includes('if (messageTimer.current !== null) clearTimeout(messageTimer.current);\n    messageTimer.current = null;\n  }, [lifecycleStage]);'), 'timer must be cleaned up on lifecycle changes and unmount');
-assert.ok(workspace.includes('clearMessageTimer();\n      setMessage({ error: true, text: special, lifecycleStage });'), 'field validation errors must remain persistent');
+assert.match(workspace, /if \(messageTimer\.current !== null\) clearTimeout\(messageTimer\.current\);\s*messageTimer\.current = null;\s*\}, \[lifecycleStage\]\);/, 'timer must be cleaned up on lifecycle changes and unmount');
+assert.match(workspace, /clearMessageTimer\(\);\s*setMessage\(\{ error: true, text: special, lifecycleStage \}\);/, 'field validation errors must remain persistent');
 assert.equal(/useEffect\s*\(\s*\(\)\s*=>\s*\{[\s\S]{0,300}setMessage\s*\(/.test(workspace), false, 'effects must not synchronously update message state');
 assert.ok(form.includes("onClick={() => setLifecycleStage('Draft')}"));
 assert.ok(form.includes("onClick={() => setLifecycleStage('Confirmed Job')}"));

@@ -33,9 +33,9 @@ test('completed imported T/DS glass state renders visibly and survives applicati
   await component.getByRole('button', { name: 'Reopen Glass Builder' }).click();
   await expect(component.getByRole('dialog').getByText('Status: Complete', { exact: false })).toBeVisible();
   page.once('dialog', (confirmation) => confirmation.accept());
-  await component.getByRole('dialog').getByRole('button', { name: '− Remove Transom' }).click();
+  await component.getByRole('dialog').getByRole('button', { name: 'Remove transom' }).click();
   await expect(component.getByRole('dialog').getByText('Status: Complete', { exact: false })).toBeVisible();
-  await component.getByRole('dialog').getByRole('button', { name: '+ Add Transom Above' }).click();
+  await component.getByRole('dialog').getByRole('button', { name: 'Add transom' }).click();
   await expect(component.getByRole('dialog').getByText('Status: Glass Detail Needed', { exact: false })).toBeVisible();
   await component.getByRole('dialog').getByLabel('Transom Glass Type').selectOption('CLEAR');
   await component.getByRole('dialog').getByLabel('RO Height (inches)').fill('98');
@@ -52,15 +52,16 @@ test('T/SDS unit type, Clear selection, and committed custom width remain canoni
   await expect(dialog.getByLabel('Unit T-bar Size')).toHaveCount(1);
   await expect(dialog.getByText('Sidelight Product Width')).toBeVisible();
   await dialog.getByLabel('Sidelight Type').selectOption('Glass');
-  const right = dialog.getByRole('group', { name: 'Right sidelight 1' });
-  await right.getByLabel('Glass Type').selectOption('CLEAR');
+  const sharedGlassType = dialog.getByRole('region', { name: 'Shared sidelight specification' }).locator('label').filter({ hasText: /^Glass Type/ }).locator('select');
+  await expect(sharedGlassType).toHaveCount(1);
+  await sharedGlassType.selectOption('CLEAR');
   const width = dialog.getByLabel('Sidelight Product Width (inches)');
   await width.fill('14 1/8');
   await width.press('Enter');
   await expect(width).toHaveValue('14 1/8"');
   await expect(dialog.getByLabel('RO Width (inches)')).not.toHaveValue('');
   await expect(dialog.getByLabel('Calculated measurements')).toBeVisible();
-  await expect(dialog.getByText('Transom Product Size')).toBeVisible();
+  await expect(dialog.getByText('Transom Product Width (inches)')).toBeVisible();
   await expect(dialog.getByText(/Choose glass for the right sidelight 1/i)).toHaveCount(0);
 });
 
@@ -87,4 +88,22 @@ test('RO height normalization and one space-safe unit panel note survive commit 
   await component.getByRole('button', { name: 'Reopen Glass Builder' }).click();
   dialog = component.getByRole('dialog');
   await expect(dialog.getByLabel('Sidelight Panel Construction Notes')).toHaveValue('w/ 764 Adelaide glass');
+});
+
+test('Glass Builder distinguishes clean cancel from dirty modal draft discard', async ({ mount }) => {
+  const component = await mount(<ImportedGlassBuilderHarness/>);
+  await component.getByRole('dialog').getByRole('button', { name: 'Cancel' }).last().click();
+  await expect(component.getByRole('dialog')).toHaveCount(0);
+  await component.getByRole('button', { name: 'Reopen Glass Builder' }).click();
+  const builder = component.getByRole('dialog');
+  await builder.getByLabel('Swing').selectOption('LH');
+  await builder.getByRole('button', { name: 'Cancel' }).last().click();
+  const confirmation = component.getByRole('alertdialog', { name: 'Discard Glass changes?' });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole('button', { name: 'Stay' }).click();
+  await expect(builder).toBeVisible();
+  await expect(builder.getByLabel('Swing')).toHaveValue('LH');
+  await builder.getByRole('button', { name: 'Cancel' }).last().click();
+  await confirmation.getByRole('button', { name: 'Leave without saving' }).click();
+  await expect(component.getByRole('dialog')).toHaveCount(0);
 });

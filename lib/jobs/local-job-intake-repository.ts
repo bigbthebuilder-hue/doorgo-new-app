@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { assertConfirmedJobActiveLineInvariant, calculateJ2AShopHours, normalizeDoorLineInput } from './door-line-contract';
+import { assertConfirmedJobActiveLineInvariant, normalizeDoorLineInput, withEffectiveShopHours } from './door-line-contract';
 import { geometryChanged } from './glass-geometry-contract';
 import { formatDoorGoReference, isUuid, normalizeJobHeaderInput, normalizePoNumbers } from './job-intake-contract';
 import {
@@ -178,9 +178,7 @@ function normalizeAggregateLines(inputLines: DoorLineInput[], existing: NativeDo
 }
 
 function applyCalculatedShopHours(header: ReturnType<typeof normalizeJobHeaderInput> & { ok: true }, lines: NativeDoorLine[]) {
-  if (header.value.shopHoursSource === 'Manual' && header.value.shopHours !== null) return header.value;
-  const estimate = calculateJ2AShopHours(lines);
-  return { ...header.value, shopHours: estimate.shopHours, shopHoursSource: estimate.shopHoursSource };
+  return withEffectiveShopHours(header.value, lines);
 }
 
 export function createLocalJobIntakeRepository(options: LocalRepositoryOptions = {}): JobIntakeRepository {

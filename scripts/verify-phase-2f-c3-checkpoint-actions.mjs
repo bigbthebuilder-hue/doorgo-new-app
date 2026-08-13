@@ -72,7 +72,10 @@ const approvedLaterMigrations = new Set([
 ]);
 assert.deepEqual(changed.filter((path) => path.startsWith('supabase/migrations/') && !approvedLaterMigrations.has(path)), [], 'Only exact reviewed later-phase migrations may follow C3');
 const approvedLaterUi = new Set([
+  'app/layout.tsx',
   'app/page.tsx',
+  'app/login/page.tsx',
+  'app/login/login-form.tsx',
   'app/account/page.tsx',
   'app/production-checkpoints/page.tsx',
   'app/production-checkpoints/checkpoint-operation-forms.tsx',
@@ -81,6 +84,12 @@ const approvedLaterUi = new Set([
   'app/production-board/page.tsx',
   'app/production-schedule/page.tsx',
   'components/ProductionBoardSummary.tsx',
+  'components/app-shell/AppShell.tsx',
+  'components/app-shell/DesktopNav.tsx',
+  'components/app-shell/ContextTopBar.tsx',
+  'components/app-shell/ContextBottomBar.tsx',
+  'components/app-shell/PageHeader.tsx',
+  'components/app-shell/UnsavedChangesGuard.tsx',
   'components/ProductionBoardView.tsx',
   'components/ProductionBoardReadOnly.tsx',
   'app/globals.css',
@@ -97,15 +106,20 @@ const approvedLaterUi = new Set([
   'app/jobs/[internalJobId]/edit/page.tsx',
   'app/jobs/[internalJobId]/work-order/page.tsx',
   'app/jobs/[internalJobId]/work-order/pdf/route.ts',
+  'app/glass-calculator/page.tsx',
+  'app/documents/page.tsx',
   'components/jobs/JobHeaderForm.tsx',
   'components/jobs/JobArchiveControl.tsx',
   'components/jobs/LegacyJobImportReview.tsx',
   'components/jobs/JobsList.tsx',
+  'components/jobs/JobsWorkspace.tsx',
   'components/jobs/DoorLineWorkspace.tsx',
   'components/jobs/GlassUnitBuilder.tsx',
   'components/jobs/GlassUnitDiagram.tsx',
+  'components/jobs/StandaloneGlassCalculator.tsx',
   'components/jobs/WorkOrderPreview.tsx',
   'components/jobs/WorkOrderSendEntryButton.tsx',
+  'lib/documents/document-definitions.ts',
 ]);
 assert.deepEqual(changed.filter((path) => /^(app|components)\//.test(path) && !approvedLaterUi.has(path)), [], 'Only the exact reviewed C4 UI paths may follow C3');
 assert.deepEqual(changed.filter((path) => path.startsWith('lib/production-board/') && ![

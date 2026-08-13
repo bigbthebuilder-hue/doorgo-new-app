@@ -28,7 +28,7 @@ export function ProductionBoardWeekSection({
 
   return (
     <section
-      className={`rounded-2xl border bg-white p-3 shadow-sm ${
+      className={`production-week rounded-md border bg-white p-1.5 ${
         status === 'building'
           ? 'border-rose-300'
           : status === 'reducing' ||
@@ -38,14 +38,14 @@ export function ProductionBoardWeekSection({
             : 'border-emerald-300'
       }`}
     >
-      <div className="flex flex-col gap-3 border-b border-slate-200 pb-3 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-1 border-b border-slate-200 pb-1 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold text-slate-900">
+            <h2 className="text-base font-semibold text-slate-900">
               Week {week.weekIndex + 1}
             </h2>
-            <span
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+            {status !== 'clear' ? <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                 status === 'building'
                   ? 'bg-rose-100 text-rose-700'
                   : status === 'reducing' ||
@@ -56,19 +56,15 @@ export function ProductionBoardWeekSection({
               }`}
             >
               {weeklyFlowStatusLabel(status)}
-            </span>
+            </span> : null}
           </div>
 
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-0.5 text-xs text-slate-600">
             {formatFriendlyDateRange(week.startDate, week.weekdayEndExclusive)}
           </p>
 
-          <p className="mt-1 text-xs text-slate-500">
-            {week.bookingCount} booking{week.bookingCount === 1 ? '' : 's'} •{' '}
-            {week.closureCount} closure{week.closureCount === 1 ? '' : 's'} •{' '}
-            {week.unknownCapacityDayCount} capacity day
-            {week.unknownCapacityDayCount === 1 ? '' : 's'} unknown
-          </p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-700">{formatHours(week.totalKnownShopHours)} / {formatHours(week.totalAvailableHours)} hrs · {weeklyOverload ? `${formatHours(week.overloadHours ?? 0)} hrs over` : `${formatHours(week.remainingHours ?? 0)} hrs free`}</p>
+          <p className="text-[10px] text-slate-500">{week.bookingCount} booking{week.bookingCount === 1 ? '' : 's'}{week.closureCount ? ` · ${week.closureCount} closure${week.closureCount === 1 ? '' : 's'}` : ''}{week.unknownCapacityDayCount ? ` · ${week.unknownCapacityDayCount} capacity unknown` : ''}</p>
 
           {week.missingShopHoursCount > 0 ? (
             <p className="mt-1 text-xs font-medium text-amber-700">
@@ -78,8 +74,9 @@ export function ProductionBoardWeekSection({
           ) : null}
         </div>
 
-        <div className="w-full xl:w-auto xl:min-w-[42rem]">
-          <div className="grid grid-cols-4 gap-2 text-sm">
+        {interaction ? <details className="w-full text-[11px] xl:w-auto">
+          <summary className="cursor-pointer font-semibold text-sky-800">Capacity details</summary>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
           <WeeklyMetric
             label="Planned"
             value={`${formatHours(week.totalKnownShopHours)} hrs`}
@@ -150,12 +147,11 @@ export function ProductionBoardWeekSection({
             }
             emphasis={week.unresolvedFlow ? 'warning' : 'normal'}
           />
-          </div>
-          <p className="mt-2 text-[11px] text-slate-500">
+          </div><p className="mt-1 text-[10px] text-slate-500">
             Remaining/Over is the starts-only scheduled balance. Ending Carry is
             the full rolling-flow result.
           </p>
-        </div>
+        </details> : null}
       </div>
 
       {week.dailyOverloadCount > 0 && !weeklyOverload ? (
@@ -177,13 +173,7 @@ export function ProductionBoardWeekSection({
           Rolling flow is unresolved because required values are unknown. No numeric
           carry is inferred.
         </p>
-      ) : (
-        <p className="mt-2 text-xs font-medium text-slate-600">
-          {week.carriesIntoNextShopDay
-            ? 'Carry flows into the next shop day.'
-            : 'No carry flows into the next shop day.'}
-        </p>
-      )}
+      ) : week.carriesIntoNextShopDay ? <p className="mt-1 text-xs font-medium text-amber-800">Carry flows into the next shop day.</p> : null}
 
       {week.hasActualCarryReset ? (
         <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
@@ -217,9 +207,9 @@ export function ProductionBoardWeekSection({
         </div>
       ) : null}
 
-      <div className="mt-3 overflow-x-auto pb-1">
+      <div className="mt-1 overflow-x-auto pb-1">
         {week.days.length > 0 ? (
-          <div className="grid min-w-[1180px] grid-cols-5 items-start gap-2 2xl:min-w-0">
+          <div className="grid min-w-[980px] grid-cols-5 items-start gap-1 2xl:min-w-0">
             {week.days.map((day) => (
               <ProductionBoardDay
                 key={day.date}
@@ -259,19 +249,19 @@ function WeeklyMetric({
 }) {
   return (
     <div
-      className={`rounded-lg border px-3 py-2 ${
+      className={`flex items-baseline gap-1 border-l-2 pl-1.5 ${
         emphasis === 'danger'
-          ? 'border-rose-200 bg-rose-50'
+          ? 'border-rose-400'
           : emphasis === 'warning'
-            ? 'border-amber-200 bg-amber-50'
-            : 'border-slate-200 bg-slate-50'
+            ? 'border-amber-400'
+            : 'border-slate-300'
       }`}
     >
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-500">
+      <p className="text-[9px] font-medium uppercase tracking-[0.06em] text-slate-500">
         {label}
       </p>
       <p
-        className={`mt-0.5 font-semibold ${
+        className={`font-semibold ${
           emphasis === 'danger'
             ? 'text-rose-700'
             : emphasis === 'warning'

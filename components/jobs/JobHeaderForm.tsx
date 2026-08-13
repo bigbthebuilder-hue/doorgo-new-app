@@ -1,9 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import { archiveDraftJobAction, createDraftJobAction, createTransferredJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
-import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine } from '@/lib/jobs/door-line-contract';
+import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine, withEffectiveShopHours } from '@/lib/jobs/door-line-contract';
 import { jobAggregateDirtySnapshot, jobSaveConfirmation, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
 import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggregate } from '@/lib/jobs/job-intake-types';
 import type { LegacyTransferIssue, UnifiedTransferIdentifier } from '@/lib/jobs/legacy-transfer-types';
@@ -14,6 +14,9 @@ import { DoorLineWorkspace } from './DoorLineWorkspace';
 import { JobArchiveControl, jobArchiveTarget } from './JobArchiveControl';
 import { WorkOrderSendEntryButton } from './WorkOrderSendEntryButton';
 import { LegacyTransferEvidenceSummary } from './LegacyTransferEvidenceSummary';
+import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
+import { useGuardedNavigation, useUnsavedChanges } from '@/components/app-shell/UnsavedChangesGuard';
 
 type FormValues = {
   bizTrackSalesOrder: string;
@@ -55,8 +58,8 @@ export type LegacyTransferReviewContext = {
   warnings: LegacyTransferIssue[]; blockers: LegacyTransferIssue[]; unsupportedFields: string[];
 };
 
-const inputClass = 'min-h-12 w-full border-0 bg-transparent px-3 py-2 text-base outline-none disabled:cursor-not-allowed disabled:opacity-70 sm:min-h-11';
-const fieldClass = 'job-intake-field grid overflow-hidden rounded-xl border border-slate-300 bg-white focus-within:border-sky-600 focus-within:ring-2 focus-within:ring-sky-200 dark:border-slate-600 dark:bg-slate-950';
+const inputClass = 'min-h-9 w-full border-0 bg-transparent px-2 py-1 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-70';
+const fieldClass = 'job-intake-field grid overflow-hidden rounded-md border border-slate-300 bg-white focus-within:border-sky-600 focus-within:ring-1 focus-within:ring-sky-200 dark:border-slate-600 dark:bg-slate-950';
 
 function Field({ label, name, children, error }: { label: string; name: string; children: React.ReactNode; error?: string }) {
   return (
@@ -76,14 +79,17 @@ export function JobHeaderForm({
   defaultSalesperson,
   initialDraft,
   transferReview,
+  inAppShell = false,
 }: {
   initialJob: NativeJobAggregate | null;
   canEdit: boolean;
   defaultSalesperson: string;
   initialDraft?: { header: JobHeaderInput; lines: DoorLineInput[] };
   transferReview?: LegacyTransferReviewContext;
+  inAppShell?: boolean;
 }) {
   const router = useRouter();
+  const requestNavigation = useGuardedNavigation();
   const [job, setJob] = useState(initialJob);
   const [values, setValues] = useState(() => initialValues(initialJob, defaultSalesperson, initialDraft?.header));
   const [lines, setLines] = useState<DoorLineInput[]>(() => initialJob?.lines ?? initialDraft?.lines ?? []);
@@ -97,26 +103,20 @@ export function JobHeaderForm({
   const [isPending, startTransition] = useTransition();
   const commandId = useRef<string | null>(null);
   const dirty = snapshot() !== baseline;
+  const navigationDirty = dirty || hasUnappliedLineChanges;
   const visibleIdentifier = transferReview?.primaryIdentifier.value || values.bizTrackSalesOrder.trim() || job?.visibleIdentifier || job?.doorGoReference || 'New Draft';
+  useUnsavedChanges(navigationDirty);
 
-  useEffect(() => {
-    const preventExit = (event: BeforeUnloadEvent) => {
-      if (!dirty) return;
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', preventExit);
-    return () => window.removeEventListener('beforeunload', preventExit);
-  }, [dirty]);
-
-  const input = useMemo<JobHeaderInput>(() => ({
+  const input = useMemo<JobHeaderInput>(() => withEffectiveShopHours({
     ...values,
     lifecycleStage,
     shopHoursSource: values.shopHoursSource || null,
     deliveryDate: values.fulfillmentPlan === 'Delivery' ? values.deliveryDate : null,
     customerPickupDate: values.fulfillmentPlan === 'Customer Pickup' ? values.customerPickupDate : null,
     shopDateSource: values.shopDate.trim() ? 'Manual' : null,
-  }), [values, lifecycleStage]);
+  }, lines), [values, lifecycleStage, lines]);
+  const effectiveShopHours = input.shopHours === null || input.shopHours === undefined ? '' : String(input.shopHours);
+  const effectiveShopHoursSource = input.shopHoursSource ?? '';
 
   function update(name: keyof FormValues, value: string) {
     setValues((current) => ({ ...current, [name]: value, ...(name === 'shopHours' ? { shopHoursSource: value.trim() ? 'Manual' : '' } : {}) }));
@@ -125,7 +125,7 @@ export function JobHeaderForm({
   }
 
   function leave() {
-    if (!dirty || window.confirm('Exit without saving your changes?')) router.push('/jobs');
+    requestNavigation('/jobs');
   }
 
   function outputPath(internalJobId: string, intent: WorkOrderOutputIntent) {
@@ -215,8 +215,34 @@ export function JobHeaderForm({
     });
   }
 
+  const contextStatus = canEdit ? lifecycleStage : `${lifecycleStage} · Read only`;
+  const bottomStatus = message?.text ?? (navigationDirty ? 'Unsaved changes' : job ? `Saved · Rev ${job.revision}` : 'Not saved yet');
+  const bottomActions = <>
+    <button className="app-button app-button-secondary" onClick={leave} type="button">Exit</button>
+    {job ? <details className="job-work-order-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
+    {canEdit ? <><button className="app-button app-button-primary" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button className="app-button app-button-dark" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button> : null}</> : null}
+  </>;
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6">
+    <>
+    {inAppShell ? <ContextTopBar
+      backHref="/jobs"
+      backLabel="Jobs"
+      title={visibleIdentifier}
+      secondary={values.siteAddress.trim() || undefined}
+      status={<span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-900">{contextStatus}{job ? ` · Rev ${job.revision}` : ''}</span>}
+      controls={<div className="app-job-context-fields">
+        <label className="app-job-context-field" htmlFor="customer"><span>Customer</span><input aria-invalid={fieldErrors.customer ? true : undefined} disabled={!canEdit} id="customer" onChange={(event) => update('customer', event.target.value)} placeholder="Not entered" title={fieldErrors.customer || undefined} value={values.customer}/></label>
+        <label className="app-job-context-field" htmlFor="siteAddress"><span>Site / Address</span><input aria-invalid={fieldErrors.siteAddress ? true : undefined} disabled={!canEdit} id="siteAddress" onChange={(event) => update('siteAddress', event.target.value)} placeholder="Not entered" title={fieldErrors.siteAddress || undefined} value={values.siteAddress}/></label>
+        <label className="app-job-context-field" htmlFor="salesperson"><span>Salesperson</span><input disabled={!canEdit} id="salesperson" onChange={(event) => update('salesperson', event.target.value)} placeholder="Not assigned" value={values.salesperson}/></label>
+        <label className="app-job-context-field" htmlFor="bizTrackSalesOrder"><span>BizTrack Sales Order</span><input aria-invalid={fieldErrors.bizTrackSalesOrder ? true : undefined} disabled={!canEdit || Boolean(transferReview)} id="bizTrackSalesOrder" onChange={(event) => update('bizTrackSalesOrder', event.target.value)} placeholder="Optional" title={fieldErrors.bizTrackSalesOrder || undefined} value={values.bizTrackSalesOrder}/></label>
+        <label className="app-job-context-field" htmlFor="phone"><span>Phone</span><input autoComplete="tel" disabled={!canEdit} id="phone" onChange={(event) => update('phone', event.target.value)} placeholder="Not entered" type="tel" value={values.phone}/></label>
+        <label className="app-job-context-field" htmlFor="email"><span>Email</span><input aria-invalid={fieldErrors.email ? true : undefined} autoComplete="email" disabled={!canEdit} id="email" onChange={(event) => update('email', event.target.value)} placeholder="Not entered" title={fieldErrors.email || undefined} type="email" value={values.email}/></label>
+      </div>}
+      actions={<div className="app-job-lifecycle" aria-label="Job lifecycle"><button aria-pressed={lifecycleStage === 'Draft'} disabled={!canEdit} onClick={() => setLifecycleStage('Draft')} type="button">Draft</button><button aria-pressed={lifecycleStage === 'Confirmed Job'} disabled={!canEdit || !hasValidActiveDoorLine(lines)} onClick={() => setLifecycleStage('Confirmed Job')} type="button">Confirmed</button></div>}
+    /> : null}
+    <div className={inAppShell ? 'app-workspace app-workspace-fluid job-editor-workspace' : undefined}>
+    <section className="job-editor-surface rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      {!inAppShell ? (
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Current Job</p>
@@ -229,6 +255,7 @@ export function JobHeaderForm({
           {canEdit ? lifecycleStage : `${lifecycleStage} · Read only`}
         </span>
       </div>
+      ) : null}
 
       {!canEdit ? <p className="mt-4 rounded-xl bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-100">You have jobs = view access. This draft is read-only.</p> : null}
       {transferReview ? <section className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100" aria-labelledby="legacy-transfer-review-heading">
@@ -239,61 +266,42 @@ export function JobHeaderForm({
         <p>The legacy source must be archived manually only after the saved native job is reopened and verified.</p>
         <LegacyTransferEvidenceSummary blockers={transferReview.blockers} unsupportedFields={transferReview.unsupportedFields} warnings={transferReview.warnings}/>
       </section> : null}
-      <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">Confirmation requires at least one valid active door line. Saving or confirming does not schedule production or create fulfillment or Calendar records.</p>
+      {!inAppShell ? <p className="job-confirmation-note mt-1.5 flex min-h-7 items-center rounded bg-slate-100 px-2 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-200"><span aria-hidden="true" className="mr-1.5 font-bold text-sky-700">i</span>Confirmation requires at least one valid active door line. Saving or confirming does not schedule production or create fulfillment or Calendar records.</p> : null}
 
-      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-        <span className="font-semibold">Lifecycle</span>
-        <button className={`min-h-11 rounded-xl px-4 font-semibold ${lifecycleStage === 'Draft' ? 'bg-amber-600 text-white' : 'border border-slate-300 dark:border-slate-600'}`} disabled={!canEdit} onClick={() => setLifecycleStage('Draft')} type="button">Draft</button>
-        <button className={`min-h-11 rounded-xl px-4 font-semibold ${lifecycleStage === 'Confirmed Job' ? 'bg-emerald-700 text-white' : 'border border-slate-300 dark:border-slate-600'}`} disabled={!canEdit || !hasValidActiveDoorLine(lines)} onClick={() => setLifecycleStage('Confirmed Job')} type="button">Confirmed Job</button>
-        {!hasValidActiveDoorLine(lines) ? <span className="text-sm text-slate-500">Add a valid active line before confirming.</span> : null}
-      </div>
+      {!hasValidActiveDoorLine(lines) ? <p className="mt-1 text-[11px] text-slate-500">Add a valid active line before confirming.</p> : null}
 
-      <div className="mt-5 grid gap-4">
-        <section aria-labelledby="job-identity-heading">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" id="job-identity-heading">Identity and contact</h2>
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <Field error={fieldErrors.bizTrackSalesOrder} label="BizTrack Sales Order" name="bizTrackSalesOrder"><input className={inputClass} disabled={!canEdit || Boolean(transferReview)} id="bizTrackSalesOrder" onChange={(e) => update('bizTrackSalesOrder', e.target.value)} placeholder="Optional" value={values.bizTrackSalesOrder}/></Field>
-            <Field error={fieldErrors.customer} label="Customer" name="customer"><input className={inputClass} disabled={!canEdit} id="customer" onChange={(e) => update('customer', e.target.value)} placeholder="Customer" value={values.customer}/></Field>
-            <Field error={fieldErrors.siteAddress} label="Site / Address" name="siteAddress"><input className={inputClass} disabled={!canEdit} id="siteAddress" onChange={(e) => update('siteAddress', e.target.value)} placeholder="Site or address" value={values.siteAddress}/></Field>
-            <Field label="Phone" name="phone"><input autoComplete="tel" className={inputClass} disabled={!canEdit} id="phone" onChange={(e) => update('phone', e.target.value)} placeholder="Phone number" type="tel" value={values.phone}/></Field>
-            <Field error={fieldErrors.email} label="Email" name="email"><input autoComplete="email" className={inputClass} disabled={!canEdit} id="email" onChange={(e) => update('email', e.target.value)} placeholder="Email address" type="email" value={values.email}/></Field>
-            <Field label="Salesperson" name="salesperson"><input className={inputClass} disabled={!canEdit} id="salesperson" onChange={(e) => update('salesperson', e.target.value)} placeholder="Not assigned" value={values.salesperson}/></Field>
-          </div>
+      <div className="job-operational-strip mt-1 grid gap-1.5">
+        <section aria-label="Job header validation">
+          {fieldErrors.bizTrackSalesOrder ? <p className="text-sm text-rose-700" role="alert">BizTrack Sales Order: {fieldErrors.bizTrackSalesOrder}</p> : null}
+          {fieldErrors.email ? <p className="text-sm text-rose-700" role="alert">Email: {fieldErrors.email}</p> : null}
+          {inAppShell && fieldErrors.customer ? <p className="mt-2 text-sm text-rose-700" role="alert">Customer: {fieldErrors.customer}</p> : null}
+          {inAppShell && fieldErrors.siteAddress ? <p className="mt-2 text-sm text-rose-700" role="alert">Site / Address: {fieldErrors.siteAddress}</p> : null}
         </section>
 
-        <details className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" open={Boolean(values.hingeColor || values.shopHours || values.fulfillmentPlan || values.shopDate || values.poNumbers.length)}>
-          <summary className="cursor-pointer font-semibold">Production Setup (optional in Draft)</summary>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <section className="job-production-strip rounded-md border border-slate-200 p-1.5 dark:border-slate-700" aria-label="Production Setup">
+          <div className="grid gap-1.5 md:grid-cols-3 xl:grid-cols-6">
             <Field label="Hinge Color" name="hingeColor"><select className={inputClass} disabled={!canEdit} id="hingeColor" onChange={(e) => update('hingeColor', e.target.value)} value={values.hingeColor}>{!normalizeHingeColor(values.hingeColor).ok ? <option disabled value={values.hingeColor}>Invalid saved value — choose a valid finish</option> : null}{HINGE_COLOR_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-            <Field error={fieldErrors.shopHours} label="Shop Hours" name="shopHours"><input className={inputClass} disabled={!canEdit} id="shopHours" min="0" onChange={(e) => update('shopHours', e.target.value)} step="0.25" type="number" value={values.shopHours}/></Field>
+            <Field error={fieldErrors.shopHours} label={`Shop Hours${effectiveShopHoursSource ? ` · ${effectiveShopHoursSource}` : ''}`} name="shopHours"><input className={inputClass} disabled={!canEdit} id="shopHours" min="0" onChange={(e) => update('shopHours', e.target.value)} step="0.25" type="number" value={effectiveShopHours}/></Field>
             <Field label="Fulfillment Plan" name="fulfillmentPlan"><select className={inputClass} disabled={!canEdit} id="fulfillmentPlan" onChange={(e) => update('fulfillmentPlan', e.target.value)} value={values.fulfillmentPlan}><option value="">Not selected</option><option value="Delivery">Delivery</option><option value="Customer Pickup">Customer Pickup</option></select></Field>
             {values.fulfillmentPlan === 'Delivery' ? <Field label="Delivery Date" name="deliveryDate"><input className={inputClass} disabled={!canEdit} id="deliveryDate" onChange={(e) => update('deliveryDate', e.target.value)} type="date" value={values.deliveryDate}/></Field> : null}
             {values.fulfillmentPlan === 'Customer Pickup' ? <Field label="Customer Pickup Date" name="customerPickupDate"><input className={inputClass} disabled={!canEdit} id="customerPickupDate" onChange={(e) => update('customerPickupDate', e.target.value)} type="date" value={values.customerPickupDate}/></Field> : null}
             <Field label="Shop Date" name="shopDate"><input className={inputClass} disabled={!canEdit} id="shopDate" onChange={(e) => update('shopDate', e.target.value)} type="date" value={values.shopDate}/></Field>
           </div>
-          <div className="mt-4" aria-labelledby="po-numbers-label">
+          <div className="mt-1" aria-labelledby="po-numbers-label">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" id="po-numbers-label">PO Numbers</p>
             {values.poNumbers.length ? <ul className="mt-2 flex flex-wrap gap-2">{values.poNumbers.map((poNumber) => <li className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" key={poNumber}><span>{poNumber}</span>{canEdit ? <button aria-label={`Remove PO ${poNumber}`} className="min-h-10 rounded-lg px-3 font-semibold text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950" onClick={() => removePoNumber(poNumber)} type="button">Remove</button> : null}</li>)}</ul> : <p className="mt-2 text-sm text-slate-500">No PO Numbers saved.</p>}
             {canEdit ? <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input aria-describedby={fieldErrors.poNumbers ? 'poNumbers-error' : undefined} aria-label="PO Number" className={`${inputClass} rounded-xl border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-950`} inputMode="numeric" onChange={(event) => { setPendingPoNumber(event.target.value); setFieldErrors((current) => ({ ...current, poNumbers: '' })); }} placeholder="Digits only" value={pendingPoNumber}/><button className="min-h-12 rounded-xl bg-sky-700 px-5 font-semibold text-white" onClick={addPoNumber} type="button">Add PO</button></div> : null}
             {fieldErrors.poNumbers ? <p className="mt-2 text-sm text-rose-700 dark:text-rose-300" id="poNumbers-error">{fieldErrors.poNumbers}</p> : null}
           </div>
-        </details>
+        </section>
 
-        <Field label="Job Notes" name="notes"><textarea className={`${inputClass} min-h-24 resize-y`} disabled={!canEdit} id="notes" onChange={(e) => update('notes', e.target.value)} placeholder="Job notes" value={values.notes}/></Field>
+        <Field label="Job Notes" name="notes"><textarea className={`${inputClass} job-notes-compact resize-y`} disabled={!canEdit} id="notes" onChange={(e) => update('notes', e.target.value)} placeholder="Job notes" rows={values.notes ? 2 : 1} value={values.notes}/></Field>
       </div>
 
-      <div className="mt-6"><DoorLineWorkspace canEdit={canEdit} lifecycleStage={lifecycleStage} lines={lines} onChange={setLines} onUnappliedChange={setHasUnappliedLineChanges}/></div>
+      <div className="mt-3"><DoorLineWorkspace canEdit={canEdit} lifecycleStage={lifecycleStage} lines={lines} onChange={setLines} onUnappliedChange={setHasUnappliedLineChanges}/></div>
 
-      {message ? <p className={`mt-5 rounded-xl p-3 text-sm ${message.kind === 'success' ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100'}`} role="status">{message.text}</p> : null}
-
-      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap">
-        <button className="min-h-12 rounded-xl border border-slate-300 px-5 font-semibold dark:border-slate-600" onClick={leave} type="button">Back / Exit</button>
-        {job ? <><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download Work Order</button><button className="min-h-12 rounded-xl border border-sky-700 px-5 font-semibold text-sky-800 dark:text-sky-200" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print Work Order</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></> : null}
-        {canEdit ? <>
-          <button className="min-h-12 rounded-xl bg-sky-700 px-5 font-semibold text-white disabled:opacity-60" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>
-          {!transferReview ? <button className="min-h-12 rounded-xl bg-slate-900 px-5 font-semibold text-white disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button> : null}
-        </> : null}
-      </div>
+      {!inAppShell && message ? <p className={`mt-5 rounded-xl p-3 text-sm ${message.kind === 'success' ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100'}`} role="status">{message.text}</p> : null}
+      {!inAppShell ? <div className="job-editor-actions flex flex-wrap gap-1 border-t border-slate-200 py-1.5">{bottomActions}</div> : null}
 
       <JobArchiveControl
         onArchive={archiveDraftJobAction}
@@ -301,5 +309,8 @@ export function JobHeaderForm({
         target={jobArchiveTarget(job, canEdit)}
       />
     </section>
+    </div>
+    {inAppShell ? <ContextBottomBar label="Job actions" status={<span className={message?.kind === 'error' ? 'text-rose-700' : undefined}>{bottomStatus}</span>} context="Confirmation requires one valid active door line · saving does not schedule production" actions={bottomActions}/> : null}
+    </>
   );
 }

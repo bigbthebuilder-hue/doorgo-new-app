@@ -15,6 +15,9 @@ import {
   selectRecoveryDateRange,
 } from '@/lib/production-bookings/production-recovery-page-contract';
 import { ProductionRecoveryList } from './production-recovery-list';
+import { AppShell } from '@/components/app-shell/AppShell';
+import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { buildProtectedAppNavigation } from '@/lib/app-shell/navigation';
 
 const hours = (value: number | null) => value === null ? 'Unavailable' : `${value.toFixed(2)} hrs`;
 
@@ -52,41 +55,21 @@ export default async function ProductionRecoveryPage({
   const productionAccess = getPermissionAccess(access, 'production');
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:py-10">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold sm:text-3xl">Past Scheduled Bookings</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Review recent past production bookings. DoorGo does not automatically know whether work was started.
-            </p>
-          </div>
-          <nav className="flex flex-wrap gap-2" aria-label="Production recovery navigation">
-            <Link className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium" href="/production-board">Production Board</Link>
-            {hasAtLeastView(access, 'production_checkpoints') ? <Link className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium" href="/production-checkpoints">Production Carry Checkpoint</Link> : null}
-            <Link className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium" href="/account">Account</Link>
-          </nav>
-        </header>
+    <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Past Schedule" secondary="Review recent past production bookings"/>}>
+      <div className="app-workspace app-workspace-fluid">
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="today-summary-heading">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Today in America/Vancouver</p><h2 id="today-summary-heading" className="mt-1 text-lg font-semibold">{formatRecoveryDate(today)}</h2></div>
-            {capacity.isClosed ? <span className="rounded-full bg-rose-100 px-3 py-1 text-sm font-semibold text-rose-800">Closed</span> : !capacity.capacityKnown ? <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">Capacity unknown</span> : null}
-          </div>
-          <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl bg-slate-50 p-3"><dt className="text-xs text-slate-500">Planned</dt><dd className="mt-1 font-semibold">{hours(capacity.plannedHours)}</dd></div>
-            <div className="rounded-xl bg-slate-50 p-3"><dt className="text-xs text-slate-500">Available</dt><dd className="mt-1 font-semibold">{hours(capacity.availableHours)}</dd></div>
-            <div className="rounded-xl bg-slate-50 p-3"><dt className="text-xs text-slate-500">Remaining</dt><dd className="mt-1 font-semibold">{hours(capacity.remainingHours)}</dd></div>
-            <div className="rounded-xl bg-slate-50 p-3"><dt className="text-xs text-slate-500">Over</dt><dd className="mt-1 font-semibold">{hours(capacity.overloadHours)}</dd></div>
-          </dl>
+        <section className="flex min-h-8 flex-wrap items-center gap-x-4 gap-y-1 border-y border-slate-200 bg-white px-2 py-0.5" aria-labelledby="today-summary-heading">
+          <h2 id="today-summary-heading" className="text-sm font-semibold">Today · {formatRecoveryDate(today)}</h2>
+          <dl className="flex flex-wrap gap-x-4 text-xs"><div className="flex gap-1"><dt className="text-slate-500">Planned</dt><dd className="font-semibold">{hours(capacity.plannedHours)}</dd></div><div className="flex gap-1"><dt className="text-slate-500">Available</dt><dd className="font-semibold">{hours(capacity.availableHours)}</dd></div><div className="flex gap-1"><dt className="text-slate-500">Remaining</dt><dd className="font-semibold">{hours(capacity.remainingHours)}</dd></div>{(capacity.overloadHours ?? 0) > 0 ? <div className="flex gap-1 text-rose-700"><dt>Over</dt><dd className="font-semibold">{hours(capacity.overloadHours)}</dd></div> : null}</dl>
+          {capacity.isClosed ? <span className="ml-auto rounded bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">Closed</span> : !capacity.capacityKnown ? <span className="ml-auto rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Capacity unknown</span> : null}
         </section>
 
-        <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" open={selection.kind === 'search' || selection.kind === 'invalid'}>
-          <summary className="min-h-11 cursor-pointer py-2 font-semibold">Older dates</summary>
+        <details className="border-b border-slate-200 bg-white px-2 py-0.5" open={selection.kind === 'search' || selection.kind === 'invalid'}>
+          <summary className="flex min-h-6 cursor-pointer items-center text-xs font-semibold">Older dates</summary>
           <form className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto]" method="get">
-            <label className="grid gap-1 text-sm font-medium" htmlFor="recovery-start">Start date<input className="min-h-12 rounded-xl border border-slate-300 px-3 text-base" id="recovery-start" name="start" type="date" defaultValue={selection.valid && selection.kind === 'search' ? selection.startDate : ''} max={latestSearchDate} required /></label>
-            <label className="grid gap-1 text-sm font-medium" htmlFor="recovery-end">End date<input className="min-h-12 rounded-xl border border-slate-300 px-3 text-base" id="recovery-end" name="end" type="date" defaultValue={selection.valid && selection.kind === 'search' ? selection.endDate : ''} max={latestSearchDate} required /></label>
-            <button className="min-h-12 self-end rounded-xl bg-slate-900 px-5 font-semibold text-white" type="submit">Search</button>
+            <label className="grid gap-1 text-xs font-medium" htmlFor="recovery-start">Start date<input className="app-compact-input" id="recovery-start" name="start" type="date" defaultValue={selection.valid && selection.kind === 'search' ? selection.startDate : ''} max={latestSearchDate} required /></label>
+            <label className="grid gap-1 text-xs font-medium" htmlFor="recovery-end">End date<input className="app-compact-input" id="recovery-end" name="end" type="date" defaultValue={selection.valid && selection.kind === 'search' ? selection.endDate : ''} max={latestSearchDate} required /></label>
+            <button className="app-button app-button-primary self-end" type="submit">Search</button>
           </form>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm"><p className="text-slate-500">Both dates are required. Maximum range: 93 days. Today is not included.</p><Link className="font-medium text-sky-700" href="/production-recovery">Return to previous five business days</Link></div>
         </details>
@@ -100,6 +83,6 @@ export default async function ProductionRecoveryPage({
           <ProductionRecoveryList bookings={bookings} canMove={productionAccess === 'use'} capacity={capacity} today={today} />
         ) : null}
       </div>
-    </main>
+    </AppShell>
   );
 }

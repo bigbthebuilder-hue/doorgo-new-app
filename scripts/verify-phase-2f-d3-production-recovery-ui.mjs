@@ -10,7 +10,7 @@ const paths = {
   service: 'lib/production-bookings/production-booking-service.ts',
   actions: 'lib/production-bookings/production-booking-actions.ts',
   capacity: 'lib/production-bookings/production-recovery-capacity-server.ts',
-  account: 'app/account/page.tsx',
+  schedule: 'app/production-schedule/page.tsx',
   board: 'app/production-board/page.tsx',
   checkpoints: 'app/production-checkpoints/page.tsx',
   docs: 'docs/production-recovery-workflow.md',
@@ -20,21 +20,20 @@ for (const path of Object.values(paths)) assert.ok(existsSync(path), `Missing D3
 const read = (path) => readFileSync(path, 'utf8');
 const page = read(paths.page); const client = read(paths.client); const contract = read(paths.contract);
 const tests = read(paths.tests); const service = read(paths.service); const actions = read(paths.actions);
-const capacity = read(paths.capacity); const account = read(paths.account); const docs = read(paths.docs);
+const capacity = read(paths.capacity); const schedule = read(paths.schedule); const docs = read(paths.docs);
 
 assert.match(page, /requireDoorGoProtectedAccess\(\)/);
 assert.match(page, /hasAtLeastView\(access, 'production'\)/);
 assert.ok(page.indexOf("hasAtLeastView(access, 'production')") < page.indexOf('loadAuthorizedRecentProductionRecoveryBookings(access'), 'Production permission must precede reads');
 assert.match(page, /getPermissionAccess\(access, 'production'\)/);
 assert.doesNotMatch(page, /isManager|is_manager|companyLocation|permission[^\n]*['"](?:calendar|production_checkpoints)['"][^\n]*(?:read|move)/i);
-assert.match(account, /hasAtLeastView\(access, 'production'\)[\s\S]*href="\/production-recovery"[\s\S]*Past Scheduled Bookings/);
+assert.match(schedule, /aria-label="Edit Schedule tools"[\s\S]*<Link[^>]+href="\/production-recovery">Past Schedule<\/Link>/);
 assert.match(page, /productionAccess === 'view'[\s\S]*view-only production access/);
 assert.match(page, /canMove=\{productionAccess === 'use'\}/);
 assert.match(client, /canMove && !isSelected[\s\S]*Move to today/);
-assert.match(client, /grid-cols-1[\s\S]*lg:grid-cols-2/);
-assert.doesNotMatch(client, /(?:[a-z0-9]+:)?grid-cols-(?:3|4|5|6|7|8|9|10|11|12)/);
-assert.match(client, /isSelected \? 'lg:col-span-2' : ''/);
-assert.match(client, /productionRecoveryOriginLabel\(booking\.bookingOrigin\)/);
+assert.match(client, /divide-y divide-slate-200/);
+assert.match(client, /sm:grid-cols-\[minmax\(12rem,1fr\)_8rem_7rem_minmax\(8rem,1fr\)_auto\]/);
+assert.doesNotMatch(client, /productionRecoveryOriginLabel\(booking\.bookingOrigin\)/);
 assert.match(client, /productionRecoveryIdentifier\([\s\S]*booking\.jobId,[\s\S]*booking\.salesOrder/);
 assert.match(contract, /bookingOrigin === 'doorgo'[\s\S]*return 'DoorGo-linked'/);
 assert.match(contract, /bookingOrigin === 'biztrack'[\s\S]*return 'BizTrack-only'/);
@@ -89,7 +88,8 @@ assert.doesNotMatch(d3Runtime, /calendar_id\s*:|calendar_event_id\s*:|calendar_s
 
 const board = read(paths.board); const checkpoints = read(paths.checkpoints);
 assert.match(board, /loadProductionBoardReadOnly/);
-assert.doesNotMatch(board, /requireDoorGoProtectedAccess|getCurrentDoorGoAccess|redirect\(['"]\/login/);
+assert.doesNotMatch(board, /requireDoorGoProtectedAccess|redirect\(['"]\/login/);
+assert.match(board, /getCurrentDoorGoAccess[\s\S]*access\.state === 'active' \? buildProtectedAppNavigation\(access\) : buildPublicAppNavigation\(\)/);
 assert.match(checkpoints, /requireDoorGoProtectedAccess\(\)/);
 assert.match(checkpoints, /hasAtLeastView\(access, 'production_checkpoints'\)/);
 

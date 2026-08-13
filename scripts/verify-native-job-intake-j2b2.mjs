@@ -18,7 +18,7 @@ for (const [label, pattern] of [
 
 const workspace = await readFile('components/jobs/DoorLineWorkspace.tsx', 'utf8');
 for (const required of [
-  'retainCompatibleGlassFields', 'calculateGlassGeometry', 'Configure Glass Unit', 'Edit Glass Unit',
+  'retainCompatibleGlassFields', 'calculateGlassGeometry', 'With SL / T', 'Edit Glass Unit',
   'Apply Manual Override', 'Remove Override', 'GlassUnitBuilder', 'Needs Attention',
   '54, 54 1/2, 54-1/2, or 54.5', 'aria-label={`${label}, inches`',
   'explicitGlassDetailNeeded', 'commitEditor()', 'commitEditor(explicitDetailNeeded, next)',
@@ -29,17 +29,20 @@ const builder = await readFile('components/jobs/GlassUnitBuilder.tsx', 'utf8');
 for (const required of [
   'commitLabel', 'Leave Glass Detail Needed', 'Cancel', 'calculateGlassGeometry',
   'calculateGlassCompositionSchematic', 'nextGlassBuilderDraft', 'GlassUnitDiagram',
-  'Sidelight positions', 'Sidelight Product Width (inches)', 'Glass Order Size',
+  'Shared sidelight specification', 'Sidelight Product Width (inches)', 'glassResultRows',
+  'data-glass-result={row.key}', 'aggregateVendorCopy',
   'Unit T-bar Size', 'Transom Product Width', 'Copy Vendor Text', 'includeDiagramOnWorkOrder',
   'EXTERIOR_WIDTHS', 'DOOR_HEIGHTS', 'Slab Width', 'Slab Height', 'prepAfterHeightChange',
 ]) assert.ok(builder.includes(required), `Glass Unit Builder missing ${required}`);
 assert.equal(builder.includes("normalizeSidelightType(draft.sidelightType) ?? 'Glass'"), false, 'builder must not display a sidelight type absent from the authoritative draft');
 assert.ok(builder.includes("calculation.status === 'Glass Detail Needed'"), 'progressive action must be limited to incomplete detail');
 assert.ok(builder.includes("['Complete', 'Warning', 'Manual Override'].includes(calculation.status)"), 'normal use must be limited to applicable calculated states');
-assert.ok(builder.includes('tabIndex={-1}'), 'header Cancel must not interrupt normal forward tab order');
+assert.ok(builder.includes('tabIndex={embedded ? undefined : -1}'), 'modal header Cancel must stay out of forward tab order while embedded Reset remains keyboard reachable');
 assert.ok(builder.includes('}, []);'), 'modal focus management must initialize only once, not after each draft update');
 assert.equal(/repository\.|createBrowserClient|\.rpc\s*\(/.test(builder), false, 'builder must only update its isolated client draft');
 assert.equal((builder.match(/Unit T-bar Size/g) ?? []).length, 1, 'builder exposes one unit-wide T-bar selector');
+assert.equal((builder.match(/>Glass Type</g) ?? []).length, 1, 'builder exposes one unit-wide sidelight glass selector');
+assert.ok(builder.includes('updateUnitSidelightSpecification'), 'shared sidelight choices must project across every persisted position');
 assert.deepEqual([...builder.matchAll(/<option value="(1\.5|2\.25)">/g)].map((match) => match[1]).filter((value, index, values) => values.indexOf(value) === index).sort(), ['1.5', '2.25'], 'builder exposes only canonical T-bar sizes');
 
 const diagram = await readFile('components/jobs/GlassUnitDiagram.tsx', 'utf8');

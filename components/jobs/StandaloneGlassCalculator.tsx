@@ -1,10 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import { defaultDoorLine } from '@/lib/jobs/door-line-contract';
 import { calculateGlassGeometry } from '@/lib/jobs/glass-geometry-contract';
 import type { DoorLineInput } from '@/lib/jobs/job-intake-types';
 import { GlassUnitBuilder } from './GlassUnitBuilder';
+import { GlassUnitDiagram } from './GlassUnitDiagram';
+import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
+import { glassResultRows } from '@/lib/jobs/glass-result-presentation';
 
 const initialLine = (): DoorLineInput => ({
   ...defaultDoorLine('Exterior'),
@@ -14,16 +19,33 @@ const initialLine = (): DoorLineInput => ({
 
 export function StandaloneGlassCalculator() {
   const [line, setLine] = useState<DoorLineInput>(initialLine);
-  const [open, setOpen] = useState(true);
+  const [editorKey, setEditorKey] = useState(0);
+  const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setActionsTarget(document.getElementById('glass-calculator-bottom-actions')));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
   const result = calculateGlassGeometry(line);
-  return <>
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-      <h2 className="text-xl font-semibold">Current calculation</h2>
-      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">This calculator uses the same editor and shared geometry contract as native and imported jobs. It does not save a job.</p>
-      <p className="mt-4 font-semibold">Status: {result.status}</p>
-      {result.workorderDetail ? <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs dark:bg-slate-950">{result.workorderDetail}</pre> : null}
-      <button className="mt-4 min-h-11 rounded-xl bg-sky-700 px-5 font-semibold text-white" onClick={() => setOpen(true)} type="button">Edit Glass Calculation</button>
-    </section>
-    {open ? <GlassUnitBuilder commitLabel="Use Calculation" line={structuredClone(line)} onCancel={() => setOpen(false)} onUse={(next) => { setLine(next); setOpen(false); return true; }}/>: null}
-  </>;
+  const resultRows = glassResultRows(line, result.glassUnits, result.panelSidelights);
+  const printable = ['Complete', 'Warning', 'Manual Override'].includes(result.status);
+  const actions = <div className="glass-calculator-actions flex flex-wrap justify-end gap-1.5">
+    {printable ? <button className="app-button app-button-primary" onClick={() => window.print()} type="button">Print</button> : null}
+    <button className="app-button app-button-secondary" disabled title="A calculation-specific recipient and message contract has not been approved." type="button">Send unavailable</button>
+  </div>;
+
+  return <div className="min-w-0">
+    {actionsTarget ? createPortal(actions, actionsTarget) : <ContextBottomBar actions={actions} label="Glass Calculator actions" status={<span>{result.status}</span>}/>}
+    <GlassUnitBuilder embedded key={editorKey} line={structuredClone(line)} onCancel={() => setEditorKey((value) => value + 1)} onDraftChange={setLine} onUse={() => true} showCommitActions={false}/>
+    <div className="glass-calculator-results">
+      <section className="glass-calculator-print" aria-label="Glass Calculation printout">
+        <header><Image alt="DoorGo" height={48} src="/brand/doorgo-mark.svg" width={48}/><div><strong>DoorGo</strong><h1>Glass Calculation</h1></div><p className="ml-auto font-semibold">{result.status}</p></header>
+        <h2>Configuration</h2>
+        <GlassUnitDiagram line={{ ...line, glassCalc: result.glassCalc }}/>
+        <dl aria-label="Glass calculation inputs"><div><dt>Configuration</dt><dd>{line.config}</dd></div><div><dt>Swing</dt><dd>{line.hand ?? 'Not selected'}</dd></div><div><dt>Slab size</dt><dd>{String(line.width ?? '—')} × {String(line.height ?? '—')}</dd></div><div><dt>Rough opening</dt><dd>{String(line.roWidth ?? '—')} × {String(line.roHeight ?? '—')}</dd></div><div><dt>Structure</dt><dd>{line.sidelightType ?? 'Door only'}</dd></div><div><dt>T-bar</dt><dd>{String(line.transomTBarSize ?? 'Not applicable')}</dd></div></dl>
+        <h2>Calculated measurements</h2>
+        {result.glassCalc ? <dl><div><dt>Jamb legs</dt><dd>{String(result.glassCalc.jambLeg)}</dd></div><div><dt>Header / sill / T-bar</dt><dd>{String(result.glassCalc.headerWidth)} / {String(result.glassCalc.divider)}</dd></div>{resultRows.map((row) => <div key={`print:${row.key}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl> : <p>Calculation is incomplete.</p>}
+        {[...result.incompleteDetails, ...result.warnings, ...result.blockers].length ? <><h2>Warnings and status</h2>{[...result.incompleteDetails, ...result.warnings, ...result.blockers].map((issue, index) => <p key={`print:${issue.code}:${issue.message}:${index}`}>{issue.message}</p>)}</> : null}
+      </section>
+    </div>
+  </div>;
 }

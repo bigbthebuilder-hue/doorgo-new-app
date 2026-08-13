@@ -5,18 +5,18 @@ const paths = {
   page: 'app/production-checkpoints/page.tsx', form: 'app/production-checkpoints/checkpoint-operation-forms.tsx',
   read: 'lib/production-flow/checkpoint-read-service.ts', carry: 'lib/production-flow/calculated-carry-server.ts',
   contract: 'lib/production-flow/checkpoint-page-contract.ts', tests: 'lib/production-flow/checkpoint-page-contract.test.ts',
-  account: 'app/account/page.tsx', board: 'app/production-board/page.tsx', docs: 'docs/production-flow-checkpoint-read-contract.md',
+  account: 'app/account/page.tsx', schedule: 'app/production-schedule/page.tsx', board: 'app/production-board/page.tsx', docs: 'docs/production-flow-checkpoint-read-contract.md',
   c4aMigration: 'supabase/migrations/20260713000000_create_production_flow_checkpoint_read_rpcs.sql',
   c4aVerifier: 'scripts/verify-phase-2f-c4a-checkpoint-read-contract.mjs', packageJson: 'package.json',
 };
 for (const path of Object.values(paths)) assert.ok(existsSync(path), `Missing C4 file: ${path}`);
 const read = (path) => readFileSync(path, 'utf8');
-const page = read(paths.page); const form = read(paths.form); const service = read(paths.read); const carry = read(paths.carry); const contract = read(paths.contract); const tests = read(paths.tests); const account = read(paths.account);
+const page = read(paths.page); const form = read(paths.form); const service = read(paths.read); const carry = read(paths.carry); const contract = read(paths.contract); const tests = read(paths.tests); const account = read(paths.account); const schedule = read(paths.schedule);
 assert.match(page, /requireDoorGoProtectedAccess\(\)/);
 assert.match(page, /hasAtLeastView\(access, 'production_checkpoints'\)/);
 assert.ok(page.indexOf("hasAtLeastView(access, 'production_checkpoints')") < page.indexOf('loadAuthorizedCheckpointReads(access'), 'Permission must precede reads');
 assert.ok(page.indexOf("hasAtLeastView(access, 'production_checkpoints')") < page.indexOf('loadAuthorizedTodayCalculatedCarry(access'), 'Permission must precede trusted carry loading');
-assert.match(account, /hasAtLeastView\(access, 'production_checkpoints'\)[\s\S]*\/production-checkpoints/);
+assert.match(schedule, /aria-label="Edit Schedule tools"[\s\S]*hasAtLeastView\(access, 'production_checkpoints'\) \? <Link[^>]+href="\/production-checkpoints">Carry Checkpoint<\/Link> : null/);
 assert.match(account, /key === 'production_checkpoints' \? 'Production checkpoints' : key/);
 assert.doesNotMatch(page, /isManager|is_manager|permission[^\n]*['"]production['"]/);
 assert.match(service, /^import 'server-only';/); assert.match(carry, /^import 'server-only';/);
@@ -51,7 +51,8 @@ assert.match(tests, /checkpointHistoryStatusLabel/);
 
 const board = read(paths.board);
 assert.match(board, /loadProductionBoardReadOnly/);
-assert.doesNotMatch(board, /requireDoorGoProtectedAccess|getCurrentDoorGoAccess|redirect\(['"]\/login/);
+assert.doesNotMatch(board, /requireDoorGoProtectedAccess|redirect\(['"]\/login/);
+assert.match(board, /getCurrentDoorGoAccess[\s\S]*access\.state === 'active' \? buildProtectedAppNavigation\(access\) : buildPublicAppNavigation\(\)/);
 const packageJson = JSON.parse(read(paths.packageJson));
 assert.match(packageJson.scripts['verify:phase-2f-c4a-checkpoint-read-contract'], /verify-phase-2f-c4a-checkpoint-read-contract\.mjs/);
 const migrationFiles = readdirSync('supabase/migrations')

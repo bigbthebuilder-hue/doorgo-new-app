@@ -2,13 +2,14 @@ import {
   JobIntakeFailure,
   type DoorLineInput,
   type DoorLineMode,
+  type JobHeaderInput,
   type NativeDoorLine,
 } from './job-intake-types';
 import { SHOP_DIMENSION_FORMAT_HELP, parseStoredShopDimension } from './dimension-contract';
 import { isGlassConfiguration, normalizeGlassDomainFields } from './glass-geometry-contract';
 import { calculateNonGlassFrameCut } from './non-glass-frame-cut-contract';
 import { normalizeHingeType } from './hinge-contract';
-import { parseGlassUnitConfiguration } from './glass-unit-composition-contract';
+import { parseGlassUnitConfiguration, totalSidelightCount } from './glass-unit-composition-contract';
 
 export const INTERIOR_WIDTHS = [
   `1'6"`, `2'0"`, `2'2"`, `2'4"`, `2'6"`, `2'8"`, `2'10"`, `3'0"`,
@@ -249,17 +250,21 @@ export function calculateJ2AShopHours(lines: DoorLineInput[]): {
   active.forEach((line, index) => {
     const mode = String(line.mode ?? '').trim();
     const config = String(line.config ?? '').trim();
-    const base: Record<string, Record<string, number>> = {
-      Interior: { D: 15, DD: 30, PKT: 15, 'B.P.': 15 },
-      Exterior: { D: 60, DD: 90, SD: 180, DS: 180, SDS: 240, SDDS: 270, 'T/D': 90, 'T/DD': 120, 'T/SD': 240, 'T/DS': 240, 'T/SDS': 300, 'T/SDDS': 330 },
-    };
-    const baseMinutes = base[mode]?.[config];
-    if (!baseMinutes) {
+    const interiorBase: Record<string, number> = { D: 15, DD: 30, PKT: 15, 'B.P.': 15 };
+    const composition = mode === 'Exterior' ? parseGlassUnitConfiguration(config) : null;
+    const baseMinutes = mode === 'Interior'
+      ? interiorBase[config]
+      : composition?.ok
+        ? (composition.value.door === 'DD' ? 90 : 60)
+          + (totalSidelightCount(composition.value) > 0 ? 120 + ((totalSidelightCount(composition.value) - 1) * 60) : 0)
+          + (composition.value.hasTransom ? (totalSidelightCount(composition.value) > 0 ? 60 : 30) : 0)
+        : undefined;
+    if (baseMinutes === undefined) {
       unknown.push(`Line ${index + 1}: ${mode || 'Unknown mode'} ${config || 'Unknown configuration'}`);
       return;
     }
     let unitMinutes = baseMinutes;
-    if (String(line.prep ?? '').toUpperCase() === 'MULTI') unitMinutes += ['DD', 'SDDS', 'T/DD', 'T/SDDS'].includes(config) ? 90 : 45;
+    if (String(line.prep ?? '').toUpperCase() === 'MULTI') unitMinutes += composition?.ok && composition.value.door === 'DD' ? 90 : 45;
     if (line.customSlab === 'RO') unitMinutes += config === 'D' ? 30 : config === 'DD' ? 45 : 0;
     if (String(line.ripJamb ?? '').toLowerCase() === 'yes') unitMinutes += 15;
     minutes += unitMinutes * Math.max(1, Number(line.qty) || 1);
@@ -267,6 +272,19 @@ export function calculateJ2AShopHours(lines: DoorLineInput[]): {
   if (unknown.length) return { shopHours: null, shopHoursSource: 'Estimate incomplete', unknown };
   if (!active.length) return { shopHours: null, shopHoursSource: null, unknown: [] };
   return { shopHours: Math.round(minutes / 15) / 4, shopHoursSource: 'Estimated', unknown: [] };
+}
+
+export function withEffectiveShopHours<T extends JobHeaderInput>(
+  input: T,
+  lines: DoorLineInput[],
+): T & { shopHours: number | null; shopHoursSource: string | null } {
+  const manual = String(input.shopHoursSource ?? '').trim() === 'Manual';
+  const manualHours = input.shopHours === null || input.shopHours === undefined || String(input.shopHours).trim() === '' ? null : Number(input.shopHours);
+  if (manual && Number.isFinite(manualHours) && (manualHours as number) >= 0) {
+    return { ...input, shopHours: manualHours, shopHoursSource: 'Manual' };
+  }
+  const estimate = calculateJ2AShopHours(lines);
+  return { ...input, shopHours: estimate.shopHours, shopHoursSource: estimate.shopHoursSource };
 }
 
 const DEPLOYED_MERGE_FIELDS = [

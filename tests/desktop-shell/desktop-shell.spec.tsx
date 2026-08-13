@@ -308,7 +308,7 @@ test('standalone Glass Calculator uses the shared live builder result and a purp
   const transomGlassType = page.getByLabel('Transom Glass Type');
   await expect(transomGlassType).toHaveValue('CLEAR');
   await expect(editor.getByText('Status: Complete', { exact: true })).toBeVisible();
-  await expect(results.getByText('Transom Product Size', { exact: true })).toBeVisible();
+  await expect(results.locator('[data-glass-result="transom"]')).toContainText('Transom:');
   await expect(editor.getByLabel('Calculated measurements')).toHaveCount(1);
   await transomGlassType.selectOption('SATIN_ETCH');
   page.once('dialog', (dialog) => void dialog.accept());
@@ -353,8 +353,15 @@ test('shared Glass Unit Builder keeps left and right topology independent of swi
   await expect(configuration).toHaveText('T/SSDSS');
   await page.getByRole('button', { name: 'Double Door' }).click();
   await expect(configuration).toHaveText('T/SSDDSS');
+  await page.getByLabel('RO Width (inches)').fill('140');
+  await page.getByLabel('RO Width (inches)').blur();
+  await page.getByLabel('RO Height (inches)').fill('110');
+  await page.getByLabel('RO Height (inches)').blur();
   await expect(page.getByRole('region', { name: 'Shared sidelight specification' })).toHaveCount(1);
   await expect(page.getByRole('region', { name: 'Shared sidelight specification' }).locator('label').filter({ hasText: /^Glass Type/ })).toHaveCount(1);
+  await expect(page.locator('[data-glass-result="sidelights"]')).toHaveCount(1);
+  await expect(page.locator('[data-glass-result="sidelights"]')).toContainText('4 total (2 left / 2 right)');
+  await expect(page.locator('[data-glass-result="transom"]')).toBeVisible();
   const fit = await page.locator('.glass-unit-builder > div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
   expect(fit.scrollHeight).toBeLessThanOrEqual(fit.clientHeight);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();

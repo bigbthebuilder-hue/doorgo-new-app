@@ -5,7 +5,7 @@ import { ProductionBookingCard } from '@/components/ProductionBookingCard';
 import { ProductionBoardDay } from '@/components/ProductionBoardDay';
 import { ProductionBoardSummary } from '@/components/ProductionBoardSummary';
 import { BoardNavigationHarness } from './BoardNavigationHarness';
-import { DoorLineWorkspaceHarness } from './DoorLineWorkspaceHarness';
+import { DoorLineWorkspaceHarness, FlexibleShopHoursHarness } from './DoorLineWorkspaceHarness';
 import { JobEditorWorkbenchHarness } from './JobEditorWorkbenchHarness';
 import { JobsWorkspace } from '@/components/jobs/JobsWorkspace';
 import { StandaloneGlassCalculator } from '@/components/jobs/StandaloneGlassCalculator';
@@ -365,6 +365,13 @@ test('shared Glass Unit Builder keeps left and right topology independent of swi
   const fit = await page.locator('.glass-unit-builder > div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
   expect(fit.scrollHeight).toBeLessThanOrEqual(fit.clientHeight);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+});
+
+test('flexible exterior topology exposes structural Shop Hours in Job Lines', async ({ mount }) => {
+  const component = await mount(<FlexibleShopHoursHarness/>);
+  await expect(component.getByText('Shop Hours: 9 · Estimated', { exact: true })).toBeVisible();
+  await expect(component.getByText(/Qty 1 · Door · 9 shop hrs/)).toBeVisible();
+  await expect(component.getByText(/— shop hrs/)).toHaveCount(0);
 });
 
 test('busy production days collapse explicitly and keep every booking reachable', async ({ mount, page }) => {

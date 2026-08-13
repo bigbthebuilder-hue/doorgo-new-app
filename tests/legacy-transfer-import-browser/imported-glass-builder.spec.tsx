@@ -61,7 +61,7 @@ test('T/SDS unit type, Clear selection, and committed custom width remain canoni
   await expect(width).toHaveValue('14 1/8"');
   await expect(dialog.getByLabel('RO Width (inches)')).not.toHaveValue('');
   await expect(dialog.getByLabel('Calculated measurements')).toBeVisible();
-  await expect(dialog.getByText('Transom Product Size')).toBeVisible();
+  await expect(dialog.getByText('Transom Product Width (inches)')).toBeVisible();
   await expect(dialog.getByText(/Choose glass for the right sidelight 1/i)).toHaveCount(0);
 });
 

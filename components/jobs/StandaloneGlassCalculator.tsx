@@ -43,7 +43,7 @@ export function StandaloneGlassCalculator() {
         <GlassUnitDiagram line={{ ...line, glassCalc: result.glassCalc }}/>
         <dl aria-label="Glass calculation inputs"><div><dt>Configuration</dt><dd>{line.config}</dd></div><div><dt>Swing</dt><dd>{line.hand ?? 'Not selected'}</dd></div><div><dt>Slab size</dt><dd>{String(line.width ?? '—')} × {String(line.height ?? '—')}</dd></div><div><dt>Rough opening</dt><dd>{String(line.roWidth ?? '—')} × {String(line.roHeight ?? '—')}</dd></div><div><dt>Structure</dt><dd>{line.sidelightType ?? 'Door only'}</dd></div><div><dt>T-bar</dt><dd>{String(line.transomTBarSize ?? 'Not applicable')}</dd></div></dl>
         <h2>Calculated measurements</h2>
-        {result.glassCalc ? <dl>{resultRows.map((row) => <div key={`print:${row.key}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl> : <p>Calculation is incomplete.</p>}
+        {result.glassCalc ? <dl><div><dt>Jamb legs</dt><dd>{String(result.glassCalc.jambLeg)}</dd></div><div><dt>Header / sill / T-bar</dt><dd>{String(result.glassCalc.headerWidth)} / {String(result.glassCalc.divider)}</dd></div>{resultRows.map((row) => <div key={`print:${row.key}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl> : <p>Calculation is incomplete.</p>}
         {[...result.incompleteDetails, ...result.warnings, ...result.blockers].length ? <><h2>Warnings and status</h2>{[...result.incompleteDetails, ...result.warnings, ...result.blockers].map((issue, index) => <p key={`print:${issue.code}:${issue.message}:${index}`}>{issue.message}</p>)}</> : null}
       </section>
     </div>

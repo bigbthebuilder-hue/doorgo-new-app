@@ -329,6 +329,8 @@ test('standalone Glass Calculator uses the shared live builder result and a purp
   await expect(page.getByRole('region', { name: 'Glass Calculation printout' })).toBeVisible();
   await expect(page.getByText('DoorGo', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Glass Calculation' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Glass Calculation printout' })).toContainText('Jamb legs');
+  await expect(page.getByRole('region', { name: 'Glass Calculation printout' })).toContainText('Header / sill / T-bar');
   await expect(page.getByRole('button', { name: 'Print' })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Add right sidelight' })).toBeHidden();
 });

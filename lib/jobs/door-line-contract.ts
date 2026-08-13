@@ -2,6 +2,7 @@ import {
   JobIntakeFailure,
   type DoorLineInput,
   type DoorLineMode,
+  type JobHeaderInput,
   type NativeDoorLine,
 } from './job-intake-types';
 import { SHOP_DIMENSION_FORMAT_HELP, parseStoredShopDimension } from './dimension-contract';
@@ -271,6 +272,19 @@ export function calculateJ2AShopHours(lines: DoorLineInput[]): {
   if (unknown.length) return { shopHours: null, shopHoursSource: 'Estimate incomplete', unknown };
   if (!active.length) return { shopHours: null, shopHoursSource: null, unknown: [] };
   return { shopHours: Math.round(minutes / 15) / 4, shopHoursSource: 'Estimated', unknown: [] };
+}
+
+export function withEffectiveShopHours<T extends JobHeaderInput>(
+  input: T,
+  lines: DoorLineInput[],
+): T & { shopHours: number | null; shopHoursSource: string | null } {
+  const manual = String(input.shopHoursSource ?? '').trim() === 'Manual';
+  const manualHours = input.shopHours === null || input.shopHours === undefined || String(input.shopHours).trim() === '' ? null : Number(input.shopHours);
+  if (manual && Number.isFinite(manualHours) && (manualHours as number) >= 0) {
+    return { ...input, shopHours: manualHours, shopHoursSource: 'Manual' };
+  }
+  const estimate = calculateJ2AShopHours(lines);
+  return { ...input, shopHours: estimate.shopHours, shopHoursSource: estimate.shopHoursSource };
 }
 
 const DEPLOYED_MERGE_FIELDS = [

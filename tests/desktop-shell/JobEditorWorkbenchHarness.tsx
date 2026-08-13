@@ -7,3 +7,14 @@ export function JobEditorWorkbenchHarness() {
     lines: [{ ...defaultDoorLine('Exterior'), lineId: 'fixture-line', lineIndex: 1, lineStatus: 'Active' }],
   }} initialJob={null} inAppShell/></main></div>;
 }
+
+export function EffectiveShopHoursHarness() {
+  return <JobHeaderForm canEdit defaultSalesperson="Barrett" initialDraft={{
+    header: { customer: 'Hours Fixture', salesperson: 'Barrett', lifecycleStage: 'Draft' },
+    lines: [
+      { ...defaultDoorLine('Exterior'), lineId: 'hours-d', lineIndex: 1, lineStatus: 'Active', config: 'D' },
+      { ...defaultDoorLine('Exterior'), lineId: 'hours-dd', lineIndex: 2, lineStatus: 'Active', config: 'DD' },
+      { ...defaultDoorLine('Exterior'), lineId: 'hours-tds', lineIndex: 3, lineStatus: 'Active', config: 'T/DS' },
+    ],
+  }} initialJob={null}/>;
+}

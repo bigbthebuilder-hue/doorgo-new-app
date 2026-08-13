@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getPermissionAccess } from '@/lib/auth/access';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { canWriteJobs, jobFailureMessage } from './job-intake-contract';
-import { assertConfirmedJobActiveLineInvariant } from './door-line-contract';
+import { assertConfirmedJobActiveLineInvariant, withEffectiveShopHours } from './door-line-contract';
 import { archiveJobWithAccess, createJobWithAccess, createTransferredJobWithAccess, prepareGlassOverrideWithAccess, removeGlassOverrideWithAccess, updateJobWithAccess } from './job-intake-service';
 import { mapLegacyTransferToUnsavedEditor } from './legacy-transfer-mapping';
 import type { LegacyTransferMappingResult } from './legacy-transfer-types';
@@ -58,7 +58,7 @@ export async function createDraftJobAction(request: {
     const access = await getCurrentDoorGoAccess();
     actionWriteCheck(access);
     assertConfirmedJobActiveLineInvariant(request.input.lifecycleStage, request.lines ?? []);
-    const job = await createJobWithAccess(access, request);
+    const job = await createJobWithAccess(access, { ...request, input: withEffectiveShopHours(request.input, request.lines ?? []) });
     revalidatePath('/jobs');
     return { ok: true, job };
   } catch (error) {
@@ -88,7 +88,7 @@ export async function createTransferredJobAction(request: {
   try {
     const access = await getCurrentDoorGoAccess();
     actionWriteCheck(access);
-    const job = await createTransferredJobWithAccess(access, request);
+    const job = await createTransferredJobWithAccess(access, { ...request, input: withEffectiveShopHours(request.input, request.lines) });
     revalidatePath('/jobs');
     return { ok: true, job };
   } catch (error) {
@@ -106,7 +106,7 @@ export async function updateDraftJobAction(request: {
     const access = await getCurrentDoorGoAccess();
     actionWriteCheck(access);
     assertConfirmedJobActiveLineInvariant(request.input.lifecycleStage, request.lines ?? []);
-    const job = await updateJobWithAccess(access, request);
+    const job = await updateJobWithAccess(access, { ...request, input: withEffectiveShopHours(request.input, request.lines ?? []) });
     revalidatePath('/jobs');
     revalidatePath(`/jobs/${job.internalJobId}/edit`);
     return { ok: true, job };

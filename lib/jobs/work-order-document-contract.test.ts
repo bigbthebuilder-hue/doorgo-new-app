@@ -72,6 +72,9 @@ async function main() {
   assert.equal(fallback.header.salesperson, 'Barrett');
   assert.equal(fallback.header.shopHours, '4.5');
   assert.equal(fallback.header.shopHoursSource, 'Manual');
+  const estimatedHours = generateWorkOrderDocument(aggregate({ shopHours: 6.5, shopHoursSource: 'Estimated' }), generation);
+  assert.equal(estimatedHours.header.shopHours, '6.5', 'the work order consumes the saved effective automatic hours');
+  assert.equal(estimatedHours.header.shopHoursSource, 'Estimated');
   assert.equal(fallback.header.fulfillmentType, 'Delivery');
   assert.equal(fallback.header.fulfillmentDate, '2026-08-01');
   assert.equal(fallback.header.notes, 'Job note');

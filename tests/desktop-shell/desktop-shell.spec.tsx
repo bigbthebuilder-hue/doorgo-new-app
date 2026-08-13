@@ -6,7 +6,7 @@ import { ProductionBoardDay } from '@/components/ProductionBoardDay';
 import { ProductionBoardSummary } from '@/components/ProductionBoardSummary';
 import { BoardNavigationHarness } from './BoardNavigationHarness';
 import { DoorLineWorkspaceHarness, FlexibleShopHoursHarness } from './DoorLineWorkspaceHarness';
-import { JobEditorWorkbenchHarness } from './JobEditorWorkbenchHarness';
+import { EffectiveShopHoursHarness, JobEditorWorkbenchHarness } from './JobEditorWorkbenchHarness';
 import { JobsWorkspace } from '@/components/jobs/JobsWorkspace';
 import { StandaloneGlassCalculator } from '@/components/jobs/StandaloneGlassCalculator';
 import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel, ProductionBoardViewModel } from '@/lib/production-board/types';
@@ -269,6 +269,19 @@ test('actual native job editor keeps its operational strip, door workbench, and 
   await expect(component.getByRole('button', { name: 'Add Door to Order' })).toBeVisible();
   const glassFit = await glassWorkbench.locator('> div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
   expect(glassFit.scrollHeight).toBeLessThanOrEqual(glassFit.clientHeight);
+});
+
+test('job header exposes automatic Shop Hours and clearing a manual override restores them', async ({ mount }) => {
+  const component = await mount(<EffectiveShopHoursHarness/>);
+  const shopHours = component.getByRole('spinbutton', { name: /Shop Hours/ });
+  await expect(shopHours).toHaveValue('6.5');
+  await expect(component.getByText('Shop Hours · Estimated', { exact: true })).toBeVisible();
+  await shopHours.fill('6');
+  await expect(shopHours).toHaveValue('6');
+  await expect(component.getByText('Shop Hours · Manual', { exact: true })).toBeVisible();
+  await shopHours.fill('');
+  await expect(shopHours).toHaveValue('6.5');
+  await expect(component.getByText('Shop Hours · Estimated', { exact: true })).toBeVisible();
 });
 
 test('standalone Glass Calculator uses the shared live builder result and a purpose-built print document', async ({ mount, page }) => {

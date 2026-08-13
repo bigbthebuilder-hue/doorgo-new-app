@@ -11,6 +11,7 @@ import {
   normalizeDoorLineInput,
   prepAfterHeightChange,
   prepChoices,
+  withEffectiveShopHours,
 } from './door-line-contract';
 
 import { canReadJobs, canWriteJobs } from './job-intake-contract';
@@ -179,6 +180,28 @@ async function main() {
       validLine({ lineId: lineId3, lineStatus: 'Archived', qty: 99 }),
     ]);
     assert.equal(hours.shopHours, 5.5, 'quantity and MULTI/custom-RO/RIP additions match deployed minutes');
+
+    const effectiveLines = [
+      validLine({ config: 'D' }),
+      validLine({ lineId: lineId2, config: 'DD' }),
+      validLine({ lineId: lineId3, config: 'T/DS' }),
+    ];
+    const automaticHours = withEffectiveShopHours({ customer: 'Hours fixture', lifecycleStage: 'Draft' }, effectiveLines);
+    assert.deepEqual(
+      [automaticHours.shopHours, automaticHours.shopHoursSource],
+      [6.5, 'Estimated'],
+      'the effective header uses the authoritative active-line estimate',
+    );
+    const manualHours = withEffectiveShopHours({ ...automaticHours, shopHours: 6, shopHoursSource: 'Manual' }, effectiveLines);
+    assert.deepEqual([manualHours.shopHours, manualHours.shopHoursSource], [6, 'Manual'], 'a valid manual value overrides line changes');
+    const clearedManualHours = withEffectiveShopHours({ ...manualHours, shopHours: '', shopHoursSource: '' }, effectiveLines);
+    assert.deepEqual([clearedManualHours.shopHours, clearedManualHours.shopHoursSource], [6.5, 'Estimated'], 'clearing the manual value restores automatic hours');
+    const changedAutomaticHours = withEffectiveShopHours(automaticHours, [...effectiveLines, validLine({ lineId: '44444444-4444-4444-8444-444444444444', config: 'D' })]);
+    assert.equal(changedAutomaticHours.shopHours, 7.5, 'automatic hours follow committed line additions');
+    const archivedAutomaticHours = withEffectiveShopHours(automaticHours, effectiveLines.map((line, index) => index === 2 ? { ...line, lineStatus: 'Archived' } : line));
+    assert.equal(archivedAutomaticHours.shopHours, 2.5, 'automatic hours exclude archived lines');
+    const incompleteHours = withEffectiveShopHours({ customer: 'Hours fixture', lifecycleStage: 'Draft' }, [validLine({ config: 'UNKNOWN' })]);
+    assert.deepEqual([incompleteHours.shopHours, incompleteHours.shopHoursSource], [null, 'Estimate incomplete'], 'unsupported structures remain visibly incomplete');
 
     const timestamp = '2026-07-20T00:00:00.000Z';
     const full = (input: DoorLineInput): NativeDoorLine => ({

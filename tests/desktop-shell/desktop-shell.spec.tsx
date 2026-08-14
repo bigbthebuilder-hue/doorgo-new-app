@@ -287,10 +287,11 @@ test('RIP jamb is mapped through Jamb Width without a standalone checkbox', asyn
   await component.locator('.job-lines-pane').getByRole('button', { name: 'Edit' }).click();
   const jambWidth = component.getByRole('combobox', { name: 'Jamb Width', exact: true });
   await expect(jambWidth).toHaveValue('RIP');
-  await expect(component.getByRole('textbox', { name: 'Completed RIP jamb size' })).toHaveValue('5-1/2');
+  await expect(component.getByText('Rip to', { exact: true })).toBeVisible();
+  await expect(component.getByRole('textbox', { name: 'Rip to' })).toHaveValue('5-1/2');
   await expect(component.getByRole('checkbox', { name: 'RIP jamb' })).toHaveCount(0);
   await jambWidth.selectOption(`8-7/8"`);
-  await expect(component.getByRole('textbox', { name: 'Completed RIP jamb size' })).toHaveCount(0);
+  await expect(component.getByRole('textbox', { name: 'Rip to' })).toHaveCount(0);
   await component.getByRole('button', { name: 'Update Door' }).click();
   const standardHours = Number(((await component.getByText(/^Shop Hours:/).textContent()) ?? '').match(/[\d.]+/)?.[0]);
   expect(initialHours - standardHours).toBe(.25);
@@ -298,31 +299,38 @@ test('RIP jamb is mapped through Jamb Width without a standalone checkbox', asyn
   await component.locator('.job-lines-pane').getByRole('button', { name: 'Edit' }).click();
   await expect(jambWidth).toHaveValue(`8-7/8"`);
   await jambWidth.selectOption('RIP');
-  await component.getByRole('textbox', { name: 'Completed RIP jamb size' }).fill('6');
+  await component.getByRole('textbox', { name: 'Rip to' }).fill('6');
   await component.getByRole('button', { name: 'Update Door' }).click();
   const restoredRipHours = Number(((await component.getByText(/^Shop Hours:/).textContent()) ?? '').match(/[\d.]+/)?.[0]);
   expect(restoredRipHours - standardHours).toBe(.25);
   await component.getByRole('button', { name: 'Job Lines (1)' }).click();
   await component.locator('.job-lines-pane').getByRole('button', { name: 'Edit' }).click();
   await expect(jambWidth).toHaveValue('RIP');
-  await expect(component.getByRole('textbox', { name: 'Completed RIP jamb size' })).toHaveValue('6');
+  await expect(component.getByRole('textbox', { name: 'Rip to' })).toHaveValue('6');
 });
 
-test('compact Archive Job stays in a dedicated normal-flow row outside form controls', async ({ mount, page }) => {
+test('Archive Job stays in an accessible job-level bottom action menu', async ({ mount, page }) => {
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }, { width: 1100, height: 720 }, { width: 900, height: 700 }]) {
     await page.setViewportSize(viewport);
     const component = await mount(<JobEditorWorkbenchHarness saved/>);
+    const contextBar = component.locator('.app-context-bar');
+    await expect(contextBar.getByRole('button', { name: 'Archive Job' })).toHaveCount(0);
+    const bottomBar = component.getByRole('region', { name: 'Job actions' });
+    const jobActions = bottomBar.getByText('Job Actions ▾', { exact: true });
+    await jobActions.focus();
+    await jobActions.press('Enter');
     const archive = component.getByRole('button', { name: 'Archive Job' });
-    await archive.scrollIntoViewIfNeeded();
-    const overlaps = await component.evaluate((root) => {
-      const button = root.querySelector('.job-archive-control button')!.getBoundingClientRect();
-      return [...root.querySelectorAll('.door-input-pane input, .door-input-pane select, .door-input-pane textarea, .door-input-pane button')].filter((control) => {
-        const field = control.getBoundingClientRect();
-        return button.left < field.right && button.right > field.left && button.top < field.bottom && button.bottom > field.top;
-      }).map((control) => ({ tag: control.tagName, name: control.getAttribute('aria-label') ?? control.textContent, rect: control.getBoundingClientRect().toJSON() }));
+    await expect(archive).toBeVisible();
+    await expect(archive).toHaveClass(/text-rose-700/);
+    const geometry = await component.evaluate((root) => {
+      const panel = root.querySelector('.job-actions-menu > div')!.getBoundingClientRect();
+      const bar = root.querySelector('.app-context-bottom-bar')!.getBoundingClientRect();
+      return { panel: panel.toJSON(), bar: bar.toJSON(), viewport: { width: innerWidth, height: innerHeight } };
     });
-    expect(overlaps).toEqual([]);
-    await expect(component.locator('.job-archive-control')).toHaveCSS('position', 'static');
+    expect(geometry.panel.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.panel.right).toBeLessThanOrEqual(geometry.viewport.width);
+    expect(geometry.panel.top).toBeGreaterThanOrEqual(0);
+    expect(geometry.panel.bottom).toBeLessThanOrEqual(geometry.bar.top + 1);
     if (viewport.width <= 1440) {
       await expect(component.locator('.door-input-pane')).toHaveCSS('box-shadow', 'none');
       await expect(component.locator('.job-editor-workspace')).toHaveCSS('overflow-y', 'auto');
@@ -330,7 +338,9 @@ test('compact Archive Job stays in a dedicated normal-flow row outside form cont
       await expect(component.locator('.job-editor-workspace')).toHaveCSS('overflow-y', 'hidden');
       await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', 'auto');
     }
-    await expect(component.getByRole('region', { name: 'Job actions' })).toBeInViewport();
+    await expect(bottomBar).toBeInViewport();
+    const actionFit = await bottomBar.evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
+    expect(actionFit.scrollWidth).toBeLessThanOrEqual(actionFit.clientWidth);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
     await component.unmount();
   }

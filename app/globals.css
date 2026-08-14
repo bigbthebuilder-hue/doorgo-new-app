@@ -175,8 +175,9 @@
   .app-context-bottom-context { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--app-color-muted); font-size: .7rem; }
   .app-context-bottom-actions { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: .35rem; }
   .app-context-bottom-actions .app-button { min-height: var(--app-toolbar-control-height); border-radius: var(--app-radius-sm); padding-inline: .65rem; font-size: .75rem; }
-  .app-context-actions .job-archive-control { margin: 0; border: 0; padding: 0; }
-  .app-context-actions .job-archive-control > button { min-height: var(--app-toolbar-control-height); border-radius: var(--app-radius-sm); padding-inline: .65rem; font-size: .7rem; }
+  .job-actions-menu .job-archive-control { margin: 0; border: 0; padding: 0; }
+  .job-actions-menu .job-archive-control > button { min-height: var(--app-toolbar-control-height); width: 100%; justify-content: flex-start; border-radius: var(--app-radius-sm); padding-inline: .5rem; font-size: .75rem; }
+  .job-actions-menu > div { bottom: calc(100% + .75rem); margin-bottom: 0; }
   .doorgo-entry { display: grid; min-height: 100vh; place-items: center; background: linear-gradient(135deg, var(--app-color-background), #dbe8f5); padding: 2rem; color: var(--app-color-text); }
   .doorgo-entry-card { display: grid; width: min(100%, 42rem); grid-template-columns: auto 1fr; align-items: center; gap: 1.5rem; border: 1px solid var(--app-color-border); border-radius: 1rem; background: var(--app-color-surface); padding: 2rem; box-shadow: 0 8px 24px rgb(11 29 58 / .08); }
   .doorgo-entry-card h1 { font-size: 2.5rem; line-height: 1; font-weight: 750; letter-spacing: -.04em; }

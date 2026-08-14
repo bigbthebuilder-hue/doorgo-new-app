@@ -215,7 +215,11 @@
   .app-context-bar--schedule .app-context-secondary { margin-top: .05rem; font-size: .65rem; line-height: .75rem; }
   .app-context-bar--schedule .app-context-actions { min-width: 0; flex-wrap: nowrap; gap: .35rem; }
   .production-window-navigation, .production-window-date { min-width: 0; flex-wrap: nowrap; }
+  .app-context-bar--schedule .production-window-navigation { order: 1; }
   .production-window-navigation button, .production-window-navigation input { height: 1.75rem; min-height: 1.75rem; border-radius: .25rem; font-size: .7rem; white-space: nowrap; }
+  .production-schedule-utilities { display: flex; order: 2; align-items: center; gap: .15rem; border-left: 1px solid var(--app-color-border); padding-left: .35rem; }
+  .production-schedule-utilities .app-button { min-height: 1.5rem; border-color: transparent; background: transparent; padding-inline: .35rem; color: var(--app-color-muted); font-size: .65rem; white-space: nowrap; }
+  .production-schedule-utilities .app-button:hover { border-color: var(--app-color-border); background: var(--app-color-toolbar); color: var(--app-color-text); }
   .app-context-bar:has(.app-job-context-fields) { min-height: 6.25rem; max-height: 6.75rem; padding-block: .35rem; }
   .app-context-bar:has(.app-job-context-fields) .app-context-primary { flex: 0 0 12rem; min-width: 12rem; }
   .app-context-bar:has(.app-job-context-fields) .app-context-title { overflow: visible; text-overflow: clip; }

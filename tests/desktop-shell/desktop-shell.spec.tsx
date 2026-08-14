@@ -441,6 +441,25 @@ test('new and saved jobs preserve lifecycle, hinge color, and lossless compact P
   expect(hingeColorBox!.x).toBeGreaterThan(hingeTypeBox!.x);
 });
 
+test('Edit Schedule keeps primary date navigation ahead of compact secondary tools', async ({ mount, page }) => {
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(viewport);
+    const component = await mount(<BoardNavigationHarness editable/>);
+    const shell = component.locator('.app-context-bar');
+    const navigation = component.getByLabel('Production Schedule date window');
+    const tools = component.getByLabel('Edit Schedule tools');
+    await expect(tools.getByRole('link', { name: 'Past Schedule' })).toBeVisible();
+    await expect(tools.getByRole('link', { name: 'Carry Checkpoint' })).toBeVisible();
+    const [shellBox, navigationBox, toolsBox] = await Promise.all([shell.boundingBox(), navigation.boundingBox(), tools.boundingBox()]);
+    expect(shellBox!.height).toBeGreaterThanOrEqual(60);
+    expect(shellBox!.height).toBeLessThanOrEqual(68);
+    expect(navigationBox!.x).toBeLessThan(toolsBox!.x);
+    expect(toolsBox!.x + toolsBox!.width).toBeLessThanOrEqual(shellBox!.x + shellBox!.width + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+    await component.unmount();
+  }
+});
+
 test('actual native job editor keeps its three-level header, door workbench, and save actions in one laptop viewport', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   const component = await mount(<JobEditorWorkbenchHarness/>);

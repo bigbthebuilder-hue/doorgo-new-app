@@ -199,6 +199,15 @@
   .app-shell-main { height: 100vh; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
   .app-shell-main:has(> .app-context-bottom-bar) { display: grid; grid-template-rows: auto minmax(0, 1fr) var(--app-context-bottom-bar-height); overflow: hidden; }
   .app-context-bar { position: sticky; top: 0; z-index: var(--app-layer-shell); min-height: var(--app-context-bar-height); max-height: 4.75rem; flex-wrap: nowrap; }
+  .app-context-bar--compact { display: grid; height: 3rem; min-height: 3rem; max-height: 3rem; grid-template-columns: minmax(7rem, 15%) minmax(18rem, 1fr) auto; gap: .5rem; padding: .2rem .5rem; }
+  .app-context-bar--compact .app-context-primary { min-width: 0; }
+  .app-context-bar--compact .app-context-primary > div { height: 100%; align-items: center; }
+  .app-context-bar--compact .app-context-title { font-size: .95rem; line-height: 1rem; }
+  .app-context-bar--compact .app-context-secondary { margin: 0; font-size: .65rem; line-height: .75rem; }
+  .app-context-bar--compact .app-context-controls, .app-context-bar--compact .app-context-actions { min-width: 0; flex-wrap: nowrap; gap: .35rem; }
+  .app-context-bar--compact .app-context-actions .app-button { min-height: var(--app-toolbar-control-height); border-radius: var(--app-radius-sm); padding-inline: .6rem; font-size: .72rem; white-space: nowrap; }
+  .app-context-bar--compact .app-jobs-filter { width: min(32rem, 100%); min-width: 0; }
+  .app-context-bar--compact .app-jobs-filter input { height: 1.45rem; min-height: 1.45rem; border-radius: .25rem; padding-block: 0; }
   .app-context-bar:has(.app-job-context-fields) { min-height: 6.25rem; max-height: 6.75rem; padding-block: .35rem; }
   .app-context-bar:has(.app-job-context-fields) .app-context-primary { flex: 0 0 12rem; min-width: 12rem; }
   .app-context-bar:has(.app-job-context-fields) .app-context-title { overflow: visible; text-overflow: clip; }

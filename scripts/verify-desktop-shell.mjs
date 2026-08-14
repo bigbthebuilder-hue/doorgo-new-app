@@ -56,7 +56,7 @@ assert.doesNotMatch(nav, /label: 'Past Schedule'|label: 'Carry Checkpoint'/, 'Pr
 assert.match(nav, /label: 'Account'.*placement: 'bottom'/);
 assert.match(jobs, /<JobsWorkspace/);
 assert.match(jobsWorkspace, /controls={<label className="app-jobs-filter"/, 'Jobs filter must live in the contextual top bar');
-assert.match(jobsWorkspace, /Import Legacy Job[\s\S]*New Draft Job/, 'Jobs actions must live in the contextual top bar');
+assert.match(jobsWorkspace, /density="compact"[\s\S]*Import Legacy Job[\s\S]*New Job/, 'Jobs actions must use the compact contextual top bar with accurate creation copy');
 assert.match(productionPage, /access\.state === 'active' \? buildProtectedAppNavigation\(access\) : buildPublicAppNavigation\(\)/, 'Authenticated Production Board must use permission-aware navigation while preserving public mode');
 assert.match(production, /<ContextTopBar/);
 assert.match(production, /<ProductionBoardSummary board=\{board\}/);

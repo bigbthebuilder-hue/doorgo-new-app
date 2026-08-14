@@ -188,12 +188,21 @@ test('dense Jobs rows keep many records visible at desktop and laptop widths', a
   await mount(<JobsWorkspace canCreate jobs={jobs} navigation={[]}/>);
   await expect(page.getByPlaceholder('Identifier, customer or site')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Import Legacy Job' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'New Draft Job' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'New Job', exact: true })).toBeVisible();
   await expect(page.locator('.app-context-bar').getByRole('heading', { name: 'Jobs' })).toBeVisible();
   await expect(page.locator('.app-shell-main > .app-workspace').getByText('Filter jobs')).toHaveCount(0);
   await expect(page.getByPlaceholder(/salesperson/i)).toHaveCount(0);
-  for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);
+    const shell = page.locator('.app-context-bar');
+    const shellBox = await shell.boundingBox();
+    expect(shellBox!.height).toBeGreaterThanOrEqual(44);
+    expect(shellBox!.height).toBeLessThanOrEqual(52);
+    for (const control of [shell.locator('.app-context-primary'), shell.locator('.app-jobs-filter'), shell.locator('.app-context-actions')]) {
+      const box = await control.boundingBox();
+      expect(box!.y).toBeGreaterThanOrEqual(shellBox!.y);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(shellBox!.y + shellBox!.height + 1);
+    }
     const rows = page.locator('article');
     await expect(rows).toHaveCount(12);
     expect(await rows.first().evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(44);

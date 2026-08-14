@@ -17,9 +17,10 @@ export function JobsWorkspace({ jobs, navigation, canCreate }: {
   return <AppShell
     navigation={navigation}
     topBar={<ContextTopBar
+      density="compact"
       title="Jobs"
       controls={<label className="app-jobs-filter" htmlFor="job-filter"><span>Filter jobs</span><input className="app-compact-input" id="job-filter" onChange={(event) => setFilter(event.target.value)} placeholder="Identifier, customer or site" type="search" value={filter}/></label>}
-      actions={canCreate ? <><Link className="app-button app-button-secondary" href="/jobs/import">Import Legacy Job</Link><Link className="app-button app-button-primary" href="/jobs/new">New Draft Job</Link></> : null}
+      actions={canCreate ? <><Link className="app-button app-button-secondary" href="/jobs/import">Import Legacy Job</Link><Link className="app-button app-button-primary" href="/jobs/new">New Job</Link></> : null}
     />}
   >
     <div className="app-workspace app-workspace-fluid"><JobsList filter={filter} jobs={jobs}/></div>

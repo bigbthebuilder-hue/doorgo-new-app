@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { GuardedLink } from './UnsavedChangesGuard';
 
-export function ContextTopBar({ title, secondary, status, controls, actions, backHref, backLabel = 'Back' }: {
+export function ContextTopBar({ title, secondary, status, controls, actions, backHref, backLabel = 'Back', density = 'default' }: {
   title: string;
   secondary?: ReactNode;
   status?: ReactNode;
@@ -9,9 +9,10 @@ export function ContextTopBar({ title, secondary, status, controls, actions, bac
   actions?: ReactNode;
   backHref?: string;
   backLabel?: string;
+  density?: 'default' | 'compact';
 }) {
   return (
-    <header className="app-context-bar">
+    <header className={`app-context-bar${density === 'compact' ? ' app-context-bar--compact' : ''}`}>
       {backHref ? <GuardedLink className="app-context-back" href={backHref} aria-label={backLabel} title={backLabel}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/><path d="M9 12h10"/></svg><span>{backLabel}</span></GuardedLink> : null}
       <div className="app-context-primary">
         <div className="flex min-w-0 items-center gap-2">

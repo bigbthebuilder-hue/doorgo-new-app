@@ -155,11 +155,17 @@ test('primary production summary omits transitional source counts', async ({ mou
 });
 
 test('read-only Production Board navigation changes only the viewed week in the sticky top bar', async ({ mount, page }) => {
-  for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);
     const component = await mount(<BoardNavigationHarness/>);
     for (const label of ['Home', 'View Schedule', 'Edit Schedule', 'Jobs', 'Glass Calculator', 'Account']) await expect(component.getByRole('link', { name: label })).toBeVisible();
     const navigation = component.getByLabel('Production Board date window');
+    const shellBox = await component.locator('.app-context-bar').boundingBox();
+    const navigationBox = await navigation.boundingBox();
+    expect(shellBox!.height).toBeGreaterThanOrEqual(60);
+    expect(shellBox!.height).toBeLessThanOrEqual(68);
+    expect(navigationBox!.x + navigationBox!.width).toBeLessThanOrEqual(shellBox!.x + shellBox!.width + 1);
+    expect(navigationBox!.y + navigationBox!.height).toBeLessThanOrEqual(shellBox!.y + shellBox!.height + 1);
     await expect(navigation.getByRole('button', { name: 'Previous week' })).toBeVisible();
     await expect(navigation.getByRole('button', { name: 'Today' })).toBeVisible();
     await expect(navigation.getByRole('button', { name: 'Next week' })).toBeVisible();

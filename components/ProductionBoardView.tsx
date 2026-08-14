@@ -29,6 +29,7 @@ export function ProductionBoardView({
     <AppShell
       navigation={navigation}
       topBar={<ContextTopBar
+        density="schedule"
         title={presentation.title}
         actions={<>{utilityActions}{windowNavigation}</>}
         status={<span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">{presentation.statusLabel}</span>}

@@ -357,10 +357,10 @@ body {
   .app-context-bar:has(.app-job-context-fields) { max-height: none; flex-wrap: wrap; }
   .app-context-bar:has(.app-job-context-fields) .app-context-primary { flex-basis: 10rem; min-width: 10rem; }
   .app-context-bar:has(.app-job-context-fields) .app-job-context-fields { width: min(100%, 44rem); grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .job-editor-workspace { overflow-y: auto; overscroll-behavior: contain; }
+  .app-shell-main:has(> .app-context-bottom-bar) > .job-editor-workspace { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
   .job-editor-surface { height: auto; min-height: 100%; overflow: visible; }
-  .job-editor-surface > .mt-3:has(.door-line-workbench) { min-height: 30rem; }
-  .door-line-workbench { height: auto; min-height: 30rem; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .job-editor-surface > .mt-3:has(.door-line-workbench) { min-height: 0; }
+  .door-line-workbench { height: auto; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
   .door-workspace-switcher { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem; border-radius: .5rem; background: rgb(226 232 240); padding: .25rem; }
   .dark .door-workspace-switcher { background: rgb(30 41 59); }
   .door-workspace-switcher button { min-height: 2rem; border-radius: .375rem; padding-inline: .75rem; font-size: .75rem; font-weight: 700; }
@@ -368,7 +368,7 @@ body {
   .dark .door-workspace-switcher button[aria-pressed="true"] { background: rgb(15 23 42); color: rgb(125 211 252); }
   .door-line-workbench[data-workspace-pane="input"] .job-lines-pane,
   .door-line-workbench[data-workspace-pane="lines"] .door-input-pane { display: none; }
-  .door-input-pane, .job-lines-pane { overflow-y: auto; }
+  .door-input-pane, .job-lines-pane { overflow: visible; }
   .door-primary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
   .door-production-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
   .job-operational-strip { grid-template-columns: minmax(12rem, 17rem) minmax(20rem, 1fr); }

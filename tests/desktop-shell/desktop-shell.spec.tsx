@@ -208,8 +208,8 @@ test('routine native door choices share one compact desktop workspace', async ({
     const component = await mount(<DoorLineWorkspaceHarness/>);
     for (const label of ['Door Type', 'Configuration', 'Width', 'Height', 'Swing', 'Prep', 'Quantity', 'Jamb Width', 'Jamb Type', 'Hinge Type', 'Material', 'Sill', 'Weatherstrip', 'Custom Slab / RO', 'Door Thickness']) await expect(component.locator('label').filter({ hasText: new RegExp(`^${label.replace('/', '\\/')}`) }).first().locator('input,select,textarea')).toBeVisible();
     await expect(component.getByText('More Details', { exact: true })).toHaveCount(0);
-    await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', viewport.width > 1440 ? 'hidden' : 'auto');
-    await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', 'auto');
+    await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', viewport.width > 1440 ? 'hidden' : 'visible');
+    await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', viewport.width > 1440 ? 'auto' : 'visible');
     const inputFit = await component.locator('.door-input-pane').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
     expect(inputFit.scrollHeight).toBeLessThanOrEqual(inputFit.clientHeight);
     const inputTop = await component.locator('.door-input-pane').evaluate((element) => element.getBoundingClientRect().top);
@@ -242,6 +242,37 @@ test('narrow job workspace switches panes without losing draft state or changing
   await expect(inputTab).toHaveAttribute('aria-pressed', 'true');
   await expect(component.getByRole('heading', { name: 'Edit Door Line' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+});
+
+test('compact job workspace provides one vertical scroll path to every Door Input action', async ({ mount, page }) => {
+  for (const viewport of [
+    { width: 1440, height: 800 }, { width: 1366, height: 768 }, { width: 1280, height: 720 },
+    { width: 1100, height: 720 }, { width: 1024, height: 720 }, { width: 900, height: 700 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const component = await mount(<JobEditorWorkbenchHarness/>);
+    const workspace = component.locator('.job-editor-workspace');
+    await expect(workspace).toHaveCSS('overflow-y', 'auto');
+    await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', 'visible');
+    await component.getByRole('combobox', { name: 'Material', exact: true }).selectOption('wood');
+    await component.getByRole('combobox', { name: 'Custom Slab / RO', exact: true }).selectOption('WoodCustom');
+    const addDoor = component.getByRole('button', { name: 'Add Door', exact: true });
+    const fit = await workspace.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+    expect(fit.scrollHeight).toBeGreaterThan(fit.clientHeight);
+    await addDoor.scrollIntoViewIfNeeded();
+    await expect(addDoor).toBeInViewport();
+    await expect(component.getByRole('textbox', { name: 'Line Notes' })).toBeInViewport();
+    await expect(component.getByRole('region', { name: 'Job actions' })).toBeInViewport();
+    const scrolled = await workspace.evaluate((element) => element.scrollTop);
+    expect(scrolled).toBeGreaterThan(0);
+    const linesTab = component.getByRole('button', { name: 'Job Lines (1)' });
+    await linesTab.click();
+    await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', 'visible');
+    await component.getByRole('button', { name: 'Door Input' }).click();
+    await expect(component.getByRole('combobox', { name: 'Custom Slab / RO', exact: true })).toHaveValue('WoodCustom');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+    await component.unmount();
+  }
 });
 
 test('job shell keeps its accepted desktop layout and responsive fallback at required widths', async ({ mount, page }) => {
@@ -344,6 +375,10 @@ test('actual native job editor keeps its operational strip, door workbench, and 
   const glassFit = await glassWorkbench.locator('> div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, overflowY: getComputedStyle(element).overflowY }));
   expect(glassFit.overflowY).toBe('auto');
   expect(glassFit.scrollHeight).toBeGreaterThanOrEqual(glassFit.clientHeight);
+  await glassWorkbench.locator('> div').evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect(component.getByRole('button', { name: 'Add Door to Order' })).toBeInViewport();
+  await expect(glassWorkbench.locator('footer')).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });
 
 test('job header exposes automatic Shop Hours and clearing a manual override restores them', async ({ mount }) => {

@@ -88,6 +88,7 @@ assert.doesNotMatch(calculator, /backHref=/, 'Top-level Glass Calculator must re
 assert.match(calculator, /<ContextTopBar density="compact" title="Glass Calculator"/, 'Glass Calculator must use the compact permanent shell');
 assert.doesNotMatch(calculator, /topBar=\{<ContextTopBar[^}]*Reset/, 'Builder-scoped Reset must not be duplicated in the page shell');
 assert.match(documents, /<ContextTopBar density="compact" title="Documents" secondary="Document tools"/, 'Documents must use the sparse compact shell without invented controls');
+assert.match(home, /<ContextTopBar density="compact" title="Home"/, 'Home must use the sparse compact shell without moving workspace navigation');
 assert.match(jobsList, /sm:grid-cols-\[8rem_8rem_minmax\(9rem,1fr\)/, 'Jobs must use the dense desktop row contract');
 assert.doesNotMatch(jobsList, /Archived lines:/, 'Zero archived counts must not consume a dedicated Jobs row');
 assert.match(jobsWorkspace, /placeholder="Identifier, customer or site"/, 'Jobs filter copy must match the fields present in the loaded list projection');

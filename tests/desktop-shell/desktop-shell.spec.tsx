@@ -472,6 +472,21 @@ test('Glass Calculator page context stays compact without duplicating builder Re
   }
 });
 
+test('Home identity remains a sparse compact shell row', async ({ mount, page }) => {
+  await mount(<ContextTopBar density="compact" title="Home" secondary="Barrett"/>);
+  await prepareShell(page);
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(viewport);
+    const shell = page.locator('.app-context-bar');
+    const box = await shell.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeLessThanOrEqual(52);
+    await expect(shell.getByRole('heading', { name: 'Home' })).toBeVisible();
+    await expect(shell.getByText('Barrett')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  }
+});
+
 test('Edit Schedule keeps primary date navigation ahead of compact secondary tools', async ({ mount, page }) => {
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);

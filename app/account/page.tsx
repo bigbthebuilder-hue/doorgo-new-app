@@ -16,7 +16,10 @@ export default async function AccountPage({
   const access = await requireDoorGoProtectedAccess();
 
   return (
-    <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Account" secondary={access.profile?.displayName || access.user?.email || 'DoorGo account'} actions={<form action="/auth/logout" method="post"><button className="app-button app-button-secondary">Sign out</button></form>}/>}>
+    <AppShell
+      navigation={buildProtectedAppNavigation(access)}
+      topBar={<ContextTopBar density="compact" title="Account" secondary={access.profile?.displayName || access.user?.email || 'DoorGo account'} actions={<form action="/auth/logout" method="post"><button className="app-button app-button-secondary">Sign out</button></form>}/>}
+    >
       <div className="app-workspace app-workspace-focused">
         <section className="app-workspace-panel rounded-xl p-6">
 

@@ -62,6 +62,7 @@ assert.match(productionPage, /access\.state === 'active' \? buildProtectedAppNav
 assert.match(production, /<ContextTopBar/);
 assert.match(production, /<ProductionBoardSummary board=\{board\}/);
 for (const [name, source] of [['Account', account], ['Glass Calculator', calculator], ['job editor', editor]]) assert.match(source, /<AppShell/, `${name} must use AppShell`);
+assert.match(account, /<ContextTopBar density="compact" title="Account"[\s\S]*action="\/auth\/logout"/, 'Account must keep sign-out in the compact page shell without changing authentication behavior');
 assert.match(jobForm, /<ContextTopBar[\s\S]{0,240}title=\{visibleIdentifier\}/, 'Job editor context must use its live authoritative identifier');
 assert.equal((jobForm.match(/id="customer"/g) ?? []).length, 1, 'Customer must have one editor input');
 assert.equal((jobForm.match(/id="salesperson"/g) ?? []).length, 1, 'Salesperson must have one editor input');

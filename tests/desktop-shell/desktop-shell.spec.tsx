@@ -487,6 +487,21 @@ test('Home identity remains a sparse compact shell row', async ({ mount, page })
   }
 });
 
+test('Account shell keeps identity and Sign out compact and contained', async ({ mount, page }) => {
+  await mount(<ContextTopBar density="compact" title="Account" secondary="Barrett" actions={<form action="/auth/logout" method="post"><button className="app-button app-button-secondary">Sign out</button></form>}/>);
+  await prepareShell(page);
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(viewport);
+    const shell = page.locator('.app-context-bar');
+    const [shellBox, actionBox] = await Promise.all([shell.boundingBox(), shell.getByRole('button', { name: 'Sign out' }).boundingBox()]);
+    expect(shellBox!.height).toBeGreaterThanOrEqual(44);
+    expect(shellBox!.height).toBeLessThanOrEqual(52);
+    expect(actionBox!.x + actionBox!.width).toBeLessThanOrEqual(shellBox!.x + shellBox!.width + 1);
+    expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(shellBox!.y + shellBox!.height + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  }
+});
+
 test('Edit Schedule keeps primary date navigation ahead of compact secondary tools', async ({ mount, page }) => {
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);

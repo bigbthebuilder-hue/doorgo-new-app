@@ -63,9 +63,10 @@ assert.ok(form.includes("openWorkOrder('download')") && form.includes("openWorkO
 assert.equal(/Save the job before printing the work order/.test(form), false, 'old generic Save-first blocker must be absent');
 assert.ok(form.includes('onUnappliedChange={setHasUnappliedLineChanges}'));
 assert.ok(form.includes('job-work-order-menu') && form.includes("openWorkOrder('preview')"), 'compact Work Order menu must preserve Preview access');
-assert.ok(form.includes('<select') && form.includes('HINGE_COLOR_OPTIONS'), 'job hinge color must use the controlled selector');
-assert.equal(/label="Hinge Color"[\s\S]{0,160}<input/.test(form), false, 'job hinge color must not accept free text');
 const lineEditor = await readFile('components/jobs/DoorLineWorkspace.tsx', 'utf8');
+assert.ok(lineEditor.includes('<select') && lineEditor.includes('HINGE_COLOR_OPTIONS'), 'job hinge color must use the controlled selector beside door input');
+assert.ok(form.includes('hingeColor={values.hingeColor}') && form.includes("onHingeColorChange={(value) => update('hingeColor', value)}"), 'Door Input hinge selector must retain job-header authority');
+assert.equal(/Hinge Color[\s\S]{0,160}<input/.test(lineEditor), false, 'job hinge color must not accept free text');
 assert.ok(lineEditor.includes('hingeTypeOptions(mode)'));
 assert.ok(lineEditor.includes('hingeTypeAfterModeChange(nextMode'));
 const glassBuilder = await readFile('components/jobs/GlassUnitBuilder.tsx', 'utf8');

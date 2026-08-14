@@ -258,13 +258,15 @@ test('compact job workspace provides one vertical scroll path to every Door Inpu
     await component.getByRole('combobox', { name: 'Custom Slab / RO', exact: true }).selectOption('WoodCustom');
     const addDoor = component.getByRole('button', { name: 'Add Door', exact: true });
     const fit = await workspace.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
-    expect(fit.scrollHeight).toBeGreaterThan(fit.clientHeight);
+    expect(fit.scrollHeight).toBeGreaterThanOrEqual(fit.clientHeight);
     await addDoor.scrollIntoViewIfNeeded();
     await expect(addDoor).toBeInViewport();
     await expect(component.getByRole('textbox', { name: 'Line Notes' })).toBeInViewport();
     await expect(component.getByRole('region', { name: 'Job actions' })).toBeInViewport();
+    await workspace.evaluate((element) => { element.scrollTop = element.scrollHeight; });
     const scrolled = await workspace.evaluate((element) => element.scrollTop);
-    expect(scrolled).toBeGreaterThan(0);
+    if (fit.scrollHeight > fit.clientHeight) expect(scrolled).toBeGreaterThan(0);
+    else expect(scrolled).toBe(0);
     const linesTab = component.getByRole('button', { name: 'Job Lines (1)' });
     await linesTab.click();
     await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', 'visible');
@@ -362,24 +364,34 @@ test('job shell keeps its accepted desktop layout and responsive fallback at req
     if (viewport.width > 1440) await expect(switcher).toBeHidden();
     else await expect(switcher).toBeVisible();
     await expect(component.locator('.app-context-bar')).toBeVisible();
+    const headerHeight = await component.locator('.app-context-bar').evaluate((element) => element.getBoundingClientRect().height);
+    expect(headerHeight).toBeGreaterThanOrEqual(92);
+    expect(headerHeight).toBeLessThanOrEqual(100);
     await expect(component.getByRole('region', { name: 'Job actions' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
     const actions = await component.getByRole('region', { name: 'Job actions' }).evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
     expect(actions.scrollWidth).toBeLessThanOrEqual(actions.clientWidth);
     const widths = await component.evaluate((root) => Object.fromEntries([
-      ['hingeColor', '#hingeColor'], ['fulfillmentPlan', '#fulfillmentPlan'], ['shopDate', '#shopDate'], ['notes', '#notes'],
+      ['fulfillmentPlan', '#fulfillmentPlan'], ['shopDate', '#shopDate'], ['notes', '#notes'],
     ].map(([name, selector]) => [name, root.querySelector(selector)!.getBoundingClientRect().width])));
-    expect(widths.hingeColor).toBeGreaterThanOrEqual(128);
     expect(widths.fulfillmentPlan).toBeGreaterThanOrEqual(160);
-    expect(widths.shopDate).toBeGreaterThanOrEqual(152);
+    expect(widths.shopDate).toBeGreaterThanOrEqual(128);
     expect(widths.notes).toBeGreaterThanOrEqual(288);
     const doorWidths: Record<string, number> = {};
-    for (const name of ['Jamb Width', 'Jamb Type', 'Material', 'Custom Slab / RO', 'Door Thickness']) {
+    for (const name of ['Jamb Width', 'Jamb Type', 'Hinge Color', 'Material', 'Custom Slab / RO', 'Door Thickness']) {
       doorWidths[name] = await component.getByRole('combobox', { name, exact: true }).evaluate((element) => element.getBoundingClientRect().width);
       expect(doorWidths[name]).toBeGreaterThanOrEqual(144);
     }
-    const operationalRows = await component.locator('.job-operational-strip').evaluate((element) => new Set([...element.querySelectorAll(':scope > .job-production-strip, :scope > .job-po-numbers, :scope > label')].map((control) => Math.round(control.getBoundingClientRect().top))).size);
-    console.log(`responsive-metrics ${viewport.width}x${viewport.height} ${JSON.stringify({ mode: viewport.width > 1440 ? 'wide-side-by-side' : 'compact-tabs', operationalRows, widths: { ...widths, ...doorWidths }, horizontalOverflow: await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth) })}`);
+    await expect(component.locator('.job-details-strip')).toHaveCount(0);
+    const shellRows = await component.locator('.app-context-bar').evaluate((element) => new Set([...element.querySelectorAll('.app-job-context-field')].map((control) => getComputedStyle(control).gridRowStart)).size);
+    expect(shellRows).toBe(3);
+    const dividers = await component.evaluate((root) => Object.fromEntries([
+      ['customer', '.job-shell-customer'], ['email', '.job-shell-email'], ['notes', '.job-shell-notes'],
+      ['site', '.job-shell-site'], ['hours', '.job-shell-hours'], ['salesperson', '.job-shell-salesperson'], ['shopDate', '.job-shell-shop-date'],
+    ].map(([name, selector]) => [name, root.querySelector(selector)!.getBoundingClientRect().left])));
+    expect(Math.max(dividers.customer, dividers.email, dividers.notes) - Math.min(dividers.customer, dividers.email, dividers.notes)).toBeLessThanOrEqual(1);
+    expect(Math.abs(dividers.site - dividers.hours)).toBeLessThanOrEqual(1);
+    console.log(`responsive-metrics ${viewport.width}x${viewport.height} ${JSON.stringify({ mode: viewport.width > 1440 ? 'wide-side-by-side' : 'compact-tabs', headerHeight, shellRows, dividers, widths: { ...widths, ...doorWidths }, horizontalOverflow: await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth) })}`);
   }
 });
 
@@ -396,15 +408,37 @@ test('shared glass builder stacks before laptop controls become compressed', asy
   }
 });
 
-test('actual native job editor keeps its operational strip, door workbench, and save actions in one laptop viewport', async ({ mount, page }) => {
+test('new and saved jobs preserve lifecycle, hinge color, and lossless compact PO presentation', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const fresh = await mount(<JobEditorWorkbenchHarness/>);
+  await expect(fresh.getByRole('combobox', { name: 'Job lifecycle', exact: true })).toHaveValue('Confirmed Job');
+  await fresh.unmount();
+  const saved = await mount(<JobEditorWorkbenchHarness saved/>);
+  await expect(saved.getByRole('combobox', { name: 'Job lifecycle', exact: true })).toHaveValue('Draft');
+  await saved.getByRole('combobox', { name: 'Job lifecycle', exact: true }).selectOption('Confirmed Job');
+  await expect(saved.getByRole('combobox', { name: 'Job lifecycle', exact: true })).toHaveValue('Confirmed Job');
+  await expect(saved.getByRole('combobox', { name: 'Hinge Color', exact: true })).toHaveValue('C15');
+  await expect(saved.getByRole('textbox', { name: 'PO Number(s)', exact: true })).toHaveValue('100, 200');
+  await expect(saved.getByRole('button', { name: 'Add PO' })).toHaveCount(0);
+  const hingeTypeBox = await saved.getByRole('combobox', { name: 'Hinge Type', exact: true }).boundingBox();
+  const hingeColorBox = await saved.getByRole('combobox', { name: 'Hinge Color', exact: true }).boundingBox();
+  expect(Math.abs(hingeTypeBox!.y - hingeColorBox!.y)).toBeLessThan(2);
+  expect(hingeColorBox!.x).toBeGreaterThan(hingeTypeBox!.x);
+});
+
+test('actual native job editor keeps its three-level header, door workbench, and save actions in one laptop viewport', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   const component = await mount(<JobEditorWorkbenchHarness/>);
   await expect(component.locator('.app-context-bar')).toBeVisible();
   await expect(component.locator('.app-shell-sidebar')).toBeVisible();
   await expect(component.locator('.app-context-title')).toHaveText('DG-000123');
   await expect(component.locator('.app-context-title')).toHaveCSS('text-overflow', 'clip');
+  await expect(component.locator('.app-context-bar').getByRole('link', { name: 'Jobs' })).toHaveCount(0);
   await expect(component.getByRole('region', { name: 'Job actions' })).toBeVisible();
-  await expect(component.getByLabel('Production Setup')).toBeVisible();
+  await expect(component.getByRole('textbox', { name: 'PO Number(s)', exact: true })).toBeVisible();
+  await expect(component.getByRole('textbox', { name: 'Job Notes', exact: true })).toBeVisible();
+  await expect(component.locator('.app-context-bar').getByRole('textbox', { name: 'PO Number(s)', exact: true })).toBeVisible();
+  await expect(component.locator('.app-context-bar').getByRole('textbox', { name: 'Job Notes', exact: true })).toBeVisible();
   await expect(component.getByRole('button', { name: 'Add Door' })).toBeVisible();
   await expect(component.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   await expect(component.getByRole('button', { name: 'Save and Exit' })).toBeVisible();

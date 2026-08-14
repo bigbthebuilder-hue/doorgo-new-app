@@ -67,7 +67,7 @@ assert.equal((jobForm.match(/id="salesperson"/g) ?? []).length, 1, 'Salesperson 
 assert.equal((jobForm.match(/id="siteAddress"/g) ?? []).length, 1, 'Site / Address must have one editor input');
 assert.match(jobForm, /placeholder="Not entered"/, 'Blank contextual values must not repeat their labels');
 assert.match(jobForm, /app-workspace app-workspace-fluid job-editor-workspace/, 'Job editor must use the fluid shell workspace');
-assert.match(jobForm, /backHref="\/jobs"/, 'Job editor must provide contextual Back navigation');
+assert.doesNotMatch(jobForm, /backHref="\/jobs"/, 'Job editor must rely on permanent navigation without a redundant contextual Back control');
 assert.match(shell, /<UnsavedChangesProvider>/, 'Shell must provide one reusable unsaved-change contract');
 assert.match(desktopNav, /<GuardedLink/, 'Permanent navigation must use the shared guard');
 assert.match(contextTopBar, /<GuardedLink/, 'Contextual Back navigation must use the shared guard');

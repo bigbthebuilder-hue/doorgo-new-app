@@ -17,8 +17,9 @@ for (const [label, pattern] of [
 ]) assert.equal(pattern.test(source), false, `PO persistence must not contain ${label}`);
 
 const form = await readFile('components/jobs/JobHeaderForm.tsx', 'utf8');
-for (const required of ['Production Setup', 'PO Numbers', 'Add PO', 'Remove PO', 'pendingPoNumber', 'disabled={!canEdit}']) {
+for (const required of ['PO Number(s)', 'poNumbersFromText', 'pendingPoNumber', 'disabled={!canEdit}']) {
   assert.ok(form.includes(required), `PO header UI missing ${required}`);
 }
+for (const removed of ['>Add PO</button>', 'Remove PO ${poNumber}']) assert.equal(form.includes(removed), false, `PO header UI must not include ${removed}`);
 assert.equal(form.includes('NEXT_PUBLIC_'), false);
 console.log('Native Job Intake PO hosted-write verifier: PASS');

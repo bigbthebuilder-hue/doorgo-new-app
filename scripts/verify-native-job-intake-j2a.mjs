@@ -54,8 +54,9 @@ assert.ok(workspace.includes("const visibleMessage = message?.lifecycleStage ===
 assert.match(workspace, /if \(messageTimer\.current !== null\) clearTimeout\(messageTimer\.current\);\s*messageTimer\.current = null;\s*\}, \[lifecycleStage\]\);/, 'timer must be cleaned up on lifecycle changes and unmount');
 assert.match(workspace, /clearMessageTimer\(\);\s*setMessage\(\{ error: true, text: special, lifecycleStage \}\);/, 'field validation errors must remain persistent');
 assert.equal(/useEffect\s*\(\s*\(\)\s*=>\s*\{[\s\S]{0,300}setMessage\s*\(/.test(workspace), false, 'effects must not synchronously update message state');
-assert.ok(form.includes("onClick={() => setLifecycleStage('Draft')}"));
-assert.ok(form.includes("onClick={() => setLifecycleStage('Confirmed Job')}"));
+assert.ok(form.includes('aria-label="Job lifecycle"'), 'job lifecycle must remain an accessible compact control');
+assert.ok(form.includes('onChange={(event) => setLifecycleStage(event.target.value as JobLifecycleStage)}'), 'the compact lifecycle control must update the authoritative lifecycle state');
+assert.ok(form.includes("disabled={lifecycleStage !== 'Confirmed Job' && !hasValidActiveDoorLine(lines)}"), 'confirming must remain unavailable until a valid active line exists');
 assert.ok(form.includes('jobAggregateDirtySnapshot({ values: nextValues, lines: nextLines, lifecycleStage: nextStage, pendingPoNumber: nextPendingPo })'), 'dirty snapshot must include header, lines, lifecycle, and pending PO input');
 assert.ok(form.includes('expectedRevision: job.revision, input, lines'));
 assert.ok(form.includes('commandId: commandId.current as string, input, lines'));

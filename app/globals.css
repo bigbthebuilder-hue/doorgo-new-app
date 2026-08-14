@@ -427,3 +427,42 @@ body {
     transform: translateY(-0.25rem);
   }
 }
+
+@media (min-width: 768px) {
+  .app-context-bar:has(.app-job-shell-fields) { --job-shell-guide-a: 25; --job-shell-guide-b: 48; display: grid; height: 6rem; min-height: 6rem; max-height: 6rem; grid-template-columns: repeat(100, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 0; padding: 0 .5rem; }
+  .app-context-bar:has(.app-job-shell-fields) .app-context-primary { grid-column: 1 / var(--job-shell-guide-a); grid-row: 1; min-width: 0; align-self: stretch; border-right: 1px solid var(--app-color-border); padding: .1rem .4rem; }
+  .app-context-bar:has(.app-job-shell-fields) .app-context-primary > div { height: 100%; align-items: center; gap: .35rem; }
+  .app-context-bar:has(.app-job-shell-fields) .app-context-title { overflow: visible; font-size: .9rem; line-height: 1rem; text-overflow: clip; white-space: nowrap; }
+  .app-context-bar:has(.app-job-shell-fields) .app-context-actions { display: none; }
+  .app-context-bar:has(.app-job-shell-fields) .app-context-controls,
+  .app-context-bar:has(.app-job-shell-fields) .app-job-shell-fields { display: contents; }
+  .app-job-shell-fields .app-job-context-field { height: auto; min-height: 0; gap: 0; border: 0; border-right: 1px solid var(--app-color-border); border-radius: 0; background: transparent; padding: .08rem .4rem; }
+  .app-job-shell-fields .app-job-context-field:focus-within { border-color: var(--app-color-border); background: color-mix(in srgb, var(--app-color-primary) 6%, transparent); box-shadow: inset 0 -2px var(--app-color-primary); }
+  .app-job-shell-fields .app-job-context-field input,
+  .app-job-shell-fields .app-job-context-field select,
+  .app-job-shell-fields .app-job-context-field textarea { min-width: 0; width: 100%; height: 1.05rem; min-height: 0; border: 0; background: transparent; padding: 0; color: var(--app-color-text); font-size: .7rem; font-weight: 600; line-height: 1.05rem; letter-spacing: normal; outline: none; overflow: hidden; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
+  .app-job-shell-fields .app-job-context-field textarea { resize: none; }
+  .job-shell-identity-status { display: inline-flex; min-width: 0; align-items: center; gap: .25rem; color: var(--app-color-muted); font-size: .6rem; font-weight: 700; white-space: nowrap; }
+  .job-shell-identity-status select { max-width: 5.4rem; height: 1.3rem; border: 1px solid #86a7a0; border-radius: 999px; background: #e7f5f0; padding: 0 .3rem; color: #075e54; font-size: .62rem; font-weight: 750; outline: none; }
+  .job-shell-identity-status select:focus-visible { box-shadow: 0 0 0 2px var(--app-color-primary); }
+  .job-shell-customer { grid-column: var(--job-shell-guide-a) / var(--job-shell-guide-b); grid-row: 1; }
+  .job-shell-site { grid-column: var(--job-shell-guide-b) / 87; grid-row: 1; }
+  .job-shell-salesperson { grid-column: 87 / 101; grid-row: 1; }
+  .job-shell-sales-order { grid-column: 1 / 14; grid-row: 2; }
+  .job-shell-phone { grid-column: 14 / var(--job-shell-guide-a); grid-row: 2; }
+  .job-shell-email { grid-column: var(--job-shell-guide-a) / var(--job-shell-guide-b); grid-row: 2; }
+  .job-shell-hours { grid-column: var(--job-shell-guide-b) / 59; grid-row: 2; }
+  .job-shell-fulfillment { grid-column: 59 / 83; grid-row: 2; }
+  .job-shell-shop-date { grid-column: 83 / 101; grid-row: 2; }
+  .job-shell-po { grid-column: 1 / var(--job-shell-guide-a); grid-row: 3; }
+  .job-shell-notes { grid-column: var(--job-shell-guide-a) / 101; grid-row: 3; }
+  .job-shell-sales-order, .job-shell-phone, .job-shell-email, .job-shell-hours, .job-shell-fulfillment, .job-shell-shop-date,
+  .job-shell-po, .job-shell-notes { border-top: 1px solid var(--app-color-border) !important; }
+  .job-shell-fulfillment-controls { display: flex; min-width: 0; gap: .25rem; }
+  .job-shell-fulfillment-controls > * { min-width: 0; flex: 1 1 50%; }
+  .job-details-strip { display: grid; grid-template-columns: minmax(12rem, 17rem) minmax(20rem, 1fr); gap: .5rem; align-items: start; }
+  .job-details-strip .job-intake-field span { padding-top: .2rem; font-size: .6rem; }
+  .job-details-strip input, .job-details-strip textarea { min-height: 1.75rem !important; }
+  .job-details-strip textarea { resize: none; }
+  .job-editor-workspace .app-overlay-workspace { inset-block-start: 6rem; }
+}

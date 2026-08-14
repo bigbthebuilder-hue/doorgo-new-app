@@ -9,6 +9,7 @@ const jobs = read('app/jobs/page.tsx');
 const production = read('components/ProductionBoardView.tsx');
 const account = read('app/account/page.tsx');
 const calculator = read('app/glass-calculator/page.tsx');
+const documents = read('app/documents/page.tsx');
 const editor = read('app/jobs/[internalJobId]/edit/page.tsx');
 const jobForm = read('components/jobs/JobHeaderForm.tsx');
 const home = read('app/page.tsx');
@@ -84,6 +85,7 @@ assert.doesNotMatch(productionSummary, /label="(?:DoorGo-linked|BizTrack-only)"/
 assert.doesNotMatch(recoveryList, /productionRecoveryOriginLabel/, 'Past Schedule cards must not expose transitional source labels');
 assert.match(recoveryPage, /app-workspace app-workspace-fluid/, 'Past Schedule must use the fluid desktop workspace');
 assert.doesNotMatch(calculator, /backHref=/, 'Top-level Glass Calculator must rely on permanent navigation');
+assert.match(documents, /<ContextTopBar density="compact" title="Documents" secondary="Document tools"/, 'Documents must use the sparse compact shell without invented controls');
 assert.match(jobsList, /sm:grid-cols-\[8rem_8rem_minmax\(9rem,1fr\)/, 'Jobs must use the dense desktop row contract');
 assert.doesNotMatch(jobsList, /Archived lines:/, 'Zero archived counts must not consume a dedicated Jobs row');
 assert.match(jobsWorkspace, /placeholder="Identifier, customer or site"/, 'Jobs filter copy must match the fields present in the loaded list projection');

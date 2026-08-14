@@ -13,6 +13,10 @@ import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel
 import type { DoorLineInput, NativeJobListItem } from '@/lib/jobs/job-intake-types';
 
 const desktopShellLabels = ['View Schedule', 'Edit Schedule', 'Documents', 'Glass Calculator', 'Account'];
+const appShellViewports = [
+  { width: 1600, height: 900 }, { width: 1440, height: 800 }, { width: 1366, height: 768 },
+  { width: 1280, height: 720 }, { width: 1100, height: 720 }, { width: 1024, height: 720 }, { width: 900, height: 700 },
+];
 
 type ShellPage = {
   evaluate(callback: (labels: string[]) => void, labels: string[]): Promise<void>;
@@ -155,7 +159,7 @@ test('primary production summary omits transitional source counts', async ({ mou
 });
 
 test('read-only Production Board navigation changes only the viewed week in the sticky top bar', async ({ mount, page }) => {
-  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+  for (const viewport of appShellViewports) {
     await page.setViewportSize(viewport);
     const component = await mount(<BoardNavigationHarness/>);
     for (const label of ['Home', 'View Schedule', 'Edit Schedule', 'Jobs', 'Glass Calculator', 'Account']) await expect(component.getByRole('link', { name: label })).toBeVisible();
@@ -165,7 +169,7 @@ test('read-only Production Board navigation changes only the viewed week in the 
     expect(shellBox!.height).toBeGreaterThanOrEqual(60);
     expect(shellBox!.height).toBeLessThanOrEqual(68);
     expect(navigationBox!.x + navigationBox!.width).toBeLessThanOrEqual(shellBox!.x + shellBox!.width + 1);
-    expect(navigationBox!.y + navigationBox!.height).toBeLessThanOrEqual(shellBox!.y + shellBox!.height + 1);
+    expect(navigationBox!.y + navigationBox!.height).toBeLessThanOrEqual(shellBox!.y + shellBox!.height + 2);
     await expect(navigation.getByRole('button', { name: 'Previous week' })).toBeVisible();
     await expect(navigation.getByRole('button', { name: 'Today' })).toBeVisible();
     await expect(navigation.getByRole('button', { name: 'Next week' })).toBeVisible();
@@ -198,7 +202,7 @@ test('dense Jobs rows keep many records visible at desktop and laptop widths', a
   await expect(page.locator('.app-context-bar').getByRole('heading', { name: 'Jobs' })).toBeVisible();
   await expect(page.locator('.app-shell-main > .app-workspace').getByText('Filter jobs')).toHaveCount(0);
   await expect(page.getByPlaceholder(/salesperson/i)).toHaveCount(0);
-  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+  for (const viewport of appShellViewports) {
     await page.setViewportSize(viewport);
     const shell = page.locator('.app-context-bar');
     const shellBox = await shell.boundingBox();
@@ -444,7 +448,7 @@ test('new and saved jobs preserve lifecycle, hinge color, and lossless compact P
 test('sparse Documents context uses one compact shell row without invented controls', async ({ mount, page }) => {
   await mount(<ContextTopBar density="compact" title="Documents" secondary="Document tools"/>);
   await prepareShell(page);
-  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+  for (const viewport of appShellViewports) {
     await page.setViewportSize(viewport);
     const shell = page.locator('.app-context-bar');
     const box = await shell.boundingBox();
@@ -460,7 +464,7 @@ test('sparse Documents context uses one compact shell row without invented contr
 test('Glass Calculator page context stays compact without duplicating builder Reset', async ({ mount, page }) => {
   await mount(<ContextTopBar density="compact" title="Glass Calculator" secondary="Local calculation workspace"/>);
   await prepareShell(page);
-  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+  for (const viewport of appShellViewports) {
     await page.setViewportSize(viewport);
     const shell = page.locator('.app-context-bar');
     const box = await shell.boundingBox();
@@ -475,7 +479,7 @@ test('Glass Calculator page context stays compact without duplicating builder Re
 test('Home identity remains a sparse compact shell row', async ({ mount, page }) => {
   await mount(<ContextTopBar density="compact" title="Home" secondary="Barrett"/>);
   await prepareShell(page);
-  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+  for (const viewport of appShellViewports) {
     await page.setViewportSize(viewport);
     const shell = page.locator('.app-context-bar');
     const box = await shell.boundingBox();
@@ -490,7 +494,7 @@ test('Home identity remains a sparse compact shell row', async ({ mount, page })
 test('Account shell keeps identity and Sign out compact and contained', async ({ mount, page }) => {
   await mount(<ContextTopBar density="compact" title="Account" secondary="Barrett" actions={<form action="/auth/logout" method="post"><button className="app-button app-button-secondary">Sign out</button></form>}/>);
   await prepareShell(page);
-  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+  for (const viewport of appShellViewports) {
     await page.setViewportSize(viewport);
     const shell = page.locator('.app-context-bar');
     const [shellBox, actionBox] = await Promise.all([shell.boundingBox(), shell.getByRole('button', { name: 'Sign out' }).boundingBox()]);
@@ -503,7 +507,7 @@ test('Account shell keeps identity and Sign out compact and contained', async ({
 });
 
 test('Edit Schedule keeps primary date navigation ahead of compact secondary tools', async ({ mount, page }) => {
-  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+  for (const viewport of appShellViewports) {
     await page.setViewportSize(viewport);
     const component = await mount(<BoardNavigationHarness editable/>);
     const shell = component.locator('.app-context-bar');

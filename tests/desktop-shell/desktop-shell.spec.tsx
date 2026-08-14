@@ -10,7 +10,7 @@ import { EffectiveShopHoursHarness, JobEditorWorkbenchHarness } from './JobEdito
 import { JobsWorkspace } from '@/components/jobs/JobsWorkspace';
 import { StandaloneGlassCalculator } from '@/components/jobs/StandaloneGlassCalculator';
 import type { ProductionBoardCard, ProductionBoardDay as ProductionBoardDayModel, ProductionBoardViewModel } from '@/lib/production-board/types';
-import type { NativeJobListItem } from '@/lib/jobs/job-intake-types';
+import type { DoorLineInput, NativeJobListItem } from '@/lib/jobs/job-intake-types';
 
 const desktopShellLabels = ['View Schedule', 'Edit Schedule', 'Documents', 'Glass Calculator', 'Account'];
 
@@ -208,8 +208,8 @@ test('routine native door choices share one compact desktop workspace', async ({
     const component = await mount(<DoorLineWorkspaceHarness/>);
     for (const label of ['Door Type', 'Configuration', 'Width', 'Height', 'Swing', 'Prep', 'Quantity', 'Jamb Width', 'Jamb Type', 'Hinge Type', 'Material', 'Sill', 'Weatherstrip', 'Custom Slab / RO', 'Door Thickness']) await expect(component.locator('label').filter({ hasText: new RegExp(`^${label.replace('/', '\\/')}`) }).first().locator('input,select,textarea')).toBeVisible();
     await expect(component.getByText('More Details', { exact: true })).toHaveCount(0);
-    await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', 'hidden');
-    await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', 'auto');
+    await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', viewport.width > 1440 ? 'hidden' : 'visible');
+    await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', viewport.width > 1440 ? 'auto' : 'visible');
     const inputFit = await component.locator('.door-input-pane').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
     expect(inputFit.scrollHeight).toBeLessThanOrEqual(inputFit.clientHeight);
     const inputTop = await component.locator('.door-input-pane').evaluate((element) => element.getBoundingClientRect().top);
@@ -217,6 +217,182 @@ test('routine native door choices share one compact desktop workspace', async ({
     expect(await component.locator('.door-input-pane').evaluate((element) => element.getBoundingClientRect().top)).toBe(inputTop);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
     await component.unmount();
+  }
+});
+
+test('narrow job workspace switches panes without losing draft state or changing dirty state', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1024, height: 720 });
+  const component = await mount(<JobEditorWorkbenchHarness/>);
+  const switcher = component.getByRole('group', { name: 'Door workspace view' });
+  const inputTab = switcher.getByRole('button', { name: 'Door Input' });
+  const linesTab = switcher.getByRole('button', { name: 'Job Lines (1)' });
+  await expect(switcher).toBeVisible();
+  await expect(inputTab).toHaveAttribute('aria-pressed', 'true');
+  await component.getByRole('textbox', { name: 'Line Notes' }).fill('Responsive draft survives pane changes');
+  await expect(component.getByRole('region', { name: 'Job actions' })).toContainText('Unsaved changes');
+  await linesTab.click();
+  await expect(linesTab).toHaveAttribute('aria-pressed', 'true');
+  await expect(component.locator('.job-lines-pane')).toBeVisible();
+  await expect(component.locator('.door-input-pane')).toBeHidden();
+  await expect(component.getByRole('region', { name: 'Job actions' })).toContainText('Unsaved changes');
+  await inputTab.click();
+  await expect(component.getByRole('textbox', { name: 'Line Notes' })).toHaveValue('Responsive draft survives pane changes');
+  await linesTab.click();
+  await component.locator('.job-lines-pane').getByRole('button', { name: 'Edit' }).click();
+  await expect(inputTab).toHaveAttribute('aria-pressed', 'true');
+  await expect(component.getByRole('heading', { name: 'Edit Door Line' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+});
+
+test('compact job workspace provides one vertical scroll path to every Door Input action', async ({ mount, page }) => {
+  for (const viewport of [
+    { width: 1440, height: 800 }, { width: 1366, height: 768 }, { width: 1280, height: 720 },
+    { width: 1100, height: 720 }, { width: 1024, height: 720 }, { width: 900, height: 700 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const component = await mount(<JobEditorWorkbenchHarness/>);
+    const workspace = component.locator('.job-editor-workspace');
+    await expect(workspace).toHaveCSS('overflow-y', 'auto');
+    await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', 'visible');
+    await component.getByRole('combobox', { name: 'Material', exact: true }).selectOption('wood');
+    await component.getByRole('combobox', { name: 'Custom Slab / RO', exact: true }).selectOption('WoodCustom');
+    const addDoor = component.getByRole('button', { name: 'Add Door', exact: true });
+    const fit = await workspace.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+    expect(fit.scrollHeight).toBeGreaterThan(fit.clientHeight);
+    await addDoor.scrollIntoViewIfNeeded();
+    await expect(addDoor).toBeInViewport();
+    await expect(component.getByRole('textbox', { name: 'Line Notes' })).toBeInViewport();
+    await expect(component.getByRole('region', { name: 'Job actions' })).toBeInViewport();
+    const scrolled = await workspace.evaluate((element) => element.scrollTop);
+    expect(scrolled).toBeGreaterThan(0);
+    const linesTab = component.getByRole('button', { name: 'Job Lines (1)' });
+    await linesTab.click();
+    await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', 'visible');
+    await component.getByRole('button', { name: 'Door Input' }).click();
+    await expect(component.getByRole('combobox', { name: 'Custom Slab / RO', exact: true })).toHaveValue('WoodCustom');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+    await component.unmount();
+  }
+});
+
+test('RIP jamb is mapped through Jamb Width without a standalone checkbox', async ({ mount }) => {
+  const ripLine: DoorLineInput = {
+    lineId: 'rip-line', lineIndex: 1, lineStatus: 'Active', mode: 'Exterior', doorType: 'Madison', config: 'D', width: `2'8"`, height: `6'8"`,
+    hand: 'LH', prep: 'D', qty: 1, jambWidth: '5-1/2', ripJamb: 'Yes', jambType: 'Primed', hingeType: 'REG', material: 'fiberglass',
+    sill: 'Bronze', weatherstrip: 'Bronze', customSlab: 'No', doorThickness: '1-3/4',
+  };
+  const component = await mount(<DoorLineWorkspaceHarness initialLines={[ripLine]}/>);
+  const initialHours = Number(((await component.getByText(/^Shop Hours:/).textContent()) ?? '').match(/[\d.]+/)?.[0]);
+  await component.getByRole('button', { name: 'Job Lines (1)' }).click();
+  await component.locator('.job-lines-pane').getByRole('button', { name: 'Edit' }).click();
+  const jambWidth = component.getByRole('combobox', { name: 'Jamb Width', exact: true });
+  await expect(jambWidth).toHaveValue('RIP');
+  await expect(component.getByText('Rip to', { exact: true })).toBeVisible();
+  await expect(component.getByRole('textbox', { name: 'Rip to' })).toHaveValue('5-1/2');
+  await expect(component.getByRole('checkbox', { name: 'RIP jamb' })).toHaveCount(0);
+  await jambWidth.selectOption(`8-7/8"`);
+  await expect(component.getByRole('textbox', { name: 'Rip to' })).toHaveCount(0);
+  await component.getByRole('button', { name: 'Update Door' }).click();
+  const standardHours = Number(((await component.getByText(/^Shop Hours:/).textContent()) ?? '').match(/[\d.]+/)?.[0]);
+  expect(initialHours - standardHours).toBe(.25);
+  await component.getByRole('button', { name: 'Job Lines (1)' }).click();
+  await component.locator('.job-lines-pane').getByRole('button', { name: 'Edit' }).click();
+  await expect(jambWidth).toHaveValue(`8-7/8"`);
+  await jambWidth.selectOption('RIP');
+  await component.getByRole('textbox', { name: 'Rip to' }).fill('6');
+  await component.getByRole('button', { name: 'Update Door' }).click();
+  const restoredRipHours = Number(((await component.getByText(/^Shop Hours:/).textContent()) ?? '').match(/[\d.]+/)?.[0]);
+  expect(restoredRipHours - standardHours).toBe(.25);
+  await component.getByRole('button', { name: 'Job Lines (1)' }).click();
+  await component.locator('.job-lines-pane').getByRole('button', { name: 'Edit' }).click();
+  await expect(jambWidth).toHaveValue('RIP');
+  await expect(component.getByRole('textbox', { name: 'Rip to' })).toHaveValue('6');
+});
+
+test('Archive Job stays in an accessible job-level bottom action menu', async ({ mount, page }) => {
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }, { width: 1100, height: 720 }, { width: 900, height: 700 }]) {
+    await page.setViewportSize(viewport);
+    const component = await mount(<JobEditorWorkbenchHarness saved/>);
+    const contextBar = component.locator('.app-context-bar');
+    await expect(contextBar.getByRole('button', { name: 'Archive Job' })).toHaveCount(0);
+    const bottomBar = component.getByRole('region', { name: 'Job actions' });
+    const jobActions = bottomBar.getByText('Job Actions ▾', { exact: true });
+    await jobActions.focus();
+    await jobActions.press('Enter');
+    const archive = component.getByRole('button', { name: 'Archive Job' });
+    await expect(archive).toBeVisible();
+    await expect(archive).toHaveClass(/text-rose-700/);
+    const geometry = await component.evaluate((root) => {
+      const panel = root.querySelector('.job-actions-menu > div')!.getBoundingClientRect();
+      const bar = root.querySelector('.app-context-bottom-bar')!.getBoundingClientRect();
+      return { panel: panel.toJSON(), bar: bar.toJSON(), viewport: { width: innerWidth, height: innerHeight } };
+    });
+    expect(geometry.panel.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.panel.right).toBeLessThanOrEqual(geometry.viewport.width);
+    expect(geometry.panel.top).toBeGreaterThanOrEqual(0);
+    expect(geometry.panel.bottom).toBeLessThanOrEqual(geometry.bar.top + 1);
+    if (viewport.width <= 1440) {
+      await expect(component.locator('.door-input-pane')).toHaveCSS('box-shadow', 'none');
+      await expect(component.locator('.job-editor-workspace')).toHaveCSS('overflow-y', 'auto');
+    } else {
+      await expect(component.locator('.job-editor-workspace')).toHaveCSS('overflow-y', 'hidden');
+      await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', 'auto');
+    }
+    await expect(bottomBar).toBeInViewport();
+    const actionFit = await bottomBar.evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
+    expect(actionFit.scrollWidth).toBeLessThanOrEqual(actionFit.clientWidth);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+    await component.unmount();
+  }
+});
+
+test('job shell keeps its accepted desktop layout and responsive fallback at required widths', async ({ mount, page }) => {
+  const component = await mount(<JobEditorWorkbenchHarness/>);
+  for (const viewport of [
+    { width: 1600, height: 900 },
+    { width: 1440, height: 800 },
+    { width: 1366, height: 768 },
+    { width: 1280, height: 720 },
+    { width: 1100, height: 720 },
+    { width: 1024, height: 720 },
+    { width: 900, height: 700 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const switcher = component.getByRole('group', { name: 'Door workspace view' });
+    if (viewport.width > 1440) await expect(switcher).toBeHidden();
+    else await expect(switcher).toBeVisible();
+    await expect(component.locator('.app-context-bar')).toBeVisible();
+    await expect(component.getByRole('region', { name: 'Job actions' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+    const actions = await component.getByRole('region', { name: 'Job actions' }).evaluate((element) => ({ clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }));
+    expect(actions.scrollWidth).toBeLessThanOrEqual(actions.clientWidth);
+    const widths = await component.evaluate((root) => Object.fromEntries([
+      ['hingeColor', '#hingeColor'], ['fulfillmentPlan', '#fulfillmentPlan'], ['shopDate', '#shopDate'], ['notes', '#notes'],
+    ].map(([name, selector]) => [name, root.querySelector(selector)!.getBoundingClientRect().width])));
+    expect(widths.hingeColor).toBeGreaterThanOrEqual(128);
+    expect(widths.fulfillmentPlan).toBeGreaterThanOrEqual(160);
+    expect(widths.shopDate).toBeGreaterThanOrEqual(152);
+    expect(widths.notes).toBeGreaterThanOrEqual(288);
+    const doorWidths: Record<string, number> = {};
+    for (const name of ['Jamb Width', 'Jamb Type', 'Material', 'Custom Slab / RO', 'Door Thickness']) {
+      doorWidths[name] = await component.getByRole('combobox', { name, exact: true }).evaluate((element) => element.getBoundingClientRect().width);
+      expect(doorWidths[name]).toBeGreaterThanOrEqual(144);
+    }
+    const operationalRows = await component.locator('.job-operational-strip').evaluate((element) => new Set([...element.querySelectorAll(':scope > .job-production-strip, :scope > .job-po-numbers, :scope > label')].map((control) => Math.round(control.getBoundingClientRect().top))).size);
+    console.log(`responsive-metrics ${viewport.width}x${viewport.height} ${JSON.stringify({ mode: viewport.width > 1440 ? 'wide-side-by-side' : 'compact-tabs', operationalRows, widths: { ...widths, ...doorWidths }, horizontalOverflow: await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth) })}`);
+  }
+});
+
+test('shared glass builder stacks before laptop controls become compressed', async ({ mount, page }) => {
+  await mount(<div className="app-workspace app-workspace-fluid"><StandaloneGlassCalculator/></div>);
+  const workspace = page.locator('.glass-builder-workspace');
+  await page.setViewportSize({ width: 1600, height: 900 });
+  expect((await workspace.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length))).toBeGreaterThan(1);
+  for (const viewport of [{ width: 1440, height: 800 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }, { width: 1100, height: 720 }, { width: 1024, height: 720 }, { width: 900, height: 700 }]) {
+    await page.setViewportSize(viewport);
+    const columns = await workspace.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length);
+    expect(columns).toBe(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   }
 });
 
@@ -267,8 +443,13 @@ test('actual native job editor keeps its operational strip, door workbench, and 
   await component.getByRole('button', { name: 'Add transom' }).click();
   await expect(component.getByRole('region', { name: 'Shared sidelight specification' }).locator('label').filter({ hasText: /^Sidelight Type/ })).toHaveCount(1);
   await expect(component.getByRole('button', { name: 'Add Door to Order' })).toBeVisible();
-  const glassFit = await glassWorkbench.locator('> div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
-  expect(glassFit.scrollHeight).toBeLessThanOrEqual(glassFit.clientHeight);
+  const glassFit = await glassWorkbench.locator('> div').evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, overflowY: getComputedStyle(element).overflowY }));
+  expect(glassFit.overflowY).toBe('auto');
+  expect(glassFit.scrollHeight).toBeGreaterThanOrEqual(glassFit.clientHeight);
+  await glassWorkbench.locator('> div').evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect(component.getByRole('button', { name: 'Add Door to Order' })).toBeInViewport();
+  await expect(glassWorkbench.locator('footer')).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });
 
 test('job header exposes automatic Shop Hours and clearing a manual override restores them', async ({ mount }) => {
@@ -382,7 +563,8 @@ test('shared Glass Unit Builder keeps left and right topology independent of swi
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });
 
-test('flexible exterior topology exposes structural Shop Hours in Job Lines', async ({ mount }) => {
+test('flexible exterior topology exposes structural Shop Hours in Job Lines', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
   const component = await mount(<FlexibleShopHoursHarness/>);
   await expect(component.getByText('Shop Hours: 9 · Estimated', { exact: true })).toBeVisible();
   await expect(component.getByText(/Qty 1 · Door · 9 shop hrs/)).toBeVisible();

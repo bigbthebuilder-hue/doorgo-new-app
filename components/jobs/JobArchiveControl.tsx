@@ -68,7 +68,7 @@ export function JobArchiveControl({
   }
 
   return (
-    <div className="mt-8 flex border-t border-slate-200 pt-4 dark:border-slate-700 sm:justify-end">
+    <div className="job-archive-control mt-8 flex border-t border-slate-200 pt-4 dark:border-slate-700 sm:justify-end">
       <button className="min-h-11 rounded-xl border border-rose-500 px-4 font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-950" onClick={() => setDialogOpen(true)} type="button">Archive Job</button>
       {dialogOpen ? (
         <div className="app-overlay-workspace flex items-end justify-center bg-slate-950/60 p-3 sm:items-center sm:p-6" onKeyDown={(event) => { if (event.key === 'Escape') closeDialog(); }}>

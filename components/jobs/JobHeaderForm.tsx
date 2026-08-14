@@ -238,7 +238,7 @@ export function JobHeaderForm({
         <label className="app-job-context-field" htmlFor="phone"><span>Phone</span><input autoComplete="tel" disabled={!canEdit} id="phone" onChange={(event) => update('phone', event.target.value)} placeholder="Not entered" type="tel" value={values.phone}/></label>
         <label className="app-job-context-field" htmlFor="email"><span>Email</span><input aria-invalid={fieldErrors.email ? true : undefined} autoComplete="email" disabled={!canEdit} id="email" onChange={(event) => update('email', event.target.value)} placeholder="Not entered" title={fieldErrors.email || undefined} type="email" value={values.email}/></label>
       </div>}
-      actions={<div className="app-job-lifecycle" aria-label="Job lifecycle"><button aria-pressed={lifecycleStage === 'Draft'} disabled={!canEdit} onClick={() => setLifecycleStage('Draft')} type="button">Draft</button><button aria-pressed={lifecycleStage === 'Confirmed Job'} disabled={!canEdit || !hasValidActiveDoorLine(lines)} onClick={() => setLifecycleStage('Confirmed Job')} type="button">Confirmed</button></div>}
+      actions={<div className="flex items-center gap-2">{inAppShell ? <JobArchiveControl onArchive={archiveDraftJobAction} onNavigate={(path) => router.push(path)} target={jobArchiveTarget(job, canEdit)}/> : null}<div className="app-job-lifecycle" aria-label="Job lifecycle"><button aria-pressed={lifecycleStage === 'Draft'} disabled={!canEdit} onClick={() => setLifecycleStage('Draft')} type="button">Draft</button><button aria-pressed={lifecycleStage === 'Confirmed Job'} disabled={!canEdit || !hasValidActiveDoorLine(lines)} onClick={() => setLifecycleStage('Confirmed Job')} type="button">Confirmed</button></div></div>}
     /> : null}
     <div className={inAppShell ? 'app-workspace app-workspace-fluid job-editor-workspace' : undefined}>
     <section className="job-editor-surface rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -303,12 +303,12 @@ export function JobHeaderForm({
       {!inAppShell && message ? <p className={`mt-5 rounded-xl p-3 text-sm ${message.kind === 'success' ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100'}`} role="status">{message.text}</p> : null}
       {!inAppShell ? <div className="job-editor-actions flex flex-wrap gap-1 border-t border-slate-200 py-1.5">{bottomActions}</div> : null}
 
-      <JobArchiveControl
+    </section>
+      {!inAppShell ? <JobArchiveControl
         onArchive={archiveDraftJobAction}
         onNavigate={(path) => router.push(path)}
         target={jobArchiveTarget(job, canEdit)}
-      />
-    </section>
+      /> : null}
     </div>
     {inAppShell ? <ContextBottomBar label="Job actions" status={<span className={message?.kind === 'error' ? 'text-rose-700' : undefined}>{bottomStatus}</span>} context="Confirmation requires one valid active door line · saving does not schedule production" actions={bottomActions}/> : null}
     </>

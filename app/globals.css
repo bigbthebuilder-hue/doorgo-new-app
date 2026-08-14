@@ -175,6 +175,8 @@
   .app-context-bottom-context { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--app-color-muted); font-size: .7rem; }
   .app-context-bottom-actions { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: .35rem; }
   .app-context-bottom-actions .app-button { min-height: var(--app-toolbar-control-height); border-radius: var(--app-radius-sm); padding-inline: .65rem; font-size: .75rem; }
+  .app-context-actions .job-archive-control { margin: 0; border: 0; padding: 0; }
+  .app-context-actions .job-archive-control > button { min-height: var(--app-toolbar-control-height); border-radius: var(--app-radius-sm); padding-inline: .65rem; font-size: .7rem; }
   .doorgo-entry { display: grid; min-height: 100vh; place-items: center; background: linear-gradient(135deg, var(--app-color-background), #dbe8f5); padding: 2rem; color: var(--app-color-text); }
   .doorgo-entry-card { display: grid; width: min(100%, 42rem); grid-template-columns: auto 1fr; align-items: center; gap: 1.5rem; border: 1px solid var(--app-color-border); border-radius: 1rem; background: var(--app-color-surface); padding: 2rem; box-shadow: 0 8px 24px rgb(11 29 58 / .08); }
   .doorgo-entry-card h1 { font-size: 2.5rem; line-height: 1; font-weight: 750; letter-spacing: -.04em; }
@@ -358,8 +360,8 @@ body {
   .app-context-bar:has(.app-job-context-fields) .app-context-primary { flex-basis: 10rem; min-width: 10rem; }
   .app-context-bar:has(.app-job-context-fields) .app-job-context-fields { width: min(100%, 44rem); grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .app-shell-main:has(> .app-context-bottom-bar) > .job-editor-workspace { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
-  .job-editor-surface { height: auto; min-height: 100%; overflow: visible; }
-  .job-editor-surface > .mt-3:has(.door-line-workbench) { min-height: 0; }
+  .job-editor-surface { height: auto; min-height: 100%; grid-template-rows: auto; overflow: visible; }
+  .job-editor-surface > .mt-3:has(.door-line-workbench) { min-height: max-content; }
   .door-line-workbench { height: auto; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
   .door-workspace-switcher { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem; border-radius: .5rem; background: rgb(226 232 240); padding: .25rem; }
   .dark .door-workspace-switcher { background: rgb(30 41 59); }
@@ -369,6 +371,10 @@ body {
   .door-line-workbench[data-workspace-pane="input"] .job-lines-pane,
   .door-line-workbench[data-workspace-pane="lines"] .door-input-pane { display: none; }
   .door-input-pane, .job-lines-pane { overflow: visible; }
+  .job-editor-surface { border-radius: 0; box-shadow: none; }
+  .job-editor-surface > .mt-3:has(.door-line-workbench) { margin-top: .5rem; }
+  .door-input-pane, .job-lines-pane { border-color: transparent; border-radius: 0; background: transparent; padding-inline: 0; box-shadow: none; }
+  .job-archive-control { position: static; z-index: auto; clear: both; margin-top: .75rem; }
   .door-primary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
   .door-production-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
   .job-operational-strip { grid-template-columns: minmax(12rem, 17rem) minmax(20rem, 1fr); }

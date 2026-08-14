@@ -457,6 +457,21 @@ test('sparse Documents context uses one compact shell row without invented contr
   }
 });
 
+test('Glass Calculator page context stays compact without duplicating builder Reset', async ({ mount, page }) => {
+  await mount(<ContextTopBar density="compact" title="Glass Calculator" secondary="Local calculation workspace"/>);
+  await prepareShell(page);
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(viewport);
+    const shell = page.locator('.app-context-bar');
+    const box = await shell.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeLessThanOrEqual(52);
+    await expect(shell.getByRole('heading', { name: 'Glass Calculator' })).toBeVisible();
+    await expect(shell.getByRole('button', { name: /Reset/ })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  }
+});
+
 test('Edit Schedule keeps primary date navigation ahead of compact secondary tools', async ({ mount, page }) => {
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);

@@ -85,6 +85,8 @@ assert.doesNotMatch(productionSummary, /label="(?:DoorGo-linked|BizTrack-only)"/
 assert.doesNotMatch(recoveryList, /productionRecoveryOriginLabel/, 'Past Schedule cards must not expose transitional source labels');
 assert.match(recoveryPage, /app-workspace app-workspace-fluid/, 'Past Schedule must use the fluid desktop workspace');
 assert.doesNotMatch(calculator, /backHref=/, 'Top-level Glass Calculator must rely on permanent navigation');
+assert.match(calculator, /<ContextTopBar density="compact" title="Glass Calculator"/, 'Glass Calculator must use the compact permanent shell');
+assert.doesNotMatch(calculator, /topBar=\{<ContextTopBar[^}]*Reset/, 'Builder-scoped Reset must not be duplicated in the page shell');
 assert.match(documents, /<ContextTopBar density="compact" title="Documents" secondary="Document tools"/, 'Documents must use the sparse compact shell without invented controls');
 assert.match(jobsList, /sm:grid-cols-\[8rem_8rem_minmax\(9rem,1fr\)/, 'Jobs must use the dense desktop row contract');
 assert.doesNotMatch(jobsList, /Archived lines:/, 'Zero archived counts must not consume a dedicated Jobs row');

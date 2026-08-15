@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/experimental-ct-react';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
+import { AppShell } from '@/components/app-shell/AppShell';
+import { Workspace, WorkspaceSurface } from '@/components/app-shell/Workspace';
 import { UnsavedNavigationHarness } from './UnsavedNavigationHarness';
 import { ProductionBookingCard } from '@/components/ProductionBookingCard';
 import { ProductionBoardDay } from '@/components/ProductionBoardDay';
@@ -531,18 +534,58 @@ test('Account shell keeps identity and Sign out compact and contained', async ({
 });
 
 test('Account body uses a flat responsive details grid and permissions table', async ({ mount, page }) => {
-  await mount(<div className="app-shell"><aside className="app-shell-sidebar"><span>DoorGo</span></aside><main className="app-shell-main"><ContextTopBar density="compact" title="Account" secondary="Barrett" actions={<button className="app-button app-button-secondary">Sign out</button>}/><div className="app-workspace app-workspace-fluid account-workspace"><section className="account-workspace-surface"><h2 className="account-section-heading">Account details</h2><dl className="account-details-grid"><div><dt>Display name</dt><dd>Barrett Example</dd></div><div><dt>Account state</dt><dd>Active</dd></div><div><dt>Manager</dt><dd>Yes</dd></div><div><dt>Company/location</dt><dd>DoorGo Vancouver Operations</dd></div><div><dt>Password</dt><dd>Password setup complete</dd></div></dl><h2 className="account-section-heading account-permissions-heading">Module permissions</h2><table className="account-permissions-table"><thead><tr><th>Module</th><th>Access</th></tr></thead><tbody>{['Production', 'Production checkpoints', 'Calendar', 'Jobs', 'Documents', 'Tools', 'Reports', 'Settings', 'Users'].map((module) => <tr key={module}><td>{module}</td><td>USE</td></tr>)}</tbody></table></section></div></main></div>);
+  const component = await mount(<AppShell navigation={[]} scrollOwner="main" topBar={<ContextTopBar density="compact" title="Account" secondary="Barrett" actions={<button className="app-button app-button-secondary">Sign out</button>}/>}><Workspace className="account-workspace" width="fluid"><WorkspaceSurface className="account-workspace-surface"><h2 className="account-section-heading">Account details</h2><dl className="account-details-grid"><div><dt>Display name</dt><dd>Barrett Example</dd></div><div><dt>Account state</dt><dd>Active</dd></div><div><dt>Manager</dt><dd>Yes</dd></div><div><dt>Company/location</dt><dd>DoorGo Vancouver Operations</dd></div><div><dt>Password</dt><dd>Password setup complete</dd></div></dl><h2 className="account-section-heading account-permissions-heading">Module permissions</h2><table className="account-permissions-table"><thead><tr><th>Module</th><th>Access</th></tr></thead><tbody>{['Production', 'Production checkpoints', 'Calendar', 'Jobs', 'Documents', 'Tools', 'Reports', 'Settings', 'Users'].map((module) => <tr key={module}><td>{module}</td><td>USE</td></tr>)}</tbody></table></WorkspaceSurface></Workspace></AppShell>);
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }, { width: 1024, height: 720 }]) {
     await page.setViewportSize(viewport);
+    const main = component.locator('.app-shell-main');
+    const shell = component.locator('.app-context-bar');
+    const workspace = component.locator('.app-workspace-region');
+    const surface = component.locator('.app-workspace-surface');
     const details = page.locator('.account-details-grid');
     const columns = await details.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length);
     expect(columns).toBe(viewport.width >= 1200 ? 3 : 2);
+    await expect(main).toHaveAttribute('data-scroll-owner', 'main');
+    await expect(main).toHaveCSS('overflow-y', 'auto');
+    const [shellBox, workspaceBox, surfaceBox, tableBox] = await Promise.all([shell.boundingBox(), workspace.boundingBox(), surface.boundingBox(), component.getByRole('table').boundingBox()]);
+    expect(shellBox!.height).toBe(48);
+    expect(Math.abs(workspaceBox!.y - (shellBox!.y + shellBox!.height))).toBeLessThanOrEqual(1);
+    expect(surfaceBox!.x).toBeGreaterThan(workspaceBox!.x);
+    expect(surfaceBox!.x + surfaceBox!.width).toBeLessThan(workspaceBox!.x + workspaceBox!.width);
+    expect(tableBox!.x).toBeGreaterThanOrEqual(surfaceBox!.x);
+    expect(tableBox!.x + tableBox!.width).toBeLessThanOrEqual(surfaceBox!.x + surfaceBox!.width + 1);
     await expect(page.locator('.account-workspace-surface')).toHaveCSS('border-radius', '0px');
+    await expect(surface).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await expect(page.getByRole('table')).toBeVisible();
     await expect(page.getByRole('button', { name: /USE/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   }
+  await page.setViewportSize({ width: 1024, height: 360 });
+  const main = component.locator('.app-shell-main');
+  const scrollFit = await main.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(scrollFit.scrollHeight).toBeGreaterThan(scrollFit.clientHeight);
+  await main.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  expect(await main.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+});
+
+test('explicit bounded shell mode transfers scrolling to the neutral workspace between fixed shell rows', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const component = await mount(<AppShell navigation={[]} scrollOwner="workspace" topBar={<ContextTopBar density="compact" title="Bounded workspace"/>} bottomBar={<ContextBottomBar label="Bounded actions" status="Ready"/>}><Workspace width="fluid"><div style={{ minHeight: '1400px' }}>Bounded content</div></Workspace></AppShell>);
+  const main = component.locator('.app-shell-main');
+  const workspace = component.locator('.app-workspace-region');
+  const top = component.locator('.app-context-bar');
+  const bottom = component.getByRole('region', { name: 'Bounded actions' });
+  await expect(main).toHaveCSS('overflow-y', 'hidden');
+  await expect(workspace).toHaveCSS('overflow-y', 'auto');
+  const [mainBox, topBox, workspaceBox, bottomBox] = await Promise.all([main.boundingBox(), top.boundingBox(), workspace.boundingBox(), bottom.boundingBox()]);
+  expect(workspaceBox!.y).toBe(topBox!.y + topBox!.height);
+  expect(workspaceBox!.y + workspaceBox!.height).toBe(bottomBox!.y);
+  expect(bottomBox!.y + bottomBox!.height).toBe(mainBox!.y + mainBox!.height);
+  const fit = await workspace.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(fit.scrollHeight).toBeGreaterThan(fit.clientHeight);
+  await workspace.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  expect(await workspace.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(await main.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
 test('Edit Schedule keeps primary date navigation ahead of compact secondary tools', async ({ mount, page }) => {

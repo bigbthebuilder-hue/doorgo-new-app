@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const read = (path) => fs.readFileSync(path, 'utf8');
 const css = read('app/globals.css');
 const shell = read('components/app-shell/AppShell.tsx');
+const workspace = read('components/app-shell/Workspace.tsx');
 const nav = read('lib/app-shell/navigation.ts');
 const jobs = read('app/jobs/page.tsx');
 const production = read('components/ProductionBoardView.tsx');
@@ -39,6 +40,12 @@ assert.match(css, /\.app-shell-nav-link\[data-placement="bottom"\]\s*\{\s*margin
 assert.match(css, /\.app-context-bar\s*\{[^}]*position:\s*sticky[^}]*max-height:\s*4\.75rem/s, 'Desktop contextual bar must be sticky and bounded');
 assert.match(css, /\.app-shell\s*\{[^}]*height:\s*100vh[^}]*overflow:\s*hidden/s, 'Desktop shell must own a bounded viewport');
 assert.match(css, /\.app-shell-main\s*\{[^}]*height:\s*100vh[^}]*overflow-y:\s*auto/s, 'Desktop main must be the real vertical scroll surface');
+assert.match(shell, /scrollOwner\?: AppShellScrollOwner/, 'AppShell must expose explicit main or workspace scroll ownership');
+assert.match(shell, /data-scroll-owner=\{scrollOwner\}/, 'AppShell must declare explicit scroll ownership in rendered structure');
+assert.match(css, /\.app-shell-main\[data-scroll-owner="workspace"\][^{]*\{[^}]*overflow:\s*hidden/s, 'Explicit workspace mode must bound the shell workspace');
+assert.match(css, /\.app-shell-main\[data-scroll-owner="workspace"\] > \.app-workspace\.app-workspace-region\s*\{[^}]*overflow-y:\s*auto/s, 'Explicit workspace mode must transfer vertical scrolling to the neutral workspace');
+assert.match(css, /\.app-shell-main:has\(> \.app-context-bottom-bar\)/, 'Unmigrated bottom-bar pages must retain temporary legacy shell compatibility');
+assert.match(workspace, /export function Workspace[\s\S]*app-workspace app-workspace-region[\s\S]*export function WorkspaceSurface[\s\S]*app-workspace-surface/, 'Neutral workspace primitives must own the workspace region and continuous surface');
 for (const token of ['--app-color-background', '--app-color-surface', '--app-color-border', '--app-color-primary', '--app-color-navy', '--app-color-toolbar']) {
   assert.ok(css.includes(token), `Missing shared shell token ${token}`);
 }
@@ -63,7 +70,7 @@ assert.match(production, /<ContextTopBar/);
 assert.match(production, /<ProductionBoardSummary board=\{board\}/);
 for (const [name, source] of [['Account', account], ['Glass Calculator', calculator], ['job editor', editor]]) assert.match(source, /<AppShell/, `${name} must use AppShell`);
 assert.match(account, /<ContextTopBar density="compact" title="Account"[\s\S]*action="\/auth\/logout"/, 'Account must keep sign-out in the compact page shell without changing authentication behavior');
-assert.match(account, /app-workspace app-workspace-fluid account-workspace[\s\S]*account-details-grid[\s\S]*account-permissions-table/, 'Account body must use the flat details grid and permissions table');
+assert.match(account, /scrollOwner="main"[\s\S]*<Workspace className="account-workspace" width="fluid">[\s\S]*<WorkspaceSurface className="account-workspace-surface">[\s\S]*account-details-grid[\s\S]*account-permissions-table/, 'Account must use explicit main-scroll ownership with neutral workspace primitives');
 assert.doesNotMatch(account, /app-workspace-focused|rounded-xl bg-slate-50/, 'Account body must not retain the centered floating-card presentation');
 assert.match(jobForm, /<ContextTopBar[\s\S]{0,240}title=\{visibleIdentifier\}/, 'Job editor context must use its live authoritative identifier');
 assert.equal((jobForm.match(/id="customer"/g) ?? []).length, 1, 'Customer must have one editor input');

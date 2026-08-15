@@ -4,6 +4,7 @@ import {
 } from '@/lib/auth/access';
 import { AppShell } from '@/components/app-shell/AppShell';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import { Workspace, WorkspaceSurface } from '@/components/app-shell/Workspace';
 import { buildProtectedAppNavigation } from '@/lib/app-shell/navigation';
 import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
 
@@ -18,10 +19,11 @@ export default async function AccountPage({
   return (
     <AppShell
       navigation={buildProtectedAppNavigation(access)}
+      scrollOwner="main"
       topBar={<ContextTopBar density="compact" title="Account" secondary={access.profile?.displayName || access.user?.email || 'DoorGo account'} actions={<form action="/auth/logout" method="post"><button className="app-button app-button-secondary">Sign out</button></form>}/>}
     >
-      <div className="app-workspace app-workspace-fluid account-workspace">
-        <section className="account-workspace-surface">
+      <Workspace className="account-workspace" width="fluid">
+        <WorkspaceSurface className="account-workspace-surface">
 
         {params?.error === 'signout_failed' ? (
           <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -54,8 +56,8 @@ export default async function AccountPage({
           </>
         )}
 
-        </section>
-      </div>
+        </WorkspaceSurface>
+      </Workspace>
     </AppShell>
   );
 }

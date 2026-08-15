@@ -205,7 +205,6 @@
   .app-shell-main[data-scroll-owner="workspace"][data-has-bottom-bar="true"] { grid-template-rows: minmax(0, 1fr) var(--app-context-bottom-bar-height); }
   .app-shell-main[data-scroll-owner="workspace"][data-has-top-bar="true"][data-has-bottom-bar="true"] { grid-template-rows: auto minmax(0, 1fr) var(--app-context-bottom-bar-height); }
   .app-shell-main[data-scroll-owner="workspace"] > .app-workspace.app-workspace-region { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
-  .app-shell-main:not([data-scroll-owner]):has(> .app-context-bottom-bar) { display: grid; grid-template-rows: auto minmax(0, 1fr) var(--app-context-bottom-bar-height); overflow: hidden; }
   .app-context-bar { position: sticky; top: 0; z-index: var(--app-layer-shell); min-height: var(--app-context-bar-height); max-height: 4.75rem; flex-wrap: nowrap; }
   .app-context-bar--compact { display: grid; height: 3rem; min-height: 3rem; max-height: 3rem; grid-template-columns: minmax(7rem, 15%) minmax(18rem, 1fr) auto; gap: .5rem; padding: .2rem .5rem; }
   .app-context-bar--compact .app-context-primary { min-width: 0; }
@@ -241,7 +240,6 @@
   .app-shell-main[data-scroll-owner="workspace"] > .app-workspace.glass-calculator-workspace { overflow: hidden; }
   .app-context-bar:has(.app-job-context-fields) { min-height: 5.75rem; max-height: 6.5rem; }
   .app-context-bar:has(.app-job-context-fields) .app-job-context-fields { width: min(58rem, 61vw); grid-template-columns: repeat(3, minmax(7rem, 1fr)); }
-  .app-shell-main:has(> .app-context-bottom-bar) > .app-workspace { min-height: 0; overflow: hidden; }
   .job-editor-workspace { height: 100%; min-height: 0; overflow: hidden; padding-block: .25rem; }
   .job-editor-surface { display: grid; height: 100%; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto auto; overflow: hidden; }
   .job-editor-surface > .mt-3:has(.door-line-workbench) { min-height: 0; }

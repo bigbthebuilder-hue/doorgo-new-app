@@ -7,10 +7,12 @@ import type { LegacyTransferIssue, LegacyTransferMappingResult } from '@/lib/job
 import { legacyTransferIssueKey } from '@/lib/jobs/legacy-transfer-review-presentation';
 import { JobHeaderForm, type LegacyTransferReviewContext } from './JobHeaderForm';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
+import type { AppNavigationItem } from '@/lib/app-shell/navigation';
+import { LegacyJobImportShell } from './LegacyJobImportShell';
 
 type AcceptedReview = Extract<LegacyTransferMappingResult, { ok: true }>;
 
-export function LegacyJobImportReview({ defaultSalesperson, inAppShell = false }: { defaultSalesperson: string; inAppShell?: boolean }) {
+export function LegacyJobImportReview({ defaultSalesperson, inAppShell = false, navigation = [] }: { defaultSalesperson: string; inAppShell?: boolean; navigation?: AppNavigationItem[] }) {
   const [review, setReview] = useState<{ rawPayload: string; result: AcceptedReview } | null>(null);
   const [issues, setIssues] = useState<LegacyTransferIssue[]>([]);
   const [message, setMessage] = useState('');
@@ -36,7 +38,8 @@ export function LegacyJobImportReview({ defaultSalesperson, inAppShell = false }
       sourceSavedAt: result.provenance.sourceSavedAt, exportedAt: result.provenance.exportedAt,
       warnings: result.warnings, blockers: result.blockers, unsupportedFields: result.unsupportedFields,
     };
-    return <JobHeaderForm canEdit defaultSalesperson={defaultSalesperson} initialDraft={{ header: result.editor.header, lines: result.editor.lines }} initialJob={null} transferReview={context} inAppShell={inAppShell}/>;
+    const editor = <JobHeaderForm canEdit defaultSalesperson={defaultSalesperson} initialDraft={{ header: result.editor.header, lines: result.editor.lines }} initialJob={null} transferReview={context} inAppShell={inAppShell}/>;
+    return inAppShell ? <LegacyJobImportShell editorActive navigation={navigation}>{editor}</LegacyJobImportShell> : editor;
   }
 
   const content = <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -49,5 +52,6 @@ export function LegacyJobImportReview({ defaultSalesperson, inAppShell = false }
     {issues.length ? <ul className="mt-3 list-disc pl-5 text-sm text-rose-800 dark:text-rose-200">{issues.map((issue, index) => <li key={legacyTransferIssueKey('validation', issue, index)}>{issue.path}: {issue.message}</li>)}</ul> : null}
     <p className="mt-5 text-xs text-slate-500">Maximum file size: 1 MiB. Duplicate JSON keys, unknown identifiers, reverse transfers, secrets, and operational commands are rejected.</p>
   </section>;
-  return inAppShell ? <><ContextTopBar backHref="/jobs" backLabel="Jobs" title="Import Legacy Job" secondary="Review before saving as a native job"/><div className="app-workspace max-w-6xl">{content}</div></> : content;
+  const uploadReview = <><ContextTopBar backHref="/jobs" backLabel="Jobs" title="Import Legacy Job" secondary="Review before saving as a native job"/><div className="app-workspace max-w-6xl">{content}</div></>;
+  return inAppShell ? <LegacyJobImportShell editorActive={false} navigation={navigation}>{uploadReview}</LegacyJobImportShell> : content;
 }

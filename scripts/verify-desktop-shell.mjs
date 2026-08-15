@@ -13,6 +13,9 @@ const calculator = read('app/glass-calculator/page.tsx');
 const documents = read('app/documents/page.tsx');
 const editor = read('app/jobs/[internalJobId]/edit/page.tsx');
 const newJob = read('app/jobs/new/page.tsx');
+const legacyImportPage = read('app/jobs/import/page.tsx');
+const legacyImportReview = read('components/jobs/LegacyJobImportReview.tsx');
+const legacyImportShell = read('components/jobs/LegacyJobImportShell.tsx');
 const jobForm = read('components/jobs/JobHeaderForm.tsx');
 const home = read('app/page.tsx');
 const login = read('app/login/page.tsx');
@@ -46,7 +49,8 @@ assert.match(shell, /data-scroll-owner=\{scrollOwner\}/, 'AppShell must declare 
 assert.match(shell, /hasTopBar\?: boolean[\s\S]*hasBottomBar\?: boolean/, 'AppShell must allow stateful children to declare neutral shell-row participation');
 assert.match(css, /\.app-shell-main\[data-scroll-owner="workspace"\][^{]*\{[^}]*overflow:\s*hidden/s, 'Explicit workspace mode must bound the shell workspace');
 assert.match(css, /\.app-shell-main\[data-scroll-owner="workspace"\] > \.app-workspace\.app-workspace-region\s*\{[^}]*overflow-y:\s*auto/s, 'Explicit workspace mode must transfer vertical scrolling to the neutral workspace');
-assert.match(css, /\.app-shell-main:has\(> \.app-context-bottom-bar\)/, 'Unmigrated bottom-bar pages must retain temporary legacy shell compatibility');
+assert.doesNotMatch(css, /\.app-shell-main:not\(\[data-scroll-owner\]\):has\(> \.app-context-bottom-bar\)/, 'Shell row ownership must not be inferred from a descendant bottom bar');
+assert.doesNotMatch(css, /\.app-shell-main:has\(> \.app-context-bottom-bar\) > \.app-workspace/, 'Workspace overflow must not be inferred from a descendant bottom bar');
 assert.match(workspace, /export function Workspace[\s\S]*app-workspace app-workspace-region[\s\S]*export function WorkspaceSurface[\s\S]*app-workspace-surface/, 'Neutral workspace primitives must own the workspace region and continuous surface');
 for (const token of ['--app-color-background', '--app-color-surface', '--app-color-border', '--app-color-primary', '--app-color-navy', '--app-color-toolbar']) {
   assert.ok(css.includes(token), `Missing shared shell token ${token}`);
@@ -81,6 +85,11 @@ assert.equal((jobForm.match(/id="siteAddress"/g) ?? []).length, 1, 'Site / Addre
 assert.match(jobForm, /placeholder="Not entered"/, 'Blank contextual values must not repeat their labels');
 assert.match(editor, /hasBottomBar hasTopBar[\s\S]*scrollOwner="workspace"/, 'Saved native Job Editor must explicitly declare bounded workspace ownership and shell rows');
 assert.match(newJob, /hasBottomBar=\{intakeAvailable\}[\s\S]*hasTopBar=\{intakeAvailable\}[\s\S]*scrollOwner=\{intakeAvailable \? 'workspace' : undefined\}/, 'New native Job Editor must explicitly declare bounded workspace ownership when intake is available');
+assert.doesNotMatch(legacyImportPage, /<AppShell/, 'Legacy import shell ownership must live with its existing client review state');
+assert.match(legacyImportPage, /inAppShell navigation=\{buildProtectedAppNavigation\(access\)\}/, 'Legacy import route must provide navigation to its state-aware shell owner');
+assert.match(legacyImportReview, /review[\s\S]*<LegacyJobImportShell editorActive/, 'Legacy import must select editor ownership from its existing accepted review state');
+assert.match(legacyImportShell, /editorActive \? 'workspace' : 'main'/, 'Legacy import must choose explicit scroll ownership from its existing editor state');
+assert.match(legacyImportShell, /hasBottomBar=\{editorActive\}[\s\S]*hasTopBar=\{editorActive\}/, 'Legacy import must explicitly declare Job shell rows only while the imported editor is active');
 assert.match(jobForm, /<Workspace className="job-editor-workspace" width="fluid">[\s\S]*<WorkspaceSurface className=\{className\}>/, 'Job editor must use neutral workspace and continuous-surface primitives');
 assert.doesNotMatch(css, /\.app-shell-main:has\(\.job-editor-workspace\)/, 'Native Job Editor shell ownership must not depend on descendant inference');
 assert.doesNotMatch(jobForm, /backHref="\/jobs"/, 'Job editor must rely on permanent navigation without a redundant contextual Back control');

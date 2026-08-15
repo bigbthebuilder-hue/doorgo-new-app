@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
 import { archiveDraftJobAction, createDraftJobAction, createTransferredJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine, withEffectiveShopHours } from '@/lib/jobs/door-line-contract';
 import { jobAggregateDirtySnapshot, jobSaveConfirmation, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
@@ -15,6 +15,7 @@ import { WorkOrderSendEntryButton } from './WorkOrderSendEntryButton';
 import { LegacyTransferEvidenceSummary } from './LegacyTransferEvidenceSummary';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
+import { Workspace, WorkspaceSurface } from '@/components/app-shell/Workspace';
 import { useGuardedNavigation, useUnsavedChanges } from '@/components/app-shell/UnsavedChangesGuard';
 
 type FormValues = {
@@ -34,6 +35,15 @@ type FormValues = {
   customerPickupDate: string;
   shopDate: string;
 };
+
+function JobEditorWorkspaceFrame({ children, inAppShell }: { children: ReactNode; inAppShell: boolean }) {
+  return inAppShell ? <Workspace className="job-editor-workspace" width="fluid">{children}</Workspace> : <div>{children}</div>;
+}
+
+function JobEditorSurface({ children, inAppShell }: { children: ReactNode; inAppShell: boolean }) {
+  const className = 'job-editor-surface rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900';
+  return inAppShell ? <WorkspaceSurface className={className}>{children}</WorkspaceSurface> : <section className={className}>{children}</section>;
+}
 
 function initialValues(job: NativeJobAggregate | null, defaultSalesperson: string, draft?: JobHeaderInput): FormValues {
   const source = job ?? draft;
@@ -238,8 +248,8 @@ export function JobHeaderForm({
         <label className="app-job-context-field job-shell-notes" htmlFor="notes"><span>Job Notes</span><textarea disabled={!canEdit} id="notes" onChange={(event) => update('notes', event.target.value)} placeholder="Job notes" rows={1} value={values.notes}/></label>
       </div>}
     /> : null}
-    <div className={inAppShell ? 'app-workspace app-workspace-fluid job-editor-workspace' : undefined}>
-    <section className="job-editor-surface rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <JobEditorWorkspaceFrame inAppShell={inAppShell}>
+    <JobEditorSurface inAppShell={inAppShell}>
       {!inAppShell ? (
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
@@ -289,13 +299,13 @@ export function JobHeaderForm({
       {!inAppShell && message ? <p className={`mt-5 rounded-xl p-3 text-sm ${message.kind === 'success' ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100'}`} role="status">{message.text}</p> : null}
       {!inAppShell ? <div className="job-editor-actions flex flex-wrap gap-1 border-t border-slate-200 py-1.5">{bottomActions}</div> : null}
 
-    </section>
+    </JobEditorSurface>
       {!inAppShell ? <JobArchiveControl
         onArchive={archiveDraftJobAction}
         onNavigate={(path) => router.push(path)}
         target={jobArchiveTarget(job, canEdit)}
       /> : null}
-    </div>
+    </JobEditorWorkspaceFrame>
     {inAppShell ? <ContextBottomBar label="Job actions" status={<span className={message?.kind === 'error' ? 'text-rose-700' : undefined}>{bottomStatus}</span>} context="Confirmation requires one valid active door line · saving does not schedule production" actions={bottomActions}/> : null}
     </>
   );

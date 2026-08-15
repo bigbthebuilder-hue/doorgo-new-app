@@ -12,6 +12,7 @@ const account = read('app/account/page.tsx');
 const calculator = read('app/glass-calculator/page.tsx');
 const documents = read('app/documents/page.tsx');
 const editor = read('app/jobs/[internalJobId]/edit/page.tsx');
+const newJob = read('app/jobs/new/page.tsx');
 const jobForm = read('components/jobs/JobHeaderForm.tsx');
 const home = read('app/page.tsx');
 const login = read('app/login/page.tsx');
@@ -42,6 +43,7 @@ assert.match(css, /\.app-shell\s*\{[^}]*height:\s*100vh[^}]*overflow:\s*hidden/s
 assert.match(css, /\.app-shell-main\s*\{[^}]*height:\s*100vh[^}]*overflow-y:\s*auto/s, 'Desktop main must be the real vertical scroll surface');
 assert.match(shell, /scrollOwner\?: AppShellScrollOwner/, 'AppShell must expose explicit main or workspace scroll ownership');
 assert.match(shell, /data-scroll-owner=\{scrollOwner\}/, 'AppShell must declare explicit scroll ownership in rendered structure');
+assert.match(shell, /hasTopBar\?: boolean[\s\S]*hasBottomBar\?: boolean/, 'AppShell must allow stateful children to declare neutral shell-row participation');
 assert.match(css, /\.app-shell-main\[data-scroll-owner="workspace"\][^{]*\{[^}]*overflow:\s*hidden/s, 'Explicit workspace mode must bound the shell workspace');
 assert.match(css, /\.app-shell-main\[data-scroll-owner="workspace"\] > \.app-workspace\.app-workspace-region\s*\{[^}]*overflow-y:\s*auto/s, 'Explicit workspace mode must transfer vertical scrolling to the neutral workspace');
 assert.match(css, /\.app-shell-main:has\(> \.app-context-bottom-bar\)/, 'Unmigrated bottom-bar pages must retain temporary legacy shell compatibility');
@@ -77,7 +79,10 @@ assert.equal((jobForm.match(/id="customer"/g) ?? []).length, 1, 'Customer must h
 assert.equal((jobForm.match(/id="salesperson"/g) ?? []).length, 1, 'Salesperson must have one editor input');
 assert.equal((jobForm.match(/id="siteAddress"/g) ?? []).length, 1, 'Site / Address must have one editor input');
 assert.match(jobForm, /placeholder="Not entered"/, 'Blank contextual values must not repeat their labels');
-assert.match(jobForm, /app-workspace app-workspace-fluid job-editor-workspace/, 'Job editor must use the fluid shell workspace');
+assert.match(editor, /hasBottomBar hasTopBar[\s\S]*scrollOwner="workspace"/, 'Saved native Job Editor must explicitly declare bounded workspace ownership and shell rows');
+assert.match(newJob, /hasBottomBar=\{intakeAvailable\}[\s\S]*hasTopBar=\{intakeAvailable\}[\s\S]*scrollOwner=\{intakeAvailable \? 'workspace' : undefined\}/, 'New native Job Editor must explicitly declare bounded workspace ownership when intake is available');
+assert.match(jobForm, /<Workspace className="job-editor-workspace" width="fluid">[\s\S]*<WorkspaceSurface className=\{className\}>/, 'Job editor must use neutral workspace and continuous-surface primitives');
+assert.doesNotMatch(css, /\.app-shell-main:has\(\.job-editor-workspace\)/, 'Native Job Editor shell ownership must not depend on descendant inference');
 assert.doesNotMatch(jobForm, /backHref="\/jobs"/, 'Job editor must rely on permanent navigation without a redundant contextual Back control');
 assert.match(shell, /<UnsavedChangesProvider>/, 'Shell must provide one reusable unsaved-change contract');
 assert.match(desktopNav, /<GuardedLink/, 'Permanent navigation must use the shared guard');

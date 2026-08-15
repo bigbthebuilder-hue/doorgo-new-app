@@ -31,7 +31,7 @@ export default async function EditJobPage({
   if (!job) notFound();
 
   return (
-    <AppShell navigation={buildProtectedAppNavigation(access)}>
+    <AppShell hasBottomBar hasTopBar navigation={buildProtectedAppNavigation(access)} scrollOwner="workspace">
       <JobHeaderForm canEdit={getPermissionAccess(access, 'jobs') === 'use'} defaultSalesperson="" initialJob={job} inAppShell/>
     </AppShell>
   );

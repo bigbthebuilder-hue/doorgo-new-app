@@ -6,12 +6,14 @@ import { UnsavedChangesProvider } from './UnsavedChangesGuard';
 
 export type AppShellScrollOwner = 'main' | 'workspace';
 
-export function AppShell({ children, navigation, topBar, bottomBar, scrollOwner }: {
+export function AppShell({ children, navigation, topBar, bottomBar, scrollOwner, hasTopBar = false, hasBottomBar = false }: {
   children: ReactNode;
   navigation: AppNavigationItem[];
   topBar?: ReactNode;
   bottomBar?: ReactNode;
   scrollOwner?: AppShellScrollOwner;
+  hasTopBar?: boolean;
+  hasBottomBar?: boolean;
 }) {
   return (
     <UnsavedChangesProvider><div className="app-shell">
@@ -21,7 +23,7 @@ export function AppShell({ children, navigation, topBar, bottomBar, scrollOwner 
         </div>
         <DesktopNav items={navigation}/>
       </aside>
-      <main className="app-shell-main" data-has-bottom-bar={bottomBar ? 'true' : undefined} data-has-top-bar={topBar ? 'true' : undefined} data-scroll-owner={scrollOwner}>
+      <main className="app-shell-main" data-has-bottom-bar={bottomBar || hasBottomBar ? 'true' : undefined} data-has-top-bar={topBar || hasTopBar ? 'true' : undefined} data-scroll-owner={scrollOwner}>
         {topBar}
         {children}
         {bottomBar}

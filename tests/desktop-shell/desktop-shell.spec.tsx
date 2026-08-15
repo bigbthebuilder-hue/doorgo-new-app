@@ -274,7 +274,12 @@ test('compact job workspace provides one vertical scroll path to every Door Inpu
   ]) {
     await page.setViewportSize(viewport);
     const component = await mount(<JobEditorWorkbenchHarness/>);
+    const main = component.locator('.app-shell-main');
     const workspace = component.locator('.job-editor-workspace');
+    await expect(main).toHaveAttribute('data-scroll-owner', 'workspace');
+    await expect(main).toHaveAttribute('data-has-top-bar', 'true');
+    await expect(main).toHaveAttribute('data-has-bottom-bar', 'true');
+    await expect(main).toHaveCSS('overflow-y', 'hidden');
     await expect(workspace).toHaveCSS('overflow-y', 'auto');
     await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', 'visible');
     await component.getByRole('combobox', { name: 'Material', exact: true }).selectOption('wood');
@@ -308,6 +313,7 @@ test('compact job workspace provides one vertical scroll path to every Door Inpu
     if (viewport.width >= 1280) expect(Math.abs((geometry.preview.top + geometry.preview.bottom) / 2 - (geometry.add.top + geometry.add.bottom) / 2)).toBeLessThanOrEqual(2);
     await expect(localFooter).toBeVisible();
     await expect(doorInput).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(component.locator('.app-workspace-surface')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await expect(localFooter).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await expect(preview).toContainText('Preview:');
     await workspace.evaluate((element) => { element.scrollTop = element.scrollHeight; });
@@ -567,6 +573,38 @@ test('Account body uses a flat responsive details grid and permissions table', a
   expect(scrollFit.scrollHeight).toBeGreaterThan(scrollFit.clientHeight);
   await main.evaluate((element) => { element.scrollTop = element.scrollHeight; });
   expect(await main.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+});
+
+test('wide Job Editor keeps shell rows bounded while Job Lines owns overflowing saved-line scrolling', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const component = await mount(<JobEditorWorkbenchHarness lineCount={18} saved/>);
+  const main = component.locator('.app-shell-main');
+  const workspace = component.locator('.job-editor-workspace');
+  const lines = component.locator('.job-lines-pane');
+  const header = component.locator('.app-context-bar');
+  const bottom = component.getByRole('region', { name: 'Job actions' });
+  await expect(main).toHaveAttribute('data-scroll-owner', 'workspace');
+  await expect(main).toHaveCSS('overflow-y', 'hidden');
+  await expect(workspace).toHaveCSS('overflow-y', 'hidden');
+  await expect(lines).toHaveCSS('overflow-y', 'auto');
+  const [mainBox, headerBox, workspaceBox, bottomBox] = await Promise.all([main.boundingBox(), header.boundingBox(), workspace.boundingBox(), bottom.boundingBox()]);
+  expect(headerBox!.height).toBe(96);
+  expect(workspaceBox!.y).toBe(headerBox!.y + headerBox!.height);
+  expect(workspaceBox!.y + workspaceBox!.height).toBe(bottomBox!.y);
+  expect(bottomBox!.y + bottomBox!.height).toBe(mainBox!.y + mainBox!.height);
+  const fit = await lines.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(fit.scrollHeight).toBeGreaterThan(fit.clientHeight);
+  await lines.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  expect(await lines.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(await workspace.evaluate((element) => element.scrollTop)).toBe(0);
+  expect(await main.evaluate((element) => element.scrollTop)).toBe(0);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(component.getByRole('group', { name: 'Door workspace view' })).toBeVisible();
+  await expect(workspace).toHaveCSS('overflow-y', 'auto');
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await expect(component.getByRole('group', { name: 'Door workspace view' })).toBeHidden();
+  await expect(workspace).toHaveCSS('overflow-y', 'hidden');
+  await expect(lines).toHaveCSS('overflow-y', 'auto');
 });
 
 test('Documents uses explicit main scrolling with a neutral fluid workspace and independent card surfaces', async ({ mount, page }) => {

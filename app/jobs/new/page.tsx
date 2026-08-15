@@ -10,10 +10,11 @@ import { buildProtectedAppNavigation } from '@/lib/app-shell/navigation';
 export default async function NewJobPage() {
   const access = await requireDoorGoProtectedAccess();
   if (!canUse(access, 'jobs')) redirect('/account');
+  const intakeAvailable = isLocalJobIntakeAvailable();
 
   return (
-    <AppShell navigation={buildProtectedAppNavigation(access)}>
-        {isLocalJobIntakeAvailable() ? (
+    <AppShell hasBottomBar={intakeAvailable} hasTopBar={intakeAvailable} navigation={buildProtectedAppNavigation(access)} scrollOwner={intakeAvailable ? 'workspace' : undefined}>
+        {intakeAvailable ? (
           <JobHeaderForm canEdit defaultSalesperson={access.state === 'active' ? access.profile.displayName : ''} initialJob={null} inAppShell/>
         ) : (
           <><ContextTopBar backHref="/jobs" backLabel="Jobs" title="New Draft Job"/><div className="app-workspace max-w-3xl"><section className="rounded-2xl border border-amber-200 bg-white p-6 dark:border-amber-900 dark:bg-slate-900">

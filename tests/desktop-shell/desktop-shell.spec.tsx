@@ -3,6 +3,7 @@ import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
 import { AppShell } from '@/components/app-shell/AppShell';
 import { Workspace, WorkspaceSurface } from '@/components/app-shell/Workspace';
+import { DOORGO_DOCUMENT_DEFINITIONS } from '@/lib/documents/document-definitions';
 import { UnsavedNavigationHarness } from './UnsavedNavigationHarness';
 import { ProductionBookingCard } from '@/components/ProductionBookingCard';
 import { ProductionBoardDay } from '@/components/ProductionBoardDay';
@@ -564,6 +565,34 @@ test('Account body uses a flat responsive details grid and permissions table', a
   const main = component.locator('.app-shell-main');
   const scrollFit = await main.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
   expect(scrollFit.scrollHeight).toBeGreaterThan(scrollFit.clientHeight);
+  await main.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  expect(await main.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+});
+
+test('Documents uses explicit main scrolling with a neutral fluid workspace and independent card surfaces', async ({ mount, page }) => {
+  const component = await mount(<AppShell navigation={[]} scrollOwner="main" topBar={<ContextTopBar density="compact" title="Documents" secondary="Document tools"/>}><Workspace width="fluid"><section className="grid gap-2 md:grid-cols-2">{DOORGO_DOCUMENT_DEFINITIONS.map((definition) => <article className="app-workspace-panel rounded-lg p-4" key={definition.key}><h2 className="text-base font-semibold">{definition.label}</h2><p className="mt-1 text-sm text-slate-600">{definition.description}</p><p className="mt-2 text-xs text-slate-500">{definition.availability}</p><a className="app-button app-button-primary mt-3" href={definition.entryHref}>Open {definition.label}</a></article>)}</section><p className="text-xs text-slate-500">DoorGo does not yet have a persisted document library. Future document types require separately approved contracts.</p></Workspace></AppShell>);
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }, { width: 1024, height: 720 }, { width: 900, height: 700 }]) {
+    await page.setViewportSize(viewport);
+    const main = component.locator('.app-shell-main');
+    const shell = component.locator('.app-context-bar');
+    const workspace = component.locator('.app-workspace-region');
+    const cards = component.locator('.app-workspace-panel');
+    await expect(main).toHaveAttribute('data-scroll-owner', 'main');
+    await expect(main).toHaveCSS('overflow-y', 'auto');
+    await expect(workspace).toHaveCSS('background-color', 'rgb(238, 243, 248)');
+    await expect(component.locator('.app-workspace-surface')).toHaveCount(0);
+    const [shellBox, workspaceBox, firstCardBox, secondCardBox] = await Promise.all([shell.boundingBox(), workspace.boundingBox(), cards.nth(0).boundingBox(), cards.nth(1).boundingBox()]);
+    expect(shellBox!.height).toBe(48);
+    expect(Math.abs(workspaceBox!.y - (shellBox!.y + shellBox!.height))).toBeLessThanOrEqual(1);
+    expect(firstCardBox!.x).toBeLessThan(secondCardBox!.x);
+    expect(Math.abs(firstCardBox!.y - secondCardBox!.y)).toBeLessThanOrEqual(1);
+    await expect(cards.nth(0)).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  }
+  await page.setViewportSize({ width: 900, height: 240 });
+  const main = component.locator('.app-shell-main');
+  const fit = await main.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(fit.scrollHeight).toBeGreaterThan(fit.clientHeight);
   await main.evaluate((element) => { element.scrollTop = element.scrollHeight; });
   expect(await main.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 });

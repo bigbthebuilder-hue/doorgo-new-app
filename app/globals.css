@@ -238,6 +238,7 @@
   /* Job editing is a desktop workbench: the shell and job chrome stay fixed;
      only the saved-line collection owns routine vertical overflow. */
   .app-shell-main[data-scroll-owner="workspace"] > .app-workspace.job-editor-workspace { overflow: hidden; }
+  .app-shell-main[data-scroll-owner="workspace"] > .app-workspace.glass-calculator-workspace { overflow: hidden; }
   .app-context-bar:has(.app-job-context-fields) { min-height: 5.75rem; max-height: 6.5rem; }
   .app-context-bar:has(.app-job-context-fields) .app-job-context-fields { width: min(58rem, 61vw); grid-template-columns: repeat(3, minmax(7rem, 1fr)); }
   .app-shell-main:has(> .app-context-bottom-bar) > .app-workspace { min-height: 0; overflow: hidden; }
@@ -299,7 +300,7 @@
   .glass-builder-fields > details { align-self: end; }
   .glass-builder-fields [aria-label="Calculated measurements"] { margin-top: .3rem; gap-block: .1rem; }
   .glass-calculator-editor, .glass-calculator-editor > .glass-unit-builder { height: 100%; min-height: 0; }
-  .app-shell-main:has(> .app-context-bottom-bar) > .app-workspace > div { height: 100%; min-height: 0; }
+  .app-shell-main[data-scroll-owner="workspace"] > .app-workspace.glass-calculator-workspace > div { height: 100%; min-height: 0; }
 }
 
 @media (min-width: 768px) and (max-height: 760px) {

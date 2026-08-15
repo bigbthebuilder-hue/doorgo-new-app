@@ -575,6 +575,47 @@ test('Account body uses a flat responsive details grid and permissions table', a
   expect(await main.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 });
 
+test('standalone Glass shell explicitly bounds its workspace while the builder retains internal scrolling', async ({ mount, page }) => {
+  const component = await mount(<AppShell navigation={[]} scrollOwner="workspace" topBar={<ContextTopBar density="compact" title="Glass Calculator" secondary="Local calculation workspace"/>} bottomBar={<ContextBottomBar label="Glass Calculator actions" status="Local calculation · no save required" actions={<div id="glass-calculator-bottom-actions"/>}/>}><Workspace className="glass-calculator-workspace" width="fluid"><StandaloneGlassCalculator/></Workspace></AppShell>);
+  const main = component.locator('.app-shell-main');
+  const shell = component.locator('.app-context-bar');
+  const workspace = component.locator('.glass-calculator-workspace');
+  const surface = component.locator('.glass-unit-builder');
+  const internal = component.locator('.glass-builder-workspace');
+  const bottom = component.getByRole('region', { name: 'Glass Calculator actions' });
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1440, height: 800 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }, { width: 1100, height: 720 }, { width: 1024, height: 720 }, { width: 900, height: 700 }]) {
+    await page.setViewportSize(viewport);
+    await expect(main).toHaveAttribute('data-scroll-owner', 'workspace');
+    await expect(main).toHaveAttribute('data-has-top-bar', 'true');
+    await expect(main).toHaveAttribute('data-has-bottom-bar', 'true');
+    await expect(main).toHaveCSS('overflow-y', 'hidden');
+    await expect(workspace).toHaveCSS('overflow-y', 'hidden');
+    await expect(internal).toHaveCSS('overflow-y', viewport.width > 1440 ? 'hidden' : 'auto');
+    await expect(surface).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    const columns = await internal.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length);
+    expect(columns).toBe(viewport.width > 1440 ? 2 : 1);
+    const [mainBox, shellBox, workspaceBox, surfaceBox, bottomBox] = await Promise.all([main.boundingBox(), shell.boundingBox(), workspace.boundingBox(), surface.boundingBox(), bottom.boundingBox()]);
+    expect(shellBox!.height).toBe(48);
+    expect(workspaceBox!.y).toBe(shellBox!.y + shellBox!.height);
+    expect(workspaceBox!.y + workspaceBox!.height).toBe(bottomBox!.y);
+    expect(bottomBox!.y + bottomBox!.height).toBe(mainBox!.y + mainBox!.height);
+    expect(surfaceBox!.x).toBeGreaterThanOrEqual(workspaceBox!.x);
+    expect(surfaceBox!.x + surfaceBox!.width).toBeLessThanOrEqual(workspaceBox!.x + workspaceBox!.width);
+    await expect(bottom.getByRole('button', { name: 'Send unavailable' })).toBeDisabled();
+    await expect(surface.getByRole('button', { name: 'Reset calculation editor' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  }
+  await page.setViewportSize({ width: 1280, height: 500 });
+  const fit = await internal.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(fit.scrollHeight).toBeGreaterThan(fit.clientHeight);
+  await internal.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  expect(await internal.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(await workspace.evaluate((element) => element.scrollTop)).toBe(0);
+  expect(await main.evaluate((element) => element.scrollTop)).toBe(0);
+  await page.setViewportSize({ width: 1600, height: 900 });
+  expect(await internal.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length)).toBe(2);
+});
+
 test('wide Job Editor keeps shell rows bounded while Job Lines owns overflowing saved-line scrolling', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   const component = await mount(<JobEditorWorkbenchHarness lineCount={18} saved/>);

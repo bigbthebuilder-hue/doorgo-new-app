@@ -102,6 +102,8 @@ assert.match(recoveryPage, /app-workspace app-workspace-fluid/, 'Past Schedule m
 assert.doesNotMatch(calculator, /backHref=/, 'Top-level Glass Calculator must rely on permanent navigation');
 assert.match(calculator, /<ContextTopBar density="compact" title="Glass Calculator"/, 'Glass Calculator must use the compact permanent shell');
 assert.doesNotMatch(calculator, /topBar=\{<ContextTopBar[^}]*Reset/, 'Builder-scoped Reset must not be duplicated in the page shell');
+assert.match(calculator, /scrollOwner="workspace"[\s\S]*<Workspace className="glass-calculator-workspace" width="fluid">/, 'Standalone Glass Calculator must explicitly use bounded workspace ownership and the neutral workspace');
+assert.match(css, /\.app-shell-main\[data-scroll-owner="workspace"\] > \.app-workspace\.glass-calculator-workspace\s*\{[^}]*overflow:\s*hidden/s, 'Standalone Glass outer workspace must remain bounded explicitly');
 assert.match(documents, /<ContextTopBar density="compact" title="Documents" secondary="Document tools"/, 'Documents must use the sparse compact shell without invented controls');
 assert.match(documents, /scrollOwner="main"[\s\S]*<Workspace width="fluid">[\s\S]*app-workspace-panel/, 'Documents must use explicit main-scroll ownership and the neutral workspace while its cards retain surface ownership');
 assert.doesNotMatch(documents, /<WorkspaceSurface/, 'Documents must not invent a page-wide white surface around independent cards');

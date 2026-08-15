@@ -423,7 +423,9 @@ body {
   .door-input-pane, .job-lines-pane { overflow: visible; }
   .job-editor-surface { border-radius: 0; box-shadow: none; }
   .job-editor-surface > .mt-3:has(.door-line-workbench) { margin-top: .5rem; }
-  .door-input-pane, .job-lines-pane { border-color: transparent; border-radius: 0; background: transparent; padding-inline: 0; box-shadow: none; }
+  .door-input-pane, .job-lines-pane { border-color: transparent; border-radius: 0; padding-inline: 0; box-shadow: none; }
+  .door-input-pane { background: var(--app-color-surface); }
+  .job-lines-pane { background: transparent; }
   .job-archive-control { position: static; z-index: auto; clear: both; margin-top: .75rem; }
   .door-primary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
   .door-production-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }

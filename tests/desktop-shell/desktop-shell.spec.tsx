@@ -276,6 +276,7 @@ test('compact job workspace provides one vertical scroll path to every Door Inpu
     await component.getByRole('combobox', { name: 'Material', exact: true }).selectOption('wood');
     await component.getByRole('combobox', { name: 'Custom Slab / RO', exact: true }).selectOption('WoodCustom');
     const addDoor = component.getByRole('button', { name: 'Add Door', exact: true });
+    const doorInput = component.locator('.door-input-pane');
     const lineNotes = component.getByRole('textbox', { name: 'Line Notes' });
     const localFooter = component.locator('.door-input-local-footer');
     const preview = component.locator('.door-input-preview');
@@ -302,6 +303,7 @@ test('compact job workspace provides one vertical scroll path to every Door Inpu
     expect(geometry.add.bottom).toBeGreaterThan(geometry.preview.top);
     if (viewport.width >= 1280) expect(Math.abs((geometry.preview.top + geometry.preview.bottom) / 2 - (geometry.add.top + geometry.add.bottom) / 2)).toBeLessThanOrEqual(2);
     await expect(localFooter).toBeVisible();
+    await expect(doorInput).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await expect(localFooter).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await expect(preview).toContainText('Preview:');
     await workspace.evaluate((element) => { element.scrollTop = element.scrollHeight; });

@@ -302,6 +302,7 @@ test('compact job workspace provides one vertical scroll path to every Door Inpu
     expect(geometry.add.bottom).toBeGreaterThan(geometry.preview.top);
     if (viewport.width >= 1280) expect(Math.abs((geometry.preview.top + geometry.preview.bottom) / 2 - (geometry.add.top + geometry.add.bottom) / 2)).toBeLessThanOrEqual(2);
     await expect(localFooter).toBeVisible();
+    await expect(localFooter).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await expect(preview).toContainText('Preview:');
     await workspace.evaluate((element) => { element.scrollTop = element.scrollHeight; });
     const scrolled = await workspace.evaluate((element) => element.scrollTop);

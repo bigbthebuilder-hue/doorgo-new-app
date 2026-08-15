@@ -238,7 +238,7 @@
   .job-editor-surface > .mt-3:has(.door-line-workbench) { min-height: 0; }
   .door-line-workbench { height: 100%; min-height: 0; grid-template-columns: minmax(0, 1.45fr) minmax(18rem, .72fr); }
   .door-input-pane { min-height: 0; overflow: hidden; }
-  .door-input-local-footer { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .5rem; border-top: 1px solid var(--app-color-border); padding: .35rem .15rem 0; }
+  .door-input-local-footer { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .5rem; border-top: 1px solid var(--app-color-border); background: var(--app-color-surface); padding: .35rem .15rem 0; }
   .door-input-preview { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--app-color-muted); }
   .door-input-local-actions { flex: 0 0 auto; }
   .job-lines-pane { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }

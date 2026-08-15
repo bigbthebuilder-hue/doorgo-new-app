@@ -108,7 +108,7 @@ assert.match(glassBuilder, /!normalizeGlassTypeCode\(retained\.transomGlassTypeC
 assert.doesNotMatch(glassBuilder, /defaultEmptyTransomGlassToClear/, 'Glass defaults must not fork by context');
 assert.doesNotMatch(lineWorkspace, />More Details</, 'Routine door production choices must not be hidden behind More Details');
 assert.match(lineWorkspace, /door-line-notes[\s\S]*rows=\{2\}[\s\S]*door-input-local-footer[\s\S]*door-input-preview[\s\S]*door-input-local-actions/, 'Door Input must keep compact multiline notes above one local Preview and Add Door footer');
-assert.match(css, /\.door-input-local-footer\s*\{[^}]*display:\s*flex[^}]*border-top:/s, 'Door Input local actions must share a compact divided row');
+assert.match(css, /\.door-input-local-footer\s*\{[^}]*display:\s*flex[^}]*border-top:[^}]*background:\s*var\(--app-color-surface\)/s, 'Door Input local actions must share a compact divided surface row');
 assert.match(standaloneGlass, /onDraftChange=\{setLine\}/, 'Standalone calculation must derive live output from shared builder draft state');
 assert.match(standaloneGlass, /showCommitActions=\{false\}/, 'Standalone editor must not require an update action');
 assert.doesNotMatch(standaloneGlass, /showCalculationOutput=\{false\}/, 'Standalone editor must use the shared live calculation output');

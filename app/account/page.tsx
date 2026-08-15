@@ -20,8 +20,8 @@ export default async function AccountPage({
       navigation={buildProtectedAppNavigation(access)}
       topBar={<ContextTopBar density="compact" title="Account" secondary={access.profile?.displayName || access.user?.email || 'DoorGo account'} actions={<form action="/auth/logout" method="post"><button className="app-button app-button-secondary">Sign out</button></form>}/>}
     >
-      <div className="app-workspace app-workspace-focused">
-        <section className="app-workspace-panel rounded-xl p-6">
+      <div className="app-workspace app-workspace-fluid account-workspace">
+        <section className="account-workspace-surface">
 
         {params?.error === 'signout_failed' ? (
           <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -35,23 +35,22 @@ export default async function AccountPage({
           </p>
         ) : (
           <>
-            <dl className="mt-6 grid gap-3 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
-              <div><dt className="text-slate-500">Display name</dt><dd className="font-medium">{access.profile.displayName}</dd></div>
-              <div><dt className="text-slate-500">Account state</dt><dd className="font-medium">{access.profile.active ? 'Active' : 'Inactive'}</dd></div>
-              <div><dt className="text-slate-500">Manager</dt><dd className="font-medium">{access.profile.isManager ? 'Yes' : 'No'}</dd></div>
-              <div><dt className="text-slate-500">Company/location</dt><dd className="font-medium">{access.profile.companyLocation ?? 'Not set'}</dd></div>
-              <div><dt className="text-slate-500">Password</dt><dd className="font-medium">{access.profile.mustChangePassword ? 'Password setup required' : 'Password setup complete'}</dd></div>
+            <h2 className="account-section-heading">Account details</h2>
+            <dl className="account-details-grid">
+              <div><dt>Display name</dt><dd>{access.profile.displayName}</dd></div>
+              <div><dt>Account state</dt><dd>{access.profile.active ? 'Active' : 'Inactive'}</dd></div>
+              <div><dt>Manager</dt><dd>{access.profile.isManager ? 'Yes' : 'No'}</dd></div>
+              <div><dt>Company/location</dt><dd>{access.profile.companyLocation ?? 'Not set'}</dd></div>
+              <div><dt>Password</dt><dd>{access.profile.mustChangePassword ? 'Password setup required' : 'Password setup complete'}</dd></div>
             </dl>
 
-            <h2 className="mt-6 text-lg font-semibold">Module permissions</h2>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {DOORGO_PERMISSION_KEYS.map((key) => (
-                <div key={key} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                  <span className="capitalize">{key === 'production_checkpoints' ? 'Production checkpoints' : key}</span>
-                  <span className="font-semibold uppercase text-slate-600">{getPermissionAccess(access, key)}</span>
-                </div>
-              ))}
-            </div>
+            <h2 className="account-section-heading account-permissions-heading">Module permissions</h2>
+            <table className="account-permissions-table">
+              <thead><tr><th>Module</th><th>Access</th></tr></thead>
+              <tbody>{DOORGO_PERMISSION_KEYS.map((key) => (
+                <tr key={key}><td className="capitalize">{key === 'production_checkpoints' ? 'Production checkpoints' : key}</td><td>{getPermissionAccess(access, key)}</td></tr>
+              ))}</tbody>
+            </table>
           </>
         )}
 

@@ -376,6 +376,31 @@ body {
 
 .door-workspace-switcher { display: none; }
 
+.account-workspace { gap: 0; padding-top: .5rem; }
+.account-workspace-surface { border-block: 1px solid var(--app-color-border); background: var(--app-color-surface); padding: .65rem .75rem .8rem; }
+.account-section-heading { color: var(--app-color-muted); font-size: .65rem; font-weight: 750; letter-spacing: .08em; line-height: 1rem; text-transform: uppercase; }
+.account-details-grid { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: .3rem; border-top: 1px solid var(--app-color-border); }
+.account-details-grid > div { min-width: 0; border-bottom: 1px solid var(--app-color-border); padding: .4rem .5rem; }
+.account-details-grid dt { color: var(--app-color-muted); font-size: .65rem; font-weight: 650; }
+.account-details-grid dd { margin-top: .05rem; overflow-wrap: anywhere; color: var(--app-color-text); font-size: .8rem; font-weight: 650; }
+.account-permissions-heading { margin-top: .8rem; }
+.account-permissions-table { width: 100%; margin-top: .3rem; border-collapse: collapse; font-size: .75rem; }
+.account-permissions-table th, .account-permissions-table td { border-top: 1px solid var(--app-color-border); padding: .35rem .5rem; text-align: left; }
+.account-permissions-table th { color: var(--app-color-muted); font-size: .6rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
+.account-permissions-table th:last-child, .account-permissions-table td:last-child { width: 7rem; text-align: right; }
+.account-permissions-table td:last-child { color: var(--app-color-muted); font-size: .68rem; font-weight: 750; text-transform: uppercase; }
+
+@media (min-width: 768px) {
+  .account-details-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .account-details-grid > div:nth-child(odd) { border-right: 1px solid var(--app-color-border); }
+}
+
+@media (min-width: 1200px) {
+  .account-details-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .account-details-grid > div:nth-child(odd) { border-right: 0; }
+  .account-details-grid > div:not(:nth-child(3n)) { border-right: 1px solid var(--app-color-border); }
+}
+
 @media (min-width: 768px) and (max-width: 1440px) {
   .app-shell-main:has(.job-editor-workspace) { overflow: hidden; }
   .app-context-bar:has(.app-job-context-fields) { max-height: none; flex-wrap: wrap; }

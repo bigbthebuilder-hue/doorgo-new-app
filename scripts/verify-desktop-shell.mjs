@@ -63,6 +63,8 @@ assert.match(production, /<ContextTopBar/);
 assert.match(production, /<ProductionBoardSummary board=\{board\}/);
 for (const [name, source] of [['Account', account], ['Glass Calculator', calculator], ['job editor', editor]]) assert.match(source, /<AppShell/, `${name} must use AppShell`);
 assert.match(account, /<ContextTopBar density="compact" title="Account"[\s\S]*action="\/auth\/logout"/, 'Account must keep sign-out in the compact page shell without changing authentication behavior');
+assert.match(account, /app-workspace app-workspace-fluid account-workspace[\s\S]*account-details-grid[\s\S]*account-permissions-table/, 'Account body must use the flat details grid and permissions table');
+assert.doesNotMatch(account, /app-workspace-focused|rounded-xl bg-slate-50/, 'Account body must not retain the centered floating-card presentation');
 assert.match(jobForm, /<ContextTopBar[\s\S]{0,240}title=\{visibleIdentifier\}/, 'Job editor context must use its live authoritative identifier');
 assert.equal((jobForm.match(/id="customer"/g) ?? []).length, 1, 'Customer must have one editor input');
 assert.equal((jobForm.match(/id="salesperson"/g) ?? []).length, 1, 'Salesperson must have one editor input');
@@ -96,6 +98,7 @@ assert.match(jobsWorkspace, /placeholder="Identifier, customer or site"/, 'Jobs 
 assert.doesNotMatch(jobsWorkspace, /placeholder="[^"]*salesperson/i, 'Jobs must not claim salesperson filtering without salesperson in the list projection');
 assert.doesNotMatch(jobsList, /Filter jobs|Saved draft jobs/, 'Jobs body must not duplicate contextual title or filter controls');
 assert.match(jobForm, /job-confirmation-note/, 'Job confirmation guidance must use the compact strip');
+assert.match(jobForm, /job-shell-hours"[^>]*htmlFor="shopHours"><span>Shop Hours<\/span>/, 'Compact Job shell must keep the Shop Hours label source-free and on one line');
 assert.match(jobForm, /job-work-order-menu/, 'Work Order actions must remain reachable through the compact toolbar menu');
 assert.match(glassBuilder, /embedded = false/, 'Shared Glass Unit Builder must expose an embedded presentation without forking calculations');
 assert.match(standaloneGlass, /<GlassUnitBuilder embedded/, 'Standalone Glass Calculator must use the shared editor presentation');

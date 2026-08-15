@@ -506,6 +506,21 @@ test('Account shell keeps identity and Sign out compact and contained', async ({
   }
 });
 
+test('Account body uses a flat responsive details grid and permissions table', async ({ mount, page }) => {
+  await mount(<div className="app-shell"><aside className="app-shell-sidebar"><span>DoorGo</span></aside><main className="app-shell-main"><ContextTopBar density="compact" title="Account" secondary="Barrett" actions={<button className="app-button app-button-secondary">Sign out</button>}/><div className="app-workspace app-workspace-fluid account-workspace"><section className="account-workspace-surface"><h2 className="account-section-heading">Account details</h2><dl className="account-details-grid"><div><dt>Display name</dt><dd>Barrett Example</dd></div><div><dt>Account state</dt><dd>Active</dd></div><div><dt>Manager</dt><dd>Yes</dd></div><div><dt>Company/location</dt><dd>DoorGo Vancouver Operations</dd></div><div><dt>Password</dt><dd>Password setup complete</dd></div></dl><h2 className="account-section-heading account-permissions-heading">Module permissions</h2><table className="account-permissions-table"><thead><tr><th>Module</th><th>Access</th></tr></thead><tbody>{['Production', 'Production checkpoints', 'Calendar', 'Jobs', 'Documents', 'Tools', 'Reports', 'Settings', 'Users'].map((module) => <tr key={module}><td>{module}</td><td>USE</td></tr>)}</tbody></table></section></div></main></div>);
+  for (const viewport of [{ width: 1600, height: 900 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }, { width: 1024, height: 720 }]) {
+    await page.setViewportSize(viewport);
+    const details = page.locator('.account-details-grid');
+    const columns = await details.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length);
+    expect(columns).toBe(viewport.width >= 1200 ? 3 : 2);
+    await expect(page.locator('.account-workspace-surface')).toHaveCSS('border-radius', '0px');
+    await expect(page.getByRole('table')).toBeVisible();
+    await expect(page.getByRole('button', { name: /USE/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  }
+});
+
 test('Edit Schedule keeps primary date navigation ahead of compact secondary tools', async ({ mount, page }) => {
   for (const viewport of appShellViewports) {
     await page.setViewportSize(viewport);
@@ -585,17 +600,21 @@ test('actual native job editor keeps its three-level header, door workbench, and
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });
 
-test('job header exposes automatic Shop Hours and clearing a manual override restores them', async ({ mount }) => {
+test('job header keeps a clean Shop Hours label while automatic and manual values retain authority', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
   const component = await mount(<EffectiveShopHoursHarness/>);
-  const shopHours = component.getByRole('spinbutton', { name: /Shop Hours/ });
+  const shopHours = component.getByRole('spinbutton', { name: 'Shop Hours', exact: true });
+  const shellLabel = component.locator('.job-shell-hours > span');
   await expect(shopHours).toHaveValue('6.5');
-  await expect(component.getByText('Shop Hours · Estimated', { exact: true })).toBeVisible();
+  await expect(shellLabel).toHaveText('Shop Hours');
+  await expect(shellLabel).not.toContainText('Estimated');
   await shopHours.fill('6');
   await expect(shopHours).toHaveValue('6');
-  await expect(component.getByText('Shop Hours · Manual', { exact: true })).toBeVisible();
+  await expect(shellLabel).toHaveText('Shop Hours');
+  await expect(shellLabel).not.toContainText('Manual');
   await shopHours.fill('');
   await expect(shopHours).toHaveValue('6.5');
-  await expect(component.getByText('Shop Hours · Estimated', { exact: true })).toBeVisible();
+  await expect(shellLabel).toHaveText('Shop Hours');
 });
 
 test('standalone Glass Calculator uses the shared live builder result and a purpose-built print document', async ({ mount, page }) => {

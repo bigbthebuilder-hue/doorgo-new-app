@@ -18,12 +18,12 @@ export function JobEditorWorkbenchHarness({ saved = false }: { saved?: boolean }
 }
 
 export function EffectiveShopHoursHarness() {
-  return <JobHeaderForm canEdit defaultSalesperson="Barrett" initialDraft={{
+  return <div className="app-shell"><aside className="app-shell-sidebar"><span>DoorGo</span></aside><main className="app-shell-main"><JobHeaderForm canEdit defaultSalesperson="Barrett" initialDraft={{
     header: { customer: 'Hours Fixture', salesperson: 'Barrett', lifecycleStage: 'Draft' },
     lines: [
       { ...defaultDoorLine('Exterior'), lineId: 'hours-d', lineIndex: 1, lineStatus: 'Active', config: 'D' },
       { ...defaultDoorLine('Exterior'), lineId: 'hours-dd', lineIndex: 2, lineStatus: 'Active', config: 'DD' },
       { ...defaultDoorLine('Exterior'), lineId: 'hours-tds', lineIndex: 3, lineStatus: 'Active', config: 'T/DS' },
     ],
-  }} initialJob={null}/>;
+  }} initialJob={null} inAppShell/></main></div>;
 }

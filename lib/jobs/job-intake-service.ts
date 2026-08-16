@@ -11,10 +11,13 @@ import { applyManualGeometryOverride, removeManualGeometryOverride } from './gla
 import { createJobIntakeRepository } from './job-intake-repository';
 import { mapLegacyTransferToUnsavedEditor } from './legacy-transfer-mapping';
 import { unresolvedTransferBlockers } from './legacy-transfer-import-contract';
+import { assertManagerDeleteAccess } from './manager-job-delete-contract';
 import {
   JobIntakeFailure,
   type CreateJobHeaderCommand,
   type ArchiveJobCommand,
+  type DeleteJobCommand,
+  type DeleteJobResult,
   type DoorLineInput,
   type GlassGeometryValues,
   type GlassOverrideApproval,
@@ -126,6 +129,15 @@ export async function archiveJobWithAccess(
 ): Promise<NativeJobAggregate> {
   assertJobsWriteAccess(access);
   return repository.archive(request);
+}
+
+export async function deleteJobWithAccess(
+  access: CurrentDoorGoAccess,
+  request: DeleteJobCommand,
+  repository: JobIntakeRepository = createJobIntakeRepository(),
+): Promise<DeleteJobResult> {
+  assertManagerDeleteAccess(access);
+  return repository.deletePermanently(request);
 }
 
 export async function loadCurrentJobs(): Promise<NativeJobListItem[]> {

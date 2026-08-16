@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
-import { archiveDraftJobAction, createDraftJobAction, createTransferredJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
+import { archiveDraftJobAction, createDraftJobAction, createTransferredJobAction, deleteDraftJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine, withEffectiveShopHours } from '@/lib/jobs/door-line-contract';
 import { jobAggregateDirtySnapshot, jobSaveConfirmation, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
 import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggregate } from '@/lib/jobs/job-intake-types';
@@ -11,6 +11,7 @@ import { unresolvedTransferBlockers } from '@/lib/jobs/legacy-transfer-import-co
 import { workOrderOutputDecision, type WorkOrderOutputIntent } from '@/lib/jobs/work-order-preview-contract';
 import { DoorLineWorkspace } from './DoorLineWorkspace';
 import { JobArchiveControl, jobArchiveTarget } from './JobArchiveControl';
+import { JobDeleteControl, jobDeleteTarget } from './JobDeleteControl';
 import { WorkOrderSendEntryButton } from './WorkOrderSendEntryButton';
 import { LegacyTransferEvidenceSummary } from './LegacyTransferEvidenceSummary';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
@@ -99,6 +100,7 @@ function Field({ label, name, children, error }: { label: string; name: string; 
 export function JobHeaderForm({
   initialJob,
   canEdit,
+  canPermanentlyDelete = false,
   defaultSalesperson,
   initialDraft,
   transferReview,
@@ -106,6 +108,7 @@ export function JobHeaderForm({
 }: {
   initialJob: NativeJobAggregate | null;
   canEdit: boolean;
+  canPermanentlyDelete?: boolean;
   defaultSalesperson: string;
   initialDraft?: { header: JobHeaderInput; lines: DoorLineInput[] };
   transferReview?: LegacyTransferReviewContext;
@@ -223,10 +226,11 @@ export function JobHeaderForm({
 
   const bottomStatus = message?.text ?? (navigationDirty ? 'Unsaved changes' : job ? `Saved · Rev ${job.revision}` : 'Not saved yet');
   const archiveTarget = jobArchiveTarget(job, canEdit);
+  const deleteTarget = jobDeleteTarget(job, canPermanentlyDelete);
   const bottomActions = <>
     <button className="app-button app-button-secondary" onClick={leave} type="button">Exit</button>
     {job ? <details className="job-work-order-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
-    {archiveTarget ? <details className="job-actions-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Job Actions ▾</summary><div className="absolute right-0 z-20 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Actions</span><JobArchiveControl onArchive={archiveDraftJobAction} onNavigate={(path) => router.push(path)} target={archiveTarget}/></div></details> : null}
+    {archiveTarget || deleteTarget ? <details className="job-actions-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Job Actions ▾</summary><div className="absolute right-0 z-20 grid min-w-52 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Actions</span><JobArchiveControl onArchive={archiveDraftJobAction} onNavigate={(path) => router.push(path)} target={archiveTarget}/><JobDeleteControl onDelete={deleteDraftJobAction} onNavigate={(path) => router.push(path)} target={deleteTarget}/></div></details> : null}
     {canEdit ? <><button className="app-button app-button-primary" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button className="app-button app-button-dark" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button> : null}</> : null}
   </>;
   return (

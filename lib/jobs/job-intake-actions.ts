@@ -5,7 +5,7 @@ import { getPermissionAccess } from '@/lib/auth/access';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { canWriteJobs, jobFailureMessage } from './job-intake-contract';
 import { assertConfirmedJobActiveLineInvariant, withEffectiveShopHours } from './door-line-contract';
-import { archiveJobWithAccess, createJobWithAccess, createTransferredJobWithAccess, prepareGlassOverrideWithAccess, removeGlassOverrideWithAccess, updateJobWithAccess } from './job-intake-service';
+import { archiveJobWithAccess, createJobWithAccess, createTransferredJobWithAccess, deleteJobWithAccess, prepareGlassOverrideWithAccess, removeGlassOverrideWithAccess, updateJobWithAccess } from './job-intake-service';
 import { mapLegacyTransferToUnsavedEditor } from './legacy-transfer-mapping';
 import type { LegacyTransferMappingResult } from './legacy-transfer-types';
 import {
@@ -128,6 +128,21 @@ export async function archiveDraftJobAction(request: {
     return { ok: true, job };
   } catch (error) {
     return failureResult(error);
+  }
+}
+
+export async function deleteDraftJobAction(request: {
+  internalJobId: string;
+  expectedRevision: number;
+}): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
+  try {
+    const access = await getCurrentDoorGoAccess();
+    await deleteJobWithAccess(access, request);
+    revalidatePath('/jobs');
+    return { ok: true };
+  } catch (error) {
+    const failed = failureResult(error);
+    return failed.ok ? { ok: false, code: 'unavailable', message: jobFailureMessage('unavailable') } : failed;
   }
 }
 

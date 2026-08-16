@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { assertConfirmedJobActiveLineInvariant, normalizeDoorLineInput, withEffectiveShopHours } from './door-line-contract';
 import { geometryChanged } from './glass-geometry-contract';
-import { formatDoorGoReference, isUuid, normalizeJobHeaderInput, normalizePoNumbers } from './job-intake-contract';
+import { formatDoorGoReference, isUuid, jobFailureMessage, normalizeJobHeaderInput, normalizePoNumbers } from './job-intake-contract';
 import {
   JobIntakeFailure,
   type CreateJobHeaderCommand,
@@ -294,6 +294,20 @@ export function createLocalJobIntakeRepository(options: LocalRepositoryOptions =
         store.jobs[index] = archived;
         await atomicWriteStore(filePath, store);
         return archived;
+      });
+    },
+    async deletePermanently(command) {
+      allowed();
+      return serialized(filePath, async () => {
+        const store = await readStore(filePath);
+        const index = store.jobs.findIndex((job) => job.internalJobId === command.internalJobId);
+        if (index < 0) throw new JobIntakeFailure('not_found', jobFailureMessage('not_found'));
+        const job = store.jobs[index];
+        if (job.revision !== command.expectedRevision) throw new JobIntakeFailure('stale_revision', jobFailureMessage('stale_revision'));
+        store.jobs.splice(index, 1);
+        for (const [commandId, receipt] of Object.entries(store.createCommands)) if (receipt.internalJobId === job.internalJobId) delete store.createCommands[commandId];
+        await atomicWriteStore(filePath, store);
+        return { internalJobId: job.internalJobId, visibleIdentifier: job.visibleIdentifier ?? job.doorGoReference ?? job.legacyJobId ?? '', deletedProductionBookings: 0 };
       });
     },
   };

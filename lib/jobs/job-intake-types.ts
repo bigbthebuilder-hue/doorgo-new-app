@@ -184,6 +184,8 @@ export type NativeJobListPage = {
   page: { limit: number; hasMore: boolean; nextCursor: NativeJobListCursor | null };
 };
 export type ArchiveJobCommand = { internalJobId: string; expectedRevision: number; reason: string };
+export type DeleteJobCommand = { internalJobId: string; expectedRevision: number };
+export type DeleteJobResult = { internalJobId: string; visibleIdentifier: string; deletedProductionBookings: number };
 
 export type JobHeaderFields = Pick<NativeJobHeader,
   'bizTrackSalesOrder' | 'customer' | 'siteAddress' | 'phone' | 'email' |
@@ -243,6 +245,7 @@ export type JobIntakeRepository = {
   createTransferred(command: CreateTransferredJobCommand): Promise<NativeJobAggregate>;
   update(command: UpdateJobHeaderCommand): Promise<NativeJobAggregate>;
   archive(command: ArchiveJobCommand): Promise<NativeJobAggregate>;
+  deletePermanently(command: DeleteJobCommand): Promise<DeleteJobResult>;
 };
 
 export type JobIntakeFailureCode =
@@ -250,7 +253,7 @@ export type JobIntakeFailureCode =
   | 'validation_failed' | 'duplicate_biztrack_sales_order' | 'stale_revision'
   | 'duplicate_door_go_reference' | 'archived' | 'not_found' | 'idempotency_conflict'
   | 'duplicate_legacy_job_id' | 'duplicate_source_fingerprint' | 'duplicate_legacy_transfer'
-  | 'local_intake_disabled' | 'unavailable';
+  | 'manager_required' | 'local_intake_disabled' | 'unavailable';
 
 export class JobIntakeFailure extends Error {
   constructor(

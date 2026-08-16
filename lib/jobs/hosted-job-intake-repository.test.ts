@@ -21,6 +21,7 @@ async function main(){
   const calls:{name:string;args:Record<string,unknown>}[]=[];
   const client:NativeJobRpcClient={rpc:async(name,args)=>{calls.push({name,args});
     if(name==='dg_list_native_jobs')return {data:{items:[{...job,active_line_count:1,archived_line_count:0,archived_at:null}],page:{limit:2,has_more:true,next_cursor_updated_at:job.updated_at,next_cursor_internal_job_id:job.internal_job_id}},error:null};
+    if(name==='dg_delete_native_job')return {data:{internal_job_id:job.internal_job_id,visible_identifier:'DG-000013',deleted_production_bookings:2},error:null};
     return {data:{job,lines:[line]},error:null};}};
   const repository=createHostedJobIntakeRepository({client});
   const factory=readFileSync('lib/jobs/job-intake-repository.ts','utf8');
@@ -48,6 +49,9 @@ async function main(){
   assert.equal(calls[5].name,'dg_create_transferred_native_job');
   assert.deepEqual(calls[5].args.p_provenance,{direction:'legacy_to_native',source_system:'legacy-doorgo',source_job_state:'active',transfer_schema:'doorgo.legacy-job-transfer',transfer_version:1,source_identifier_kind:'legacy_job_id',source_identifier_value:'JOB-0065',source_saved_at:'2026-07-30T09:30:00.000Z',exported_at:'2026-07-30T10:00:00.000Z',source_fingerprint:'a'.repeat(64)});
   assert.equal((calls[5].args.p_header as Record<string,unknown>).biztrack_sales_order,null,'JOB identifiers never populate Sales Order');
+  const deleted=await repository.deletePermanently({internalJobId:job.internal_job_id,expectedRevision:1});
+  assert.deepEqual(deleted,{internalJobId:job.internal_job_id,visibleIdentifier:'DG-000013',deletedProductionBookings:2});
+  assert.deepEqual(calls[6],{name:'dg_delete_native_job',args:{p_internal_job_id:job.internal_job_id,p_expected_revision:1}});
   await assert.rejects(repository.listPage({limit:101}),(error)=>error instanceof JobIntakeFailure&&error.code==='validation_failed');
   for(const [token,code] of [['authentication_required','authentication_required'],['permission_required','permission_required'],['stale_revision','stale_revision'],['duplicate_sales_order','duplicate_biztrack_sales_order'],['duplicate_door_go_reference','duplicate_door_go_reference']] as const){
     const failing=createHostedJobIntakeRepository({client:{rpc:async()=>({data:null,error:{message:`native_job.${token}`}})}});
@@ -59,6 +63,8 @@ async function main(){
     const failing=createHostedJobIntakeRepository({client:{rpc:async()=>({data:null,error:{message:`native_job.${code}`}})}});
     await assert.rejects(failing.archive({internalJobId:job.internal_job_id,expectedRevision:1,reason:'Controlled test'}),(error)=>error instanceof JobIntakeFailure&&error.code===code&&error.message===jobFailureMessage(code));
   }
+  const nonManager=createHostedJobIntakeRepository({client:{rpc:async()=>({data:null,error:{message:'native_job.manager_required'}})}});
+  await assert.rejects(nonManager.deletePermanently({internalJobId:job.internal_job_id,expectedRevision:1}),(error)=>error instanceof JobIntakeFailure&&error.code==='manager_required');
   const unavailable=createHostedJobIntakeRepository({client:{rpc:async()=>{throw new Error('network');}}});
   await assert.rejects(unavailable.list(),(error)=>error instanceof JobIntakeFailure&&error.code==='unavailable');
   for(const [token,code] of [['duplicate_legacy_job_id','duplicate_legacy_job_id'],['duplicate_source_fingerprint','duplicate_source_fingerprint'],['duplicate_legacy_transfer','duplicate_legacy_transfer']] as const){

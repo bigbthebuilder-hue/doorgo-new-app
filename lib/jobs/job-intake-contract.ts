@@ -155,6 +155,7 @@ export function jobFailureMessage(code: JobIntakeFailureCode): string {
     duplicate_source_fingerprint: 'That legacy export has already been transferred.',
     duplicate_legacy_transfer: 'That legacy source job has already been transferred.',
     archived: 'The requested job is archived.',
+    manager_required: 'Only an active Manager may permanently delete a job.',
     stale_revision: 'This draft changed after you opened it. Reload and review the latest version before saving.',
     not_found: 'The requested draft job was not found.',
     idempotency_conflict: 'This create request was already used with different job details.',

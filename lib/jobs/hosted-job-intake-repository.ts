@@ -1,7 +1,7 @@
 import {
   JobIntakeFailure,
   type ArchiveJobCommand,type CreateJobHeaderCommand,type CreateTransferredJobCommand,type DoorLineInput,type JobHeaderInput,
-  type JobIntakeRepository,type NativeDoorLine,type NativeJobAggregate,type NativeJobListItem,
+  type JobIntakeRepository,type NativeDoorLine,type NativeJobAggregate,type NativeJobListItem,type DeleteJobResult,
   type NativeJobListPage,type NativeJobListRequest,type UpdateJobHeaderCommand,
 } from './job-intake-types';
 import { normalizeJobHeaderInput, isUuid, jobFailureMessage } from './job-intake-contract';
@@ -43,7 +43,7 @@ function failure(error:RpcError):JobIntakeFailure{
   const message=`${error.message??''} ${error.details??''}`.toLowerCase();
   const mappings:[string,ConstructorParameters<typeof JobIntakeFailure>[0]][]=[
     ['authentication_required','authentication_required'],['active_profile_required','active_profile_required'],
-    ['permission_required','permission_required'],['stale_revision','stale_revision'],['not_found','not_found'],
+    ['manager_required','manager_required'],['permission_required','permission_required'],['stale_revision','stale_revision'],['not_found','not_found'],
     ['duplicate_sales_order','duplicate_biztrack_sales_order'],['duplicate_door_go_reference','duplicate_door_go_reference'],
     ['duplicate_identifier','duplicate_door_go_reference'],['idempotency_conflict','idempotency_conflict'],
     ['duplicate_legacy_job_id','duplicate_legacy_job_id'],['duplicate_source_fingerprint','duplicate_source_fingerprint'],
@@ -111,5 +111,12 @@ export function createHostedJobIntakeRepository(options:HostedRepositoryOptions)
       return aggregate(await call('dg_update_native_job',{p_internal_job_id:command.internalJobId,p_expected_revision:command.expectedRevision,p_header:headerPayload(command.input),p_lines:lines.map(linePayload)}));
     },
     async archive(command:ArchiveJobCommand){return aggregate(await call('dg_archive_native_job',{p_internal_job_id:command.internalJobId,p_expected_revision:command.expectedRevision,p_reason:command.reason}));},
+    async deletePermanently(command){
+      const data=await call('dg_delete_native_job',{p_internal_job_id:command.internalJobId,p_expected_revision:command.expectedRevision});
+      if(!data||typeof data!=='object'||Array.isArray(data))throw unavailable();
+      const result=data as Record<string,unknown>;
+      if(typeof result.internal_job_id!=='string'||typeof result.visible_identifier!=='string'||typeof result.deleted_production_bookings!=='number')throw unavailable();
+      return {internalJobId:result.internal_job_id,visibleIdentifier:result.visible_identifier,deletedProductionBookings:result.deleted_production_bookings} satisfies DeleteJobResult;
+    },
   };
 }

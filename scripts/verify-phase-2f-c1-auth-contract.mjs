@@ -182,8 +182,8 @@ const applicationPaths = reviewablePaths.filter(
 const applicationDiffText = applicationPaths.map((path) => read(path)).join('\n');
 const nativeJobRpcAdapter = read('lib/jobs/hosted-job-intake-repository.ts');
 assert.deepEqual([...nativeJobRpcAdapter.matchAll(/call\('([^']+)'/g)].map((match) => match[1]).sort(),[
-  'dg_archive_native_job','dg_create_native_job','dg_create_transferred_native_job','dg_get_native_job','dg_list_native_jobs','dg_update_native_job',
-], 'Hosted native-job adapter may call only the six reviewed RPCs');
+  'dg_archive_native_job','dg_create_native_job','dg_create_transferred_native_job','dg_delete_native_job','dg_get_native_job','dg_list_native_jobs','dg_update_native_job',
+], 'Hosted native-job adapter may call only the seven reviewed RPCs');
 rejectPattern(nativeJobRpcAdapter,/\.from\(/,'Hosted native-job adapter must not access tables directly');
 
 rejectPattern(applicationDiffText, /\.rpc\((?!\s*['"]complete_dg_initial_password_setup['"])/, 'Only the password-setup RPC may be introduced in Phase 2F-C1');
@@ -228,6 +228,7 @@ assert.deepEqual(
     'scripts/verify-legacy-transfer-hosted-application.sql',
     'scripts/verify-legacy-transfer-hosted-package.mjs',
     'scripts/verify-legacy-transfer-persistence.mjs',
+    'scripts/verify-manager-native-job-delete.mjs',
     'scripts/verify-native-job-hosted-application.sql',
     'scripts/verify-native-job-hosted-migration-package.mjs',
     'scripts/verify-native-job-intake-j3c.mjs',
@@ -238,6 +239,7 @@ assert.deepEqual(
     'supabase/migrations/20260805000000_add_direct_dimension_glass_sources.sql',
     'supabase/migrations/20260805010000_fix_direct_dimension_update_rpc_allowlist.sql',
     'supabase/migrations/20260806010000_fix_transferred_biztrack_update_identifier.sql',
+    'supabase/migrations/20260815010000_add_manager_native_job_delete.sql',
   ],
   'Service-role references must remain limited to approved runtime, placeholder, and verifier files',
 );

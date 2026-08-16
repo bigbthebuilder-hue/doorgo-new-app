@@ -32,7 +32,7 @@ export default async function EditJobPage({
 
   return (
     <AppShell hasBottomBar hasTopBar navigation={buildProtectedAppNavigation(access)} scrollOwner="workspace">
-      <JobHeaderForm canEdit={getPermissionAccess(access, 'jobs') === 'use'} defaultSalesperson="" initialJob={job} inAppShell/>
+      <JobHeaderForm canEdit={getPermissionAccess(access, 'jobs') === 'use'} canPermanentlyDelete={access.state === 'active' && access.profile.isManager} defaultSalesperson="" initialJob={job} inAppShell/>
     </AppShell>
   );
 }

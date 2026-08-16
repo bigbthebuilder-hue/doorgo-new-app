@@ -2,6 +2,10 @@
 BEGIN;
 
 DO $contract$
+DECLARE
+  v_status_guard text;
+  v_move_guard text;
+  v_completion_guard text;
 BEGIN
   IF pg_catalog.to_regclass('public.dg_native_jobs') IS NULL
     OR pg_catalog.to_regclass('public.dg_native_job_lines') IS NULL
@@ -10,7 +14,27 @@ BEGIN
     OR pg_catalog.to_regclass('public.dg_production_booking_moves') IS NULL
     OR pg_catalog.to_regclass('public.dg_production_booking_completion_events') IS NULL
     OR pg_catalog.to_regclass('public.dg_production_status_events') IS NULL
+    OR pg_catalog.to_regclass('public.dg_calendar_links') IS NULL
+    OR pg_catalog.to_regprocedure('public.reject_production_status_event_mutation()') IS NULL
+    OR pg_catalog.to_regprocedure('public.reject_production_booking_move_mutation()') IS NULL
+    OR pg_catalog.to_regprocedure('public.reject_production_booking_completion_event_mutation()') IS NULL
   THEN RAISE EXCEPTION 'native_job_delete.required_relation_missing'; END IF;
+  SELECT pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('public.reject_production_status_event_mutation()')) INTO v_status_guard;
+  SELECT pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('public.reject_production_booking_move_mutation()')) INTO v_move_guard;
+  SELECT pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('public.reject_production_booking_completion_event_mutation()')) INTO v_completion_guard;
+  IF v_status_guard IS NULL
+    OR v_move_guard IS NULL
+    OR v_completion_guard IS NULL
+    OR v_status_guard NOT LIKE '%Production status events are immutable; append a correcting event instead%'
+    OR v_move_guard NOT LIKE '%Production booking move history is immutable%'
+    OR v_move_guard NOT LIKE '%OLD.actor_user_id IS NOT NULL%'
+    OR v_move_guard NOT LIKE '%NEW.action_type%'
+    OR v_move_guard NOT LIKE '%NEW.reason%'
+    OR v_move_guard NOT LIKE '%NEW.destination_was_closed%'
+    OR v_move_guard NOT LIKE '%NEW.closed_date_override_acknowledged%'
+    OR v_completion_guard NOT LIKE '%Production booking completion history is immutable%'
+    OR v_completion_guard NOT LIKE '%OLD.actor_user_id IS NOT NULL%'
+  THEN RAISE EXCEPTION 'native_job_delete.immutable_guard_drift'; END IF;
 END;
 $contract$;
 
@@ -30,10 +54,12 @@ BEGIN
   IF TG_OP = 'DELETE' AND pg_catalog.current_setting('doorgo.manager_job_delete', true) = 'authorized' THEN RETURN OLD; END IF;
   IF TG_OP = 'UPDATE' AND OLD.actor_user_id IS NOT NULL AND NEW.actor_user_id IS NULL AND ROW(
     NEW.move_id,NEW.command_id,NEW.booking_id,NEW.from_production_date,NEW.to_production_date,NEW.shop_hours_snapshot,
-    NEW.actor_display_name_snapshot,NEW.moved_at,NEW.original_updated_at_snapshot,NEW.wholly_unstarted_acknowledged,NEW.source_system,NEW.created_at
+    NEW.actor_display_name_snapshot,NEW.moved_at,NEW.original_updated_at_snapshot,NEW.wholly_unstarted_acknowledged,NEW.source_system,NEW.created_at,
+    NEW.action_type,NEW.reason,NEW.destination_was_closed,NEW.closed_date_override_acknowledged
   ) IS NOT DISTINCT FROM ROW(
     OLD.move_id,OLD.command_id,OLD.booking_id,OLD.from_production_date,OLD.to_production_date,OLD.shop_hours_snapshot,
-    OLD.actor_display_name_snapshot,OLD.moved_at,OLD.original_updated_at_snapshot,OLD.wholly_unstarted_acknowledged,OLD.source_system,OLD.created_at
+    OLD.actor_display_name_snapshot,OLD.moved_at,OLD.original_updated_at_snapshot,OLD.wholly_unstarted_acknowledged,OLD.source_system,OLD.created_at,
+    OLD.action_type,OLD.reason,OLD.destination_was_closed,OLD.closed_date_override_acknowledged
   ) THEN RETURN NEW; END IF;
   RAISE EXCEPTION 'Production booking move history is immutable';
 END;
@@ -92,17 +118,12 @@ BEGIN
   SELECT COALESCE(pg_catalog.array_agg(booking.booking_id ORDER BY booking.booking_id), ARRAY[]::text[])
   INTO v_booking_ids
   FROM public.dg_production_bookings AS booking
-  WHERE booking.job_id = ANY(ARRAY[
-    v_job.internal_job_id::text,
-    v_job.visible_identifier,
-    v_job.biztrack_sales_order,
-    v_job.door_go_reference,
-    v_job.legacy_job_id
-  ]::text[]);
+  WHERE booking.job_id = v_job.visible_identifier;
 
   DELETE FROM public.dg_production_status_events AS event WHERE event.booking_id = ANY(v_booking_ids);
   DELETE FROM public.dg_production_booking_completion_events AS event WHERE event.booking_id = ANY(v_booking_ids);
   DELETE FROM public.dg_production_booking_moves AS move WHERE move.booking_id = ANY(v_booking_ids);
+  DELETE FROM public.dg_calendar_links AS link WHERE link.job_id = v_job.visible_identifier;
   DELETE FROM public.dg_production_bookings AS booking WHERE booking.booking_id = ANY(v_booking_ids);
   GET DIAGNOSTICS v_deleted_bookings = ROW_COUNT;
 

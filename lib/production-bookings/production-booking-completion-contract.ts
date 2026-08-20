@@ -6,6 +6,7 @@ import {
 export const COMPLETE_PRODUCTION_BOOKING_RPC = 'complete_production_booking';
 export const REOPEN_PRODUCTION_BOOKING_RPC = 'reopen_production_booking';
 export const PRODUCTION_COMPLETION_REVALIDATE_PATHS = [
+  '/calendar',
   '/production-board',
   '/production-schedule',
   '/production-recovery',

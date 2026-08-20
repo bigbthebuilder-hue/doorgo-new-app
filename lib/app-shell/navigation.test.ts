@@ -28,12 +28,14 @@ const jobs = buildProtectedAppNavigation(access({ jobs: 'view' })).map((item) =>
 assert.ok(jobs.includes('/jobs'));
 assert.ok(jobs.includes('/glass-calculator'));
 assert.ok(!jobs.includes('/production-schedule'));
+assert.ok(!jobs.includes('/calendar'));
 const jobsItem = buildProtectedAppNavigation(access({ jobs: 'view' })).find((item) => item.href === '/jobs');
 assert.ok(jobsItem);
 assert.equal(isAppNavigationItemActive('/jobs/example/edit', jobsItem), true);
 
 const production = buildProtectedAppNavigation(access({ production: 'use', production_checkpoints: 'none' })).map((item) => item.href);
 assert.ok(production.includes('/production-schedule'));
+assert.ok(!production.includes('/calendar'));
 assert.ok(!production.includes('/production-recovery'));
 assert.ok(!production.includes('/production-checkpoints'));
 
@@ -47,6 +49,9 @@ assert.deepEqual(homeDestinations, ['/production-board', '/production-schedule',
 
 const documents = buildProtectedAppNavigation(access({ documents: 'view' })).map((item) => item.href);
 assert.ok(documents.includes('/documents'));
+
+const calendar = buildProtectedAppNavigation(access({ calendar: 'view' })).map((item) => item.href);
+assert.ok(calendar.includes('/calendar'));
 
 const inactive: CurrentDoorGoAccess = {
   state: 'inactive_profile',

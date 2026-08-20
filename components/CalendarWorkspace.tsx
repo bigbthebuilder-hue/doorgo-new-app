@@ -1,0 +1,514 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { AppConfirmationToast, type AppConfirmationToastMessage } from '@/components/AppConfirmationToast';
+import type { ProductionBoardCard, ProductionBoardViewModel } from '@/lib/production-board/types';
+import { addDaysToDateOnly } from '@/lib/production-board/date-utils';
+import { completeProductionBooking, reopenProductionBooking } from '@/lib/production-bookings/production-booking-completion-actions';
+import { reorderCalendarProductionDay, rescheduleCalendarProductionBooking } from '@/lib/production-bookings/calendar-production-actions';
+import { getProductionScheduleCompletionBlockReason } from '@/lib/production-schedule/completion-ui-contract';
+import { getProductionScheduleCardMoveBlockReason } from '@/lib/production-schedule/move-ui-contract';
+import { moveCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally } from '@/lib/calendar/interaction';
+import {
+  buildCalendarLayers,
+  calendarCapacityLabel,
+  calendarMonthSegments,
+  productionLayerKey,
+  searchCalendarCards,
+  salespersonColor,
+  type CalendarLayer,
+} from '@/lib/calendar/presentation';
+
+type ReopenState = { card: ProductionBoardCard; reason: string; pending: boolean; error: string | null };
+type CalendarDropTarget = { date: string; targetId: string | null; before: boolean };
+type CalendarMoveState = {
+  card: ProductionBoardCard;
+  destinationDate: string;
+  sourceOrder: string[];
+  requiresAcknowledgement: boolean;
+  requiresBackdateReason: boolean;
+  requiresClosedOverride: boolean;
+  acknowledged: boolean;
+  closedAcknowledged: boolean;
+  reason: string;
+  pending: boolean;
+  error: string | null;
+  undoing: boolean;
+};
+type CalendarUndo = { bookingId: string; fromDate: string; toDate: string; sourceOrder: string[] };
+
+export function CalendarWorkspace(props: { board: ProductionBoardViewModel; canInteract: boolean; canOpenJobs: boolean; currentMonday: string; preferenceOwner: string; today: string }) {
+  return <CalendarWorkspaceSession {...props} key={JSON.stringify(props.board)}/>;
+}
+
+function CalendarWorkspaceSession({ board, canInteract, canOpenJobs, currentMonday, preferenceOwner, today }: { board: ProductionBoardViewModel; canInteract: boolean; canOpenJobs: boolean; currentMonday: string; preferenceOwner: string; today: string }) {
+  const router = useRouter();
+  const [displayBoard, setDisplayBoard] = useState(board);
+  const [pending, startTransition] = useTransition();
+  const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [highlightedResult, setHighlightedResult] = useState(0);
+  const [highlightedBookingId, setHighlightedBookingId] = useState<string | null>(null);
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
+  const [detailBookingId, setDetailBookingId] = useState<string | null>(null);
+  const [detailPosition, setDetailPosition] = useState<{ x: number; y: number } | null>(null);
+  const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
+  const [completionPendingId, setCompletionPendingId] = useState<string | null>(null);
+  const [reopenState, setReopenState] = useState<ReopenState | null>(null);
+  const [moveState, setMoveState] = useState<CalendarMoveState | null>(null);
+  const [dropTarget, setDropTarget] = useState<CalendarDropTarget | null>(null);
+  const [moveUndo, setMoveUndo] = useState<CalendarUndo | null>(null);
+  const [dragBusy, setDragBusy] = useState(false);
+  const [toast, setToast] = useState<AppConfirmationToastMessage | null>(null);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const searchWrapper = useRef<HTMLDivElement>(null);
+  const highlightTimer = useRef<number | null>(null);
+  const toastId = useRef(0);
+  const draggedCard = useRef<ProductionBoardCard | null>(null);
+  const allCards = useMemo(() => displayBoard.days.flatMap((day) => day.cards), [displayBoard.days]);
+  const layers = useMemo(() => buildCalendarLayers(allCards), [allCards]);
+  const availableKeys = useMemo(() => layers.filter((layer) => layer.available).map((layer) => layer.key), [layers]);
+  const [visibleLayers, setVisibleLayers] = useState<string[]>(availableKeys);
+  const layerStorageKey = `doorgo.calendar.visible-layers.v1:${preferenceOwner}`;
+  const searchResults = useMemo(() => searchCalendarCards(allCards, search), [allCards, search]);
+  const detailCard = detailBookingId ? allCards.find((card) => card.bookingId === detailBookingId) ?? null : null;
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(layerStorageKey);
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored) as unknown;
+      if (!Array.isArray(parsed)) return;
+      const timer = window.setTimeout(() => {
+        setVisibleLayers(availableKeys.filter((key) => parsed.includes(key)));
+      }, 0);
+      return () => window.clearTimeout(timer);
+    } catch {
+      window.localStorage.removeItem(layerStorageKey);
+    }
+  }, [availableKeys, layerStorageKey]);
+
+  useEffect(() => () => {
+    if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (!moveUndo) return;
+    const timer = window.setTimeout(() => setMoveUndo(null), 7000);
+    return () => window.clearTimeout(timer);
+  }, [moveUndo]);
+
+  const navigate = (monday: string) => startTransition(() => router.push(`/calendar?week=${encodeURIComponent(monday)}`));
+  const toggleLayer = (key: string) => setVisibleLayers((current) => {
+    const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
+    window.localStorage.setItem(layerStorageKey, JSON.stringify(next));
+    return next;
+  });
+  const selectSearchResult = (card: ProductionBoardCard) => {
+    const layerKey = productionLayerKey(card.salesperson);
+    setVisibleLayers((current) => {
+      if (current.includes(layerKey)) return current;
+      const next = [...current, layerKey];
+      window.localStorage.setItem(layerStorageKey, JSON.stringify(next));
+      return next;
+    });
+    setSearchOpen(false);
+    setHighlightedBookingId(card.bookingId);
+    window.setTimeout(() => {
+      document.getElementById(bookingElementId(card.bookingId))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+    if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current);
+    highlightTimer.current = window.setTimeout(() => setHighlightedBookingId(null), 2200);
+  };
+  const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      setSearchOpen(false);
+      return;
+    }
+    if (!searchResults.length) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      setSearchOpen(true);
+      setHighlightedResult((current) => event.key === 'ArrowDown'
+        ? (current + 1) % searchResults.length
+        : (current - 1 + searchResults.length) % searchResults.length);
+      return;
+    }
+    if (event.key === 'Enter' && searchOpen) {
+      event.preventDefault();
+      selectSearchResult(searchResults[Math.min(highlightedResult, searchResults.length - 1)]);
+    }
+  };
+
+  const announce = (tone: 'success' | 'error', text: string) => {
+    toastId.current += 1;
+    setToast({ id: toastId.current, tone, text });
+  };
+  const updateCompletionLocally = (bookingId: string, completedAt: string | null) => {
+    const updateDays = (days: typeof displayBoard.days) => days.map((day) => ({
+      ...day,
+      cards: day.cards.map((card) => card.bookingId === bookingId ? { ...card, completedAt } : card),
+    }));
+    setDisplayBoard((current) => ({
+      ...current,
+      days: updateDays(current.days),
+      weekGroups: current.weekGroups.map((week) => ({ ...week, days: updateDays(week.days) })),
+    }));
+  };
+  const completeCard = async (card: ProductionBoardCard) => {
+    if (!canInteract || completionPendingId || getProductionScheduleCompletionBlockReason(card, false)) return;
+    setCompletionPendingId(card.bookingId);
+    const result = await completeProductionBooking({ commandId: createSecureCommandId(), bookingId: card.bookingId, expectedProductionDate: card.productionDate });
+    setCompletionPendingId(null);
+    if (!result.ok) {
+      announce('error', result.message);
+      if (result.code === 'stale_booking' || result.code === 'already_completed') router.refresh();
+      return;
+    }
+    updateCompletionLocally(card.bookingId, result.event.resultingCompletedAt);
+    announce('success', 'Production booking marked complete.');
+    router.refresh();
+  };
+  const submitReopen = async () => {
+    const snapshot = reopenState;
+    if (!snapshot || snapshot.pending || !snapshot.card.completedAt) return;
+    const reason = snapshot.reason.trim();
+    if (!reason || reason.length > 500) {
+      setReopenState({ ...snapshot, error: 'Enter a reason between 1 and 500 characters.' });
+      return;
+    }
+    setReopenState({ ...snapshot, pending: true, error: null });
+    const result = await reopenProductionBooking({ commandId: createSecureCommandId(), bookingId: snapshot.card.bookingId, expectedProductionDate: snapshot.card.productionDate, expectedCompletedAt: snapshot.card.completedAt, reason });
+    if (!result.ok) {
+      setReopenState({ ...snapshot, pending: false, error: result.message });
+      if (result.code === 'stale_booking' || result.code === 'not_completed') router.refresh();
+      return;
+    }
+    updateCompletionLocally(snapshot.card.bookingId, null);
+    setReopenState(null);
+    announce('success', 'Production booking reopened.');
+    router.refresh();
+  };
+  const openDetails = (card: ProductionBoardCard) => {
+    const bounds = workspaceRef.current?.getBoundingClientRect();
+    setDetailBookingId(card.bookingId);
+    setDetailPosition(bounds ? { x: Math.max(bounds.left + 8, bounds.right - 368), y: bounds.top + 56 } : null);
+  };
+  const executeMove = async (snapshot: CalendarMoveState) => {
+    if (snapshot.pending || dragBusy) return;
+    const reason = snapshot.reason.trim();
+    if (snapshot.requiresBackdateReason && (!reason || reason.length > 500)) {
+      setMoveState({ ...snapshot, error: 'Enter a reason between 1 and 500 characters.' });
+      return;
+    }
+    if ((snapshot.requiresAcknowledgement && !snapshot.acknowledged) || (snapshot.requiresClosedOverride && !snapshot.closedAcknowledged)) {
+      setMoveState({ ...snapshot, error: 'Confirm the required acknowledgement before moving.' });
+      return;
+    }
+    const before = displayBoard;
+    const optimistic = moveCalendarBookingLocally(before, snapshot.card.bookingId, snapshot.destinationDate);
+    setDisplayBoard(optimistic);
+    setMoveState((current) => current ? { ...current, pending: true, error: null } : current);
+    setDragBusy(true);
+    const result = await rescheduleCalendarProductionBooking({
+      commandId: createSecureCommandId(), bookingId: snapshot.card.bookingId,
+      expectedProductionDate: snapshot.card.productionDate, destinationProductionDate: snapshot.destinationDate,
+      whollyUnstartedAcknowledged: snapshot.requiresAcknowledgement ? snapshot.acknowledged : false,
+      backdateReason: snapshot.requiresBackdateReason ? reason : null,
+      closedDateOverrideAcknowledged: snapshot.requiresClosedOverride ? snapshot.closedAcknowledged : false,
+    });
+    setDragBusy(false);
+    if (!result.ok) {
+      setDisplayBoard(before);
+      setMoveState((current) => current ? { ...current, pending: false, error: result.message } : current);
+      announce('error', result.message);
+      if (['stale_booking', 'not_found', 'ineligible_booking', 'permission_required'].includes(result.code)) { setMoveState(null); router.refresh(); }
+      return;
+    }
+    setMoveState(null);
+    setMoveUndo(snapshot.undoing ? null : { bookingId: snapshot.card.bookingId, fromDate: snapshot.card.productionDate, toDate: snapshot.destinationDate, sourceOrder: snapshot.sourceOrder });
+    if (snapshot.undoing) announce('success', 'Move undone.');
+    if (snapshot.undoing) await restoreUndoOrder(optimistic, snapshot.destinationDate, snapshot.sourceOrder);
+    router.refresh();
+  };
+  const restoreUndoOrder = async (authoritativeCandidate: ProductionBoardViewModel, date: string, desiredOrder: string[]) => {
+    const day = authoritativeCandidate.days.find((item) => item.date === date);
+    if (!day) return;
+    const currentIds = day.cards.map((card) => card.bookingId);
+    if (currentIds.length !== desiredOrder.length || desiredOrder.some((id) => !currentIds.includes(id))) return;
+    const result = await reorderCalendarProductionDay({ productionDate: date, expectedBookingIds: currentIds, orderedBookingIds: desiredOrder });
+    if (!result.ok) announce('error', 'The date was restored, but its prior order changed elsewhere. The Calendar was refreshed.');
+  };
+  const beginDateMove = (card: ProductionBoardCard, destinationDate: string, sourceOrder: string[], undoing = false) => {
+    if (!undoing) setMoveUndo(null);
+    const destination = displayBoard.days.find((day) => day.date === destinationDate);
+    if (!destination || getProductionScheduleCardMoveBlockReason(card, false)) {
+      announce('error', 'This Production booking cannot be moved to another date.');
+      return;
+    }
+    const exceptional: CalendarMoveState = {
+      card, destinationDate, sourceOrder,
+      requiresAcknowledgement: card.productionDate <= today || destinationDate === today,
+      requiresBackdateReason: destinationDate < today,
+      requiresClosedOverride: destination.isExplicitlyClosed,
+      acknowledged: false, closedAcknowledged: false, reason: '', pending: false, error: null, undoing,
+    };
+    if (exceptional.requiresAcknowledgement || exceptional.requiresBackdateReason || exceptional.requiresClosedOverride) setMoveState(exceptional);
+    else void executeMove(exceptional);
+  };
+  const reorderDay = async (date: string, draggedId: string, targetId: string, beforeTarget: boolean) => {
+    const day = displayBoard.days.find((item) => item.date === date);
+    if (!day) return;
+    const expected = day.cards.map((card) => card.bookingId);
+    const ordered = reorderBookingIds(expected, draggedId, targetId, beforeTarget);
+    if (ordered === expected || ordered.every((id, index) => id === expected[index])) return;
+    const before = displayBoard;
+    setDisplayBoard(reorderCalendarDayLocally(before, date, ordered));
+    setDragBusy(true);
+    const result = await reorderCalendarProductionDay({ productionDate: date, expectedBookingIds: expected, orderedBookingIds: ordered });
+    setDragBusy(false);
+    if (!result.ok) {
+      setDisplayBoard(before);
+      announce('error', result.message);
+      if (result.code === 'stale_day') router.refresh();
+      return;
+    }
+    router.refresh();
+  };
+  const beginUndo = () => {
+    if (!moveUndo) return;
+    const card = allCards.find((item) => item.bookingId === moveUndo.bookingId);
+    if (!card || card.productionDate !== moveUndo.toDate) { setMoveUndo(null); announce('error', 'Undo is no longer safe. The Calendar was refreshed.'); router.refresh(); return; }
+    beginDateMove(card, moveUndo.fromDate, moveUndo.sourceOrder, true);
+  };
+  const onCardDragStart = (card: ProductionBoardCard, event: React.DragEvent<HTMLElement>) => {
+    if (!canInteract || dragBusy || card.bookingKind !== 'production' || card.locked) { event.preventDefault(); return; }
+    draggedCard.current = card;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', card.bookingId);
+  };
+  const onDayDragOver = (date: string, event: React.DragEvent<HTMLElement>) => {
+    if (!draggedCard.current || dragBusy) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const target = (event.target as HTMLElement).closest<HTMLElement>('[data-booking-id]');
+    const targetId = target?.dataset.bookingId ?? null;
+    const before = target ? event.clientY < target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2 : false;
+    setDropTarget((current) => current?.date === date && current.targetId === targetId && current.before === before ? current : { date, targetId, before });
+  };
+  const onDayDrop = (date: string, event: React.DragEvent<HTMLElement>) => {
+    const card = draggedCard.current;
+    if (!card) return;
+    event.preventDefault();
+    draggedCard.current = null;
+    const target = dropTarget?.date === date ? dropTarget : null;
+    setDropTarget(null);
+    const sourceDay = displayBoard.days.find((day) => day.date === card.productionDate);
+    if (!sourceDay) return;
+    if (date === card.productionDate) {
+      if (target?.targetId) void reorderDay(date, card.bookingId, target.targetId, target.before);
+      return;
+    }
+    beginDateMove(card, date, sourceDay.cards.map((item) => item.bookingId));
+  };
+  const onCardDragEnd = () => { draggedCard.current = null; setDropTarget(null); };
+
+  return <div className="calendar-workspace" ref={workspaceRef}>
+    <header className="calendar-toolbar" aria-label="Calendar controls">
+      <div className="calendar-toolbar-cluster" aria-label="Calendar date navigation">
+        <ToolbarButton label="Previous month" disabled={pending} onClick={() => navigate(addDaysToDateOnly(displayBoard.startDate, -28))}>&lsaquo;</ToolbarButton>
+        <ToolbarButton label="Current week" disabled={pending || displayBoard.startDate === currentMonday} onClick={() => navigate(currentMonday)}>Today</ToolbarButton>
+        <ToolbarButton label="Next month" disabled={pending} onClick={() => navigate(addDaysToDateOnly(displayBoard.startDate, 28))}>&rsaquo;</ToolbarButton>
+      </div>
+      <div className="calendar-search" ref={searchWrapper} onBlur={() => window.setTimeout(() => { if (!searchWrapper.current?.contains(document.activeElement)) setSearchOpen(false); }, 0)}>
+        <label><span className="sr-only">Search by name or sales order</span><input aria-activedescendant={searchOpen && searchResults.length ? searchResultId(searchResults[Math.min(highlightedResult, searchResults.length - 1)].bookingId) : undefined} aria-autocomplete="list" aria-controls="calendar-search-results" aria-expanded={searchOpen} onChange={(event) => { const value = event.target.value; setSearch(value); setHighlightedResult(0); setSearchOpen(Boolean(value.trim())); }} onFocus={() => setSearchOpen(Boolean(search.trim()))} onKeyDown={onSearchKeyDown} placeholder="Name / SO Search" role="combobox" type="search" value={search}/></label>
+        {searchOpen ? <div className="calendar-search-results" id="calendar-search-results" role="listbox">
+          {searchResults.length ? searchResults.map((card, index) => <button aria-selected={index === highlightedResult} className="calendar-search-result" id={searchResultId(card.bookingId)} key={card.bookingId} onClick={() => selectSearchResult(card)} onMouseDown={(event) => event.preventDefault()} role="option" type="button"><span>{card.customer?.trim() || card.title?.trim() || 'Untitled'}</span><small>{card.jobId?.trim() || 'Unlinked'} · {formatSearchDate(card.productionDate)}</small></button>) : <p className="calendar-search-empty">No matches in the loaded Calendar.</p>}
+        </div> : null}
+      </div>
+      <LayersPicker layers={layers} open={layersOpen} setOpen={setLayersOpen} toggle={toggleLayer} visible={visibleLayers}/>
+      <button className="calendar-toolbar-button" type="button" title="Needs Attention workflow is planned for a later Calendar pass">Needs Attention · 0</button>
+      <button className="calendar-toolbar-button" type="button" title="Calendar document workflow is planned for a later pass">Documents · 0</button>
+      {pending ? <span className="sr-only" role="status">Loading Calendar…</span> : null}
+    </header>
+    <main className="calendar-stream" aria-label="DoorGo Calendar">
+      {displayBoard.weekGroups.map((week) => <section className="calendar-week" key={week.startDate}>
+        <div className="calendar-month-row" aria-hidden="true">
+          {calendarMonthSegments(week.days.map((day) => day.date)).map((segment) => <span key={`${week.startDate}-${segment.label}`} style={{ gridColumn: `${segment.startColumn} / span ${segment.span}` }}>{segment.label}</span>)}
+        </div>
+        <div className="calendar-days">
+          {week.days.map((day) => {
+            const cards = day.cards.filter((card) => visibleLayers.includes(productionLayerKey(card.salesperson)));
+            const overloaded = day.capacityKnown && day.availableHours !== null && day.totalKnownShopHours > day.availableHours;
+            const expanded = expandedDate === day.date;
+            return <article className="calendar-day" data-day-state={day.dateState} data-drop-target={dropTarget?.date === day.date || undefined} data-expanded={expanded || undefined} data-overloaded={overloaded || undefined} key={day.date} onClick={() => setExpandedDate(day.date)} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget((current) => current?.date === day.date ? null : current); }} onDragOver={(event) => onDayDragOver(day.date, event)} onDrop={(event) => onDayDrop(day.date, event)}>
+              <header className="calendar-day-header">
+                <div><strong>{formatDay(day.date)}</strong><span>{calendarCapacityLabel(day)}</span></div>
+                <div className="calendar-day-actions">{expanded ? <button onClick={(event) => { event.stopPropagation(); setExpandedDate(null); }} type="button">Close</button> : null}<button onClick={(event) => { event.stopPropagation(); setQuickAddDate(day.date); }} type="button">+ Add</button></div>
+              </header>
+              <div className="calendar-card-list">
+                {cards.map((card) => expanded
+                  ? <ExpandedProductionCard calendarWeek={displayBoard.startDate} canDrag={canInteract && !dragBusy && !card.locked} canInteract={canInteract} canOpenJobs={canOpenJobs} card={card} dropPosition={dropTarget?.date === day.date && dropTarget.targetId === card.bookingId ? (dropTarget.before ? 'before' : 'after') : null} highlighted={card.bookingId === highlightedBookingId} key={card.bookingId} onComplete={() => void completeCard(card)} onDetails={() => openDetails(card)} onDragEnd={onCardDragEnd} onDragStart={(event) => onCardDragStart(card, event)} onReopen={() => setReopenState({ card, reason: '', pending: false, error: null })} pending={completionPendingId === card.bookingId}/>
+                  : <CalendarProductionCard canDrag={canInteract && !dragBusy && !card.locked} card={card} dropPosition={dropTarget?.date === day.date && dropTarget.targetId === card.bookingId ? (dropTarget.before ? 'before' : 'after') : null} highlighted={card.bookingId === highlightedBookingId} key={card.bookingId} onDragEnd={onCardDragEnd} onDragStart={(event) => onCardDragStart(card, event)}/>)}
+              </div>
+            </article>;
+          })}
+        </div>
+      </section>)}
+    </main>
+    {detailCard ? <ProductionDetailPanel calendarWeek={displayBoard.startDate} canOpenJobs={canOpenJobs} card={detailCard} onClose={() => setDetailBookingId(null)} position={detailPosition} setPosition={setDetailPosition} workspaceRef={workspaceRef}/> : null}
+    {quickAddDate ? <QuickAddPicker date={quickAddDate} onClose={() => setQuickAddDate(null)}/> : null}
+    {reopenState ? <ReopenPanel state={reopenState} onCancel={() => { if (!reopenState.pending) setReopenState(null); }} onChange={(reason) => setReopenState((current) => current ? { ...current, reason, error: null } : current)} onSubmit={() => void submitReopen()}/> : null}
+    {moveState ? <ExceptionalMovePanel state={moveState} onCancel={() => { if (!moveState.pending) setMoveState(null); }} onChange={(changes) => setMoveState((current) => current ? { ...current, ...changes, error: null } : current)} onSubmit={() => void executeMove(moveState)}/> : null}
+    {moveUndo ? <div className="calendar-move-undo" role="status"><span>Moved</span><span aria-hidden="true">·</span><button disabled={dragBusy} onClick={beginUndo} type="button">Undo</button></div> : null}
+    <AppConfirmationToast message={toast} onDismiss={() => setToast(null)}/>
+  </div>;
+}
+
+function LayersPicker({ layers, open, setOpen, toggle, visible }: { layers: CalendarLayer[]; open: boolean; setOpen: (open: boolean) => void; toggle: (key: string) => void; visible: string[] }) {
+  const wrapper = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => { if (!wrapper.current?.contains(event.target as Node)) setOpen(false); };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => { document.removeEventListener('pointerdown', onPointerDown); document.removeEventListener('keydown', onKeyDown); };
+  }, [open, setOpen]);
+
+  const groups = [
+    ['PRODUCTION', layers.filter((layer) => layer.kind === 'production')],
+    ['FULFILLMENT', layers.filter((layer) => layer.kind === 'delivery' || layer.kind === 'customer_pickup')],
+    ['OTHER', layers.filter((layer) => !['production', 'delivery', 'customer_pickup'].includes(layer.kind))],
+  ] as const;
+  return <div className="calendar-layers" ref={wrapper}>
+    <button aria-expanded={open} className="calendar-toolbar-button" onClick={() => setOpen(!open)} type="button">Layers</button>
+    {open ? <div className="calendar-layers-menu">
+      {groups.map(([label, groupLayers]) => <fieldset key={label}><legend>{label}</legend>{groupLayers.map((layer) => <label data-unavailable={!layer.available || undefined} key={layer.key}><input checked={layer.available && visible.includes(layer.key)} disabled={!layer.available} onChange={() => toggle(layer.key)} type="checkbox"/><span>{layer.label}</span>{!layer.available ? <small>Later</small> : null}</label>)}</fieldset>)}
+    </div> : null}
+  </div>;
+}
+
+function ExpandedProductionCard({ calendarWeek, card, canDrag, canInteract, canOpenJobs, dropPosition, highlighted, onComplete, onDetails, onDragEnd, onDragStart, onReopen, pending }: { calendarWeek: string; card: ProductionBoardCard; canDrag: boolean; canInteract: boolean; canOpenJobs: boolean; dropPosition: 'before' | 'after' | null; highlighted: boolean; onComplete: () => void; onDetails: () => void; onDragEnd: () => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void; onReopen: () => void; pending: boolean }) {
+  const color = salespersonColor(card.salesperson);
+  const completed = card.completedAt !== null;
+  const blocked = !canInteract || pending || getProductionScheduleCompletionBlockReason(card, false) !== null;
+  return <div className="calendar-expanded-production" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} onClick={(event) => event.stopPropagation()}>
+    <span aria-hidden="true" className="calendar-drag-handle" title="Drag Production booking">⋮⋮</span>
+    <div className="calendar-expanded-info"><strong>{card.customer?.trim() || card.title?.trim() || 'Untitled'}</strong><span>{card.shopHoursKnown ? `${formatHours(card.shopHours ?? 0)} hrs` : '◷ TBD'} · {card.jobId?.trim() || 'Unlinked'}</span></div>
+    <button disabled={blocked} onClick={completed ? onReopen : onComplete} type="button">{pending ? 'Saving…' : completed ? 'Reopen' : 'Complete'}</button>
+    {card.internalJobId && canOpenJobs ? <Link href={jobHref(card.internalJobId, calendarWeek)}>Open Job</Link> : null}
+    <button aria-label={`More details for ${card.customer?.trim() || card.title}`} onClick={onDetails} type="button">•••</button>
+  </div>;
+}
+
+function ProductionDetailPanel({ calendarWeek, canOpenJobs, card, onClose, position, setPosition, workspaceRef }: { calendarWeek: string; canOpenJobs: boolean; card: ProductionBoardCard; onClose: () => void; position: { x: number; y: number } | null; setPosition: (position: { x: number; y: number }) => void; workspaceRef: React.RefObject<HTMLDivElement | null> }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dragOffset = useRef<{ x: number; y: number } | null>(null);
+  const move = (event: React.PointerEvent<HTMLElement>) => {
+    if (!dragOffset.current) return;
+    const workspace = workspaceRef.current?.getBoundingClientRect();
+    const panel = panelRef.current?.getBoundingClientRect();
+    if (!workspace || !panel) return;
+    setPosition({
+      x: Math.min(Math.max(event.clientX - dragOffset.current.x, workspace.left + 8), workspace.right - panel.width - 8),
+      y: Math.min(Math.max(event.clientY - dragOffset.current.y, workspace.top + 8), workspace.bottom - 42),
+    });
+  };
+  return <aside className="calendar-detail-panel" ref={panelRef} style={position ? { left: position.x, top: position.y } : undefined}>
+    <header onPointerDown={(event) => { const panel = panelRef.current?.getBoundingClientRect(); if (!panel) return; dragOffset.current = { x: event.clientX - panel.left, y: event.clientY - panel.top }; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={move} onPointerUp={(event) => { dragOffset.current = null; event.currentTarget.releasePointerCapture(event.pointerId); }}>
+      <strong>Production details</strong><button aria-label="Close Production details" onClick={onClose} type="button">×</button>
+    </header>
+    <dl>
+      <Detail label="Customer / name" value={card.customer?.trim() || card.title?.trim() || 'Untitled'}/>
+      <Detail label="Sales Order" value={card.jobId?.trim() || 'Unlinked'}/>
+      <Detail label="Salesperson" value={card.salesperson?.trim() || 'Unassigned'}/>
+      <Detail label="Shop Hours" value={card.shopHoursKnown ? formatHours(card.shopHours ?? 0) : 'TBD'}/>
+      <Detail label="Production date" value={formatSearchDate(card.productionDate)}/>
+      <Detail label="Completion" value={card.completedAt ? 'Completed' : 'Open'}/>
+      <Detail label="Link status" value={card.type === 'doorgo_linked' ? 'Legacy DoorGo-linked' : 'Unlinked'}/>
+    </dl>
+    {card.internalJobId && canOpenJobs ? <Link className="calendar-detail-job-link" href={jobHref(card.internalJobId, calendarWeek)}>Open Job</Link> : null}
+  </aside>;
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return <div><dt>{label}</dt><dd>{value}</dd></div>;
+}
+
+function QuickAddPicker({ date, onClose }: { date: string; onClose: () => void }) {
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!panel.current?.contains(event.target as Node)) { event.preventDefault(); event.stopPropagation(); onClose(); }
+    };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKeyDown);
+    return () => { document.removeEventListener('pointerdown', onPointerDown, true); document.removeEventListener('keydown', onKeyDown); };
+  }, [onClose]);
+  return <div className="calendar-floating-backdrop"><div className="calendar-quick-add" ref={panel} role="dialog" aria-label={`Add to ${formatSearchDate(date)}`}><header><strong>Add to {formatSearchDate(date)}</strong><button aria-label="Close Add picker" onClick={onClose} type="button">×</button></header>{['Production', 'Delivery', 'Customer Pickup', 'Staff Away', 'Note'].map((option) => <button disabled key={option} title={`${option} persistence is not available in this pass`} type="button"><span>{option}</span><small>Later</small></button>)}</div></div>;
+}
+
+function ReopenPanel({ state, onCancel, onChange, onSubmit }: { state: ReopenState; onCancel: () => void; onChange: (reason: string) => void; onSubmit: () => void }) {
+  return <div className="calendar-floating-backdrop"><form className="calendar-reopen-panel" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}><h2>Reopen production booking?</h2><p>Reopening preserves its Production date and position.</p><label><span>Reason</span><textarea autoFocus disabled={state.pending} maxLength={500} onChange={(event) => onChange(event.target.value)} value={state.reason}/></label>{state.error ? <p role="alert">{state.error}</p> : null}<footer><button disabled={state.pending} onClick={onCancel} type="button">Cancel</button><button disabled={state.pending} type="submit">{state.pending ? 'Reopening…' : 'Reopen'}</button></footer></form></div>;
+}
+
+function ExceptionalMovePanel({ state, onCancel, onChange, onSubmit }: { state: CalendarMoveState; onCancel: () => void; onChange: (changes: Partial<CalendarMoveState>) => void; onSubmit: () => void }) {
+  return <div className="calendar-floating-backdrop"><form className="calendar-move-panel" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}><h2>{state.undoing ? 'Confirm undo move' : `Move to ${formatSearchDate(state.destinationDate)}`}</h2>
+    {state.requiresAcknowledgement ? <label className="calendar-move-check"><input checked={state.acknowledged} disabled={state.pending} onChange={(event) => onChange({ acknowledged: event.target.checked })} type="checkbox"/><span>Confirm the whole booking is safe to move for this today/past exception.</span></label> : null}
+    {state.requiresClosedOverride ? <label className="calendar-move-check"><input checked={state.closedAcknowledged} disabled={state.pending} onChange={(event) => onChange({ closedAcknowledged: event.target.checked })} type="checkbox"/><span>Confirm scheduling Production on this closed date.</span></label> : null}
+    {state.requiresBackdateReason ? <label><span>Backdate reason</span><textarea autoFocus disabled={state.pending} maxLength={500} onChange={(event) => onChange({ reason: event.target.value })} value={state.reason}/></label> : null}
+    {state.error ? <p role="alert">{state.error}</p> : null}
+    <footer><button disabled={state.pending} onClick={onCancel} type="button">Cancel</button><button disabled={state.pending} type="submit">{state.pending ? 'Moving…' : state.undoing ? 'Undo move' : 'Move'}</button></footer>
+  </form></div>;
+}
+
+function CalendarProductionCard({ card, canDrag, dropPosition, highlighted, onDragEnd, onDragStart }: { card: ProductionBoardCard; canDrag: boolean; dropPosition: 'before' | 'after' | null; highlighted: boolean; onDragEnd: () => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void }) {
+  const color = salespersonColor(card.salesperson);
+  const hours = card.shopHoursKnown ? formatHours(card.shopHours ?? 0) : '◷';
+  const customer = card.customer?.trim() || card.title?.trim() || 'Untitled';
+  const salesOrder = card.jobId?.trim() || 'Unlinked';
+  const completed = card.completedAt !== null;
+  return <div className="calendar-production-card" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} title={`${hours} · ${customer} · ${salesOrder}`}>
+    <span className="calendar-production-card-text">{hours} · {customer} · {salesOrder}</span>
+    {completed ? <span aria-label="Completed" className="calendar-completion-cue">✓</span> : null}
+  </div>;
+}
+
+function ToolbarButton({ children, disabled, label, onClick }: { children: React.ReactNode; disabled: boolean; label: string; onClick: () => void }) {
+  return <button aria-label={label} className="calendar-toolbar-button" disabled={disabled} onClick={onClick} type="button">{children}</button>;
+}
+
+function formatDay(dateText: string): string {
+  const [year, month, day] = dateText.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', { weekday: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, day))).toLocaleUpperCase();
+}
+
+function formatSearchDate(dateText: string): string {
+  const [year, month, day] = dateText.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function bookingElementId(bookingId: string): string {
+  return `calendar-booking-${bookingId}`;
+}
+
+function searchResultId(bookingId: string): string {
+  return `calendar-search-result-${bookingId}`;
+}
+
+function jobHref(internalJobId: string, calendarWeek: string): string {
+  return `/jobs/${encodeURIComponent(internalJobId)}/edit?returnTo=${encodeURIComponent(`/calendar?week=${calendarWeek}`)}`;
+}
+
+function formatHours(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function createSecureCommandId(): string {
+  return crypto.randomUUID();
+}

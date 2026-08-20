@@ -54,6 +54,7 @@ export function normalizeProductionBoard(
       type: isDoorGoLinked ? 'doorgo_linked' : 'biztrack_only',
       typeLabel: isDoorGoLinked ? 'DoorGo-linked' : 'BizTrack-only',
       productionDate: row.production_date,
+      dayOrder: Number(row.day_order),
       title:
         row.title ||
         linkedJob?.customer ||
@@ -61,6 +62,7 @@ export function normalizeProductionBoard(
         'Untitled production booking',
       customer: linkedJob?.customer ?? null,
       jobId: row.job_id,
+      internalJobId: linkedJob?.internal_job_id ?? null,
       calendarId: row.calendar_id,
       calendarEventId: row.calendar_event_id,
       shopHours,

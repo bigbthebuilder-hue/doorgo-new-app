@@ -5,6 +5,7 @@ import {
 
 export const PRODUCTION_BOOKING_RESCHEDULE_RPC = 'reschedule_production_booking';
 export const PRODUCTION_RESCHEDULE_REVALIDATE_PATHS = [
+  '/calendar',
   '/production-board',
   '/production-schedule',
   '/production-recovery',

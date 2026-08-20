@@ -119,7 +119,7 @@ assert.match(schedule, /canRescheduleProductionBooking\(access\)[\s\S]*Productio
 
 for (const marker of ["access('none')", "access('view')", "access('use')", 'acknowledgement_required', 'backdate_reason_required', 'invalid_backdate_reason', 'closed_date_override_required', 'command_uuid_collision', 'stale_booking', 'secret SQL details', '1.234', 'Vancouver rollover', 'open-to-closed', 'closed-to-open', 'stored action type', 'original closed snapshot', 'materially different acknowledgement', 'materially different normalized reason']) assert.ok(tests.includes(marker), `Missing focused test marker ${marker}`);
 const migrations = readdirSync('supabase/migrations').filter((name) => name.endsWith('.sql')).map((name) => `supabase/migrations/${name}`);
-assert.deepEqual(migrations.filter((path) => /create or replace function public\.reschedule_production_booking\s*\(/i.test(read(path))), [paths.migration]);
+assert.deepEqual(migrations.filter((path) => /create or replace function public\.reschedule_production_booking\s*\(/i.test(read(path))), [paths.migration, 'supabase/migrations/20260821000000_add_production_day_order.sql']);
 const d2Hash = createHash('sha256').update(read(paths.d2Migration).replace(/\r\n/g, '\n')).digest('hex').toUpperCase();
 assert.equal(d2Hash, '372D7146EA0E0E921BE2D63E89F3383158C46BFBC9AFCEAAEEF8BD9EFD72A3B0', 'Applied D2 migration changed');
 assert.match(docs, /operationally read-only[\s\S]*final cutover/i);

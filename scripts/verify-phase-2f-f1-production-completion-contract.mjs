@@ -211,7 +211,7 @@ assert.doesNotMatch(`${service}\n${actions}`, /trusted-read-server|service[_-]?r
 assert.match(actions, /^'use server';/);
 assert.match(actions, /completeProductionBooking/);
 assert.match(actions, /reopenProductionBooking/);
-for (const path of ['/production-board', '/production-schedule', '/production-recovery', '/production-checkpoints']) {
+for (const path of ['/calendar', '/production-board', '/production-schedule', '/production-recovery', '/production-checkpoints']) {
   assert.ok(contract.includes(`'${path}'`), `Missing successful revalidation path: ${path}`);
 }
 assert.match(actions, /revalidatePath\(path\)/);
@@ -232,8 +232,8 @@ const completionActionUiFiles = [
 ].filter((path) => /production-booking-completion-actions|completeProductionBooking|reopenProductionBooking/.test(read(path)));
 assert.deepEqual(
   completionActionUiFiles,
-  ['components/ProductionScheduleInteractiveBoard.tsx'],
-  'Completion actions must remain isolated to the private Production Schedule client boundary',
+  ['components/CalendarWorkspace.tsx', 'components/ProductionScheduleInteractiveBoard.tsx'],
+  'Completion actions must remain isolated to permission-gated scheduling client boundaries',
 );
 assert.doesNotMatch(
   read('app/production-board/page.tsx'),

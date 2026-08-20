@@ -25,6 +25,7 @@ function booking(overrides: Partial<ProductionBookingRow>): ProductionBookingRow
     calendar_event_id: null,
     title: 'Test booking',
     production_date: '2026-07-06',
+    day_order: 1024,
     shop_hours: 5,
     salesperson: null,
     status: 'active',
@@ -108,6 +109,14 @@ function run(): void {
   assert.equal(normal.weekGroups[0].totalAvailableHours, 12);
   assert.equal(normal.weekGroups[0].remainingHours, 1.5);
   assert.equal(normal.weekGroups[0].overloadHours, 0);
+
+  const nativeLinked = normalizeProductionBoard(
+    [booking({ job_id: 'DG-000123' })],
+    [{ internal_job_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', job_id: 'DG-000123', customer: 'Native customer', site_address: null, salesperson: null, status: null, active: null, shop_hours: 5, job_stage: null }],
+    [capacity({ availableHours: 12 })],
+    params,
+  );
+  assert.equal(nativeLinked.days[0].cards[0].internalJobId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   assert.equal(normal.weekGroups[0].comparisonComplete, true);
 
   const overloaded = normalizeProductionBoard(

@@ -32,6 +32,10 @@ export function isAppNavigationItemActive(pathname: string, item: AppNavigationI
 export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNavigationItem[] {
   const items: AppNavigationItem[] = [{ href: '/', label: 'Home', icon: 'home', match: 'exact' }, productionBoard];
 
+  if (hasAtLeastView(access, 'calendar')) {
+    items.push({ href: '/calendar', label: 'Calendar', icon: 'schedule', match: 'section', showOnHome: true });
+  }
+
   if (hasAtLeastView(access, 'production')) {
     items.push(
       { href: '/production-schedule', label: 'Edit Schedule', icon: 'schedule', match: 'section', showOnHome: true },

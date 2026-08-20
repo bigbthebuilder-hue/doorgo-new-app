@@ -8,6 +8,7 @@ export type ProductionBookingRow = {
   calendar_event_id: string | null;
   title: string | null;
   production_date: string;
+  day_order?: number | string;
   shop_hours: number | string | null;
   salesperson: string | null;
   status: string | null;
@@ -23,6 +24,7 @@ export type ProductionBookingRow = {
 };
 
 export type DoorGoJobRow = {
+  internal_job_id?: string | null;
   job_id: string;
   customer: string | null;
   site_address: string | null;
@@ -38,9 +40,11 @@ export type ProductionBoardCard = {
   type: 'doorgo_linked' | 'biztrack_only';
   typeLabel: 'DoorGo-linked' | 'BizTrack-only';
   productionDate: string;
+  dayOrder?: number;
   title: string;
   customer: string | null;
   jobId: string | null;
+  internalJobId?: string | null;
   calendarId: string | null;
   calendarEventId: string | null;
   shopHours: number | null;

@@ -22,8 +22,9 @@ export async function findCalendarJobOptions(repository:Pick<JobIntakeRepository
   const aggregates=await Promise.all(matches.map((job)=>repository.findById(job.internalJobId)));
   return aggregates.filter((job):job is NativeJobAggregate=>job!==null).filter((job)=>calendarJobEligible(job.fulfillmentPlan,itemType)).map(calendarJobOption).slice(0,20);
 }
-export function jobHeaderForFulfillment(job:NativeJobAggregate,fulfillmentPlan:'Delivery'|'Customer Pickup'){
+export function jobHeaderForFulfillment(job:NativeJobAggregate,fulfillmentPlan:'Delivery'|'Customer Pickup',scheduledDate:string|null=fulfillmentPlan==='Delivery'?job.deliveryDate:job.customerPickupDate){
   return {bizTrackSalesOrder:job.bizTrackSalesOrder,customer:job.customer,siteAddress:job.siteAddress,phone:job.phone,email:job.email,salesperson:job.salesperson,
     notes:job.notes,hingeColor:job.hingeColor,shopHours:job.shopHours,shopHoursSource:job.shopHoursSource,poNumbers:job.poNumbers,fulfillmentPlan,
-    deliveryDate:job.deliveryDate,customerPickupDate:job.customerPickupDate,shopDate:job.shopDate,shopDateSource:job.shopDateSource,lifecycleStage:job.lifecycleStage};
+    deliveryDate:fulfillmentPlan==='Delivery'?scheduledDate:null,customerPickupDate:fulfillmentPlan==='Customer Pickup'?scheduledDate:null,shopDate:job.shopDate,shopDateSource:job.shopDateSource,lifecycleStage:job.lifecycleStage};
 }
+export function jobHeaderForShopDate(job:NativeJobAggregate,shopDate:string|null){return {...jobHeaderForFulfillment(job,job.fulfillmentPlan==='Customer Pickup'?'Customer Pickup':'Delivery'),fulfillmentPlan:job.fulfillmentPlan,deliveryDate:job.deliveryDate,customerPickupDate:job.customerPickupDate,shopDate,shopDateSource:shopDate?'Manual':null};}

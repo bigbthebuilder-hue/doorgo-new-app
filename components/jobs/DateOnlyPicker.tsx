@@ -1,0 +1,12 @@
+'use client';
+
+import {useEffect,useMemo,useRef,useState} from 'react';
+import {getCurrentDateInTimeZone} from '@/lib/production-board/date-utils';
+import {dateOnlyVisualState,monthCalendarDates,shiftDateOnlyMonth} from '@/lib/jobs/date-only-picker';
+
+export function DateOnlyPicker({ariaLabel,className='',disabled,id,onChange,value}:{ariaLabel:string;className?:string;disabled:boolean;id:string;onChange:(value:string)=>void;value:string}){
+  const today=useMemo(()=>getCurrentDateInTimeZone('America/Vancouver'),[]);const [open,setOpen]=useState(false);const [month,setMonth]=useState((value||today).slice(0,7));const root=useRef<HTMLDivElement>(null);
+  useEffect(()=>{if(!open)return;const close=(event:PointerEvent)=>{if(!root.current?.contains(event.target as Node))setOpen(false);};document.addEventListener('pointerdown',close,true);return()=>document.removeEventListener('pointerdown',close,true);},[open]);
+  const dates=monthCalendarDates(month);const label=new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${month}-01T00:00:00Z`));
+  return <div className={`job-date-only-picker ${className}`} ref={root}><button aria-expanded={open} aria-haspopup="dialog" aria-label={ariaLabel} disabled={disabled} id={id} onClick={()=>{setMonth((value||today).slice(0,7));setOpen((current)=>!current);}} type="button">{value||'Select date'}</button>{open?<div aria-label={`${ariaLabel} calendar`} className="job-date-only-popover" role="dialog"><header><button aria-label="Previous month" onClick={()=>setMonth((current)=>shiftDateOnlyMonth(current,-1))} type="button">‹</button><strong>{label}</strong><button aria-label="Next month" onClick={()=>setMonth((current)=>shiftDateOnlyMonth(current,1))} type="button">›</button></header><div className="job-date-only-weekdays" aria-hidden="true">{['S','M','T','W','T','F','S'].map((day,index)=><span key={`${day}-${index}`}>{day}</span>)}</div><div className="job-date-only-grid">{dates.map((date)=><button className={date.slice(0,7)===month?'':'outside'} data-date-state={dateOnlyVisualState(date,today,value)} key={date} onClick={()=>{onChange(date);setOpen(false);}} type="button">{Number(date.slice(8))}</button>)}</div><footer><button onClick={()=>{onChange('');setOpen(false);}} type="button">Clear</button>{month!==today.slice(0,7)?<button onClick={()=>setMonth(today.slice(0,7))} type="button">Today</button>:null}</footer></div>:null}</div>;
+}

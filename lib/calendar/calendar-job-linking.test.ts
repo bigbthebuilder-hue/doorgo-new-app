@@ -9,6 +9,8 @@ assert.equal(calendarJobEligible('Delivery','production'),true);assert.equal(cal
 const aggregate={...summary,phone:null,email:null,salesperson:'Alex',notes:null,hingeColor:null,shopHours:null,shopHoursSource:null,poNumbers:[],fulfillmentPlan:null,deliveryDate:null,customerPickupDate:null,shopDate:null,shopDateSource:null,createdByUserId:'u',updatedByUserId:'u',lines:[]} as NativeJobAggregate;
 const delivery=jobHeaderForFulfillment(aggregate,'Delivery');assert.equal(delivery.fulfillmentPlan,'Delivery');assert.equal(delivery.deliveryDate,null);assert.equal(delivery.customerPickupDate,null);
 const pickup=jobHeaderForFulfillment(aggregate,'Customer Pickup');assert.equal(pickup.fulfillmentPlan,'Customer Pickup');assert.equal(pickup.deliveryDate,null);assert.equal(pickup.customerPickupDate,null);
+const scheduledDelivery=jobHeaderForFulfillment(aggregate,'Delivery','2026-12-21');assert.equal(scheduledDelivery.deliveryDate,'2026-12-21');assert.equal(scheduledDelivery.customerPickupDate,null);
+const scheduledPickup=jobHeaderForFulfillment(aggregate,'Customer Pickup','2026-09-21');assert.equal(scheduledPickup.customerPickupDate,'2026-09-21');assert.equal(scheduledPickup.deliveryDate,null);
 const cursor={updatedAt:'2026-08-20T00:00:00.000Z',internalJobId:'cursor'};let pages=0;
 const later={...summary,internalJobId:'2',customer:'Far Away Job',bizTrackSalesOrder:'9876',visibleIdentifier:'9876'};
 let testedPlan:'Customer Pickup'|null='Customer Pickup';

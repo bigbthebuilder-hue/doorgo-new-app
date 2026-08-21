@@ -73,3 +73,8 @@ export async function reloadCalendarProductionDays(request: { boardStart: string
     return { ok: false };
   }
 }
+
+export async function loadCalendarWindow(request:{boardStart:string;boardEndExclusive:string;weeks:number;today:string}):Promise<{ok:true;board:ProductionBoardViewModel}|{ok:false}> {
+  const access=await getCurrentDoorGoAccess();if(!hasAtLeastView(access,'calendar'))return {ok:false};
+  try{return {ok:true,board:await loadProductionBoardReadOnly({...request,includeNativeJobLinks:hasAtLeastView(access,'jobs'),includeOperationalCalendarItems:true})};}catch{return {ok:false};}
+}

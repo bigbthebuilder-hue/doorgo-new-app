@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {dateOnlyVisualState,monthCalendarDates,shiftDateOnlyMonth} from './date-only-picker';
+assert.equal(dateOnlyVisualState('2026-08-21','2026-08-21',''),'today');
+assert.equal(dateOnlyVisualState('2026-09-21','2026-08-21',''),'none');
+assert.equal(dateOnlyVisualState('2026-12-21','2026-08-21',''),'none');
+assert.equal(dateOnlyVisualState('2026-09-21','2026-08-21','2026-09-21'),'selected');
+assert.equal(dateOnlyVisualState('2026-12-21','2026-08-21','2026-12-21'),'selected');
+assert.equal(dateOnlyVisualState('2026-08-21','2026-08-21','2026-08-21'),'today-selected');
+assert.equal(monthCalendarDates('2026-09').length,42);assert.equal(shiftDateOnlyMonth('2026-12',1),'2027-01');
+console.log('Job date-only picker tests passed');

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { clampCalendarDetailPosition, getCalendarMoveRequirements, moveCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally } from './interaction';
+import { clampCalendarDetailPosition, getCalendarMoveRequirements, moveCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction } from './interaction';
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 assert.deepEqual(reorderBookingIds(['a', 'b', 'c'], 'c', 'a', true), ['c', 'a', 'b']);
@@ -37,5 +37,12 @@ assert.deepEqual(
   clampCalendarDetailPosition({ x: -100, y: 900 }, { width: 300, height: 240 }, { left: 80, top: 40, right: 1000, bottom: 700 }, { width: 900, height: 650 }),
   { x: 88, y: 402 },
 );
+
+assert.deepEqual(resolveExpandedCalendarInteraction('2026-08-24', { kind: 'day', date: '2026-08-24', interactiveChild: false }), { collapse: true, consume: true, interact: false });
+assert.deepEqual(resolveExpandedCalendarInteraction('2026-08-24', { kind: 'day', date: '2026-08-24', interactiveChild: true }), { collapse: false, consume: false, interact: true });
+assert.deepEqual(resolveExpandedCalendarInteraction('2026-08-24', { kind: 'day', date: '2026-08-25', interactiveChild: false }), { collapse: true, consume: true, interact: false });
+assert.deepEqual(resolveExpandedCalendarInteraction('2026-08-24', { kind: 'day', date: '2026-08-25', interactiveChild: true }), { collapse: true, consume: true, interact: false });
+assert.deepEqual(resolveExpandedCalendarInteraction(null, { kind: 'day', date: '2026-08-25', interactiveChild: true }), { collapse: false, consume: false, interact: true });
+assert.deepEqual(resolveExpandedCalendarInteraction('2026-08-24', { kind: 'toolbar' }), { collapse: true, consume: false, interact: true });
 
 console.log('Calendar interaction tests passed');

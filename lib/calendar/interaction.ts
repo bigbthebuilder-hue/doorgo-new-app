@@ -1,5 +1,18 @@
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
+export type ExpandedCalendarInteraction = { collapse: boolean; consume: boolean; interact: boolean };
+
+export function resolveExpandedCalendarInteraction(
+  expandedDate: string | null,
+  target: { kind: 'toolbar' } | { kind: 'day'; date: string; interactiveChild: boolean },
+): ExpandedCalendarInteraction {
+  if (!expandedDate) return { collapse: false, consume: false, interact: true };
+  if (target.kind === 'toolbar') return { collapse: true, consume: false, interact: true };
+  if (target.date !== expandedDate) return { collapse: true, consume: true, interact: false };
+  if (target.interactiveChild) return { collapse: false, consume: false, interact: true };
+  return { collapse: true, consume: true, interact: false };
+}
+
 export function reorderBookingIds(ids: string[], draggedId: string, targetId: string, before: boolean): string[] {
   if (draggedId === targetId || !ids.includes(draggedId) || !ids.includes(targetId)) return ids;
   const withoutDragged = ids.filter((id) => id !== draggedId);

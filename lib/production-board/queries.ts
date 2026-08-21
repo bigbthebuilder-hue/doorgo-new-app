@@ -106,7 +106,7 @@ export async function loadProductionBoardReadOnly(params: {
         .in('job_id', jobIds),
       params.includeNativeJobLinks
         ? loadNativeJobLinksByVisibleIdentifier(jobIds, createJobIntakeRepository())
-        : Promise.resolve(new Map<string, string>()),
+        : Promise.resolve(new Map()),
     ]);
 
     if (legacyResult.error) {
@@ -117,6 +117,7 @@ export async function loadProductionBoardReadOnly(params: {
 
     jobRows = jobIds.map((jobId) => {
       const legacy = jobsById.get(jobId);
+      const native = internalIds.get(jobId);
       return {
         job_id: jobId,
         customer: legacy?.customer ?? null,
@@ -126,7 +127,8 @@ export async function loadProductionBoardReadOnly(params: {
         active: legacy?.active ?? null,
         shop_hours: legacy?.shop_hours ?? null,
         job_stage: legacy?.job_stage ?? null,
-        internal_job_id: internalIds.get(jobId) ?? null,
+        internal_job_id: native?.internalJobId ?? null,
+        native_sales_order: native?.salesOrder ?? null,
       };
     });
   }

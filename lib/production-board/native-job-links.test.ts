@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { loadNativeJobLinksByVisibleIdentifier } from './native-job-links';
 import type { JobIntakeRepository, NativeJobListItem, NativeJobListRequest } from '../jobs/job-intake-types';
 
-const item = (internalJobId: string, visibleIdentifier: string, updatedAt: string): NativeJobListItem => ({
+const item = (internalJobId: string, visibleIdentifier: string, updatedAt: string, bizTrackSalesOrder: string | null = null): NativeJobListItem => ({
   internalJobId,
   doorGoReference: visibleIdentifier,
-  bizTrackSalesOrder: null,
+  bizTrackSalesOrder,
   visibleIdentifier,
   visibleIdentifierKind: 'door_go_reference',
   legacyJobId: null,
@@ -30,7 +30,7 @@ const repository = {
       page: { limit: 100, hasMore: true, nextCursor: firstCursor },
     };
     return {
-      items: [item('22222222-2222-4222-8222-222222222222', 'SO-TARGET', '2026-08-19T10:00:00.000Z')],
+      items: [item('22222222-2222-4222-8222-222222222222', 'SO-TARGET', '2026-08-19T10:00:00.000Z', '1234567')],
       page: { limit: 100, hasMore: false, nextCursor: null },
     };
   },
@@ -38,7 +38,10 @@ const repository = {
 
 async function main() {
   const links = await loadNativeJobLinksByVisibleIdentifier(['SO-TARGET'], repository);
-  assert.equal(links.get('SO-TARGET'), '22222222-2222-4222-8222-222222222222');
+  assert.deepEqual(links.get('SO-TARGET'), {
+    internalJobId: '22222222-2222-4222-8222-222222222222',
+    salesOrder: '1234567',
+  });
   assert.equal(calls.length, 2, 'Native-job enrichment must follow the authoritative RPC pagination');
   assert.deepEqual(calls[1]?.cursor, firstCursor);
 

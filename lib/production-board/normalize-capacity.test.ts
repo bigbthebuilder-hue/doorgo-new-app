@@ -112,11 +112,12 @@ function run(): void {
 
   const nativeLinked = normalizeProductionBoard(
     [booking({ job_id: 'DG-000123' })],
-    [{ internal_job_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', job_id: 'DG-000123', customer: 'Native customer', site_address: null, salesperson: null, status: null, active: null, shop_hours: 5, job_stage: null }],
+    [{ internal_job_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', native_sales_order: '1234567', job_id: 'DG-000123', customer: 'Native customer', site_address: null, salesperson: null, status: null, active: null, shop_hours: 5, job_stage: null }],
     [capacity({ availableHours: 12 })],
     params,
   );
   assert.equal(nativeLinked.days[0].cards[0].internalJobId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  assert.equal(nativeLinked.days[0].cards[0].nativeSalesOrder, '1234567');
   assert.equal(normal.weekGroups[0].comparisonComplete, true);
 
   const persistedOrder = normalizeProductionBoard(

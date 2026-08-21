@@ -92,6 +92,16 @@ export function searchCalendarCards(
   ).slice(0, limit);
 }
 
+export function calendarProductionCardText(card: Pick<
+  ProductionBoardCard,
+  'customer' | 'jobId' | 'nativeSalesOrder' | 'shopHours' | 'shopHoursKnown' | 'title'
+>): string {
+  const hours = card.shopHoursKnown ? formatHours(card.shopHours ?? 0) : '◷';
+  const customer = card.customer?.trim() || card.title?.trim() || 'Untitled';
+  const salesOrder = card.nativeSalesOrder?.trim() || card.jobId?.trim() || 'Unlinked';
+  return `${hours} · ${customer} · ${salesOrder}`;
+}
+
 export function calendarCapacityLabel(day: Pick<
   ProductionBoardDay,
   'availableHours' | 'capacityKnown' | 'isClosed' | 'missingShopHoursCount' | 'totalKnownShopHours'

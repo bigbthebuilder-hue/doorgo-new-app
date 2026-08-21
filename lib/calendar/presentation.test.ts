@@ -3,6 +3,7 @@ import {
   buildCalendarLayers,
   calendarCapacityLabel,
   calendarMonthSegments,
+  calendarProductionCardText,
   productionLayerKey,
   searchCalendarCards,
   salespersonColor,
@@ -37,6 +38,21 @@ assert.deepEqual(searchCalendarCards(searchableCards, 'smith').map((item) => ite
 assert.deepEqual(searchCalendarCards(searchableCards, '908').map((item) => item.bookingId), ['second']);
 assert.deepEqual(searchCalendarCards(searchableCards, 'legacy source').map((item) => item.bookingId), ['second']);
 assert.deepEqual(searchCalendarCards(searchableCards, '   '), []);
+
+const nativeCard = {
+  ...card('Alex'),
+  customer: 'Hamilton',
+  jobId: 'SO# 1234567',
+  nativeSalesOrder: '1234567',
+  shopHours: 1,
+};
+assert.equal(calendarProductionCardText(nativeCard), '1 · Hamilton · 1234567');
+assert.equal(calendarProductionCardText(nativeCard).includes('SO# 1234567'), false);
+assert.equal(
+  calendarProductionCardText({ ...nativeCard, nativeSalesOrder: null }),
+  '1 · Hamilton · SO# 1234567',
+  'Legacy/imported Sales Order source text remains unchanged without structured native data',
+);
 
 assert.equal(calendarCapacityLabel({ availableHours: 8, capacityKnown: true, isClosed: false, missingShopHoursCount: 0, totalKnownShopHours: 3.25 }), '4.75 free');
 assert.equal(calendarCapacityLabel({ availableHours: 8, capacityKnown: true, isClosed: false, missingShopHoursCount: 0, totalKnownShopHours: 8 }), 'FULL');

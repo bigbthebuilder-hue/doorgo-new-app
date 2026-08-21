@@ -25,6 +25,7 @@ export type ProductionBookingRow = {
 
 export type DoorGoJobRow = {
   internal_job_id?: string | null;
+  native_sales_order?: string | null;
   job_id: string;
   customer: string | null;
   site_address: string | null;
@@ -45,6 +46,7 @@ export type ProductionBoardCard = {
   customer: string | null;
   jobId: string | null;
   internalJobId?: string | null;
+  nativeSalesOrder?: string | null;
   calendarId: string | null;
   calendarEventId: string | null;
   shopHours: number | null;

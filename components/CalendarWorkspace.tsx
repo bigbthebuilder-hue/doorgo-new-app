@@ -14,6 +14,7 @@ import {
   buildCalendarLayers,
   calendarCapacityLabel,
   calendarMonthSegments,
+  calendarProductionCardText,
   productionLayerKey,
   searchCalendarCards,
   salespersonColor,
@@ -520,12 +521,10 @@ function ExceptionalMovePanel({ state, onCancel, onChange, onSubmit }: { state: 
 
 function CalendarProductionCard({ card, canDrag, dropPosition, highlighted, onDragEnd, onDragStart }: { card: ProductionBoardCard; canDrag: boolean; dropPosition: 'before' | 'after' | null; highlighted: boolean; onDragEnd: () => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void }) {
   const color = salespersonColor(card.salesperson);
-  const hours = card.shopHoursKnown ? formatHours(card.shopHours ?? 0) : '◷';
-  const customer = card.customer?.trim() || card.title?.trim() || 'Untitled';
-  const salesOrder = card.jobId?.trim() || 'Unlinked';
+  const text = calendarProductionCardText(card);
   const completed = card.completedAt !== null;
-  return <div className="calendar-production-card" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} title={`${hours} · ${customer} · ${salesOrder}`}>
-    <span className="calendar-production-card-text">{hours} · {customer} · {salesOrder}</span>
+  return <div className="calendar-production-card" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} title={text}>
+    <span className="calendar-production-card-text">{text}</span>
     {completed ? <span aria-label="Completed" className="calendar-completion-cue">✓</span> : null}
   </div>;
 }

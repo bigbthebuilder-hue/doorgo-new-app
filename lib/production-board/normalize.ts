@@ -63,6 +63,7 @@ export function normalizeProductionBoard(
       customer: linkedJob?.customer ?? null,
       jobId: row.job_id,
       internalJobId: linkedJob?.internal_job_id ?? null,
+      nativeSalesOrder: linkedJob?.native_sales_order ?? null,
       calendarId: row.calendar_id,
       calendarEventId: row.calendar_event_id,
       shopHours,

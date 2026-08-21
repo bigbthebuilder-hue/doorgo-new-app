@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { clampCalendarDetailPosition, getCalendarMoveRequirements, moveCalendarBookingLocally, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction } from './interaction';
+import { clampCalendarDetailPosition, getCalendarMoveRequirements, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction } from './interaction';
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 assert.deepEqual(reorderBookingIds(['a', 'b', 'c'], 'c', 'a', true), ['c', 'a', 'b']);
@@ -32,6 +32,11 @@ assert.equal(needsAttention.days[0].remainingHours, 6);
 const scheduledAgain = placeCalendarBookingLocally(needsAttention, 'a', '2026-08-25');
 assert.deepEqual(scheduledAgain.days[1].cards.map((item) => item.bookingId), ['c', 'a']);
 assert.equal(scheduledAgain.days[1].remainingHours, 1);
+const pile={...needsAttention,needsAttentionCards:[{...first,productionDate:null},{...completed,productionDate:null,completedAt:null}]} as ProductionBoardViewModel;
+assert.equal(placeCalendarBookingLocally(pile,'a','2026-08-25').needsAttentionCards[0].bookingId,'b');
+assert.deepEqual(needsAttentionDismissal('calendar'),{close:true,consume:true});
+assert.deepEqual(needsAttentionDismissal('toolbar'),{close:true,consume:false});
+assert.deepEqual(needsAttentionDismissal('inside'),{close:false,consume:false});
 
 assert.deepEqual(getCalendarMoveRequirements('2026-08-10', '2026-08-11', '2026-08-20', false), {
   requiresAcknowledgement: false, requiresBackdateReason: false, requiresClosedOverride: false,

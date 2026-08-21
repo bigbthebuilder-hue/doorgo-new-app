@@ -4,6 +4,7 @@ import {
   calendarCapacityLabel,
   calendarMonthSegments,
   calendarProductionCardText,
+  needsAttentionToolbarModel,
   productionLayerKey,
   searchCalendarCards,
   salespersonColor,
@@ -39,6 +40,11 @@ assert.deepEqual(searchCalendarCards(searchableCards, '908').map((item) => item.
 assert.deepEqual(searchCalendarCards(searchableCards, 'legacy source').map((item) => item.bookingId), ['second']);
 assert.deepEqual(searchCalendarCards(searchableCards, '   '), []);
 assert.deepEqual(searchCalendarCards([{ ...card('Aaron'), productionDate: null, customer: 'Needs Customer' }], 'needs').map((item) => item.productionDate), [null]);
+const attentionCards=[{...card('Aaron'),bookingId:'first',productionDate:null},{...card('Blair'),bookingId:'second',productionDate:null}];
+assert.deepEqual(needsAttentionToolbarModel([], []).count,0);
+assert.equal(needsAttentionToolbarModel(attentionCards,[productionLayerKey('Aaron'),productionLayerKey('Blair')]).preview?.bookingId,'first');
+const filteredAttention=needsAttentionToolbarModel(attentionCards,[productionLayerKey('Blair')]);
+assert.equal(filteredAttention.count,2);assert.deepEqual(filteredAttention.visibleCards.map((item)=>item.bookingId),['second']);
 
 const nativeCard = {
   ...card('Alex'),

@@ -1,6 +1,9 @@
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 export type ExpandedCalendarInteraction = { collapse: boolean; consume: boolean; interact: boolean };
+export function needsAttentionDismissal(target:'inside'|'toolbar'|'calendar') {
+  return { close: target !== 'inside', consume: target === 'calendar' };
+}
 
 export function resolveExpandedCalendarInteraction(
   expandedDate: string | null,

@@ -92,6 +92,11 @@ export function searchCalendarCards(
   ).slice(0, limit);
 }
 
+export function needsAttentionToolbarModel(cards: ProductionBoardCard[], visibleLayerKeys: string[]) {
+  const visibleCards = cards.filter((card) => visibleLayerKeys.includes(productionLayerKey(card.salesperson)));
+  return { count: cards.length, visibleCards, preview: visibleCards[0] ?? null };
+}
+
 export function calendarProductionCardText(card: Pick<
   ProductionBoardCard,
   'customer' | 'jobId' | 'nativeSalesOrder' | 'shopHours' | 'shopHoursKnown' | 'title'

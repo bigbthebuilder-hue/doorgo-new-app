@@ -1,4 +1,5 @@
 import { createTrustedReadOnlySupabaseClient } from '@/lib/supabase/trusted-read-server';
+import { createJobIntakeRepository } from '@/lib/jobs/job-intake-repository';
 import {
   loadConfirmedCheckpointsInRange,
   loadLatestConfirmedCheckpointOnOrBefore,
@@ -7,6 +8,7 @@ import { selectCheckpointAwareCalculationStart } from '@/lib/production-flow/che
 import { loadDailyCapacityReadOnly } from './capacity-queries';
 import { normalizeProductionBoard } from './normalize';
 import type { DoorGoJobRow, ProductionBookingRow, ProductionBoardViewModel } from './types';
+import { loadNativeJobLinksByVisibleIdentifier } from './native-job-links';
 
 export async function loadProductionBoardReadOnly(params: {
   boardStart: string;
@@ -88,7 +90,7 @@ export async function loadProductionBoardReadOnly(params: {
   let jobRows: DoorGoJobRow[] = [];
 
   if (jobIds.length) {
-    const [legacyResult, nativeResult] = await Promise.all([
+    const [legacyResult, internalIds] = await Promise.all([
       supabase
         .from('dg_jobs')
         .select(`
@@ -103,21 +105,13 @@ export async function loadProductionBoardReadOnly(params: {
         `)
         .in('job_id', jobIds),
       params.includeNativeJobLinks
-        ? supabase
-            .from('dg_native_jobs')
-            .select('internal_job_id, visible_identifier')
-            .in('visible_identifier', jobIds)
-        : Promise.resolve({ data: [], error: null }),
+        ? loadNativeJobLinksByVisibleIdentifier(jobIds, createJobIntakeRepository())
+        : Promise.resolve(new Map<string, string>()),
     ]);
 
     if (legacyResult.error) {
       throw new Error(`Failed to load DoorGo jobs: ${legacyResult.error.message}`);
     }
-    if (nativeResult.error) {
-      throw new Error(`Failed to load native DoorGo job links: ${nativeResult.error.message}`);
-    }
-
-    const internalIds = new Map((nativeResult.data ?? []).map((job) => [job.visible_identifier, job.internal_job_id]));
     const legacyJobs = (legacyResult.data ?? []) as DoorGoJobRow[];
     const jobsById = new Map(legacyJobs.map((job) => [job.job_id, job]));
 

@@ -8,6 +8,7 @@ import { addDaysToDateOnly, getMondayForDate } from '@/lib/production-board/date
 import { completeCalendarProductionBooking, loadCalendarWindow, placeCalendarProductionBooking, reloadCalendarProductionDays, reopenCalendarProductionBooking } from '@/lib/production-bookings/calendar-production-actions';
 import { createCalendarItem, moveCalendarItem, reorderCalendarItems, searchCalendarLinkableJobs, searchScheduledCalendar, setCalendarItemCompletion, type CalendarCreateInput, type CalendarSearchTarget } from '@/lib/calendar/calendar-item-actions';
 import type {CalendarJobOption} from '@/lib/calendar/calendar-job-linking';
+import {calendarOperationalBounds,dateWithinCalendarBounds,mergeContinuousCalendarBoards,nextCalendarChunk,preservedPrependScrollTop} from '@/lib/calendar/continuous-range';
 import { calendarItemLayerKey, calendarRecordKey } from '@/lib/calendar/calendar-items';
 import { getProductionScheduleCompletionBlockReason } from '@/lib/production-schedule/completion-ui-contract';
 import { getProductionScheduleCardMoveBlockReason } from '@/lib/production-schedule/move-ui-contract';
@@ -38,12 +39,12 @@ type CalendarMoveState = {
 type CalendarUndo = { bookingId: string; fromDate: string | null; toDate: string | null; sourceOrder: string[] };
 type CalendarSearchOption={kind:'card';card:ProductionBoardCard}|{kind:'target';target:CalendarSearchTarget};
 
-type WorkspaceProps={board:ProductionBoardViewModel;canInteract:boolean;canManageProduction:boolean;canOpenJobs:boolean;currentMonday:string;defaultSalesperson:string;preferenceOwner:string;today:string};
+type WorkspaceProps={board:ProductionBoardViewModel;canInteract:boolean;canManageProduction:boolean;canOpenJobs:boolean;currentMonday:string;defaultSalesperson:string;initialTargetMonday:string;preferenceOwner:string;today:string};
 export function CalendarWorkspace(props: WorkspaceProps) {
   return <CalendarWorkspaceSession {...props} key={JSON.stringify(props.board)}/>;
 }
 
-function CalendarWorkspaceSession({ board, canInteract, canManageProduction, canOpenJobs, currentMonday, defaultSalesperson, preferenceOwner, today }: WorkspaceProps) {
+function CalendarWorkspaceSession({ board, canInteract, canManageProduction, canOpenJobs, currentMonday, defaultSalesperson, initialTargetMonday, preferenceOwner, today }: WorkspaceProps) {
   const [displayBoard, setDisplayBoard] = useState(board);
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState('');
@@ -65,6 +66,9 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
   const [needsAttentionOpen, setNeedsAttentionOpen] = useState(false);
   const [needsAttentionDropReady, setNeedsAttentionDropReady] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const streamRef=useRef<HTMLElement>(null);
+  const rangeLoadRef=useRef<Promise<ProductionBoardViewModel|null>|null>(null);
+  const initialScrollDone=useRef(false);
   const searchWrapper = useRef<HTMLDivElement>(null);
   const needsAttentionWrapper = useRef<HTMLDivElement>(null);
   const highlightTimer = useRef<number | null>(null);
@@ -81,6 +85,8 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
   const activeSearchOption=searchOptions[Math.min(highlightedResult,searchOptions.length-1)];
   const activeSearchId=activeSearchOption?(activeSearchOption.kind==='card'?activeSearchOption.card.bookingId:activeSearchOption.target.bookingId):undefined;
   const detailCard = detailBookingId ? allCards.find((card) => card.bookingId === detailBookingId) ?? null : null;
+  const bounds=useMemo(()=>calendarOperationalBounds(today),[today]);
+  const [navigationMonday,setNavigationMonday]=useState(currentMonday);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(layerStorageKey);
@@ -127,8 +133,14 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
     return () => { document.removeEventListener('pointerdown', onPointerDown, true); document.removeEventListener('keydown', onKeyDown); };
   }, [needsAttentionOpen]);
 
-  const loadWindowAt=async(monday:string)=>{const weeks=displayBoard.weeks;const result=await loadCalendarWindow({boardStart:monday,boardEndExclusive:addDaysToDateOnly(monday,weeks*7),weeks,today});if(!result.ok){announce('error','Calendar could not load that date range.');return null;}setDisplayBoard(result.board);setExpandedDate(null);setDetailBookingId(null);window.history.replaceState({},'',`/calendar?week=${encodeURIComponent(monday)}`);return result.board;};
-  const navigate = (monday: string) => startTransition(async()=>{await loadWindowAt(monday);});
+  const fetchChunk=async(base:ProductionBoardViewModel,direction:'prepend'|'append',preserveAnchor:boolean)=>{const request=nextCalendarChunk(base,direction,bounds);if(!request)return base;if(rangeLoadRef.current)return rangeLoadRef.current;const stream=streamRef.current;const beforeHeight=stream?.scrollHeight??0;const beforeTop=stream?.scrollTop??0;const task=loadCalendarWindow({boardStart:request.startDate,boardEndExclusive:request.endDateExclusive,weeks:request.weeks,today}).then((result)=>{if(!result.ok)return null;const merged=mergeContinuousCalendarBoards(base,result.board);setDisplayBoard((current)=>mergeContinuousCalendarBoards(current,result.board));if(direction==='prepend'&&preserveAnchor&&stream)window.requestAnimationFrame(()=>{stream.scrollTop=preservedPrependScrollTop(beforeTop,beforeHeight,stream.scrollHeight);});return merged;}).finally(()=>{rangeLoadRef.current=null;});rangeLoadRef.current=task;return task;};
+  const ensureDateLoaded=async(date:string,preserveAnchor=false)=>{if(!dateWithinCalendarBounds(date,bounds))return null;let loaded=displayBoard;while(date<loaded.startDate){const next=await fetchChunk(loaded,'prepend',preserveAnchor);if(!next||next===loaded)break;loaded=next;}while(date>=loaded.endDateExclusive){const next=await fetchChunk(loaded,'append',false);if(!next||next===loaded)break;loaded=next;}return loaded;};
+  const scrollToWeek=(monday:string,behavior:ScrollBehavior='smooth')=>{setNavigationMonday(monday);window.history.replaceState({},'',`/calendar?week=${encodeURIComponent(monday)}`);window.requestAnimationFrame(()=>streamRef.current?.querySelector<HTMLElement>(`[data-calendar-week="${monday}"]`)?.scrollIntoView({behavior,block:'start'}));};
+  const navigate = (monday: string) => startTransition(async()=>{const clamped=monday<bounds.minimumMonday?bounds.minimumMonday:monday>=bounds.maximumEndExclusive?addDaysToDateOnly(bounds.maximumEndExclusive,-7):monday;const loaded=await ensureDateLoaded(clamped);if(loaded)scrollToWeek(clamped);});
+
+  // The initial anchor is intentionally a one-time session action; subsequent navigation is user-driven.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(()=>{if(initialScrollDone.current)return;initialScrollDone.current=true;const target=dateWithinCalendarBounds(initialTargetMonday,bounds)?initialTargetMonday:currentMonday;window.setTimeout(()=>navigate(target),0);},[bounds,currentMonday,initialTargetMonday]);
   const toggleLayer = (key: string) => setVisibleLayers((current) => {
     const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
     window.localStorage.setItem(layerStorageKey, JSON.stringify(next));
@@ -153,7 +165,7 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
     if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current);
     highlightTimer.current = window.setTimeout(() => setHighlightedBookingId(null), 2200);
   };
-  const selectSearchTarget=(target:CalendarSearchTarget)=>startTransition(async()=>{const loaded=await loadWindowAt(getMondayForDate(target.productionDate));if(!loaded)return;const card=[...loaded.days.flatMap((day)=>day.cards),...loaded.needsAttentionCards].find((item)=>item.bookingId===target.bookingId);if(card)window.setTimeout(()=>selectSearchResult(card),0);});
+  const selectSearchTarget=(target:CalendarSearchTarget)=>{if(!dateWithinCalendarBounds(target.productionDate,bounds)){announce('error','This item exists outside the operational Calendar range.');setSearchOpen(false);return;}startTransition(async()=>{const loaded=await ensureDateLoaded(target.productionDate);if(!loaded)return;scrollToWeek(getMondayForDate(target.productionDate));const card=[...loaded.days.flatMap((day)=>day.cards),...loaded.needsAttentionCards].find((item)=>item.bookingId===target.bookingId);if(card)window.setTimeout(()=>selectSearchResult(card),0);});};
   const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
       setSearchOpen(false);
@@ -391,9 +403,9 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
       if (decision.collapse) setExpandedDate(null);
     }} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('.calendar-needs-attention-toolbar')) setNeedsAttentionOpen(false); }}>
       <div className="calendar-toolbar-cluster" aria-label="Calendar date navigation">
-        <ToolbarButton label="Previous month" disabled={pending} onClick={() => navigate(addDaysToDateOnly(displayBoard.startDate, -28))}>&lsaquo;</ToolbarButton>
-        <ToolbarButton label="Current week" disabled={pending || displayBoard.startDate === currentMonday} onClick={() => navigate(currentMonday)}>Today</ToolbarButton>
-        <ToolbarButton label="Next month" disabled={pending} onClick={() => navigate(addDaysToDateOnly(displayBoard.startDate, 28))}>&rsaquo;</ToolbarButton>
+        <ToolbarButton label="Previous month" disabled={pending||navigationMonday<=bounds.minimumMonday} onClick={() => navigate(addDaysToDateOnly(navigationMonday, -28))}>&lsaquo;</ToolbarButton>
+        <ToolbarButton label="Current week" disabled={pending || navigationMonday === currentMonday} onClick={() => navigate(currentMonday)}>Today</ToolbarButton>
+        <ToolbarButton label="Next month" disabled={pending||navigationMonday>=addDaysToDateOnly(bounds.maximumEndExclusive,-7)} onClick={() => navigate(addDaysToDateOnly(navigationMonday, 28))}>&rsaquo;</ToolbarButton>
       </div>
       <div className="calendar-search" ref={searchWrapper} onBlur={() => window.setTimeout(() => { if (!searchWrapper.current?.contains(document.activeElement)) setSearchOpen(false); }, 0)}>
         <label><span className="sr-only">Search by name or sales order</span><input aria-activedescendant={searchOpen&&activeSearchId?searchResultId(activeSearchId):undefined} aria-autocomplete="list" aria-controls="calendar-search-results" aria-expanded={searchOpen} onChange={(event) => { const value = event.target.value; setSearch(value);if(!value.trim())setRemoteSearchResults([]); setHighlightedResult(0); setSearchOpen(Boolean(value.trim())); }} onFocus={() => { setExpandedDate(null); setNeedsAttentionOpen(false); setSearchOpen(Boolean(search.trim())); }} onKeyDown={onSearchKeyDown} placeholder="Name / SO Search" role="combobox" type="search" value={search}/></label>
@@ -424,8 +436,8 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
       setExpandedDate(null);
       event.preventDefault();
       event.stopPropagation();
-    }} onPointerUpCapture={() => { window.setTimeout(() => { consumeOutsideCalendarClick.current = false; }, 0); }}>
-      {displayBoard.weekGroups.map((week) => <section className="calendar-week" key={week.startDate}>
+    }} onPointerUpCapture={() => { window.setTimeout(() => { consumeOutsideCalendarClick.current = false; }, 0); }} onScroll={(event)=>{const stream=event.currentTarget;const top=stream.getBoundingClientRect().top+8;const visible=[...stream.querySelectorAll<HTMLElement>('[data-calendar-week]')].find((week)=>week.getBoundingClientRect().bottom>top);if(visible?.dataset.calendarWeek)setNavigationMonday(visible.dataset.calendarWeek);if(stream.scrollTop<480&&displayBoard.startDate>bounds.minimumMonday)void fetchChunk(displayBoard,'prepend',true);if(stream.scrollHeight-stream.scrollTop-stream.clientHeight<640&&displayBoard.endDateExclusive<bounds.maximumEndExclusive)void fetchChunk(displayBoard,'append',false);}} ref={streamRef}>
+      {displayBoard.weekGroups.map((week) => <section className="calendar-week" data-calendar-week={week.startDate} key={week.startDate}>
         <div className="calendar-month-row" aria-hidden="true" style={calendarWeekGridStyle(week.days.map((day) => day.date), expandedDate)}>
           {calendarMonthSegments(week.days.map((day) => day.date)).map((segment) => <span key={`${week.startDate}-${segment.label}`} style={{ gridColumn: `${segment.startColumn} / span ${segment.span}` }}>{segment.label}</span>)}
         </div>
@@ -454,7 +466,7 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
       </section>)}
     </main>
     {detailCard ? <ProductionDetailPanel calendarWeek={displayBoard.startDate} canOpenJobs={canOpenJobs} card={detailCard} onClose={() => setDetailBookingId(null)} position={detailPosition} setPosition={setDetailPosition} workspaceRef={workspaceRef}/> : null}
-    {quickAdd ? <QuickAddPicker board={displayBoard} canManageProduction={canManageProduction} date={quickAdd.date} defaultSalesperson={defaultSalesperson} onClose={() => setQuickAdd(null)} onCreated={(card)=>{setDisplayBoard((current)=>insertCalendarCardLocally(current,card));setQuickAdd(null);announce('success','Calendar item added.');}} today={today}/> : null}
+    {quickAdd ? <QuickAddPicker canManageProduction={canManageProduction} date={quickAdd.date} defaultSalesperson={defaultSalesperson} onClose={() => setQuickAdd(null)} onCreated={(card)=>{setDisplayBoard((current)=>insertCalendarCardLocally(current,card));setQuickAdd(null);announce('success','Calendar item added.');}} today={today}/> : null}
     {moveState ? <ExceptionalMovePanel state={moveState} onCancel={() => { if (!moveState.pending) setMoveState(null); }} onChange={(changes) => setMoveState((current) => current ? { ...current, ...changes, error: null } : current)} onSubmit={() => void executeMove(moveState)}/> : null}
     {moveUndo ? <div className="calendar-move-undo" role="status"><span>{moveUndo.toDate === null ? 'Moved to Needs Attention' : 'Scheduled'}</span><span aria-hidden="true">·</span><button disabled={dragBusy} onClick={beginUndo} type="button">Undo</button></div> : null}
     <AppConfirmationToast message={toast} onDismiss={() => setToast(null)}/>
@@ -585,14 +597,14 @@ function Detail({ label, value }: { label: string; value: string }) {
   return <div><dt>{label}</dt><dd>{value}</dd></div>;
 }
 
-function QuickAddPicker({board,canManageProduction,date,defaultSalesperson,onClose,onCreated,today}:{board:ProductionBoardViewModel;canManageProduction:boolean;date:string|null;defaultSalesperson:string;onClose:()=>void;onCreated:(card:ProductionBoardCard)=>void;today:string}) {
+function QuickAddPicker({canManageProduction,date,defaultSalesperson,onClose,onCreated,today}:{canManageProduction:boolean;date:string|null;defaultSalesperson:string;onClose:()=>void;onCreated:(card:ProductionBoardCard)=>void;today:string}) {
   const panel=useRef<HTMLDivElement>(null);const [kind,setKind]=useState<CalendarCreateInput['itemType']|null>(null);
   const [form,setForm]=useState({find:'',linkedInternalJobId:null as string|null,name:'',salesOrder:'',salesperson:defaultSalesperson,shopHours:'',timing:'',fulfillmentNote:'',title:'',details:''});
   const [saving,setSaving]=useState(false);const [error,setError]=useState<string|null>(null);const [matches,setMatches]=useState<CalendarJobOption[]>([]);const [searching,setSearching]=useState(false);const [highlightedJob,setHighlightedJob]=useState(0);
   useEffect(()=>{const pointer=(event:PointerEvent)=>{if(!panel.current?.contains(event.target as Node)){event.preventDefault();event.stopPropagation();onClose();}};const key=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose();};document.addEventListener('pointerdown',pointer,true);document.addEventListener('keydown',key);return()=>{document.removeEventListener('pointerdown',pointer,true);document.removeEventListener('keydown',key);};},[onClose]);
   useEffect(()=>{const query=form.find.trim();if(!kind||!query||form.linkedInternalJobId)return;let cancelled=false;const timer=window.setTimeout(()=>{void searchCalendarLinkableJobs({query,itemType:kind}).then((result)=>{if(cancelled)return;setSearching(false);if(result.ok){setMatches(result.options);setHighlightedJob(0);setError(null);}else{setMatches([]);setError(result.message);}});},200);return()=>{cancelled=true;window.clearTimeout(timer);};},[form.find,form.linkedInternalJobId,kind]);
   const choose=(job:CalendarJobOption)=>{setMatches([]);setSearching(false);setForm((current)=>({...current,find:[job.customer,job.salesOrder||job.doorGoReference].filter(Boolean).join(' · '),linkedInternalJobId:job.internalJobId,name:job.customer,salesOrder:job.salesOrder,salesperson:job.salesperson||current.salesperson}));};
-  const submit=async(event:React.FormEvent)=>{event.preventDefault();if(!kind)return;setSaving(true);setError(null);const hours=form.shopHours.trim()===''?null:Number(form.shopHours);const result=await createCalendarItem({commandId:createSecureCommandId(),itemType:kind,scheduledDate:date,linkedInternalJobId:form.linkedInternalJobId,name:kind==='note'?form.title:form.name,salesOrder:form.salesOrder,salesperson:form.salesperson,shopHours:hours===null||Number.isFinite(hours)?hours:null,timing:form.timing,fulfillmentNote:form.fulfillmentNote,title:form.title,details:form.details,boardStart:board.startDate,boardEndExclusive:board.endDateExclusive,weeks:board.weeks,today});setSaving(false);if(!result.ok){setError(result.message);return;}onCreated(result.card);};
+  const submit=async(event:React.FormEvent)=>{event.preventDefault();if(!kind)return;setSaving(true);setError(null);const hours=form.shopHours.trim()===''?null:Number(form.shopHours);const boardStart=getMondayForDate(date??today);const result=await createCalendarItem({commandId:createSecureCommandId(),itemType:kind,scheduledDate:date,linkedInternalJobId:form.linkedInternalJobId,name:kind==='note'?form.title:form.name,salesOrder:form.salesOrder,salesperson:form.salesperson,shopHours:hours===null||Number.isFinite(hours)?hours:null,timing:form.timing,fulfillmentNote:form.fulfillmentNote,title:form.title,details:form.details,boardStart,boardEndExclusive:addDaysToDateOnly(boardStart,7),weeks:1,today});setSaving(false);if(!result.ok){setError(result.message);return;}onCreated(result.card);};
   const label=date?`Add to ${formatSearchDate(date)}`:'Add to Needs Attention';
   return <div className="calendar-floating-backdrop"><div className="calendar-quick-add" ref={panel} role="dialog" aria-label={label}><header><strong>{label}</strong><button aria-label="Close Add picker" onClick={onClose} type="button">×</button></header>
     {!kind?<div className="calendar-quick-add-types">{(['production','delivery','customer_pickup','note'] as const).map((value)=><button disabled={value==='production'&&!canManageProduction} key={value} onClick={()=>setKind(value)} type="button"><span>{value==='customer_pickup'?'Customer Pickup':value[0].toUpperCase()+value.slice(1)}</span></button>)}{date?<button disabled title="Staff Away date-range workflow is deferred" type="button"><span>Staff Away</span><small>Later</small></button>:null}</div>

@@ -2,7 +2,7 @@
 
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { getPermissionAccess, hasAtLeastView } from '@/lib/auth/access';
-import { getCurrentDateInTimeZone } from '@/lib/production-board/date-utils';
+import { addDaysToDateOnly, getCurrentDateInTimeZone, getMondayForDate } from '@/lib/production-board/date-utils';
 import { loadProductionBoardReadOnly } from '@/lib/production-board/queries';
 import type { ProductionBoardDay, ProductionBoardViewModel } from '@/lib/production-board/types';
 import { productionBookingRescheduleFailure, type ProductionBookingRescheduleResult, type RescheduleProductionBookingRequest } from './production-booking-reschedule-contract';
@@ -59,10 +59,14 @@ export async function reloadCalendarProductionDays(request: { boardStart: string
   const access = await getCurrentDoorGoAccess();
   if (!hasAtLeastView(access, 'calendar')) return { ok: false };
   try {
+    const orderedDates = [...new Set(request.dates)].sort();
+    const boardStart = orderedDates.length ? getMondayForDate(orderedDates[0]) : getMondayForDate(request.today);
+    const boardEndExclusive = orderedDates.length ? addDaysToDateOnly(getMondayForDate(orderedDates.at(-1)!), 7) : addDaysToDateOnly(boardStart, 7);
+    const weeks = Math.max(1, Math.round((Date.parse(`${boardEndExclusive}T00:00:00Z`) - Date.parse(`${boardStart}T00:00:00Z`)) / (7 * 86400000)));
     const board = await loadProductionBoardReadOnly({
-      boardStart: request.boardStart,
-      boardEndExclusive: request.boardEndExclusive,
-      weeks: request.weeks,
+      boardStart,
+      boardEndExclusive,
+      weeks,
       today: request.today,
       includeNativeJobLinks: hasAtLeastView(access, 'jobs'),
       includeOperationalCalendarItems:true,

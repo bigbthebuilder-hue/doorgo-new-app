@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { clampCalendarDetailPosition, getCalendarMoveRequirements, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction } from './interaction';
+import { clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction } from './interaction';
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 assert.deepEqual(reorderBookingIds(['a', 'b', 'c'], 'c', 'a', true), ['c', 'a', 'b']);
@@ -12,6 +12,10 @@ const completed = card('b', '2026-08-24', 2, true);
 const secondDay = card('c', '2026-08-25', 4);
 const days = [day('2026-08-24', [first, completed]), day('2026-08-25', [secondDay])];
 const board = { startDate: '2026-08-24', endDateExclusive: '2026-08-31', visibleWeekdayEndExclusive: '2026-08-29', weeks: 1, days, needsAttentionCards: [], weekGroups: [{ days }] } as unknown as ProductionBoardViewModel;
+const newNote={...card('item:note','',0),recordKind:'calendar_item' as const,calendarItemType:'note' as const,productionDate:null,dayOrder:2048,shopHours:null,shopHoursKnown:true};
+const withNote=insertCalendarCardLocally(board,newNote);assert.equal(withNote.needsAttentionCards[0].bookingId,'item:note');
+const newDelivery={...newNote,bookingId:'item:delivery',calendarItemType:'delivery' as const,productionDate:'2026-08-25',dayOrder:4096};const withDelivery=insertCalendarCardLocally(board,newDelivery);assert.equal(withDelivery.days[1].cards.at(-1)?.bookingId,'item:delivery');assert.equal(withDelivery.days[1].totalKnownShopHours,4);
+const newProduction={...first,bookingId:'new-production',dayOrder:4096,shopHours:2};const withProduction=insertCalendarCardLocally(board,newProduction);assert.equal(withProduction.days[0].totalKnownShopHours,7);assert.equal(withProduction.days[0].remainingHours,1);
 const reordered = reorderCalendarDayLocally(board, '2026-08-24', ['b', 'a']);
 assert.deepEqual(reordered.days[0].cards.map((item) => item.bookingId), ['b', 'a']);
 assert.equal(reordered.days[0].cards[0].completedAt, completed.completedAt);

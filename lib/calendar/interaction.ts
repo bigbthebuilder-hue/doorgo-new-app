@@ -34,6 +34,14 @@ export function reorderCalendarDayLocally(board: ProductionBoardViewModel, date:
   return { ...board, days: reorderDays(board.days), weekGroups: board.weekGroups.map((week) => ({ ...week, days: reorderDays(week.days) })) };
 }
 
+export function insertCalendarCardLocally(board:ProductionBoardViewModel,card:ProductionBoardCard):ProductionBoardViewModel{
+  const exists=[...board.needsAttentionCards,...board.days.flatMap((day)=>day.cards)].some((item)=>item.bookingId===card.bookingId);if(exists)return board;
+  if(card.productionDate===null)return {...board,needsAttentionCards:[...board.needsAttentionCards,card].sort(cardOrder)};
+  const update=(days:ProductionBoardDay[])=>days.map((day)=>{if(day.date!==card.productionDate)return day;const next={...day,cards:[...day.cards,card].sort(cardOrder)};return card.recordKind==='calendar_item'?{...next,bookingCount:next.cards.length}:recalculateDay(next,card,1);});
+  return {...board,days:update(board.days),weekGroups:board.weekGroups.map((week)=>({...week,days:update(week.days)}))};
+}
+const cardOrder=(left:ProductionBoardCard,right:ProductionBoardCard)=>(left.dayOrder??0)-(right.dayOrder??0)||left.bookingId.localeCompare(right.bookingId);
+
 export function moveCalendarBookingLocally(board: ProductionBoardViewModel, bookingId: string, destinationDate: string): ProductionBoardViewModel {
   const card = [...board.days.flatMap((day) => day.cards), ...board.needsAttentionCards].find((item) => item.bookingId === bookingId);
   if (!card || card.productionDate === destinationDate || !board.days.some((day) => day.date === destinationDate)) return board;

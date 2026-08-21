@@ -274,7 +274,9 @@ export function normalizeProductionBoard(
 
   const days: ProductionBoardDay[] = visibleDates.map((date) => {
     const sortedCards = (cardsByDate.get(date) ?? []).sort((a, b) =>
-      a.title.localeCompare(b.title),
+      (a.dayOrder ?? Number.MAX_SAFE_INTEGER) - (b.dayOrder ?? Number.MAX_SAFE_INTEGER)
+      || a.title.localeCompare(b.title)
+      || a.bookingId.localeCompare(b.bookingId),
     );
     const missingShopHoursCount = sortedCards.filter(
       (card) => !card.shopHoursKnown,
@@ -444,7 +446,9 @@ export function normalizeProductionBoard(
         })
         .map((date) => {
           const weekendCards = (cardsByDate.get(date) ?? []).sort((a, b) =>
-            a.title.localeCompare(b.title),
+            (a.dayOrder ?? Number.MAX_SAFE_INTEGER) - (b.dayOrder ?? Number.MAX_SAFE_INTEGER)
+            || a.title.localeCompare(b.title)
+            || a.bookingId.localeCompare(b.bookingId),
           );
           const plannedStartsKnown = weekendCards.every((card) => card.shopHoursKnown);
 

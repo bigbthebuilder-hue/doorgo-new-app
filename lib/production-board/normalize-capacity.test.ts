@@ -119,6 +119,14 @@ function run(): void {
   assert.equal(nativeLinked.days[0].cards[0].internalJobId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   assert.equal(normal.weekGroups[0].comparisonComplete, true);
 
+  const persistedOrder = normalizeProductionBoard(
+    [booking({ booking_id: 'source-first-title-z', title: 'Zulu', day_order: 1024 }), booking({ booking_id: 'arrival-title-a', title: 'Alpha', day_order: 2048 })],
+    [],
+    [capacity({ availableHours: 12 })],
+    params,
+  );
+  assert.deepEqual(persistedOrder.days[0].cards.map((card) => card.bookingId), ['source-first-title-z', 'arrival-title-a']);
+
   const overloaded = normalizeProductionBoard(
     [booking({ shop_hours: 15 })],
     [],

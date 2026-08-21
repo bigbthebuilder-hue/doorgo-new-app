@@ -1,12 +1,16 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
-import { getPermissionAccess } from '@/lib/auth/access';
+import { getPermissionAccess, hasAtLeastView } from '@/lib/auth/access';
+import { getCurrentDateInTimeZone } from '@/lib/production-board/date-utils';
+import { loadProductionBoardReadOnly } from '@/lib/production-board/queries';
+import type { ProductionBoardDay } from '@/lib/production-board/types';
 import { productionBookingRescheduleFailure, type ProductionBookingRescheduleResult, type RescheduleProductionBookingRequest } from './production-booking-reschedule-contract';
 import { rescheduleProductionBookingWithAccess } from './production-booking-reschedule-service';
 import { reorderProductionDayWithAccess } from './production-day-order-service';
 import type { ProductionDayOrderResult, ReorderProductionDayRequest } from './production-day-order-contract';
+import type { CompleteProductionBookingRequest, ProductionBookingCompletionResult, ReopenProductionBookingRequest } from './production-booking-completion-contract';
+import { completeProductionBookingWithAccess, reopenProductionBookingWithAccess } from './production-booking-completion-service';
 
 async function hasCalendarUse(): Promise<boolean> {
   const access = await getCurrentDoorGoAccess();
@@ -15,13 +19,43 @@ async function hasCalendarUse(): Promise<boolean> {
 
 export async function rescheduleCalendarProductionBooking(request: RescheduleProductionBookingRequest): Promise<ProductionBookingRescheduleResult> {
   if (!await hasCalendarUse()) return productionBookingRescheduleFailure('permission_required');
-  const result = await rescheduleProductionBookingWithAccess(request);
-  if (result.ok) revalidatePath('/calendar');
-  return result;
+  const today = getCurrentDateInTimeZone('America/Vancouver');
+  const pastToPast = request.expectedProductionDate < today && request.destinationProductionDate < today;
+  return rescheduleProductionBookingWithAccess(pastToPast ? {
+    ...request,
+    whollyUnstartedAcknowledged: true,
+    backdateReason: 'Calendar past-to-past move',
+  } : request);
 }
 
 export async function reorderCalendarProductionDay(request: ReorderProductionDayRequest): Promise<ProductionDayOrderResult> {
-  const result = await reorderProductionDayWithAccess(request);
-  if (result.ok) revalidatePath('/calendar');
-  return result;
+  return reorderProductionDayWithAccess(request);
+}
+
+export async function completeCalendarProductionBooking(request: CompleteProductionBookingRequest): Promise<ProductionBookingCompletionResult> {
+  if (!await hasCalendarUse()) return { ok: false, code: 'permission_required', message: 'Calendar and Production use permission are required.' };
+  return completeProductionBookingWithAccess(request);
+}
+
+export async function reopenCalendarProductionBooking(request: Omit<ReopenProductionBookingRequest, 'reason'>): Promise<ProductionBookingCompletionResult> {
+  if (!await hasCalendarUse()) return { ok: false, code: 'permission_required', message: 'Calendar and Production use permission are required.' };
+  return reopenProductionBookingWithAccess({ ...request, reason: 'Reopened from Calendar' });
+}
+
+export async function reloadCalendarProductionDays(request: { boardStart: string; boardEndExclusive: string; weeks: number; today: string; dates: string[] }): Promise<{ ok: true; days: ProductionBoardDay[] } | { ok: false }> {
+  const access = await getCurrentDoorGoAccess();
+  if (!hasAtLeastView(access, 'calendar')) return { ok: false };
+  try {
+    const board = await loadProductionBoardReadOnly({
+      boardStart: request.boardStart,
+      boardEndExclusive: request.boardEndExclusive,
+      weeks: request.weeks,
+      today: request.today,
+      includeNativeJobLinks: hasAtLeastView(access, 'jobs'),
+    });
+    const dates = new Set(request.dates);
+    return { ok: true, days: board.days.filter((day) => dates.has(day.date)) };
+  } catch {
+    return { ok: false };
+  }
 }

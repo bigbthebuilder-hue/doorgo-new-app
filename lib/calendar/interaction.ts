@@ -32,6 +32,32 @@ export function moveCalendarBookingLocally(board: ProductionBoardViewModel, book
   return { ...board, days: updateDays(board.days), weekGroups: board.weekGroups.map((week) => ({ ...week, days: updateDays(week.days) })) };
 }
 
+export function getCalendarMoveRequirements(sourceDate: string, destinationDate: string, today: string, destinationClosed: boolean) {
+  const pastToPast = sourceDate < today && destinationDate < today;
+  return {
+    requiresAcknowledgement: !pastToPast && (sourceDate <= today || destinationDate === today),
+    requiresBackdateReason: !pastToPast && destinationDate < today,
+    requiresClosedOverride: destinationClosed,
+  };
+}
+
+export function clampCalendarDetailPosition(
+  position: { x: number; y: number },
+  panel: { width: number; height: number },
+  workspace: { left: number; top: number; right: number; bottom: number },
+  viewport: { width: number; height: number },
+  inset = 8,
+) {
+  const left = Math.max(workspace.left, 0) + inset;
+  const top = Math.max(workspace.top, 0) + inset;
+  const right = Math.min(workspace.right, viewport.width) - inset;
+  const bottom = Math.min(workspace.bottom, viewport.height) - inset;
+  return {
+    x: Math.min(Math.max(position.x, left), Math.max(left, right - panel.width)),
+    y: Math.min(Math.max(position.y, top), Math.max(top, bottom - panel.height)),
+  };
+}
+
 function recalculateDay(day: ProductionBoardDay, card: ProductionBoardCard, direction: -1 | 1): ProductionBoardDay {
   const totalKnownShopHours = day.totalKnownShopHours + (card.shopHoursKnown ? (card.shopHours ?? 0) * direction : 0);
   const missingShopHoursCount = day.missingShopHoursCount + (card.shopHoursKnown ? 0 : direction);

@@ -35,15 +35,22 @@ export function productionLayerKey(salesperson: string | null): string {
 }
 
 export function buildCalendarLayers(cards: ProductionBoardCard[]): CalendarLayer[] {
-  const salespeople = Array.from(
-    new Set(cards.map((card) => card.salesperson?.trim() || 'Unassigned')),
-  ).sort((left, right) => left.localeCompare(right));
+  const identities = new Map<string, string[]>();
+  for (const card of cards) {
+    const label = card.salesperson?.trim() || 'Unassigned';
+    const key = productionLayerKey(label === 'Unassigned' ? null : label);
+    identities.set(key, [...(identities.get(key) ?? []), label]);
+  }
+  const salespeople = Array.from(identities, ([key, labels]) => ({
+    key,
+    label: stableSalespersonLabel(labels),
+  })).sort((left, right) => left.label.localeCompare(right.label));
 
   return [
     ...salespeople.map((salesperson) => ({
-      key: productionLayerKey(salesperson === 'Unassigned' ? null : salesperson),
+      key: salesperson.key,
       kind: 'production' as const,
-      label: salesperson,
+      label: salesperson.label,
       available: true,
     })),
     { key: 'fulfillment:delivery', kind: 'delivery', label: 'Deliveries', available: false },
@@ -52,6 +59,15 @@ export function buildCalendarLayers(cards: ProductionBoardCard[]): CalendarLayer
     { key: 'other:away', kind: 'staff_away', label: 'Staff Away', available: false },
     { key: 'other:closures', kind: 'closure', label: 'Closures / Special Days', available: false },
   ];
+}
+
+function stableSalespersonLabel(labels: string[]): string {
+  const selected = [...new Set(labels)].sort((left, right) => {
+    const casingScore = (value: string) => value === value.toLocaleUpperCase() ? 2 : value === value.toLocaleLowerCase() ? 1 : 0;
+    return casingScore(left) - casingScore(right) || left.localeCompare(right);
+  })[0] ?? 'Unassigned';
+  if (selected !== selected.toLocaleUpperCase() && selected !== selected.toLocaleLowerCase()) return selected;
+  return selected.toLocaleLowerCase().replace(/(^|[\s'-])\p{L}/gu, (letter) => letter.toLocaleUpperCase());
 }
 
 export function salespersonColor(salesperson: string | null) {

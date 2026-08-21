@@ -22,6 +22,12 @@ assert.deepEqual(layers.filter((layer) => layer.available).map((layer) => layer.
 assert.equal(layers.some((layer) => layer.kind === 'delivery' && !layer.available), true);
 assert.equal(productionLayerKey(' Alex '), 'production:alex');
 assert.deepEqual(salespersonColor('Alex'), salespersonColor('Alex'));
+const normalizedLayers = buildCalendarLayers([card('Jerry'), card('JERRY'), card('Steve'), card('STEVE')]).filter((layer) => layer.available);
+assert.deepEqual(normalizedLayers.map((layer) => [layer.key, layer.label]), [
+  ['production:jerry', 'Jerry'], ['production:steve', 'Steve'],
+]);
+assert.equal(buildCalendarLayers([card('ALEX')]).find((layer) => layer.available)?.label, 'Alex');
+assert.deepEqual(salespersonColor('Jerry'), salespersonColor('JERRY'));
 
 const searchableCards = [
   card('Alex'),

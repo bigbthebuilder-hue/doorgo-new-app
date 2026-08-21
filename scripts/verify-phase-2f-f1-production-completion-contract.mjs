@@ -229,7 +229,7 @@ assert.doesNotMatch(publicEventType, /commandId|actorUserId|actorDisplayName|reo
 const completionActionUiFiles = [
   ...readdirSync('app', { recursive: true }).filter((path) => /\.(?:ts|tsx)$/.test(path)).map((path) => `app/${path}`),
   ...readdirSync('components', { recursive: true }).filter((path) => /\.(?:ts|tsx)$/.test(path)).map((path) => `components/${path}`),
-].filter((path) => /production-booking-completion-actions|completeProductionBooking|reopenProductionBooking/.test(read(path)));
+].filter((path) => /production-booking-completion-actions|calendar-production-actions|complete(?:Calendar)?ProductionBooking|reopen(?:Calendar)?ProductionBooking/.test(read(path)));
 assert.deepEqual(
   completionActionUiFiles,
   ['components/CalendarWorkspace.tsx', 'components/ProductionScheduleInteractiveBoard.tsx'],

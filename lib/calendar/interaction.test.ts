@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { moveCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally } from './interaction';
+import { clampCalendarDetailPosition, getCalendarMoveRequirements, moveCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally } from './interaction';
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 assert.deepEqual(reorderBookingIds(['a', 'b', 'c'], 'c', 'a', true), ['c', 'a', 'b']);
@@ -19,5 +19,23 @@ const moved = moveCalendarBookingLocally(board, 'a', '2026-08-25');
 assert.deepEqual(moved.days[1].cards.map((item) => item.bookingId), ['c', 'a']);
 assert.equal(moved.days[0].remainingHours, 6);
 assert.equal(moved.days[1].remainingHours, 1);
+
+const movedSecond = moveCalendarBookingLocally(board, 'b', '2026-08-25');
+assert.deepEqual(movedSecond.days[1].cards.map((item) => item.bookingId), ['c', 'b']);
+const movedBack = moveCalendarBookingLocally(moved, 'a', '2026-08-24');
+assert.deepEqual(movedBack.days[0].cards.map((item) => item.bookingId), ['b', 'a']);
+const successive = moveCalendarBookingLocally(moveCalendarBookingLocally(board, 'a', '2026-08-25'), 'b', '2026-08-25');
+assert.deepEqual(successive.days[1].cards.map((item) => item.bookingId), ['c', 'a', 'b']);
+
+assert.deepEqual(getCalendarMoveRequirements('2026-08-10', '2026-08-11', '2026-08-20', false), {
+  requiresAcknowledgement: false, requiresBackdateReason: false, requiresClosedOverride: false,
+});
+assert.equal(getCalendarMoveRequirements('2026-08-20', '2026-08-11', '2026-08-20', false).requiresBackdateReason, true);
+assert.equal(getCalendarMoveRequirements('2026-08-24', '2026-08-25', '2026-08-20', true).requiresClosedOverride, true);
+
+assert.deepEqual(
+  clampCalendarDetailPosition({ x: -100, y: 900 }, { width: 300, height: 240 }, { left: 80, top: 40, right: 1000, bottom: 700 }, { width: 900, height: 650 }),
+  { x: 88, y: 402 },
+);
 
 console.log('Calendar interaction tests passed');

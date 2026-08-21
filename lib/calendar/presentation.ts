@@ -1,4 +1,5 @@
 import type { ProductionBoardCard, ProductionBoardDay } from '../production-board/types';
+import { calendarItemLayerKey } from './calendar-items';
 
 export type CalendarLayerKind =
   | 'production'
@@ -37,6 +38,7 @@ export function productionLayerKey(salesperson: string | null): string {
 export function buildCalendarLayers(cards: ProductionBoardCard[]): CalendarLayer[] {
   const identities = new Map<string, string[]>();
   for (const card of cards) {
+    if(card.recordKind==='calendar_item')continue;
     const label = card.salesperson?.trim() || 'Unassigned';
     const key = productionLayerKey(label === 'Unassigned' ? null : label);
     identities.set(key, [...(identities.get(key) ?? []), label]);
@@ -53,9 +55,9 @@ export function buildCalendarLayers(cards: ProductionBoardCard[]): CalendarLayer
       label: salesperson.label,
       available: true,
     })),
-    { key: 'fulfillment:delivery', kind: 'delivery', label: 'Deliveries', available: false },
-    { key: 'fulfillment:pickup', kind: 'customer_pickup', label: 'Customer Pickups', available: false },
-    { key: 'other:notes', kind: 'note', label: 'Notes', available: false },
+    { key: 'fulfillment:delivery', kind: 'delivery', label: 'Deliveries', available: cards.some((card)=>card.calendarItemType==='delivery') },
+    { key: 'fulfillment:pickup', kind: 'customer_pickup', label: 'Customer Pickups', available: cards.some((card)=>card.calendarItemType==='customer_pickup') },
+    { key: 'other:notes', kind: 'note', label: 'Notes', available: cards.some((card)=>card.calendarItemType==='note') },
     { key: 'other:away', kind: 'staff_away', label: 'Staff Away', available: false },
     { key: 'other:closures', kind: 'closure', label: 'Closures / Special Days', available: false },
   ];
@@ -86,15 +88,30 @@ export function searchCalendarCards(
   if (!normalizedQuery) return [];
 
   return cards.filter((card) =>
-    [card.customer, card.title, card.jobId].some((value) =>
+    [card.customer, card.title, card.jobId,card.nativeSalesOrder,card.timing,card.details].some((value) =>
       value?.toLocaleLowerCase().includes(normalizedQuery),
     ),
   ).slice(0, limit);
 }
 
 export function needsAttentionToolbarModel(cards: ProductionBoardCard[], visibleLayerKeys: string[]) {
-  const visibleCards = cards.filter((card) => visibleLayerKeys.includes(productionLayerKey(card.salesperson)));
+  const visibleCards = cards.filter((card) => visibleLayerKeys.includes(calendarItemLayerKey(card)));
   return { count: cards.length, visibleCards, preview: visibleCards[0] ?? null };
+}
+
+export function calendarCardText(card:ProductionBoardCard):string {
+  if(card.recordKind!=='calendar_item')return calendarProductionCardText(card);
+  const name=card.customer?.trim()||card.title?.trim()||'Untitled';
+  const order=card.nativeSalesOrder?.trim()||card.jobId?.trim();
+  const timing=card.timing?.trim();
+  return [name,order,timing].filter(Boolean).join(' · ');
+}
+
+export function calendarCardColor(card:ProductionBoardCard){
+  if(card.calendarItemType==='delivery')return {background:'#dbeafe',foreground:'#1e3a5f'};
+  if(card.calendarItemType==='customer_pickup')return {background:'#ffedd5',foreground:'#7c2d12'};
+  if(card.calendarItemType==='note')return {background:'#f3f4f6',foreground:'#374151'};
+  return salespersonColor(card.salesperson);
 }
 
 export function calendarProductionCardText(card: Pick<

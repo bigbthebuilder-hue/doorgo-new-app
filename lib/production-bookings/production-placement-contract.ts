@@ -12,7 +12,7 @@ export type ProductionPlacementRequest = {
 export type ProductionPlacement = {
   moveId: string; bookingId: string; previousProductionDate: string | null; newProductionDate: string | null;
   previousDayOrder: number; newDayOrder: number; shopHours: number | null; movedAt: string;
-  actionType: 'schedule' | 'unschedule' | 'reschedule' | 'backdate'; destinationWasClosed: boolean;
+  actionType: 'schedule' | 'unschedule' | 'reschedule'; destinationWasClosed: boolean;
 };
 export type ProductionPlacementResult = { ok: true; move: ProductionPlacement } | { ok: false; code: string; message: string };
 
@@ -23,7 +23,6 @@ const failure=(code:string):ProductionPlacementResult=>({ok:false,code,message:(
   authentication_required:'Sign in before moving Production.',active_profile_required:'An active DoorGo profile is required.',
   permission_required:'Calendar and Production use permission are required.',jobs_permission_required:'Jobs use permission is required to change a linked Shop Date.',
   stale_booking:'This Production booking changed after Calendar loaded.',ineligible_booking:'Reopen this Production booking before moving it.',
-  acknowledgement_required:'Acknowledge this protected Production move.',backdate_reason_required:'A reason is required for this past-date move.',
   closed_date_override_required:'Confirm scheduling Production on this closed date.',not_found:'The Production booking was not found.',
   invalid_request:'The Production placement request is invalid.',command_uuid_collision:'This placement command conflicts with an earlier request.',
   malformed_response:'The Production placement response was invalid.',unavailable:'Production could not be moved. Please try again.',
@@ -33,7 +32,7 @@ export async function executeProductionPlacement(input: ProductionPlacementReque
   if(!UUID.test(input.commandId)||!input.bookingId.trim()||input.bookingId!==input.bookingId.trim()
     || (input.expectedProductionDate!==null&&!validDate(input.expectedProductionDate))
     || (input.destinationProductionDate!==null&&!validDate(input.destinationProductionDate))
-    || input.expectedProductionDate===input.destinationProductionDate) return failure('invalid_request');
+    || input.expectedProductionDate===input.destinationProductionDate||input.backdateReason!==null||input.whollyUnstartedAcknowledged) return failure('invalid_request');
   const result=await rpc(PRODUCTION_PLACEMENT_RPC,{p_command_id:input.commandId,p_booking_id:input.bookingId,p_expected_production_date:input.expectedProductionDate,
     p_destination_production_date:input.destinationProductionDate,p_wholly_unstarted_acknowledged:input.whollyUnstartedAcknowledged,
     p_backdate_reason:input.backdateReason,p_closed_date_override_acknowledged:input.closedDateOverrideAcknowledged});

@@ -38,6 +38,9 @@ export type DoorGoJobRow = {
 
 export type ProductionBoardCard = {
   bookingId: string;
+  recordKind?: 'production' | 'calendar_item';
+  calendarItemType?: 'delivery' | 'customer_pickup' | 'note';
+  revision?: number;
   type: 'doorgo_linked' | 'biztrack_only';
   typeLabel: 'DoorGo-linked' | 'BizTrack-only';
   productionDate: string | null;
@@ -57,6 +60,9 @@ export type ProductionBoardCard = {
   bookingKind: string | null;
   locked: boolean;
   completedAt: string | null;
+  timing?: string | null;
+  fulfillmentNote?: string | null;
+  details?: string | null;
 };
 
 export type ProductionBoardDay = {

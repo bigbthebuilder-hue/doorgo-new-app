@@ -179,6 +179,10 @@ const laterPhaseCheckpointActionBoundary = new Set([
   'lib/production-bookings/production-placement-service.ts',
   'lib/production-bookings/production-placement-contract.ts',
   'lib/production-bookings/production-needs-attention-order-service.ts',
+  // Explicitly authorized post-C1 permanent Calendar mutation boundary.
+  'lib/calendar/calendar-item-actions.ts',
+  'lib/calendar/calendar-items.ts',
+  'supabase/migrations/20260821030000_add_operational_calendar_items.sql',
 ]);
 const reviewedNativeJobRpcBoundary = new Set(['lib/jobs/hosted-job-intake-repository.ts']);
 const applicationPaths = reviewablePaths.filter(

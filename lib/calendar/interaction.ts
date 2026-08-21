@@ -29,7 +29,7 @@ export function reorderCalendarDayLocally(board: ProductionBoardViewModel, date:
     if (day.date !== date) return day;
     const cardsById = new Map(day.cards.map((card) => [card.bookingId, card]));
     if (orderedIds.length !== day.cards.length || orderedIds.some((id) => !cardsById.has(id))) return day;
-    return { ...day, cards: orderedIds.map((id, index) => ({ ...cardsById.get(id)!, dayOrder: (index + 1) * 1024 })) };
+    return { ...day, cards: orderedIds.map((id, index) => {const card=cardsById.get(id)!;return {...card,dayOrder:(index+1)*1024,revision:card.recordKind==='calendar_item'?(card.revision??0)+1:card.revision};}) };
   });
   return { ...board, days: reorderDays(board.days), weekGroups: board.weekGroups.map((week) => ({ ...week, days: reorderDays(week.days) })) };
 }
@@ -52,27 +52,23 @@ export function placeCalendarBookingLocally(board: ProductionBoardViewModel, boo
   const all = [...board.days.flatMap((day) => day.cards), ...board.needsAttentionCards];
   const card = all.find((item) => item.bookingId === bookingId);
   if (!card || card.productionDate === destinationDate) return board;
+  const movedCard={...card,productionDate:destinationDate,revision:card.recordKind==='calendar_item'?(card.revision??0)+1:card.revision};
   const withoutNeeds = board.needsAttentionCards.filter((item) => item.bookingId !== bookingId);
   const needsAttentionCards = destinationDate === null
-    ? [{ ...card, productionDate: null, dayOrder: Math.min(0, ...withoutNeeds.map((item) => item.dayOrder ?? 0)) - 1024 }, ...withoutNeeds]
+    ? [...withoutNeeds,{ ...movedCard, dayOrder: Math.max(0, ...withoutNeeds.map((item) => item.dayOrder ?? 0)) + 1024 }]
     : withoutNeeds;
   const updateDays = (days: ProductionBoardDay[]) => days.map((day) => {
     if (day.date !== card.productionDate && day.date !== destinationDate) return day;
     const removing = day.date === card.productionDate;
     const cards = removing ? day.cards.filter((item) => item.bookingId !== bookingId)
-      : [...day.cards, { ...card, productionDate: destinationDate, dayOrder: Math.max(0, ...day.cards.map((item) => item.dayOrder ?? 0)) + 1024 }];
+      : [...day.cards, { ...movedCard, dayOrder: Math.max(0, ...day.cards.map((item) => item.dayOrder ?? 0)) + 1024 }];
     return recalculateDay({ ...day, cards }, card, removing ? -1 : 1);
   });
   return { ...board, needsAttentionCards, days: updateDays(board.days), weekGroups: board.weekGroups.map((week) => ({ ...week, days: updateDays(week.days) })) };
 }
 
-export function getCalendarMoveRequirements(sourceDate: string, destinationDate: string, today: string, destinationClosed: boolean) {
-  const pastToPast = sourceDate < today && destinationDate < today;
-  return {
-    requiresAcknowledgement: !pastToPast && (sourceDate <= today || destinationDate === today),
-    requiresBackdateReason: !pastToPast && destinationDate < today,
-    requiresClosedOverride: destinationClosed,
-  };
+export function getCalendarMoveRequirements(_sourceDate: string, _destinationDate: string, _today: string, destinationClosed: boolean) {
+  return { requiresClosedOverride: destinationClosed };
 }
 
 export function clampCalendarDetailPosition(

@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const sql=fs.readFileSync('supabase/migrations/20260821030000_add_operational_calendar_items.sql','utf8');
+const workspace=fs.readFileSync('components/CalendarWorkspace.tsx','utf8');
+const actions=fs.readFileSync('lib/calendar/calendar-item-actions.ts','utf8');
+assert.match(sql,/^--[\s\S]*BEGIN;[\s\S]*COMMIT;\s*$/);
+for(const token of ['CREATE TABLE public.dg_calendar_items','CREATE TABLE public.dg_calendar_item_events','ENABLE ROW LEVEL SECURITY','calendar_item.permission_required','calendar_item.production_permission_required','calendar_item.jobs_permission_required','pg_advisory_xact_lock','stale_item','stale_order','completed_item'])assert.match(sql,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'));
+assert.match(sql,/item_type IN \('delivery','customer_pickup','note'\)/);
+assert.match(sql,/scheduled_date date NULL/);
+assert.match(sql,/linked_internal_job_id uuid NULL REFERENCES public\.dg_native_jobs/);
+assert.match(sql,/order_family_key text NULL/);
+assert.match(sql,/REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON public\.dg_calendar_items/);
+assert.doesNotMatch(sql,/1900-01-01|9999-12-31|google/i);
+assert.match(actions,/^'use server';/);assert.match(actions,/createAuthenticatedSupabaseServerClient/);assert.doesNotMatch(actions,/revalidatePath|router\.refresh/);
+for(const token of ['Production','Delivery','Customer Pickup','Note','Find job / Sales Order','Staff Away date-range workflow is deferred'])assert.match(workspace,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+assert.doesNotMatch(workspace,/router\.refresh\(/);
+console.log('Operational Calendar item static verification passed');

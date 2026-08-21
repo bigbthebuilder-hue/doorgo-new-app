@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buildCalendarLayers,
   calendarCapacityLabel,
+  calendarCardText,
   calendarMonthSegments,
   calendarProductionCardText,
   needsAttentionToolbarModel,
@@ -22,6 +23,11 @@ const card = (salesperson: string | null): ProductionBoardCard => ({
 const layers = buildCalendarLayers([card('Alex'), card('Alex'), card(null)]);
 assert.deepEqual(layers.filter((layer) => layer.available).map((layer) => layer.label), ['Alex', 'Unassigned']);
 assert.equal(layers.some((layer) => layer.kind === 'delivery' && !layer.available), true);
+const delivery={...card(null),bookingId:'item:11111111-1111-4111-8111-111111111111',recordKind:'calendar_item' as const,calendarItemType:'delivery' as const,customer:'Hamilton',nativeSalesOrder:'123455',jobId:'123455',timing:'AM',shopHours:null};
+assert.equal(buildCalendarLayers([delivery]).find((layer)=>layer.key==='fulfillment:delivery')?.available,true);
+assert.equal(calendarCardText(delivery),'Hamilton · 123455 · AM');
+assert.deepEqual(searchCalendarCards([{...delivery,productionDate:null}],'AM').map((item)=>item.bookingId),[delivery.bookingId]);
+assert.equal(needsAttentionToolbarModel([{...delivery,productionDate:null}],['fulfillment:delivery']).preview?.bookingId,delivery.bookingId);
 assert.equal(productionLayerKey(' Alex '), 'production:alex');
 assert.deepEqual(salespersonColor('Alex'), salespersonColor('Alex'));
 const normalizedLayers = buildCalendarLayers([card('Jerry'), card('JERRY'), card('Steve'), card('STEVE')]).filter((layer) => layer.available);

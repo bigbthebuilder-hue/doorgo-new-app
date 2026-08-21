@@ -15,9 +15,12 @@ async function main(){
   const historicalPast={...base,expectedProductionDate:null,destinationProductionDate:'2026-08-10'};
   const restoredPast=await executeProductionPlacement(historicalPast,async(_name,input)=>{assert.equal(input.p_backdate_reason,null);assert.equal(input.p_wholly_unstarted_acknowledged,false);return {data:row({previous_production_date:null,new_production_date:'2026-08-10',action_type:'schedule'}),error:null};});
   assert.equal(restoredPast.ok,true,'authoritative history may permit direct restoration to the original or another past date');
-  for(const code of ['backdate_reason_required','closed_date_override_required']) {
+  for(const code of ['closed_date_override_required']) {
     const protectedResult=await executeProductionPlacement(historicalPast,async()=>({data:null,error:{message:`production_placement.${code}`}}));
     assert.equal(protectedResult.ok,false);if(!protectedResult.ok)assert.equal(protectedResult.code,code);
+  }
+  for(const expectedProductionDate of ['2026-08-20','2026-08-24']){
+    const direct=await executeProductionPlacement({...base,expectedProductionDate,destinationProductionDate:'2026-08-10'},async(_name,input)=>{assert.equal(input.p_backdate_reason,null);assert.equal(input.p_wholly_unstarted_acknowledged,false);return {data:row({previous_production_date:expectedProductionDate,new_production_date:'2026-08-10',action_type:'reschedule'}),error:null};});assert.equal(direct.ok,true);
   }
   assert.equal((await executeProductionPlacement({...base,expectedProductionDate:null,destinationProductionDate:null},async()=>({data:row(),error:null}))).ok,false);
   console.log('Production Needs Attention placement contract tests passed');

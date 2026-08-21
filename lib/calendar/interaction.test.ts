@@ -39,9 +39,10 @@ assert.deepEqual(needsAttentionDismissal('toolbar'),{close:true,consume:false});
 assert.deepEqual(needsAttentionDismissal('inside'),{close:false,consume:false});
 
 assert.deepEqual(getCalendarMoveRequirements('2026-08-10', '2026-08-11', '2026-08-20', false), {
-  requiresAcknowledgement: false, requiresBackdateReason: false, requiresClosedOverride: false,
+  requiresClosedOverride: false,
 });
-assert.equal(getCalendarMoveRequirements('2026-08-20', '2026-08-11', '2026-08-20', false).requiresBackdateReason, true);
+assert.deepEqual(getCalendarMoveRequirements('2026-08-20','2026-08-11','2026-08-20',false),{requiresClosedOverride:false});
+assert.deepEqual(getCalendarMoveRequirements('2026-08-24','2026-08-11','2026-08-20',false),{requiresClosedOverride:false});
 assert.equal(getCalendarMoveRequirements('2026-08-24', '2026-08-25', '2026-08-20', true).requiresClosedOverride, true);
 
 assert.deepEqual(

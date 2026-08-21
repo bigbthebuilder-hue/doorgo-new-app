@@ -9,6 +9,7 @@ import { loadDailyCapacityReadOnly } from './capacity-queries';
 import { normalizeProductionBoard } from './normalize';
 import type { DoorGoJobRow, ProductionBookingRow, ProductionBoardViewModel } from './types';
 import { loadNativeJobLinksByVisibleIdentifier } from './native-job-links';
+import { calendarItemCard, mergeCalendarItems, type CalendarItemRow } from '@/lib/calendar/calendar-items';
 
 export async function loadProductionBoardReadOnly(params: {
   boardStart: string;
@@ -16,6 +17,7 @@ export async function loadProductionBoardReadOnly(params: {
   weeks: number;
   today?: string;
   includeNativeJobLinks?: boolean;
+  includeOperationalCalendarItems?: boolean;
 }): Promise<ProductionBoardViewModel> {
   const supabase = createTrustedReadOnlySupabaseClient();
   const checkpointAnchor =
@@ -27,7 +29,7 @@ export async function loadProductionBoardReadOnly(params: {
 
   // TODO: Use a persisted carry checkpoint or settings baseline to bound historical reads.
 
-  const [bookingResult, needsAttentionResult, capacityRows, checkpoints] = await Promise.all([
+  const [bookingResult, needsAttentionResult, calendarItemsResult, capacityRows, checkpoints] = await Promise.all([
     supabase
       .from('dg_production_bookings')
       .select(`
@@ -83,6 +85,9 @@ export async function loadProductionBoardReadOnly(params: {
       .neq('board_visible', false)
       .order('day_order', { ascending: true })
       .order('title', { ascending: true }),
+    params.includeOperationalCalendarItems?supabase.from('dg_calendar_items').select('item_id,item_type,scheduled_date,linked_internal_job_id,customer_name,sales_order,salesperson,timing,fulfillment_note,title,details,day_order,completed_at,revision')
+      .or(`scheduled_date.is.null,and(scheduled_date.gte.${calculationStart},scheduled_date.lt.${params.boardEndExclusive})`)
+      .is('deleted_at',null).order('day_order',{ascending:true}):Promise.resolve({data:[],error:null}),
     loadDailyCapacityReadOnly({
       startDate: calculationStart,
       endDateExclusive: params.boardEndExclusive,
@@ -101,6 +106,7 @@ export async function loadProductionBoardReadOnly(params: {
   if (needsAttentionResult.error) {
     throw new Error(`Failed to load Needs Attention production: ${needsAttentionResult.error.message}`);
   }
+  if(calendarItemsResult.error) throw new Error(`Failed to load Calendar items: ${calendarItemsResult.error.message}`);
 
   const bookingRows = [
     ...((bookingResult.data ?? []) as ProductionBookingRow[]),
@@ -156,7 +162,7 @@ export async function loadProductionBoardReadOnly(params: {
     });
   }
 
-  return normalizeProductionBoard(bookingRows, jobRows, capacityRows, {
+  const productionBoard=normalizeProductionBoard(bookingRows, jobRows, capacityRows, {
     startDate: params.boardStart,
     endDateExclusive: params.boardEndExclusive,
     weeks: params.weeks,
@@ -164,4 +170,13 @@ export async function loadProductionBoardReadOnly(params: {
     checkpoints,
     today: params.today,
   });
+  const itemRows=(calendarItemsResult.data??[]) as CalendarItemRow[];
+  const linked=new Map<string,{internalJobId:string;customer:string|null;salesOrder:string|null;salesperson:string|null}>();
+  if(params.includeNativeJobLinks){
+    const repository=createJobIntakeRepository();
+    await Promise.all(Array.from(new Set(itemRows.map((row)=>row.linked_internal_job_id).filter(Boolean) as string[])).map(async(id)=>{
+      const job=await repository.findById(id); if(job)linked.set(id,{internalJobId:job.internalJobId,customer:job.customer,salesOrder:job.bizTrackSalesOrder,salesperson:job.salesperson});
+    }));
+  }
+  return mergeCalendarItems(productionBoard,itemRows.map((row)=>calendarItemCard(row,row.linked_internal_job_id?linked.get(row.linked_internal_job_id):undefined)));
 }

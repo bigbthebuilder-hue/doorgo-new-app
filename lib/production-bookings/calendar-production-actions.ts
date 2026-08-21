@@ -65,6 +65,7 @@ export async function reloadCalendarProductionDays(request: { boardStart: string
       weeks: request.weeks,
       today: request.today,
       includeNativeJobLinks: hasAtLeastView(access, 'jobs'),
+      includeOperationalCalendarItems:true,
     });
     const dates = new Set(request.dates);
     return { ok: true, days: board.days.filter((day) => dates.has(day.date)), needsAttentionCards: board.needsAttentionCards };

@@ -27,7 +27,7 @@ export async function loadProductionBoardReadOnly(params: {
 
   // TODO: Use a persisted carry checkpoint or settings baseline to bound historical reads.
 
-  const [bookingResult, capacityRows, checkpoints] = await Promise.all([
+  const [bookingResult, needsAttentionResult, capacityRows, checkpoints] = await Promise.all([
     supabase
       .from('dg_production_bookings')
       .select(`
@@ -66,6 +66,23 @@ export async function loadProductionBoardReadOnly(params: {
       .order('production_date', { ascending: true })
       .order('day_order', { ascending: true })
       .order('title', { ascending: true }),
+    supabase
+      .from('dg_production_bookings')
+      .select(`
+        booking_id, job_id, calendar_id, calendar_event_id, title, production_date,
+        day_order, shop_hours, salesperson, status, schedule_status, booking_kind,
+        board_visible, all_day, calendar_sync_state, source, source_system, locked,
+        completed_at, cancelled_at, deleted_at, created_at, updated_at, mirrored_at
+      `)
+      .is('production_date', null)
+      .is('deleted_at', null)
+      .is('cancelled_at', null)
+      .eq('status', 'active')
+      .eq('schedule_status', 'confirmed')
+      .eq('booking_kind', 'production')
+      .neq('board_visible', false)
+      .order('day_order', { ascending: true })
+      .order('title', { ascending: true }),
     loadDailyCapacityReadOnly({
       startDate: calculationStart,
       endDateExclusive: params.boardEndExclusive,
@@ -81,8 +98,14 @@ export async function loadProductionBoardReadOnly(params: {
       `Failed to load production bookings: ${bookingResult.error.message}`,
     );
   }
+  if (needsAttentionResult.error) {
+    throw new Error(`Failed to load Needs Attention production: ${needsAttentionResult.error.message}`);
+  }
 
-  const bookingRows = (bookingResult.data ?? []) as ProductionBookingRow[];
+  const bookingRows = [
+    ...((bookingResult.data ?? []) as ProductionBookingRow[]),
+    ...((needsAttentionResult.data ?? []) as ProductionBookingRow[]),
+  ];
   const jobIds = Array.from(
     new Set(bookingRows.map((row) => row.job_id).filter(Boolean)),
   ) as string[];

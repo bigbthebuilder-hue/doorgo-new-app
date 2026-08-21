@@ -470,6 +470,16 @@ body {
 .calendar-move-check input { margin-top: .25rem; }
 .calendar-move-undo { position: fixed; right: 1rem; bottom: 1rem; z-index: 45; display: flex; align-items: center; gap: .35rem; border-radius: 999px; background: rgb(15 23 42); padding: .45rem .7rem; color: white; font-size: .72rem; font-weight: 750; box-shadow: 0 6px 20px rgb(15 23 42 / .2); }
 .calendar-move-undo button { color: rgb(125 211 252); text-decoration: underline; }
+.calendar-needs-attention { position: fixed; z-index: 34; width: 21rem; max-width: calc(100vw - 1rem); max-height: min(32rem, calc(100vh - 1rem)); overflow: hidden; border: 1px solid rgb(148 163 184); border-radius: .45rem; background: white; box-shadow: 0 12px 32px rgb(15 23 42 / .2); }
+.calendar-needs-attention > header { display: flex; min-height: 2.25rem; cursor: move; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--app-color-border); background: rgb(248 250 252); padding: .35rem .5rem; font-size: .72rem; user-select: none; touch-action: none; }
+.calendar-needs-attention > header div { display: flex; align-items: center; gap: .35rem; }
+.calendar-needs-attention > header button { font-size: .68rem; font-weight: 700; }
+.calendar-needs-attention-list { display: grid; max-height: 27rem; gap: 2px; overflow: auto; padding: .35rem; }
+.calendar-needs-attention[data-expanded] { width: 34rem; }
+.calendar-needs-attention-item { display: grid; grid-template-columns: auto minmax(0,1fr) auto auto auto; align-items: center; gap: .4rem; border-radius: .3rem; padding: .4rem; font-size: .68rem; }
+.calendar-needs-attention-item > div { display: grid; min-width: 0; }
+.calendar-needs-attention-item > div span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .8; }
+.calendar-needs-attention-empty { padding: .75rem; color: var(--app-color-muted); font-size: .7rem; text-align: center; }
 
 .account-workspace { gap: 0; padding-top: .5rem; }
 .account-workspace-surface { border-block: 1px solid var(--app-color-border); padding: .65rem .75rem .8rem; }

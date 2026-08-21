@@ -903,6 +903,14 @@ function run(): void {
     2,
   );
 
+  const withNeedsAttention = normalizeProductionBoard(
+    [booking({ booking_id: 'unscheduled', production_date: null, day_order: -1024, shop_hours: 3 })],
+    [], [],
+    { startDate: '2026-07-06', endDateExclusive: '2026-07-11', weeks: 1, today: '2026-07-06' },
+  );
+  assert.deepEqual(withNeedsAttention.needsAttentionCards.map((card) => card.bookingId), ['unscheduled']);
+  assert.equal(withNeedsAttention.days.reduce((sum, day) => sum + day.totalKnownShopHours, 0), 0);
+
   console.log('production-board capacity verification passed');
 }
 

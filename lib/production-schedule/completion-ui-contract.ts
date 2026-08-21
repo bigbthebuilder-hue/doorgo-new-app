@@ -68,7 +68,7 @@ export function createProductionScheduleCompletionAttempt(
     action: card.completedAt === null ? 'complete' : 'reopen',
     commandId,
     bookingId: card.bookingId,
-    productionDate: card.productionDate,
+    productionDate: card.productionDate!,
     expectedCompletedAt: card.completedAt,
     reason: '',
     failed: false,

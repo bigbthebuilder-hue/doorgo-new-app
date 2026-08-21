@@ -32,7 +32,7 @@ export function reorderCalendarDayLocally(board: ProductionBoardViewModel, date:
 }
 
 export function moveCalendarBookingLocally(board: ProductionBoardViewModel, bookingId: string, destinationDate: string): ProductionBoardViewModel {
-  const card = board.days.flatMap((day) => day.cards).find((item) => item.bookingId === bookingId);
+  const card = [...board.days.flatMap((day) => day.cards), ...board.needsAttentionCards].find((item) => item.bookingId === bookingId);
   if (!card || card.productionDate === destinationDate || !board.days.some((day) => day.date === destinationDate)) return board;
   const updateDays = (days: ProductionBoardDay[]) => days.map((day) => {
     if (day.date !== card.productionDate && day.date !== destinationDate) return day;
@@ -43,6 +43,24 @@ export function moveCalendarBookingLocally(board: ProductionBoardViewModel, book
     return recalculateDay({ ...day, cards }, card, removing ? -1 : 1);
   });
   return { ...board, days: updateDays(board.days), weekGroups: board.weekGroups.map((week) => ({ ...week, days: updateDays(week.days) })) };
+}
+
+export function placeCalendarBookingLocally(board: ProductionBoardViewModel, bookingId: string, destinationDate: string | null): ProductionBoardViewModel {
+  const all = [...board.days.flatMap((day) => day.cards), ...board.needsAttentionCards];
+  const card = all.find((item) => item.bookingId === bookingId);
+  if (!card || card.productionDate === destinationDate) return board;
+  const withoutNeeds = board.needsAttentionCards.filter((item) => item.bookingId !== bookingId);
+  const needsAttentionCards = destinationDate === null
+    ? [{ ...card, productionDate: null, dayOrder: Math.min(0, ...withoutNeeds.map((item) => item.dayOrder ?? 0)) - 1024 }, ...withoutNeeds]
+    : withoutNeeds;
+  const updateDays = (days: ProductionBoardDay[]) => days.map((day) => {
+    if (day.date !== card.productionDate && day.date !== destinationDate) return day;
+    const removing = day.date === card.productionDate;
+    const cards = removing ? day.cards.filter((item) => item.bookingId !== bookingId)
+      : [...day.cards, { ...card, productionDate: destinationDate, dayOrder: Math.max(0, ...day.cards.map((item) => item.dayOrder ?? 0)) + 1024 }];
+    return recalculateDay({ ...day, cards }, card, removing ? -1 : 1);
+  });
+  return { ...board, needsAttentionCards, days: updateDays(board.days), weekGroups: board.weekGroups.map((week) => ({ ...week, days: updateDays(week.days) })) };
 }
 
 export function getCalendarMoveRequirements(sourceDate: string, destinationDate: string, today: string, destinationClosed: boolean) {

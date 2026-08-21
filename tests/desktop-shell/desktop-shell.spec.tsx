@@ -153,7 +153,7 @@ test('compact production cards keep several bookings visible in one desktop view
 test('primary production summary omits transitional source counts', async ({ mount, page }) => {
   const board = {
     startDate: '2026-08-10', endDateExclusive: '2026-08-15', visibleWeekdayEndExclusive: '2026-08-15',
-    weeks: 1, days: [], weekGroups: [], calculationStartDate: '2026-08-10',
+    weeks: 1, days: [], needsAttentionCards: [], weekGroups: [], calculationStartDate: '2026-08-10',
     summary: { totalBookings: 4, totalKnownShopHours: 12, scheduledDays: 3, doorGoLinkedCount: 2, bizTrackOnlyCount: 2, missingShopHoursCount: 0 },
   } satisfies ProductionBoardViewModel;
   await mount(<ProductionBoardSummary board={board}/>);

@@ -176,6 +176,9 @@ const laterPhaseCheckpointActionBoundary = new Set([
   'lib/production-bookings/production-booking-completion-contract.ts',
   'lib/production-bookings/production-day-order-service.ts',
   'lib/production-bookings/production-day-order-contract.ts',
+  'lib/production-bookings/production-placement-service.ts',
+  'lib/production-bookings/production-placement-contract.ts',
+  'lib/production-bookings/production-needs-attention-order-service.ts',
 ]);
 const reviewedNativeJobRpcBoundary = new Set(['lib/jobs/hosted-job-intake-repository.ts']);
 const applicationPaths = reviewablePaths.filter(

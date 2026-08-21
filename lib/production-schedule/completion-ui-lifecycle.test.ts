@@ -38,7 +38,7 @@ const success = (action: 'completed' | 'reopened'): ProductionBookingCompletionR
   event: {
     eventId: '99999999-9999-4999-8999-999999999999',
     bookingId: ready.bookingId,
-    productionDate: ready.productionDate,
+    productionDate: ready.productionDate!,
     previousCompletedAt: action === 'completed' ? null : exactCompletedAt,
     resultingCompletedAt: action === 'completed' ? exactCompletedAt : null,
     occurredAt: '2026-07-16T18:22:31.123456+00:00',

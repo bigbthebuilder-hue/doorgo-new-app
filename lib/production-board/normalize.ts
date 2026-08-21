@@ -78,8 +78,12 @@ export function normalizeProductionBoard(
   });
 
   const cardsByDate = new Map<string, ProductionBoardCard[]>();
+  const needsAttentionCards = cards
+    .filter((card) => card.productionDate === null)
+    .sort((left, right) => (left.dayOrder ?? 0) - (right.dayOrder ?? 0));
 
   for (const card of cards) {
+    if (card.productionDate === null) continue;
     const existing = cardsByDate.get(card.productionDate) ?? [];
     existing.push(card);
     cardsByDate.set(card.productionDate, existing);
@@ -508,11 +512,12 @@ export function normalizeProductionBoard(
 
   const visibleCards = cards.filter(
     (card) =>
+      card.productionDate !== null &&
       card.productionDate >= params.startDate &&
       card.productionDate < params.endDateExclusive,
   );
   const visibleScheduledDates = new Set(
-    visibleCards.map((card) => card.productionDate),
+    visibleCards.map((card) => card.productionDate!),
   );
   const summary: ProductionBoardSummary = {
     totalBookings: visibleCards.length,
@@ -535,6 +540,7 @@ export function normalizeProductionBoard(
     ),
     weeks: params.weeks,
     days,
+    needsAttentionCards,
     weekGroups,
     summary,
     calculationStartDate,

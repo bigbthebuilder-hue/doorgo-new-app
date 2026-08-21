@@ -7,7 +7,7 @@ export type ProductionBookingRow = {
   calendar_id: string | null;
   calendar_event_id: string | null;
   title: string | null;
-  production_date: string;
+  production_date: string | null;
   day_order?: number | string;
   shop_hours: number | string | null;
   salesperson: string | null;
@@ -40,7 +40,7 @@ export type ProductionBoardCard = {
   bookingId: string;
   type: 'doorgo_linked' | 'biztrack_only';
   typeLabel: 'DoorGo-linked' | 'BizTrack-only';
-  productionDate: string;
+  productionDate: string | null;
   dayOrder?: number;
   title: string;
   customer: string | null;
@@ -164,6 +164,7 @@ export type ProductionBoardViewModel = {
   visibleWeekdayEndExclusive: string;
   weeks: number;
   days: ProductionBoardDay[];
+  needsAttentionCards: ProductionBoardCard[];
   weekGroups: ProductionBoardWeek[];
   summary: ProductionBoardSummary;
   calculationStartDate: string;

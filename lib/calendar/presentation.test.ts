@@ -38,6 +38,7 @@ assert.deepEqual(searchCalendarCards(searchableCards, 'smith').map((item) => ite
 assert.deepEqual(searchCalendarCards(searchableCards, '908').map((item) => item.bookingId), ['second']);
 assert.deepEqual(searchCalendarCards(searchableCards, 'legacy source').map((item) => item.bookingId), ['second']);
 assert.deepEqual(searchCalendarCards(searchableCards, '   '), []);
+assert.deepEqual(searchCalendarCards([{ ...card('Aaron'), productionDate: null, customer: 'Needs Customer' }], 'needs').map((item) => item.productionDate), [null]);
 
 const nativeCard = {
   ...card('Alex'),

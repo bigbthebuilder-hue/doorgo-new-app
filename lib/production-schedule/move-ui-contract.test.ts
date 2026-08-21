@@ -102,7 +102,7 @@ assert.equal(isMaterialProductionScheduleMoveFailure('unavailable'), false); // 
 
 const attempt: ProductionScheduleMoveAttempt = {
   commandId: '11111111-1111-4111-8111-111111111111', bookingId: card.bookingId,
-  sourceDate: card.productionDate, destinationDate: '2026-07-14',
+  sourceDate: card.productionDate!, destinationDate: '2026-07-14',
   whollyUnstartedAcknowledged: false, backdateReason: '',
   closedDateOverrideAcknowledged: false, failed: false,
 };
@@ -122,6 +122,7 @@ const board: ProductionBoardViewModel = {
   startDate: source.date, endDateExclusive: '2026-07-18', weeks: 1,
   visibleWeekdayEndExclusive: '2026-07-18',
   days: [source, destination],
+  needsAttentionCards: [],
   weekGroups: [{
     weekIndex: 0, startDate: source.date, endDateExclusive: '2026-07-18', weekdayEndExclusive: '2026-07-18', days: [source, destination],
     bookingCount: 2, totalKnownShopHours: 8, missingShopHoursCount: 0, totalAvailableHours: 16,

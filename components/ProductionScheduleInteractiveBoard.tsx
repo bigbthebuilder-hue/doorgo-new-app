@@ -290,7 +290,7 @@ function ProductionScheduleInteractiveBoardSession({
     const attempt: ProductionScheduleMoveAttempt = {
       commandId: createSecureCommandId(),
       bookingId: card.bookingId,
-      sourceDate: card.productionDate,
+      sourceDate: card.productionDate!,
       destinationDate,
       whollyUnstartedAcknowledged: false,
       backdateReason: '',
@@ -320,7 +320,7 @@ function ProductionScheduleInteractiveBoardSession({
 
     if (base.preview) {
       const review = classifyProductionScheduleMoveReview({
-        sourceDate: card.productionDate,
+        sourceDate: card.productionDate!,
         destinationDate,
         today,
         preview: base.preview,
@@ -335,7 +335,7 @@ function ProductionScheduleInteractiveBoardSession({
 
     const result = await previewProductionScheduleDestination({
       bookingId: card.bookingId,
-      expectedProductionDate: card.productionDate,
+      expectedProductionDate: card.productionDate!,
       destinationProductionDate: destinationDate,
     });
     if (!result.ok && (result.code === 'stale_booking' || result.code === 'permission_required')) {
@@ -570,7 +570,7 @@ function ProductionScheduleMoveDialog({
       <div className="p-4 sm:p-5">
         <h2 id="production-move-title" className="text-lg font-semibold">Move production booking</h2>
         <p className="mt-1 text-sm font-medium text-slate-800">{active.card.title}</p>
-        <p className="mt-1 text-xs text-slate-500">Current production date: {formatProductionScheduleDate(active.card.productionDate)}</p>
+        <p className="mt-1 text-xs text-slate-500">Current production date: {formatProductionScheduleDate(active.card.productionDate!)}</p>
 
         <label className="mt-4 block text-sm font-semibold" htmlFor="production-move-date">New production date</label>
         <input
@@ -726,7 +726,7 @@ function ProductionScheduleCompletionDialog({
         </h2>
         <p className="mt-1 text-sm font-medium text-slate-800">{active.card.title}</p>
         <p className="mt-1 text-xs text-slate-500">
-          Current production date: {formatProductionScheduleDate(active.card.productionDate)}
+          Current production date: {formatProductionScheduleDate(active.card.productionDate!)}
         </p>
 
         <div

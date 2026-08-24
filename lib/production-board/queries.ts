@@ -171,12 +171,12 @@ export async function loadProductionBoardReadOnly(params: {
     today: params.today,
   });
   const itemRows=(calendarItemsResult.data??[]) as CalendarItemRow[];
-  const itemIds=itemRows.map((row)=>row.item_id);const memberships=itemIds.length?await supabase.from('dg_calendar_item_orders').select('item_id,portion_id').in('item_id',itemIds):{data:[],error:null};
+  const itemIds=itemRows.map((row)=>row.item_id);const memberships=itemIds.length?await supabase.from('dg_calendar_item_orders').select('item_id,portion_id,send_on_completion').in('item_id',itemIds):{data:[],error:null};
   if(memberships.error)throw new Error(`Failed to load fulfillment Included Orders: ${memberships.error.message}`);
-  const portionIds=Array.from(new Set((memberships.data??[]).map((row)=>row.portion_id)));const portions=portionIds.length?await supabase.from('dg_fulfillment_order_portions').select('portion_id,linked_internal_job_id,family_key,sales_order').in('portion_id',portionIds):{data:[],error:null};
+  const portionIds=Array.from(new Set((memberships.data??[]).map((row)=>row.portion_id)));const portions=portionIds.length?await supabase.from('dg_fulfillment_order_portions').select('portion_id,linked_internal_job_id,family_key,sales_order').in('portion_id',portionIds).is('deleted_at',null):{data:[],error:null};
   if(portions.error)throw new Error(`Failed to load fulfillment order portions: ${portions.error.message}`);
-  const portionById=new Map((portions.data??[]).map((portion)=>[portion.portion_id,portion]));const includedByItem=new Map<string,string[]>();
-  for(const membership of memberships.data??[]){const portion=portionById.get(membership.portion_id);if(portion)includedByItem.set(membership.item_id,[...(includedByItem.get(membership.item_id)??[]),portion.sales_order]);}
+  const portionById=new Map((portions.data??[]).map((portion)=>[portion.portion_id,portion]));const includedByItem=new Map<string,string[]>();const sendByItem=new Map<string,string[]>();
+  for(const membership of memberships.data??[]){const portion=portionById.get(membership.portion_id);if(portion){includedByItem.set(membership.item_id,[...(includedByItem.get(membership.item_id)??[]),portion.sales_order]);if(membership.send_on_completion)sendByItem.set(membership.item_id,[...(sendByItem.get(membership.item_id)??[]),portion.sales_order]);}}
   const availableByFamily=new Map<string,string[]>();for(const portion of portions.data??[]){const key=`${portion.linked_internal_job_id}:${portion.family_key}`;availableByFamily.set(key,[...(availableByFamily.get(key)??[]),portion.sales_order]);}
   const linked=new Map<string,{internalJobId:string;customer:string|null;salesOrder:string|null;salesperson:string|null}>();
   if(params.includeNativeJobLinks){
@@ -185,7 +185,7 @@ export async function loadProductionBoardReadOnly(params: {
     await Promise.all(Array.from(new Set([...itemRows.map((row)=>row.linked_internal_job_id),...portionJobByItem.values()].filter(Boolean) as string[])).map(async(id)=>{
       const job=await repository.findById(id); if(job)linked.set(id,{internalJobId:job.internalJobId,customer:job.customer,salesOrder:job.bizTrackSalesOrder,salesperson:job.salesperson});
     }));
-    return mergeCalendarItems(productionBoard,itemRows.map((row)=>{const jobId=row.linked_internal_job_id??portionJobByItem.get(row.item_id);const job=jobId?linked.get(jobId):undefined;const familyKey=jobId&&row.order_family_key?`${jobId}:${row.order_family_key}`:'';return calendarItemCard(row,job,{included:(includedByItem.get(row.item_id)??[]).sort(),available:(availableByFamily.get(familyKey)??[]).sort()});}));
+    return mergeCalendarItems(productionBoard,itemRows.map((row)=>{const jobId=row.linked_internal_job_id??portionJobByItem.get(row.item_id);const job=jobId?linked.get(jobId):undefined;const familyKey=jobId&&row.order_family_key?`${jobId}:${row.order_family_key}`:'';return calendarItemCard(row,job,{included:(includedByItem.get(row.item_id)??[]).sort(),send:(sendByItem.get(row.item_id)??[]).sort(),available:(availableByFamily.get(familyKey)??[]).sort()});}));
   }
-  return mergeCalendarItems(productionBoard,itemRows.map((row)=>calendarItemCard(row,undefined,{included:(includedByItem.get(row.item_id)??[]).sort(),available:[]})));
+  return mergeCalendarItems(productionBoard,itemRows.map((row)=>calendarItemCard(row,undefined,{included:(includedByItem.get(row.item_id)??[]).sort(),send:(sendByItem.get(row.item_id)??[]).sort(),available:[]})));
 }

@@ -65,6 +65,7 @@ export type ProductionBoardCard = {
   details?: string | null;
   orderFamilyKey?: string | null;
   includedOrders?: string[];
+  sendOrders?: string[];
   availableFamilyOrders?: string[];
 };
 

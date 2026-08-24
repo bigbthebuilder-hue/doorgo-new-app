@@ -7,7 +7,7 @@ export type CalendarItemRow = {
   completed_at:string|null; revision:number|string; order_family_key:string|null;
 };
 
-export function calendarItemCard(row:CalendarItemRow, linked?:{internalJobId:string;customer:string|null;salesOrder:string|null;salesperson:string|null},orders:{included:string[];available:string[]}={included:[],available:[]}):ProductionBoardCard {
+export function calendarItemCard(row:CalendarItemRow, linked?:{internalJobId:string;customer:string|null;salesOrder:string|null;salesperson:string|null},orders:{included:string[];available:string[];send?:string[]}={included:[],available:[]}):ProductionBoardCard {
   const customer=linked?.customer?.trim()||row.customer_name;
   const salesOrder=linked?.salesOrder?.trim()||row.sales_order;
   return {bookingId:`item:${row.item_id}`,recordKind:'calendar_item',calendarItemType:row.item_type,revision:Number(row.revision),type:linked?'doorgo_linked':'biztrack_only',
@@ -15,7 +15,7 @@ export function calendarItemCard(row:CalendarItemRow, linked?:{internalJobId:str
     customer,jobId:salesOrder,internalJobId:linked?.internalJobId,nativeSalesOrder:salesOrder,calendarId:null,calendarEventId:null,shopHours:null,
     shopHoursKnown:true,salesperson:linked?.salesperson?.trim()||row.salesperson,source:'DoorGo Calendar',sourceSystem:'doorgo_native',bookingKind:row.item_type,
     locked:false,completedAt:row.completed_at,timing:row.timing,fulfillmentNote:row.fulfillment_note,details:row.details,orderFamilyKey:row.order_family_key,
-    includedOrders:orders.included,availableFamilyOrders:orders.available};
+    includedOrders:orders.included,sendOrders:orders.send??orders.included,availableFamilyOrders:orders.available};
 }
 
 export function mergeCalendarItems(board:ProductionBoardViewModel,cards:ProductionBoardCard[]):ProductionBoardViewModel {

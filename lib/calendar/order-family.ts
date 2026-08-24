@@ -23,6 +23,12 @@ export function validateBackorderSalesOrder(baseSalesOrder: string, candidate: s
   return { ok: true, familyKey, salesOrder };
 }
 
+export function nextAvailableBackorderSalesOrder(baseSalesOrder:string,currentOrders:string[]):string|null{
+  const base=normalizeSalesOrder(baseSalesOrder);if(!base)return null;const occupied=new Set(currentOrders.map(normalizeSalesOrder).filter((value):value is string=>Boolean(value)));const value=Number(base);if(!Number.isSafeInteger(value))return null;
+  for(let offset=1;offset<=4;offset+=1){const candidate=String(value+offset);if(salesOrderFamily(candidate)===salesOrderFamily(base)&&!occupied.has(candidate))return candidate;}
+  return null;
+}
+
 export function fulfillmentCardOrderLabel(orders: string[], fallback: string | null): string | null {
   const actual = [...new Set(orders.map((value) => value.trim()).filter(Boolean))].sort();
   const first = actual[0] ?? fallback?.trim() ?? null;

@@ -505,6 +505,12 @@ body {
 .calendar-quick-add-form input,.calendar-quick-add-form textarea { width:100%;border:1px solid var(--app-color-border);border-radius:.3rem;padding:.35rem;font-size:.72rem;user-select:text; }
 .calendar-quick-add-form footer { display:flex;justify-content:flex-end;gap:.35rem; }
 .calendar-quick-add-form footer button { border:1px solid var(--app-color-border);border-radius:.3rem;padding:.35rem .65rem;font-size:.7rem;font-weight:700; }
+.calendar-partial-completion { display:grid;gap:.45rem;padding:.6rem; }
+.calendar-partial-completion > header { margin:-.6rem -.6rem 0; }
+.calendar-included-orders { display:grid;gap:.3rem;border-top:1px solid var(--app-color-border);padding:.6rem;font-size:.7rem; }
+.calendar-included-orders label { display:flex;align-items:center;gap:.4rem; }
+.calendar-included-orders label[draggable="true"] { cursor:grab; }
+.calendar-included-orders button,.calendar-detail-panel > button { border:1px solid var(--app-color-border);border-radius:.3rem;padding:.35rem .55rem;font-size:.68rem;font-weight:700; }
 .calendar-quick-add-results { position:absolute;z-index:2;top:100%;width:100%;max-height:10rem;overflow-y:auto;border:1px solid var(--app-color-border);background:white;box-shadow:0 6px 16px rgb(15 23 42 / .15); }
 .calendar-quick-add-results button { display:flex;width:100%;justify-content:space-between;padding:.35rem;border-bottom:1px solid rgb(241 245 249);font-size:.68rem; }
 .calendar-item-icon { display:inline-flex;width:.85rem;height:.85rem;flex:0 0 .85rem;color:currentColor; }

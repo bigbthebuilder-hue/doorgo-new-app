@@ -1,8 +1,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { LoginForm } from './login-form';
+import { redirect } from 'next/navigation';
+import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
+import { protectedLandingDestination } from '@/lib/app-shell/navigation';
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const access=await getCurrentDoorGoAccess();if(access.state==='active')redirect(access.profile.mustChangePassword?'/account/change-password':protectedLandingDestination(access));
   return (
     <main className="doorgo-entry px-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

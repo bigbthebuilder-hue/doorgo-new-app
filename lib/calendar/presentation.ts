@@ -1,5 +1,6 @@
 import type { ProductionBoardCard, ProductionBoardDay } from '../production-board/types';
 import { calendarItemLayerKey } from './calendar-items';
+import { fulfillmentCardOrderLabel } from './order-family';
 
 export type CalendarLayerKind =
   | 'production'
@@ -88,7 +89,7 @@ export function searchCalendarCards(
   if (!normalizedQuery) return [];
 
   return cards.filter((card) =>
-    [card.customer, card.title, card.jobId,card.nativeSalesOrder,card.timing,card.details].some((value) =>
+    [card.customer, card.title, card.jobId,card.nativeSalesOrder,card.timing,card.details,...(card.includedOrders??[])].some((value) =>
       value?.toLocaleLowerCase().includes(normalizedQuery),
     ),
   ).slice(0, limit);
@@ -102,7 +103,7 @@ export function needsAttentionToolbarModel(cards: ProductionBoardCard[], visible
 export function calendarCardText(card:ProductionBoardCard):string {
   if(card.recordKind!=='calendar_item')return calendarProductionCardText(card);
   const name=card.customer?.trim()||card.title?.trim()||'Untitled';
-  const order=card.nativeSalesOrder?.trim()||card.jobId?.trim();
+  const order=fulfillmentCardOrderLabel(card.includedOrders??[],card.nativeSalesOrder?.trim()||card.jobId?.trim()||null);
   const timing=card.timing?.trim();
   return [name,order,timing].filter(Boolean).join(' · ');
 }

@@ -63,6 +63,9 @@ export type ProductionBoardCard = {
   timing?: string | null;
   fulfillmentNote?: string | null;
   details?: string | null;
+  orderFamilyKey?: string | null;
+  includedOrders?: string[];
+  availableFamilyOrders?: string[];
 };
 
 export type ProductionBoardDay = {

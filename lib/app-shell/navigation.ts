@@ -30,17 +30,16 @@ export function isAppNavigationItemActive(pathname: string, item: AppNavigationI
 }
 
 export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNavigationItem[] {
-  const items: AppNavigationItem[] = [{ href: '/', label: 'Home', icon: 'home', match: 'exact' }, productionBoard];
+  const items: AppNavigationItem[] = [{ href: '/', label: 'Home', icon: 'home', match: 'exact' }];
 
   if (hasAtLeastView(access, 'calendar')) {
     items.push({ href: '/calendar', label: 'Calendar', icon: 'schedule', match: 'section', showOnHome: true });
   }
 
   if (hasAtLeastView(access, 'production')) {
-    items.push(
-      { href: '/production-schedule', label: 'Edit Schedule', icon: 'schedule', match: 'section', showOnHome: true },
-    );
+    items.push({ ...productionBoard, label:'Production Board' });
   }
+  if(hasAtLeastView(access,'production_checkpoints'))items.push({href:'/production-checkpoints',label:'Production Checkpoints',icon:'checkpoint',match:'section',showOnHome:true});
   if (hasAtLeastView(access, 'documents')) items.push({ href: '/documents', label: 'Documents', icon: 'documents', match: 'section', showOnHome: true });
   if (hasAtLeastView(access, 'jobs')) {
     items.push(
@@ -51,4 +50,13 @@ export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNav
 
   items.push({ href: '/account', label: 'Account', icon: 'account', placement: 'bottom' });
   return items;
+}
+
+export function protectedLandingDestination(access:CurrentDoorGoAccess):string{
+  if(hasAtLeastView(access,'calendar'))return '/calendar';
+  if(hasAtLeastView(access,'jobs'))return '/jobs';
+  if(hasAtLeastView(access,'production'))return '/production-board';
+  if(hasAtLeastView(access,'production_checkpoints'))return '/production-checkpoints';
+  if(hasAtLeastView(access,'documents'))return '/documents';
+  return '/account';
 }

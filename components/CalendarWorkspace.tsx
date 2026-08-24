@@ -9,7 +9,10 @@ import { completeCalendarProductionBooking, loadCalendarWindow, placeCalendarPro
 import { createCalendarItem, moveCalendarItem, reorderCalendarItems, searchCalendarLinkableJobs, searchScheduledCalendar, setCalendarItemCompletion, type CalendarCreateInput, type CalendarSearchTarget } from '@/lib/calendar/calendar-item-actions';
 import type {CalendarJobOption} from '@/lib/calendar/calendar-job-linking';
 import {calendarOperationalBounds,dateWithinCalendarBounds,mergeContinuousCalendarBoards,nextCalendarChunk,preservedPrependScrollTop} from '@/lib/calendar/continuous-range';
-import { calendarItemLayerKey, calendarRecordKey } from '@/lib/calendar/calendar-items';
+import { AddBackorderDialog } from '@/components/calendar/AddBackorderDialog';
+import { DateOnlyPicker } from '@/components/jobs/DateOnlyPicker';
+import { completeFulfillmentOrders, moveFulfillmentOrder, setIncludedOrders } from '@/lib/calendar/fulfillment-actions';
+import { calendarItemLayerKey, calendarRecordKey, replaceCalendarCardLocally } from '@/lib/calendar/calendar-items';
 import { getProductionScheduleCompletionBlockReason } from '@/lib/production-schedule/completion-ui-contract';
 import { getProductionScheduleCardMoveBlockReason } from '@/lib/production-schedule/move-ui-contract';
 import { clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction } from '@/lib/calendar/interaction';
@@ -39,12 +42,12 @@ type CalendarMoveState = {
 type CalendarUndo = { bookingId: string; fromDate: string | null; toDate: string | null; sourceOrder: string[] };
 type CalendarSearchOption={kind:'card';card:ProductionBoardCard}|{kind:'target';target:CalendarSearchTarget};
 
-type WorkspaceProps={board:ProductionBoardViewModel;canInteract:boolean;canManageProduction:boolean;canOpenJobs:boolean;currentMonday:string;defaultSalesperson:string;initialTargetMonday:string;preferenceOwner:string;today:string};
+type WorkspaceProps={board:ProductionBoardViewModel;canAddBackorders:boolean;canInteract:boolean;canManageProduction:boolean;canOpenJobs:boolean;currentMonday:string;defaultSalesperson:string;initialTargetMonday:string;preferenceOwner:string;today:string};
 export function CalendarWorkspace(props: WorkspaceProps) {
   return <CalendarWorkspaceSession {...props} key={JSON.stringify(props.board)}/>;
 }
 
-function CalendarWorkspaceSession({ board, canInteract, canManageProduction, canOpenJobs, currentMonday, defaultSalesperson, initialTargetMonday, preferenceOwner, today }: WorkspaceProps) {
+function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canManageProduction, canOpenJobs, currentMonday, defaultSalesperson, initialTargetMonday, preferenceOwner, today }: WorkspaceProps) {
   const [displayBoard, setDisplayBoard] = useState(board);
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState('');
@@ -65,6 +68,7 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
   const [layersOpen, setLayersOpen] = useState(false);
   const [needsAttentionOpen, setNeedsAttentionOpen] = useState(false);
   const [needsAttentionDropReady, setNeedsAttentionDropReady] = useState(false);
+  const [partialCompletion,setPartialCompletion]=useState<ProductionBoardCard|null>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const streamRef=useRef<HTMLElement>(null);
   const rangeLoadRef=useRef<Promise<ProductionBoardViewModel|null>|null>(null);
@@ -74,7 +78,9 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
   const highlightTimer = useRef<number | null>(null);
   const toastId = useRef(0);
   const draggedCard = useRef<ProductionBoardCard | null>(null);
+  const draggedOrder=useRef<{source:ProductionBoardCard;salesOrder:string}|null>(null);
   const consumeOutsideCalendarClick = useRef(false);
+  useEffect(()=>{const clear=()=>{draggedOrder.current=null;};document.addEventListener('dragend',clear);return()=>document.removeEventListener('dragend',clear);},[]);
   const allCards = useMemo(() => [...displayBoard.days.flatMap((day) => day.cards), ...displayBoard.needsAttentionCards], [displayBoard.days, displayBoard.needsAttentionCards]);
   const layers = useMemo(() => buildCalendarLayers(allCards), [allCards]);
   const availableKeys = useMemo(() => layers.filter((layer) => layer.available).map((layer) => layer.key), [layers]);
@@ -212,6 +218,7 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
   const completeCard = async (card: ProductionBoardCard) => {
     if (!canInteract || completionPendingId) return;
     if(card.recordKind==='calendar_item'){
+      if((card.includedOrders?.length??0)>1){setPartialCompletion(card);return;}
       setCompletionPendingId(card.bookingId);const result=await setCalendarItemCompletion({commandId:createSecureCommandId(),itemId:card.bookingId.slice(5),expectedRevision:card.revision??0,completed:true});setCompletionPendingId(null);
       if(!result.ok){announce('error',result.message);return;}updateCompletionLocally(card.bookingId,new Date().toISOString());announce('success','Calendar item marked complete.');return;
     }
@@ -349,7 +356,7 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
     event.dataTransfer.setData('text/plain', card.bookingId);
   };
   const onDayDragOver = (date: string, event: React.DragEvent<HTMLElement>) => {
-    if (!draggedCard.current || dragBusy) return;
+    if ((!draggedCard.current&&!draggedOrder.current) || dragBusy) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
     const target = (event.target as HTMLElement).closest<HTMLElement>('[data-booking-id]');
@@ -358,6 +365,7 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
     setDropTarget((current) => current?.date === date && current.targetId === targetId && current.before === before ? current : { date, targetId, before });
   };
   const onDayDrop = (date: string, event: React.DragEvent<HTMLElement>) => {
+    const orderDrag=draggedOrder.current;if(orderDrag){event.preventDefault();draggedOrder.current=null;const target=(event.target as HTMLElement).closest<HTMLElement>('[data-booking-id]')?.dataset.bookingId;setDragBusy(true);void moveFulfillmentOrder({commandId:createSecureCommandId(),sourceItemId:orderDrag.source.bookingId.slice(5),salesOrder:orderDrag.salesOrder,destinationDate:date,destinationItemId:target?.startsWith('item:')?target.slice(5):null}).then((result)=>{setDragBusy(false);if(!result.ok){announce('error',result.message);return;}announce('success',`${orderDrag.salesOrder} moved.`);void reconcileDays([orderDrag.source.productionDate,date].filter((value):value is string=>Boolean(value)));});return;}
     const card = draggedCard.current;
     if (!card) return;
     event.preventDefault();
@@ -371,10 +379,11 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
     }
     beginDateMove(card, date, sourceDay?.cards.map((item) => item.bookingId) ?? displayBoard.needsAttentionCards.map((item) => item.bookingId));
   };
-  const onCardDragEnd = () => { draggedCard.current = null; setDropTarget(null); setNeedsAttentionDropReady(false); };
+  const onCardDragEnd = () => { draggedCard.current = null;draggedOrder.current=null; setDropTarget(null); setNeedsAttentionDropReady(false); };
   const needsAttentionModel = needsAttentionToolbarModel(displayBoard.needsAttentionCards, visibleLayers);
   const visibleNeedsAttention = needsAttentionModel.visibleCards;
   const onNeedsAttentionDrop = (event: React.DragEvent<HTMLElement>) => {
+    const orderDrag=draggedOrder.current;if(orderDrag){event.preventDefault();draggedOrder.current=null;setDragBusy(true);void moveFulfillmentOrder({commandId:createSecureCommandId(),sourceItemId:orderDrag.source.bookingId.slice(5),salesOrder:orderDrag.salesOrder,destinationDate:null,destinationItemId:null}).then((result)=>{setDragBusy(false);if(!result.ok){announce('error',result.message);return;}announce('success',`${orderDrag.salesOrder} moved to Needs Attention.`);void reconcileDays([orderDrag.source.productionDate].filter((value):value is string=>Boolean(value)));});return;}
     const card = draggedCard.current;
     if (!card) return;
     event.preventDefault();
@@ -465,7 +474,8 @@ function CalendarWorkspaceSession({ board, canInteract, canManageProduction, can
         </div>
       </section>)}
     </main>
-    {detailCard ? <ProductionDetailPanel calendarWeek={displayBoard.startDate} canOpenJobs={canOpenJobs} card={detailCard} onClose={() => setDetailBookingId(null)} position={detailPosition} setPosition={setDetailPosition} workspaceRef={workspaceRef}/> : null}
+    {detailCard ? <ProductionDetailPanel calendarWeek={displayBoard.startDate} canAddBackorders={canAddBackorders&&canInteract} canOpenJobs={canOpenJobs} card={detailCard} onCardCreated={(created)=>setDisplayBoard((current)=>insertCalendarCardLocally(current,created))} onCardUpdated={(updated)=>setDisplayBoard((current)=>replaceCalendarCardLocally(current,updated))} onClose={() => setDetailBookingId(null)} onOrderDragStart={(salesOrder,event)=>{draggedOrder.current={source:detailCard,salesOrder};setNeedsAttentionDropReady(detailCard.productionDate!==null);event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',`order:${salesOrder}`);}} position={detailPosition} setPosition={setDetailPosition} workspaceRef={workspaceRef}/> : null}
+    {partialCompletion?<PartialFulfillmentCompletion card={partialCompletion} onCancel={()=>setPartialCompletion(null)} onSaved={(dates)=>{setPartialCompletion(null);void reconcileDays(dates);}}/>:null}
     {quickAdd ? <QuickAddPicker canManageProduction={canManageProduction} date={quickAdd.date} defaultSalesperson={defaultSalesperson} onClose={() => setQuickAdd(null)} onCreated={(card)=>{setDisplayBoard((current)=>insertCalendarCardLocally(current,card));setQuickAdd(null);announce('success','Calendar item added.');}} today={today}/> : null}
     {moveState ? <ExceptionalMovePanel state={moveState} onCancel={() => { if (!moveState.pending) setMoveState(null); }} onChange={(changes) => setMoveState((current) => current ? { ...current, ...changes, error: null } : current)} onSubmit={() => void executeMove(moveState)}/> : null}
     {moveUndo ? <div className="calendar-move-undo" role="status"><span>{moveUndo.toDate === null ? 'Moved to Needs Attention' : 'Scheduled'}</span><span aria-hidden="true">·</span><button disabled={dragBusy} onClick={beginUndo} type="button">Undo</button></div> : null}
@@ -532,8 +542,9 @@ function ExpandedProductionCard({ calendarWeek, card, canDrag, canInteract, canO
   </div>;
 }
 
-function ProductionDetailPanel({ calendarWeek, canOpenJobs, card, onClose, position, setPosition, workspaceRef }: { calendarWeek: string; canOpenJobs: boolean; card: ProductionBoardCard; onClose: () => void; position: { x: number; y: number } | null; setPosition: (position: { x: number; y: number }) => void; workspaceRef: React.RefObject<HTMLDivElement | null> }) {
+function ProductionDetailPanel({ calendarWeek, canAddBackorders, canOpenJobs, card, onCardCreated, onCardUpdated, onClose, onOrderDragStart, position, setPosition, workspaceRef }: { calendarWeek: string; canAddBackorders:boolean; canOpenJobs: boolean; card: ProductionBoardCard; onCardCreated:(card:ProductionBoardCard)=>void;onCardUpdated:(card:ProductionBoardCard)=>void;onClose: () => void;onOrderDragStart:(salesOrder:string,event:React.DragEvent<HTMLElement>)=>void; position: { x: number; y: number } | null; setPosition: (position: { x: number; y: number }) => void; workspaceRef: React.RefObject<HTMLDivElement | null> }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [included,setIncluded]=useState(card.includedOrders??[]);const [addingBackorder,setAddingBackorder]=useState(false);const [savingOrders,setSavingOrders]=useState(false);const [orderError,setOrderError]=useState<string|null>(null);
   const dragOffset = useRef<{ x: number; y: number } | null>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -573,6 +584,7 @@ function ProductionDetailPanel({ calendarWeek, canOpenJobs, card, onClose, posit
     if (!dragOffset.current) return;
     setPosition(clamp({ x: event.clientX - dragOffset.current.x, y: event.clientY - dragOffset.current.y }));
   };
+  const saveIncluded=async(confirmReassignment=false)=>{setSavingOrders(true);setOrderError(null);const result=await setIncludedOrders({commandId:createSecureCommandId(),itemId:card.bookingId.slice(5),expectedRevision:card.revision??0,salesOrders:included,confirmReassignment});setSavingOrders(false);if(!result.ok){setOrderError(result.message);return;}if(result.data.confirmation_required&&!confirmReassignment){const conflicts=result.data.conflicts as Array<{sales_order:string;item_type:string;scheduled_date:string|null}>;const summary=conflicts.map((conflict)=>`${conflict.sales_order} from ${conflict.item_type==='delivery'?'Delivery':'Pickup'} ${conflict.scheduled_date??'TBD'}`).join(', ');if(window.confirm(`Move ${summary} to this appointment?`))void saveIncluded(true);return;}const revision=Number(result.data.revision??(card.revision??0)+1);onCardUpdated({...card,includedOrders:[...included].sort(),revision,completedAt:result.data.reopened?null:card.completedAt});};
   return <aside className="calendar-detail-panel" ref={panelRef} style={position ? { left: position.x, top: position.y } : undefined}>
     <header onPointerDown={(event) => { if ((event.target as HTMLElement).closest('button')) return; const panel = panelRef.current?.getBoundingClientRect(); if (!panel) return; dragOffset.current = { x: event.clientX - panel.left, y: event.clientY - panel.top }; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={move} onPointerUp={(event) => { dragOffset.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}>
       <strong>{card.recordKind==='calendar_item'?`${card.calendarItemType==='customer_pickup'?'Customer Pickup':card.calendarItemType==='delivery'?'Delivery':'Note'} details`:'Production details'}</strong><button aria-label="Close Calendar details" onClick={onClose} type="button">×</button>
@@ -589,12 +601,21 @@ function ProductionDetailPanel({ calendarWeek, canOpenJobs, card, onClose, posit
       <Detail label="Status" value={card.completedAt ? 'Completed' : 'Scheduled'}/>
       <Detail label="Link status" value={card.internalJobId?'DoorGo-linked':'Unlinked'}/>
     </dl>
+    {card.recordKind==='calendar_item'&&card.calendarItemType!=='note'&&card.availableFamilyOrders?.length?<section className="calendar-included-orders"><strong>Included Orders</strong>{card.availableFamilyOrders.map((order)=><label draggable={included.includes(order)||undefined} key={order} onDragStart={(event)=>included.includes(order)&&onOrderDragStart(order,event)}><input checked={included.includes(order)} disabled={savingOrders} onChange={(event)=>setIncluded((current)=>event.target.checked?[...current,order]:current.filter((value)=>value!==order))} type="checkbox"/><span>{order}</span></label>)}<button disabled={savingOrders||JSON.stringify([...included].sort())===JSON.stringify([...(card.includedOrders??[])].sort())} onClick={()=>void saveIncluded()} type="button">{savingOrders?'Saving…':'Save Included Orders'}</button>{orderError?<p role="alert">{orderError}</p>:null}</section>:null}
     {card.internalJobId && canOpenJobs ? <Link className="calendar-detail-job-link" href={jobHref(card.internalJobId, calendarWeek)}>Open Job</Link> : null}
+    {canAddBackorders&&card.internalJobId&&card.nativeSalesOrder&&card.recordKind==='calendar_item'&&card.calendarItemType!=='note'?<button className="calendar-detail-job-link" onClick={()=>setAddingBackorder(true)} type="button">Add Backorder</button>:null}
+    {addingBackorder&&card.internalJobId&&card.nativeSalesOrder?<AddBackorderDialog baseSalesOrder={card.nativeSalesOrder} customer={card.customer||card.nativeSalesOrder} linkedInternalJobId={card.internalJobId} onClose={()=>setAddingBackorder(false)} onCreated={onCardCreated}/>:null}
   </aside>;
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
   return <div><dt>{label}</dt><dd>{value}</dd></div>;
+}
+
+function PartialFulfillmentCompletion({card,onCancel,onSaved}:{card:ProductionBoardCard;onCancel:()=>void;onSaved:(dates:string[])=>void}){
+  const orders=card.includedOrders??[];const [fulfilled,setFulfilled]=useState(orders);const [remainingDate,setRemainingDate]=useState('');const [pending,setPending]=useState(false);const [error,setError]=useState<string|null>(null);const hasRemaining=fulfilled.length<orders.length;
+  const submit=async(event:React.FormEvent)=>{event.preventDefault();setPending(true);setError(null);const result=await completeFulfillmentOrders({commandId:createSecureCommandId(),itemId:card.bookingId.slice(5),expectedRevision:card.revision??0,fulfilledSalesOrders:fulfilled,remainingDate:hasRemaining?remainingDate||null:null});setPending(false);if(!result.ok){setError(result.message);return;}onSaved([card.productionDate,result.data.remaining_date].filter((value):value is string=>typeof value==='string'));};
+  return <div className="calendar-floating-backdrop"><form className="calendar-quick-add calendar-partial-completion" onSubmit={submit}><header><strong>Complete fulfillment</strong><button aria-label="Close fulfillment completion" onClick={onCancel} type="button">×</button></header><p>Select the Sales Orders that went on this trip.</p>{orders.map((order)=><label key={order}><input checked={fulfilled.includes(order)} disabled={pending} onChange={(event)=>setFulfilled((current)=>event.target.checked?[...current,order]:current.filter((value)=>value!==order))} type="checkbox"/><span>{order}</span></label>)}{hasRemaining?<label><span>Remaining orders</span><DateOnlyPicker ariaLabel="Remaining fulfillment date" disabled={pending} id="remaining-fulfillment-date" onChange={setRemainingDate} value={remainingDate}/><small>Leave blank for TBD / Needs Attention.</small></label>:null}{error?<p role="alert">{error}</p>:null}<footer><button disabled={pending} onClick={onCancel} type="button">Cancel</button><button disabled={pending||fulfilled.length===0} type="submit">{pending?'Completing…':'Complete Trip'}</button></footer></form></div>;
 }
 
 function QuickAddPicker({canManageProduction,date,defaultSalesperson,onClose,onCreated,today}:{canManageProduction:boolean;date:string|null;defaultSalesperson:string;onClose:()=>void;onCreated:(card:ProductionBoardCard)=>void;today:string}) {

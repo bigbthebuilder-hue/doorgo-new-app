@@ -8,6 +8,8 @@ import {
   type LoginFormState,
 } from '@/lib/auth/login';
 import { createAuthenticatedSupabaseServerClient } from '@/lib/supabase/server';
+import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
+import { protectedLandingDestination } from '@/lib/app-shell/navigation';
 
 export async function loginAction(
   previousState: LoginFormState,
@@ -40,5 +42,5 @@ export async function loginAction(
     return getFailedLoginState(previousState);
   }
 
-  redirect('/account');
+  redirect(protectedLandingDestination(await getCurrentDoorGoAccess()));
 }

@@ -72,9 +72,11 @@ assert.match(access, /getPermissionAccess\(access, 'production'\)/);
 assert.match(access, /title: 'Production Schedule'/);
 assert.match(access, /statusLabel: 'Schedule view'/);
 assert.doesNotMatch(access, /isManager|calendar|production_checkpoints/);
-assert.match(navigation, /hasAtLeastView\(access, 'production'\)[\s\S]*href: '\/production-schedule'[\s\S]*Edit Schedule/);
-for (const route of ['/production-board', '/production-schedule', '/account']) assert.ok(navigation.includes(`href: '${route}'`));
-for (const contextualRoute of ['/production-recovery', '/production-checkpoints']) assert.ok(!navigation.includes(`href: '${contextualRoute}'`));
+assert.match(navigation, /hasAtLeastView\(access, 'production'\)[\s\S]*Production Board/);
+assert.doesNotMatch(navigation,/label: 'Edit Schedule'/);
+for (const route of ['/production-board', '/account']) assert.ok(navigation.includes(`href: '${route}'`));
+assert.ok(navigation.includes("href:'/production-checkpoints'"));
+assert.ok(!navigation.includes("href: '/production-recovery'"));
 
 assert.match(sharedView, /ProductionBoardSummary/);
 assert.match(sharedView, /ProductionBoardWeekSection/);

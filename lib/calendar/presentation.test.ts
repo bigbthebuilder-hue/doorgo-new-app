@@ -25,6 +25,8 @@ assert.deepEqual(layers.filter((layer) => layer.available).map((layer) => layer.
 assert.equal(layers.some((layer) => layer.kind === 'delivery' && !layer.available), true);
 const delivery={...card(null),bookingId:'item:11111111-1111-4111-8111-111111111111',recordKind:'calendar_item' as const,calendarItemType:'delivery' as const,customer:'Hamilton',nativeSalesOrder:'123455',jobId:'123455',timing:'AM',shopHours:null};
 assert.equal(buildCalendarLayers([delivery]).find((layer)=>layer.key==='fulfillment:delivery')?.available,true);
+assert.equal(calendarCardText({...delivery,includedOrders:['123455','123456','123457']}),'Hamilton · 123455 +2 · AM');
+assert.deepEqual(searchCalendarCards([{...delivery,includedOrders:['123455','123456']}],'123456').map((item)=>item.bookingId),[delivery.bookingId]);
 assert.equal(calendarCardText(delivery),'Hamilton · 123455 · AM');
 assert.deepEqual(searchCalendarCards([{...delivery,productionDate:null}],'AM').map((item)=>item.bookingId),[delivery.bookingId]);
 assert.equal(needsAttentionToolbarModel([{...delivery,productionDate:null}],['fulfillment:delivery']).preview?.bookingId,delivery.bookingId);

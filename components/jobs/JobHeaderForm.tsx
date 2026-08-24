@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
 import { archiveDraftJobAction, createDraftJobAction, createTransferredJobAction, deleteDraftJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine, withEffectiveShopHours } from '@/lib/jobs/door-line-contract';
 import { jobAggregateDirtySnapshot, jobSaveConfirmation, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
@@ -19,6 +19,8 @@ import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
 import { Workspace, WorkspaceSurface } from '@/components/app-shell/Workspace';
 import { useGuardedNavigation, useUnsavedChanges } from '@/components/app-shell/UnsavedChangesGuard';
+import { AddBackorderDialog } from '@/components/calendar/AddBackorderDialog';
+import { loadJobFulfillmentFamily } from '@/lib/calendar/fulfillment-actions';
 
 type FormValues = {
   bizTrackSalesOrder: string;
@@ -128,11 +130,14 @@ export function JobHeaderForm({
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
+  const [addingBackorder,setAddingBackorder]=useState(false);
+  const [fulfillmentFamily,setFulfillmentFamily]=useState<{familyKey:string|null;orders:string[]}|null>(null);
   const commandId = useRef<string | null>(null);
   const dirty = snapshot() !== baseline;
   const navigationDirty = dirty || hasUnappliedLineChanges;
   const visibleIdentifier = transferReview?.primaryIdentifier.value || values.bizTrackSalesOrder.trim() || job?.visibleIdentifier || job?.doorGoReference || 'New Job';
   useUnsavedChanges(navigationDirty);
+  useEffect(()=>{const internalJobId=job?.internalJobId;if(!internalJobId)return;let cancelled=false;void loadJobFulfillmentFamily(internalJobId).then((result)=>{if(!cancelled&&result.ok)setFulfillmentFamily({familyKey:result.familyKey,orders:result.orders});});return()=>{cancelled=true;};},[job?.internalJobId]);
 
   const input = useMemo<JobHeaderInput>(() => withEffectiveShopHours({
     ...values,
@@ -230,6 +235,7 @@ export function JobHeaderForm({
   const deleteTarget = jobDeleteTarget(job, canPermanentlyDelete);
   const bottomActions = <>
     <button className="app-button app-button-secondary" onClick={leave} type="button">Exit</button>
+    {job&&canEdit&&job.bizTrackSalesOrder?<button className="app-button app-button-secondary" onClick={()=>setAddingBackorder(true)} type="button">Add Backorder</button>:null}
     {job ? <details className="job-work-order-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
     {archiveTarget || deleteTarget ? <details className="job-actions-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Job Actions ▾</summary><div className="absolute right-0 z-20 grid min-w-52 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Actions</span><JobArchiveControl onArchive={archiveDraftJobAction} onNavigate={(path) => router.push(path)} target={archiveTarget}/><JobDeleteControl onDelete={deleteDraftJobAction} onNavigate={(path) => router.push(path)} target={deleteTarget}/></div></details> : null}
     {canEdit ? <><button className="app-button app-button-primary" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button className="app-button app-button-dark" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button> : null}</> : null}
@@ -284,6 +290,7 @@ export function JobHeaderForm({
       {!hasValidActiveDoorLine(lines) ? <p className="mt-1 text-[11px] text-slate-500">Add a valid active line before confirming.</p> : null}
 
       <div className="job-operational-strip mt-1 grid gap-1.5">
+        {job&&fulfillmentFamily?.orders.length?<section className="rounded-md border border-slate-200 px-2 py-1.5 text-xs" aria-label="Order family"><strong>Order family {fulfillmentFamily.familyKey}</strong><span className="ml-2">Actual orders: {fulfillmentFamily.orders.join(', ')}</span></section>:null}
         <section aria-label="Job header validation">
           {fieldErrors.bizTrackSalesOrder ? <p className="text-sm text-rose-700" role="alert">BizTrack Sales Order: {fieldErrors.bizTrackSalesOrder}</p> : null}
           {fieldErrors.email ? <p className="text-sm text-rose-700" role="alert">Email: {fieldErrors.email}</p> : null}
@@ -312,6 +319,7 @@ export function JobHeaderForm({
       /> : null}
     </JobEditorWorkspaceFrame>
     {inAppShell ? <ContextBottomBar label="Job actions" status={<span className={message?.kind === 'error' ? 'text-rose-700' : undefined}>{bottomStatus}</span>} context="Confirmation requires one valid active door line · saving does not schedule production" actions={bottomActions}/> : null}
+    {addingBackorder&&job&&job.bizTrackSalesOrder?<AddBackorderDialog baseSalesOrder={job.bizTrackSalesOrder} customer={job.customer||job.bizTrackSalesOrder} linkedInternalJobId={job.internalJobId} onClose={()=>setAddingBackorder(false)}/>:null}
     </>
   );
 }

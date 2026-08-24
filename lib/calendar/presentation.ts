@@ -92,8 +92,18 @@ export function searchCalendarCards(
     [card.customer, card.title, card.jobId,card.nativeSalesOrder,card.timing,card.details,...(card.includedOrders??[])].some((value) =>
       value?.toLocaleLowerCase().includes(normalizedQuery),
     ),
-  ).slice(0, limit);
+  ).sort((left,right)=>searchRelevance(left,normalizedQuery)-searchRelevance(right,normalizedQuery)||searchState(left.productionDate,right.productionDate)||calendarItemTypeLabel(left).localeCompare(calendarItemTypeLabel(right))||left.bookingId.localeCompare(right.bookingId)).slice(0, limit);
 }
+
+function searchRelevance(card:ProductionBoardCard,query:string){const values=[card.jobId,card.nativeSalesOrder,card.customer,card.title].map((value)=>value?.trim().toLocaleLowerCase());return values.some((value)=>value===query)?0:1;}
+function searchState(left:string|null,right:string|null){if(left===right)return 0;if(left===null)return -1;if(right===null)return 1;return left.localeCompare(right);}
+export function calendarItemTypeLabel(card:Pick<ProductionBoardCard,'recordKind'|'calendarItemType'>):string{
+  if(card.recordKind!=='calendar_item')return 'Production';
+  if(card.calendarItemType==='delivery')return 'Delivery';
+  if(card.calendarItemType==='customer_pickup')return 'Pickup';
+  return 'Note';
+}
+export function dedupeCalendarRecords<T extends {bookingId:string}>(records:T[]):T[]{return [...new Map(records.map((record)=>[record.bookingId,record])).values()];}
 
 export function needsAttentionToolbarModel(cards: ProductionBoardCard[], visibleLayerKeys: string[]) {
   const visibleCards = cards.filter((card) => visibleLayerKeys.includes(calendarItemLayerKey(card)));

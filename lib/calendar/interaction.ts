@@ -35,10 +35,11 @@ export function reorderCalendarDayLocally(board: ProductionBoardViewModel, date:
 }
 
 export function insertCalendarCardLocally(board:ProductionBoardViewModel,card:ProductionBoardCard):ProductionBoardViewModel{
-  const exists=[...board.needsAttentionCards,...board.days.flatMap((day)=>day.cards)].some((item)=>item.bookingId===card.bookingId);if(exists)return board;
-  if(card.productionDate===null)return {...board,needsAttentionCards:[...board.needsAttentionCards,card].sort(cardOrder)};
-  const update=(days:ProductionBoardDay[])=>days.map((day)=>{if(day.date!==card.productionDate)return day;const next={...day,cards:[...day.cards,card].sort(cardOrder)};return card.recordKind==='calendar_item'?{...next,bookingCount:next.cards.length}:recalculateDay(next,card,1);});
-  return {...board,days:update(board.days),weekGroups:board.weekGroups.map((week)=>({...week,days:update(week.days)}))};
+  const prior=[...board.needsAttentionCards,...board.days.flatMap((day)=>day.cards)].find((item)=>item.bookingId===card.bookingId);
+  const needsAttentionCards=board.needsAttentionCards.filter((item)=>item.bookingId!==card.bookingId);
+  if(card.productionDate===null)return {...board,needsAttentionCards:[...needsAttentionCards,card].sort(cardOrder)};
+  const update=(days:ProductionBoardDay[])=>days.map((day)=>{const existing=day.cards.find((item)=>item.bookingId===card.bookingId);if(day.date!==card.productionDate&&!existing)return day;const cards=day.cards.filter((item)=>item.bookingId!==card.bookingId);if(day.date===card.productionDate)cards.push(card);const next={...day,cards:cards.sort(cardOrder),bookingCount:cards.length};if((prior??card).recordKind==='calendar_item')return next;let recalculated=day;if(existing)recalculated=recalculateDay({...recalculated,cards:day.cards.filter((item)=>item.bookingId!==card.bookingId)},existing,-1);if(day.date===card.productionDate)recalculated=recalculateDay({...recalculated,cards},card,1);return {...recalculated,cards,bookingCount:cards.length};});
+  return {...board,needsAttentionCards,days:update(board.days),weekGroups:board.weekGroups.map((week)=>({...week,days:update(week.days)}))};
 }
 const cardOrder=(left:ProductionBoardCard,right:ProductionBoardCard)=>(left.dayOrder??0)-(right.dayOrder??0)||left.bookingId.localeCompare(right.bookingId);
 

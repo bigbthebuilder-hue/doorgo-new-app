@@ -24,6 +24,8 @@ import {
   calendarCardText,
   needsAttentionToolbarModel,
   searchCalendarCards,
+  calendarItemTypeLabel,
+  dedupeCalendarRecords,
   type CalendarLayer,
 } from '@/lib/calendar/presentation';
 
@@ -86,7 +88,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   const availableKeys = useMemo(() => layers.filter((layer) => layer.available).map((layer) => layer.key), [layers]);
   const [visibleLayers, setVisibleLayers] = useState<string[]>(availableKeys);
   const layerStorageKey = `doorgo.calendar.visible-layers.v1:${preferenceOwner}`;
-  const searchResults = useMemo(() => searchCalendarCards(allCards, search), [allCards, search]);
+  const searchResults = useMemo(() => dedupeCalendarRecords(searchCalendarCards(allCards, search)), [allCards, search]);
   const searchOptions=useMemo<CalendarSearchOption[]>(()=>[...searchResults.map((card)=>({kind:'card' as const,card})),...remoteSearchResults.filter((target)=>!allCards.some((card)=>card.bookingId===target.bookingId)).map((target)=>({kind:'target' as const,target}))],[allCards,remoteSearchResults,searchResults]);
   const activeSearchOption=searchOptions[Math.min(highlightedResult,searchOptions.length-1)];
   const activeSearchId=activeSearchOption?(activeSearchOption.kind==='card'?activeSearchOption.card.bookingId:activeSearchOption.target.bookingId):undefined;
@@ -421,7 +423,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
         {searchOpen ? <div className="calendar-search-results" id="calendar-search-results" role="listbox">
           {/* React's refs rule cannot trace that these callbacks run only from click events. */}
           {/* eslint-disable-next-line react-hooks/refs */}
-          {searchOptions.length ? searchOptions.map((option,index)=>option.kind==='card'?<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.card.bookingId)} key={option.card.bookingId} onClick={()=>selectSearchResult(option.card)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.card.customer?.trim()||option.card.title?.trim()||'Untitled'}</span><small>{option.card.jobId?.trim()||'Unlinked'} · {option.card.productionDate?formatSearchDate(option.card.productionDate):'Needs Attention'}</small></button>:<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.target.bookingId)} key={option.target.bookingId} onClick={()=>selectSearchTarget(option.target)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.target.customer}</span><small>{option.target.jobId?.trim()||'Unlinked'} · {formatSearchDate(option.target.productionDate)}</small></button>) : <p className="calendar-search-empty">No Calendar matches.</p>}
+          {searchOptions.length ? searchOptions.map((option,index)=>option.kind==='card'?<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.card.bookingId)} key={option.card.bookingId} onClick={()=>selectSearchResult(option.card)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.card.customer?.trim()||option.card.title?.trim()||'Untitled'}</span><small>{option.card.jobId?.trim()||'Unlinked'} · {calendarItemTypeLabel(option.card)} · {option.card.productionDate?formatSearchDate(option.card.productionDate):'Needs Attention'}</small></button>:<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.target.bookingId)} key={option.target.bookingId} onClick={()=>selectSearchTarget(option.target)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.target.customer}</span><small>{option.target.jobId?.trim()||'Unlinked'} · {searchTargetTypeLabel(option.target.calendarItemType)} · {formatSearchDate(option.target.productionDate)}</small></button>) : <p className="calendar-search-empty">No Calendar matches.</p>}
         </div> : null}
       </div>
       <LayersPicker layers={layers} open={layersOpen} setOpen={setLayersOpen} toggle={toggleLayer} visible={visibleLayers}/>
@@ -684,6 +686,10 @@ function formatDay(dateText: string): string {
 function formatSearchDate(dateText: string): string {
   const [year, month, day] = dateText.split('-').map(Number);
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function searchTargetTypeLabel(type:CalendarSearchTarget['calendarItemType']):string {
+  return type==='production'?'Production':type==='delivery'?'Delivery':type==='customer_pickup'?'Pickup':'Note';
 }
 
 function bookingElementId(bookingId: string): string {

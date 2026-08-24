@@ -12,7 +12,7 @@ assert.match(sql,/order_family_key text NULL/);
 assert.match(sql,/REVOKE INSERT,UPDATE,DELETE,TRUNCATE ON public\.dg_calendar_items/);
 assert.doesNotMatch(sql,/1900-01-01|9999-12-31|google/i);
 assert.match(actions,/^'use server';/);assert.match(actions,/createAuthenticatedSupabaseServerClient/);assert.doesNotMatch(actions,/revalidatePath|router\.refresh/);
-for(const token of ['findCalendarJobOptions','createJobIntakeRepository','updateJobWithAccess','loadProductionBoardReadOnly'])assert.match(actions,new RegExp(token));
+for(const token of ['search_calendar_linkable_jobs','createJobIntakeRepository','updateJobWithAccess','loadProductionBoardReadOnly'])assert.match(actions,new RegExp(token));
 assert.doesNotMatch(actions,/\.from\(['"]dg_native_jobs['"]\)/);
 assert.match(workspace,/insertCalendarCardLocally/);assert.match(workspace,/onCreated\(result\.card\)/);assert.match(workspace,/Name \*<\/span><input autoFocus/);assert.doesNotMatch(workspace,/Find job \/ Sales Order[^\n]+input autoFocus/);
 for(const token of ['Production','Delivery','Customer Pickup','Note','Find job / Sales Order','Staff Away date-range workflow is deferred'])assert.match(workspace,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));

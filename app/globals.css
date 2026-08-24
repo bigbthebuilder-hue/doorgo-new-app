@@ -450,7 +450,7 @@ body {
 .calendar-production-card-text { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-completion-cue { flex: none; font-size: .7rem; }
 @keyframes calendar-search-highlight { 0%, 45% { box-shadow: 0 0 0 5px rgb(14 165 233 / .28); } 100% { box-shadow: none; } }
-.calendar-expanded-production { position: relative; display: grid; min-width: 0; min-height: 3.35rem; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: .45rem; border-radius: .3rem; padding: .45rem; font-size: .68rem; }
+.calendar-expanded-production { position: relative; display: grid; min-width: 0; min-height: 3.35rem; grid-template-columns: auto auto minmax(0, 1fr) auto auto auto; align-items: center; gap: .45rem; border-radius: .3rem; padding: .45rem; font-size: .68rem; }
 .calendar-expanded-production[data-completed="true"] { opacity: .65; }
 .calendar-expanded-production[data-highlighted="true"] { animation: calendar-search-highlight 2.2s ease-out; outline: 2px solid rgb(2 132 199); outline-offset: 2px; }
 .calendar-expanded-production button, .calendar-expanded-production > a { min-height: 1.6rem; border: 1px solid currentColor; border-radius: .25rem; background: rgb(255 255 255 / .72); padding: .25rem .35rem; font-weight: 750; }
@@ -464,6 +464,7 @@ body {
 .calendar-detail-panel > header button, .calendar-quick-add > header button { min-width: 1.7rem; font-size: 1.05rem; }
 .calendar-detail-panel dl { display: grid; gap: .35rem; padding: .6rem; }
 .calendar-detail-panel dl > div { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: .5rem; font-size: .7rem; }
+.calendar-detail-delete { margin: 0 .6rem .6rem; color: rgb(185 28 28); }
 .calendar-detail-panel dt { color: var(--app-color-muted); font-weight: 650; }
 .calendar-detail-panel dd { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
 .calendar-detail-job-link { display: block; margin: 0 .6rem .6rem; border-radius: .3rem; background: rgb(3 105 161); padding: .4rem .55rem; color: white; text-align: center; font-size: .7rem; font-weight: 750; }

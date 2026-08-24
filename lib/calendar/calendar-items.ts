@@ -29,6 +29,10 @@ export function replaceCalendarCardLocally(board:ProductionBoardViewModel,card:P
   const update=(cards:ProductionBoardCard[])=>cards.map((current)=>current.bookingId===card.bookingId?card:current);
   return {...board,days:board.days.map((day)=>({...day,cards:update(day.cards)})),weekGroups:board.weekGroups.map((week)=>({...week,days:week.days.map((day)=>({...day,cards:update(day.cards)}))})),needsAttentionCards:update(board.needsAttentionCards)};
 }
+export function removeCalendarCardLocally(board:ProductionBoardViewModel,bookingId:string):ProductionBoardViewModel{
+  const remove=(cards:ProductionBoardCard[])=>cards.filter((card)=>card.bookingId!==bookingId);
+  return {...board,days:board.days.map((day)=>({...day,cards:remove(day.cards)})),weekGroups:board.weekGroups.map((week)=>({...week,days:week.days.map((day)=>({...day,cards:remove(day.cards)}))})),needsAttentionCards:remove(board.needsAttentionCards)};
+}
 const order=(a:ProductionBoardCard,b:ProductionBoardCard)=>(a.dayOrder??0)-(b.dayOrder??0)||a.bookingId.localeCompare(b.bookingId);
 
 export function calendarRecordKey(card:ProductionBoardCard):string {

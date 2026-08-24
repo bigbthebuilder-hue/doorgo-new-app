@@ -187,6 +187,8 @@ const laterPhaseCheckpointActionBoundary = new Set([
   'supabase/migrations/20260823000000_add_fulfillment_order_families.sql',
   'supabase/migrations/20260823010000_harden_fulfillment_order_family_grants.sql',
   'supabase/migrations/20260823020000_enforce_active_fulfillment_order_ownership.sql',
+  'supabase/migrations/20260824000000_fix_calendar_fulfillment_quick_add_and_delete.sql',
+  'supabase/migrations/20260824010000_fix_calendar_native_job_search_alias.sql',
 ]);
 const reviewedNativeJobRpcBoundary = new Set(['lib/jobs/hosted-job-intake-repository.ts']);
 const applicationPaths = reviewablePaths.filter(

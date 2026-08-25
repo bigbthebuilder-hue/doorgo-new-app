@@ -82,7 +82,7 @@ export function buildCalendarLayers(cards: ProductionBoardCard[]): CalendarLayer
     })),
     { key: 'fulfillment:delivery', kind: 'delivery', label: 'Deliveries', available: cards.some((card)=>card.calendarItemType==='delivery'), colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['fulfillment:delivery'] },
     { key: 'fulfillment:pickup', kind: 'customer_pickup', label: 'Customer Pickups', available: cards.some((card)=>card.calendarItemType==='customer_pickup'), colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['fulfillment:pickup'] },
-    { key: 'other:notes', kind: 'note', label: 'Notes', available: cards.some((card)=>card.calendarItemType==='note'), colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:notes'] },
+    { key: 'other:notes', kind: 'note', label: 'Notes', available: true, colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:notes'] },
     { key: 'other:away', kind: 'staff_away', label: 'Staff Away', available: false, colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:away'] },
     { key: 'other:closures', kind: 'closure', label: 'Closures / Special Days', available: false, colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:closures'] },
   ];

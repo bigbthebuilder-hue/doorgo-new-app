@@ -30,8 +30,11 @@ const card = (salesperson: string | null): ProductionBoardCard => ({
 });
 
 const layers = buildCalendarLayers([card('Alex'), card('Alex'), card(null)]);
-assert.deepEqual(layers.filter((layer) => layer.available).map((layer) => layer.label), ['Alex', 'Unassigned']);
+assert.deepEqual(layers.filter((layer) => layer.available).map((layer) => layer.label), ['Alex', 'Unassigned', 'Notes']);
 assert.equal(layers.some((layer) => layer.kind === 'delivery' && !layer.available), true);
+const emptyNotesLayer=buildCalendarLayers([]).find((layer)=>layer.key==='other:notes');
+assert.equal(emptyNotesLayer?.available,true,'Notes remains an available operational layer with zero Notes loaded');
+assert.equal(emptyNotesLayer?.colorId,'slate','Notes keeps its deterministic Slate fallback');
 const delivery={...card(null),bookingId:'item:11111111-1111-4111-8111-111111111111',recordKind:'calendar_item' as const,calendarItemType:'delivery' as const,customer:'Hamilton',nativeSalesOrder:'123455',jobId:'123455',timing:'AM',shopHours:null};
 assert.equal(buildCalendarLayers([delivery]).find((layer)=>layer.key==='fulfillment:delivery')?.available,true);
 for(const key of ['fulfillment:delivery','fulfillment:pickup','other:notes','other:away','other:closures'])assert.ok(buildCalendarLayers([]).find((layer)=>layer.key===key)?.colorId);
@@ -52,7 +55,7 @@ assert.deepEqual(searchCalendarCards([{...delivery,productionDate:null}],'AM').m
 assert.equal(needsAttentionToolbarModel([{...delivery,productionDate:null}],['fulfillment:delivery']).preview?.bookingId,delivery.bookingId);
 assert.equal(productionLayerKey(' Alex '), 'production:alex');
 assert.deepEqual(salespersonColor('Alex'), salespersonColor('Alex'));
-const normalizedLayers = buildCalendarLayers([card('Jerry'), card('JERRY'), card('Steve'), card('STEVE')]).filter((layer) => layer.available);
+const normalizedLayers = buildCalendarLayers([card('Jerry'), card('JERRY'), card('Steve'), card('STEVE')]).filter((layer) => layer.available&&layer.kind==='production');
 assert.deepEqual(normalizedLayers.map((layer) => [layer.key, layer.label]), [
   ['production:jerry', 'Jerry'], ['production:steve', 'Steve'],
 ]);
@@ -65,6 +68,7 @@ assert.equal(CALENDAR_LAYER_PALETTE.every((color)=>color.foreground.length===7),
 for(const stableId of ['sky','navy','purple','violet','indigo','pink','magenta','slate'])assert.equal(CALENDAR_LAYER_PALETTE.some((color)=>color.id===stableId),true);
 assert.deepEqual(layerPaletteColor('purple'),CALENDAR_LAYER_PALETTE.find((color)=>color.id==='purple'));
 assert.deepEqual(normalizeCalendarLayerColors({'production:alex':'purple','fulfillment:delivery':'brown','other:notes':'invalid'}),{'production:alex':'purple','fulfillment:delivery':'brown'},'reload preserves existing Production and new layer choices while rejecting invalid palette IDs');
+assert.deepEqual(normalizeCalendarLayerColors({'other:notes':'teal'}),{'other:notes':'teal'},'valid persisted Notes color survives reload');
 
 const searchableCards = [
   card('Alex'),

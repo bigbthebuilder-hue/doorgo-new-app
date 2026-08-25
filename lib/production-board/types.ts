@@ -39,8 +39,8 @@ export type DoorGoJobRow = {
 
 export type ProductionBoardCard = {
   bookingId: string;
-  recordKind?: 'production' | 'calendar_item' | 'staff_away';
-  calendarItemType?: 'delivery' | 'customer_pickup' | 'note' | 'staff_away';
+  recordKind?: 'production' | 'calendar_item' | 'staff_away' | 'capacity_exception';
+  calendarItemType?: 'delivery' | 'customer_pickup' | 'note' | 'staff_away' | 'closure' | 'holiday' | 'special_day';
   revision?: number;
   type: 'doorgo_linked' | 'biztrack_only';
   typeLabel: 'DoorGo-linked' | 'BizTrack-only';
@@ -77,6 +77,11 @@ export type ProductionBoardCard = {
   staffAwayEndDate?: string;
   staffAwayMode?: 'full_day' | 'partial';
   partialDragHours?: number | null;
+  capacityExceptionId?:string;
+  capacityExceptionStartDate?:string;
+  capacityExceptionEndDate?:string;
+  capacityExceptionCapacity?:number;
+  capacityExceptionStaff?:string[];
 };
 
 export type StaffAwayRosterOption={staffId:string;displayName:string};

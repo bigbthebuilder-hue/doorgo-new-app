@@ -50,12 +50,12 @@ type CalendarMoveState = {
 type CalendarUndo = { bookingId: string; fromDate: string | null; toDate: string | null; sourceOrder: string[] };
 type CalendarSearchOption={kind:'card';card:ProductionBoardCard}|{kind:'target';target:CalendarSearchTarget};
 
-type WorkspaceProps={board:ProductionBoardViewModel;canAddBackorders:boolean;canInteract:boolean;canManageProduction:boolean;canOpenJobs:boolean;currentMonday:string;defaultSalesperson:string;initialTargetMonday:string;preferenceOwner:string;today:string};
+type WorkspaceProps={board:ProductionBoardViewModel;canAddBackorders:boolean;canInteract:boolean;canManageProduction:boolean;canManageSettings:boolean;canOpenJobs:boolean;currentMonday:string;defaultSalesperson:string;initialTargetMonday:string;preferenceOwner:string;today:string};
 export function CalendarWorkspace(props: WorkspaceProps) {
   return <CalendarWorkspaceSession {...props} key={JSON.stringify(props.board)}/>;
 }
 
-function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canManageProduction, canOpenJobs, currentMonday, defaultSalesperson, initialTargetMonday, preferenceOwner, today }: WorkspaceProps) {
+function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canManageProduction,canManageSettings, canOpenJobs, currentMonday, defaultSalesperson, initialTargetMonday, preferenceOwner, today }: WorkspaceProps) {
   const [displayBoard, setDisplayBoard] = useState(board);
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState('');
@@ -472,7 +472,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
         </div>
       </section>)}
     </main>
-    {detailCard ? detailCard.recordKind==='staff_away'?<StaffAwayEditor canEdit={canManageProduction} card={detailCard} onChanged={(dates)=>{announce('success','Staff Away updated.');void reconcileDays(dates);}} onClose={()=>setDetailBookingId(null)} roster={displayBoard.staffAwayRoster??[]}/>:<ProductionDetailPanel calendarWeek={displayBoard.startDate} canAddBackorders={canAddBackorders&&canInteract} canDelete={canInteract} canDeleteProduction={canManageProduction} canOpenJobs={canOpenJobs} card={detailCard} onCardCreated={(created)=>setDisplayBoard((current)=>insertCalendarCardLocally(current,created))} onCardDeleted={(deleted)=>{setDisplayBoard((current)=>removeCalendarCardLocally(current,deleted.bookingId));setDetailBookingId(null);announce('success','Deleted');void reconcileDays([deleted.productionDate].filter((value):value is string=>Boolean(value)));}} onCardUpdated={(updated)=>setDisplayBoard((current)=>replaceCalendarCardLocally(current,updated))} onClose={() => setDetailBookingId(null)} position={detailPosition} setPosition={setDetailPosition} workspaceRef={workspaceRef}/> : null}
+    {detailCard ? detailCard.recordKind==='staff_away'?<StaffAwayEditor canEdit={canManageProduction} card={detailCard} onChanged={(dates)=>{announce('success','Staff Away updated.');void reconcileDays(dates);}} onClose={()=>setDetailBookingId(null)} roster={displayBoard.staffAwayRoster??[]}/>:detailCard.recordKind==='capacity_exception'?<CapacityExceptionDetails canEdit={canManageSettings} card={detailCard} onClose={()=>setDetailBookingId(null)}/>:<ProductionDetailPanel calendarWeek={displayBoard.startDate} canAddBackorders={canAddBackorders&&canInteract} canDelete={canInteract} canDeleteProduction={canManageProduction} canOpenJobs={canOpenJobs} card={detailCard} onCardCreated={(created)=>setDisplayBoard((current)=>insertCalendarCardLocally(current,created))} onCardDeleted={(deleted)=>{setDisplayBoard((current)=>removeCalendarCardLocally(current,deleted.bookingId));setDetailBookingId(null);announce('success','Deleted');void reconcileDays([deleted.productionDate].filter((value):value is string=>Boolean(value)));}} onCardUpdated={(updated)=>setDisplayBoard((current)=>replaceCalendarCardLocally(current,updated))} onClose={() => setDetailBookingId(null)} position={detailPosition} setPosition={setDetailPosition} workspaceRef={workspaceRef}/> : null}
     {quickAdd ? <QuickAddPicker canManageProduction={canManageProduction} date={quickAdd.date} defaultSalesperson={defaultSalesperson} onAwayChanged={(dates)=>{setQuickAdd(null);announce('success','Staff Away added.');void reconcileDays(dates);}} onClose={() => setQuickAdd(null)} onCreated={(card)=>{setDisplayBoard((current)=>insertCalendarCardLocally(current,card));setQuickAdd(null);announce('success','Calendar item added.');}} roster={displayBoard.staffAwayRoster??[]} today={today}/> : null}
     {moveState ? <ExceptionalMovePanel state={moveState} onCancel={() => { if (!moveState.pending) setMoveState(null); }} onChange={(changes) => setMoveState((current) => current ? { ...current, ...changes, error: null } : current)} onSubmit={() => void executeMove(moveState)}/> : null}
     {moveUndo ? <div className="calendar-move-undo" role="status"><span>{moveUndo.toDate === null ? 'Moved to Needs Attention' : 'Scheduled'}</span><span aria-hidden="true">·</span><button disabled={dragBusy} onClick={beginUndo} type="button">Undo</button></div> : null}
@@ -539,9 +539,9 @@ function ExpandedProductionCard({ calendarWeek, card, canDrag, canInteract, canO
   const completed = card.completedAt !== null;
   const blocked = !canInteract || pending || (card.recordKind!=='calendar_item'&&card.recordKind!=='staff_away'&&getProductionScheduleCompletionBlockReason(card,false)!==null);
   return <div className="calendar-expanded-production" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} onClick={(event) => event.stopPropagation()}>
-    {card.recordKind!=='staff_away'?<span aria-hidden="true" className="calendar-drag-handle" title="Drag Calendar item">⋮⋮</span>:null}
+    {card.recordKind!=='staff_away'&&card.recordKind!=='capacity_exception'?<span aria-hidden="true" className="calendar-drag-handle" title="Drag Calendar item">⋮⋮</span>:null}
     <CalendarItemIcon card={card}/><div className="calendar-expanded-info"><strong>{calendarCardIdentity(card).primary}</strong>{calendarExpandedCardMeta(card)?<span>{calendarExpandedCardMeta(card)}</span>:null}</div>
-    <div className="calendar-expanded-actions">{card.recordKind!=='staff_away'?<button aria-busy={pending||undefined} disabled={blocked} onClick={completed ? onReopen : onComplete} type="button">{pending ? completed?'Reopening…':'Completing…' : completed ? 'Reopen' : 'Complete'}</button>:null}
+    <div className="calendar-expanded-actions">{card.recordKind!=='staff_away'&&card.recordKind!=='capacity_exception'?<button aria-busy={pending||undefined} disabled={blocked} onClick={completed ? onReopen : onComplete} type="button">{pending ? completed?'Reopening…':'Completing…' : completed ? 'Reopen' : 'Complete'}</button>:null}
     {card.internalJobId && canOpenJobs ? <Link href={jobHref(card.internalJobId, calendarWeek)}>Open Job</Link> : null}
     <button aria-label={`More details for ${card.customer?.trim() || card.title}`} onClick={onDetails} type="button">•••</button></div>
   </div>;
@@ -619,6 +619,8 @@ function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canD
   </aside>;
 }
 
+function CapacityExceptionDetails({canEdit,card,onClose}:{canEdit:boolean;card:ProductionBoardCard;onClose:()=>void}){const year=card.productionDate?.slice(0,4)??String(new Date().getFullYear());return <div className="calendar-floating-backdrop"><aside aria-label="Closure or Special Day details" className="calendar-quick-add"><header><strong>{calendarItemTypeLabel(card)}</strong><button aria-label="Close details" onClick={onClose} type="button">×</button></header><div className="calendar-quick-add-form"><strong>{card.title}</strong><span>{card.capacityExceptionStartDate===card.capacityExceptionEndDate?formatSearchDate(card.capacityExceptionStartDate!):`${formatSearchDate(card.capacityExceptionStartDate!)} – ${formatSearchDate(card.capacityExceptionEndDate!)}`}</span><span>Production capacity · {card.capacityExceptionCapacity??0}h</span>{card.capacityExceptionStaff?.length?<span>Working · {card.capacityExceptionStaff.join(', ')}</span>:null}{card.details?<p>{card.details}</p>:null}{canEdit?<Link href={`/manager?year=${year}`}>Edit in Manager</Link>:null}</div></aside></div>;}
+
 function Detail({ label, value }: { label: string; value: string }) {
   return <div><dt>{label}</dt><dd>{value}</dd></div>;
 }
@@ -671,8 +673,8 @@ function CalendarProductionCard({ card, canDrag, colorId, dropPosition, highligh
 }
 
 function CalendarItemIcon({card}:{card:ProductionBoardCard}){
-  if(card.recordKind!=='calendar_item'&&card.recordKind!=='staff_away')return null;
-  const path=card.recordKind==='staff_away'?'M10 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM4 17a6 6 0 0 1 12 0M15 4l3 3m0-3-3 3':card.calendarItemType==='delivery'?'M2 5h9v8H2zM11 8h4l3 3v2h-7zM5 16a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z':card.calendarItemType==='customer_pickup'?'M4 6h12l-1 11H5L4 6Zm3 1V5a3 3 0 0 1 6 0v2':'M4 2h12v16H4zM7 6h6M7 10h6M7 14h4';
+  if(card.recordKind!=='calendar_item'&&card.recordKind!=='staff_away'&&card.recordKind!=='capacity_exception')return null;
+  const path=card.recordKind==='capacity_exception'?'M3 3l14 14M17 3L3 17':card.recordKind==='staff_away'?'M10 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM4 17a6 6 0 0 1 12 0M15 4l3 3m0-3-3 3':card.calendarItemType==='delivery'?'M2 5h9v8H2zM11 8h4l3 3v2h-7zM5 16a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z':card.calendarItemType==='customer_pickup'?'M4 6h12l-1 11H5L4 6Zm3 1V5a3 3 0 0 1 6 0v2':'M4 2h12v16H4zM7 6h6M7 10h6M7 14h4';
   return <span aria-hidden="true" className="calendar-item-icon"><svg viewBox="0 0 20 20"><path d={path}/></svg></span>;
 }
 

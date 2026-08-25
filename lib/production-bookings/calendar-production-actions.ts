@@ -83,6 +83,7 @@ export async function reloadCalendarProductionDays(request: { boardStart: string
       includeNativeJobLinks: hasAtLeastView(access, 'jobs'),
       includeOperationalCalendarItems:true,
       includeStaffAway:hasAtLeastView(access,'production'),
+      includeCapacityExceptions:true,
     });
     const dates = new Set(request.dates);
     return { ok: true, days: board.days.filter((day) => dates.has(day.date)), needsAttentionCards: board.needsAttentionCards };
@@ -93,5 +94,5 @@ export async function reloadCalendarProductionDays(request: { boardStart: string
 
 export async function loadCalendarWindow(request:{boardStart:string;boardEndExclusive:string;weeks:number;today:string}):Promise<{ok:true;board:ProductionBoardViewModel}|{ok:false}> {
   const access=await getCurrentDoorGoAccess();if(!hasAtLeastView(access,'calendar'))return {ok:false};
-  try{return {ok:true,board:await loadProductionBoardReadOnly({...request,includeNativeJobLinks:hasAtLeastView(access,'jobs'),includeOperationalCalendarItems:true,includeStaffAway:hasAtLeastView(access,'production')})};}catch{return {ok:false};}
+  try{return {ok:true,board:await loadProductionBoardReadOnly({...request,includeNativeJobLinks:hasAtLeastView(access,'jobs'),includeOperationalCalendarItems:true,includeStaffAway:hasAtLeastView(access,'production'),includeCapacityExceptions:true})};}catch{return {ok:false};}
 }

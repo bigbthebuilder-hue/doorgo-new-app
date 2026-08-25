@@ -12,6 +12,8 @@ import { loadCalendarNativeJobLinks } from './native-job-links';
 import { calendarItemCard, mergeCalendarItems, type CalendarItemRow } from '@/lib/calendar/calendar-items';
 import {loadStaffAwayRange} from '@/lib/calendar/staff-away-queries';
 import {mergeStaffAway} from '@/lib/calendar/staff-away';
+import{loadCalendarCapacityExceptions}from'@/lib/calendar/capacity-exception-queries';
+import{mergeCapacityExceptions}from'@/lib/calendar/capacity-exceptions';
 
 export async function loadProductionBoardReadOnly(params: {
   boardStart: string;
@@ -21,6 +23,7 @@ export async function loadProductionBoardReadOnly(params: {
   includeNativeJobLinks?: boolean;
   includeOperationalCalendarItems?: boolean;
   includeStaffAway?: boolean;
+  includeCapacityExceptions?:boolean;
 }): Promise<ProductionBoardViewModel> {
   const supabase = createTrustedReadOnlySupabaseClient();
   const checkpointAnchor =
@@ -32,7 +35,7 @@ export async function loadProductionBoardReadOnly(params: {
 
   // TODO: Use a persisted carry checkpoint or settings baseline to bound historical reads.
 
-  const [bookingResult, needsAttentionResult, calendarItemsResult, staffAwayPayload, capacityRows, checkpoints] = await Promise.all([
+  const [bookingResult, needsAttentionResult, calendarItemsResult, staffAwayPayload, capacityExceptionPayload, capacityRows, checkpoints] = await Promise.all([
     supabase
       .from('dg_production_bookings')
       .select(`
@@ -92,6 +95,7 @@ export async function loadProductionBoardReadOnly(params: {
       .or(`scheduled_date.is.null,and(scheduled_date.gte.${calculationStart},scheduled_date.lt.${params.boardEndExclusive})`)
       .is('deleted_at',null).order('day_order',{ascending:true}):Promise.resolve({data:[],error:null}),
     params.includeStaffAway?loadStaffAwayRange(params.boardStart,params.boardEndExclusive):Promise.resolve({activeStaff:[],periods:[]}),
+    params.includeCapacityExceptions?loadCalendarCapacityExceptions(params.boardStart,params.boardEndExclusive):Promise.resolve({records:[],exceptionalDates:[]}),
     loadDailyCapacityReadOnly({
       startDate: calculationStart,
       endDateExclusive: params.boardEndExclusive,
@@ -160,7 +164,8 @@ export async function loadProductionBoardReadOnly(params: {
     calculationStartDate: calculationStart,
     checkpoints,
     today: params.today,
+    exceptionalVisibleDates:capacityExceptionPayload.exceptionalDates,
   });
   const withItems=mergeCalendarItems(productionBoard,itemRows.map((row)=>{const native=row.linked_internal_job_id?nativeLinks.byInternalJobId.get(row.linked_internal_job_id):undefined;const job=native?{internalJobId:native.internalJobId,customer:native.customer,salesOrder:native.salesOrder,salesperson:row.salesperson}:undefined;return calendarItemCard(row,job,{included:row.sales_order?[row.sales_order]:[],available:[]});}));
-  return mergeStaffAway(withItems,staffAwayPayload);
+  return mergeCapacityExceptions(mergeStaffAway(withItems,staffAwayPayload),capacityExceptionPayload);
 }

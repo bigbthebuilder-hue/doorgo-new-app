@@ -40,6 +40,7 @@ export function normalizeProductionBoard(
     calculationStartDate?: string;
     checkpoints?: ConfirmedFlowCheckpoint[];
     today?: string;
+    exceptionalVisibleDates?:string[];
   },
 ): ProductionBoardViewModel {
   const jobsById = new Map(jobs.map((job) => [job.job_id, job]));
@@ -107,7 +108,7 @@ export function normalizeProductionBoard(
     date = addDaysToDateOnly(date, 1)
   ) {
     const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) visibleDates.push(date);
+    if (dayOfWeek >= 1 && dayOfWeek <= 5 || params.exceptionalVisibleDates?.includes(date)) visibleDates.push(date);
   }
   const today = params.today ?? getCurrentDateInTimeZone('America/Vancouver');
 

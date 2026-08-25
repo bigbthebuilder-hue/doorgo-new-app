@@ -43,9 +43,10 @@ assert.match(workspace, /event\.key === 'Escape'[\s\S]*onCloseRef\.current\(\)/)
 assert.match(workspace, /aria-label="Close Calendar details"/);
 assert.match(workspace, /clampCalendarDetailPosition/);
 assert.match(workspace, /gridTemplateColumns:[\s\S]*'1\.7fr'/);
-assert.match(workspace, /onPointerDownCapture=[\s\S]*consumeOutsideCalendarClick/);
+assert.match(workspace, /setExpandedWithAnchor[\s\S]*viewportAnchorAdjustment/);
+assert.match(workspace, /dragOwnedGesture[\s\S]*onCardDragEnd/);
 assert.match(workspace, /onClickCapture=[\s\S]*event\.stopPropagation\(\)/);
-assert.match(workspace, /onFocus=\{\(\) => \{ setExpandedDate\(null\)/);
+assert.doesNotMatch(workspace, /onFocus=\{\(\) => \{ setExpandedDate\(null\)/);
 assert.match(workspace, /canDrag=\{canInteract && !dragBusy && !card\.locked && !card\.completedAt/);
 assert.doesNotMatch(workspace, /\{reopenState \?/);
 assert.match(workspace, /reopenCalendarProductionBooking/);

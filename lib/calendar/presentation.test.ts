@@ -12,6 +12,8 @@ import {
   searchCalendarCards,
   dedupeCalendarRecords,
   salespersonColor,
+  CALENDAR_LAYER_PALETTE,
+  layerPaletteColor,
 } from './presentation';
 import type { ProductionBoardCard } from '../production-board/types';
 
@@ -47,6 +49,9 @@ assert.deepEqual(normalizedLayers.map((layer) => [layer.key, layer.label]), [
 ]);
 assert.equal(buildCalendarLayers([card('ALEX')]).find((layer) => layer.available)?.label, 'Alex');
 assert.deepEqual(salespersonColor('Jerry'), salespersonColor('JERRY'));
+assert.equal(CALENDAR_LAYER_PALETTE.some((color)=>['#dcfce7','#fef3c7','#ffe4e6'].includes(color.background)),false);
+assert.equal(CALENDAR_LAYER_PALETTE.every((color)=>color.foreground.length===7),true);
+assert.deepEqual(layerPaletteColor('purple'),CALENDAR_LAYER_PALETTE.find((color)=>color.id==='purple'));
 
 const searchableCards = [
   card('Alex'),
@@ -72,6 +77,8 @@ const nativeCard = {
 };
 assert.equal(calendarProductionCardText(nativeCard), '1 · Hamilton · 1234567');
 assert.equal(calendarProductionCardText(nativeCard).includes('SO# 1234567'), false);
+assert.equal(calendarExpandedCardMeta({...nativeCard,title:'Hamilton 1234567'}),'');
+assert.equal(calendarExpandedCardMeta({...nativeCard,title:'Hamilton 1234567',details:'Hardware staged'}),'Hardware staged');
 assert.equal(
   calendarProductionCardText({ ...nativeCard, nativeSalesOrder: null }),
   '1 · Hamilton · SO# 1234567',

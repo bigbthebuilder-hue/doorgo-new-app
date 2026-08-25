@@ -14,6 +14,7 @@ export type CalendarLayer = {
   kind: CalendarLayerKind;
   label: string;
   available: boolean;
+  colorId?: CalendarLayerColorId;
 };
 
 export type CalendarMonthSegment = {
@@ -22,14 +23,17 @@ export type CalendarMonthSegment = {
   span: number;
 };
 
-const SALESPERSON_COLORS = [
-  { background: '#dbeafe', foreground: '#1e3a5f' },
-  { background: '#dcfce7', foreground: '#14532d' },
-  { background: '#fef3c7', foreground: '#713f12' },
-  { background: '#f3e8ff', foreground: '#581c87' },
-  { background: '#ffe4e6', foreground: '#881337' },
-  { background: '#cffafe', foreground: '#164e63' },
+export const CALENDAR_LAYER_PALETTE = [
+  { id: 'sky', label: 'Sky', background: '#dbeafe', foreground: '#1e3a5f' },
+  { id: 'navy', label: 'Navy', background: '#cbd5e1', foreground: '#172554' },
+  { id: 'purple', label: 'Purple', background: '#e9d5ff', foreground: '#581c87' },
+  { id: 'violet', label: 'Violet', background: '#ddd6fe', foreground: '#4c1d95' },
+  { id: 'indigo', label: 'Indigo', background: '#e0e7ff', foreground: '#312e81' },
+  { id: 'pink', label: 'Pink', background: '#fce7f3', foreground: '#831843' },
+  { id: 'magenta', label: 'Magenta', background: '#fae8ff', foreground: '#701a75' },
+  { id: 'slate', label: 'Slate', background: '#e2e8f0', foreground: '#334155' },
 ] as const;
+export type CalendarLayerColorId = typeof CALENDAR_LAYER_PALETTE[number]['id'];
 
 export function productionLayerKey(salesperson: string | null): string {
   return `production:${salesperson?.trim().toLocaleLowerCase() || 'unassigned'}`;
@@ -54,6 +58,7 @@ export function buildCalendarLayers(cards: ProductionBoardCard[]): CalendarLayer
       kind: 'production' as const,
       label: salesperson.label,
       available: true,
+      colorId: salespersonColorId(salesperson.label),
     })),
     { key: 'fulfillment:delivery', kind: 'delivery', label: 'Deliveries', available: cards.some((card)=>card.calendarItemType==='delivery') },
     { key: 'fulfillment:pickup', kind: 'customer_pickup', label: 'Customer Pickups', available: cards.some((card)=>card.calendarItemType==='customer_pickup') },
@@ -73,10 +78,18 @@ function stableSalespersonLabel(labels: string[]): string {
 }
 
 export function salespersonColor(salesperson: string | null) {
+  return layerPaletteColor(salespersonColorId(salesperson));
+}
+
+export function salespersonColorId(salesperson: string | null): CalendarLayerColorId {
   const value = salesperson?.trim().toLocaleLowerCase() || 'unassigned';
   let hash = 0;
   for (const character of value) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  return SALESPERSON_COLORS[hash % SALESPERSON_COLORS.length];
+  return CALENDAR_LAYER_PALETTE[hash % CALENDAR_LAYER_PALETTE.length].id;
+}
+
+export function layerPaletteColor(id: CalendarLayerColorId | undefined) {
+  return CALENDAR_LAYER_PALETTE.find((color) => color.id === id) ?? CALENDAR_LAYER_PALETTE[0];
 }
 
 export function searchCalendarCards(
@@ -118,15 +131,22 @@ export function calendarCardText(card:ProductionBoardCard):string {
 }
 
 export function calendarExpandedCardMeta(card:ProductionBoardCard):string {
-  if(card.recordKind!=='calendar_item')return calendarCardText(card);
+  if(card.recordKind!=='calendar_item') {
+    const details=card.details?.trim();
+    const title=card.title?.trim();
+    const primary=canonicalIdentity(calendarCardText(card));
+    return details && !primary.includes(canonicalIdentity(details)) ? details : title && !primary.includes(canonicalIdentity(title)) ? title : '';
+  }
   return [card.nativeSalesOrder?.trim()||card.jobId?.trim(),card.timing?.trim()].filter(Boolean).join(' · ');
 }
 
-export function calendarCardColor(card:ProductionBoardCard){
+function canonicalIdentity(value:string){return value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();}
+
+export function calendarCardColor(card:ProductionBoardCard, layerColorId?:CalendarLayerColorId){
   if(card.calendarItemType==='delivery')return {background:'#dbeafe',foreground:'#1e3a5f'};
-  if(card.calendarItemType==='customer_pickup')return {background:'#ffedd5',foreground:'#7c2d12'};
+  if(card.calendarItemType==='customer_pickup')return {background:'#ede9fe',foreground:'#4c1d95'};
   if(card.calendarItemType==='note')return {background:'#f3f4f6',foreground:'#374151'};
-  return salespersonColor(card.salesperson);
+  return layerColorId ? layerPaletteColor(layerColorId) : salespersonColor(card.salesperson);
 }
 
 export function calendarProductionCardText(card: Pick<
@@ -135,8 +155,8 @@ export function calendarProductionCardText(card: Pick<
 >): string {
   const hours = card.shopHoursKnown ? formatHours(card.shopHours ?? 0) : '◷';
   const customer = card.customer?.trim() || card.title?.trim() || 'Untitled';
-  const salesOrder = card.nativeSalesOrder?.trim() || card.jobId?.trim() || 'Unlinked';
-  return `${hours} · ${customer} · ${salesOrder}`;
+  const salesOrder = card.nativeSalesOrder?.trim() || card.jobId?.trim();
+  return [hours,customer,salesOrder].filter(Boolean).join(' · ');
 }
 
 export function calendarCapacityLabel(day: Pick<

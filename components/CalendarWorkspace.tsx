@@ -14,7 +14,7 @@ import { deleteFulfillmentBackorder, setFulfillmentItemType } from '@/lib/calend
 import { calendarItemLayerKey, calendarRecordKey, removeCalendarCardLocally, replaceCalendarCardLocally } from '@/lib/calendar/calendar-items';
 import { getProductionScheduleCompletionBlockReason } from '@/lib/production-schedule/completion-ui-contract';
 import { getProductionScheduleCardMoveBlockReason } from '@/lib/production-schedule/move-ui-contract';
-import { clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction } from '@/lib/calendar/interaction';
+import { clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
 import {
   buildCalendarLayers,
   calendarCapacityLabel,
@@ -26,6 +26,9 @@ import {
   searchCalendarCards,
   calendarItemTypeLabel,
   dedupeCalendarRecords,
+  CALENDAR_LAYER_PALETTE,
+  layerPaletteColor,
+  type CalendarLayerColorId,
   type CalendarLayer,
 } from '@/lib/calendar/presentation';
 
@@ -79,12 +82,15 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   const highlightTimer = useRef<number | null>(null);
   const toastId = useRef(0);
   const draggedCard = useRef<ProductionBoardCard | null>(null);
+  const dragOwnedGesture = useRef(false);
   const consumeOutsideCalendarClick = useRef(false);
   const allCards = useMemo(() => [...displayBoard.days.flatMap((day) => day.cards), ...displayBoard.needsAttentionCards], [displayBoard.days, displayBoard.needsAttentionCards]);
   const layers = useMemo(() => buildCalendarLayers(allCards), [allCards]);
   const availableKeys = useMemo(() => layers.filter((layer) => layer.available).map((layer) => layer.key), [layers]);
   const [visibleLayers, setVisibleLayers] = useState<string[]>(availableKeys);
   const layerStorageKey = `doorgo.calendar.visible-layers.v1:${preferenceOwner}`;
+  const layerColorStorageKey = `doorgo.calendar.layer-colors.v1:${preferenceOwner}`;
+  const [layerColors,setLayerColors]=useState<Record<string,CalendarLayerColorId>>({});
   const searchResults = useMemo(() => dedupeCalendarRecords(searchCalendarCards(allCards, search)), [allCards, search]);
   const searchOptions=useMemo<CalendarSearchOption[]>(()=>[...searchResults.map((card)=>({kind:'card' as const,card})),...remoteSearchResults.filter((target)=>!allCards.some((card)=>card.bookingId===target.bookingId)).map((target)=>({kind:'target' as const,target}))],[allCards,remoteSearchResults,searchResults]);
   const activeSearchOption=searchOptions[Math.min(highlightedResult,searchOptions.length-1)];
@@ -107,6 +113,8 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
       window.localStorage.removeItem(layerStorageKey);
     }
   }, [availableKeys, layerStorageKey]);
+
+  useEffect(()=>{const stored=window.localStorage.getItem(layerColorStorageKey);if(!stored)return;try{const parsed=JSON.parse(stored) as Record<string,string>;const safe=Object.fromEntries(Object.entries(parsed).filter(([,value])=>CALENDAR_LAYER_PALETTE.some((color)=>color.id===value))) as Record<string,CalendarLayerColorId>;const timer=window.setTimeout(()=>setLayerColors(safe),0);return()=>window.clearTimeout(timer);}catch{/* Deterministic palette defaults remain available. */}},[layerColorStorageKey]);
 
   useEffect(() => () => {
     if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current);
@@ -151,6 +159,15 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     window.localStorage.setItem(layerStorageKey, JSON.stringify(next));
     return next;
   });
+  const setLayerColor=(key:string,colorId:CalendarLayerColorId)=>setLayerColors((current)=>{const next={...current,[key]:colorId};window.localStorage.setItem(layerColorStorageKey,JSON.stringify(next));return next;});
+  const colorIdForCard=(card:ProductionBoardCard)=>layerColors[calendarItemLayerKey(card)]??layers.find((layer)=>layer.key===calendarItemLayerKey(card))?.colorId;
+  const setExpandedWithAnchor=(nextDate:string|null,anchorDate:string|null=nextDate??expandedDate)=>{
+    const stream=streamRef.current;
+    const before=anchorDate?stream?.querySelector<HTMLElement>(`[data-calendar-date="${anchorDate}"]`)?.getBoundingClientRect().top:undefined;
+    setExpandedDate(nextDate);
+    if(before===undefined||!stream||!anchorDate)return;
+    window.requestAnimationFrame(()=>{const after=stream.querySelector<HTMLElement>(`[data-calendar-date="${anchorDate}"]`)?.getBoundingClientRect().top;if(after!==undefined)stream.scrollTop+=viewportAnchorAdjustment({top:before},{top:after});});
+  };
   const selectSearchResult = (card: ProductionBoardCard) => {
     const layerKey = calendarItemLayerKey(card);
     setVisibleLayers((current) => {
@@ -165,7 +182,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
       setNeedsAttentionOpen(true);
     }
     window.setTimeout(() => {
-      document.getElementById(bookingElementId(card.bookingId))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById(bookingElementId(card.bookingId))?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 0);
     if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current);
     highlightTimer.current = window.setTimeout(() => setHighlightedBookingId(null), 2200);
@@ -347,6 +364,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   const onCardDragStart = (card: ProductionBoardCard, event: React.DragEvent<HTMLElement>) => {
     if (consumeOutsideCalendarClick.current || !canInteract || dragBusy || card.locked || card.completedAt || (card.recordKind!=='calendar_item'&&!canManageProduction)) { event.preventDefault(); return; }
     draggedCard.current = card;
+    dragOwnedGesture.current = true;
     if (card.productionDate !== null) {
       setNeedsAttentionDropReady(true);
     }
@@ -376,7 +394,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     }
     beginDateMove(card, date, sourceDay?.cards.map((item) => item.bookingId) ?? displayBoard.needsAttentionCards.map((item) => item.bookingId));
   };
-  const onCardDragEnd = () => { draggedCard.current = null; setDropTarget(null); setNeedsAttentionDropReady(false); };
+  const onCardDragEnd = () => { draggedCard.current = null; setDropTarget(null); setNeedsAttentionDropReady(false); window.setTimeout(()=>{dragOwnedGesture.current=false;},0); };
   const needsAttentionModel = needsAttentionToolbarModel(displayBoard.needsAttentionCards, visibleLayers);
   const visibleNeedsAttention = needsAttentionModel.visibleCards;
   const onNeedsAttentionDrop = (event: React.DragEvent<HTMLElement>) => {
@@ -403,25 +421,22 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   };
 
   return <div className="calendar-workspace" ref={workspaceRef}>
-    <header className="calendar-toolbar" aria-label="Calendar controls" onPointerDownCapture={() => {
-      const decision = resolveExpandedCalendarInteraction(expandedDate, { kind: 'toolbar' });
-      if (decision.collapse) setExpandedDate(null);
-    }} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('.calendar-needs-attention-toolbar')) setNeedsAttentionOpen(false); }}>
+    <header className="calendar-toolbar" aria-label="Calendar controls" onClick={(event)=>{if(event.target===event.currentTarget&&expandedDate)setExpandedWithAnchor(null);}} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('.calendar-needs-attention-toolbar')) setNeedsAttentionOpen(false); }}>
       <div className="calendar-toolbar-cluster" aria-label="Calendar date navigation">
         <ToolbarButton label="Previous month" disabled={pending||navigationMonday<=bounds.minimumMonday} onClick={() => navigate(addDaysToDateOnly(navigationMonday, -28))}>&lsaquo;</ToolbarButton>
         <ToolbarButton label="Current week" disabled={pending || navigationMonday === currentMonday} onClick={() => navigate(currentMonday)}>Today</ToolbarButton>
         <ToolbarButton label="Next month" disabled={pending||navigationMonday>=addDaysToDateOnly(bounds.maximumEndExclusive,-7)} onClick={() => navigate(addDaysToDateOnly(navigationMonday, 28))}>&rsaquo;</ToolbarButton>
       </div>
       <div className="calendar-search" ref={searchWrapper} onBlur={() => window.setTimeout(() => { if (!searchWrapper.current?.contains(document.activeElement)) setSearchOpen(false); }, 0)}>
-        <label><span className="sr-only">Search by name or sales order</span><input aria-activedescendant={searchOpen&&activeSearchId?searchResultId(activeSearchId):undefined} aria-autocomplete="list" aria-controls="calendar-search-results" aria-expanded={searchOpen} onChange={(event) => { const value = event.target.value; setSearch(value);if(!value.trim())setRemoteSearchResults([]); setHighlightedResult(0); setSearchOpen(Boolean(value.trim())); }} onFocus={() => { setExpandedDate(null); setNeedsAttentionOpen(false); setSearchOpen(Boolean(search.trim())); }} onKeyDown={onSearchKeyDown} placeholder="Name / SO Search" role="combobox" type="search" value={search}/></label>
+        <label><span className="sr-only">Search by name or sales order</span><input aria-activedescendant={searchOpen&&activeSearchId?searchResultId(activeSearchId):undefined} aria-autocomplete="list" aria-controls="calendar-search-results" aria-expanded={searchOpen} onChange={(event) => { const value = event.target.value; setSearch(value);if(!value.trim())setRemoteSearchResults([]); setHighlightedResult(0); setSearchOpen(Boolean(value.trim())); }} onFocus={() => { setNeedsAttentionOpen(false); setSearchOpen(Boolean(search.trim())); }} onKeyDown={onSearchKeyDown} placeholder="Name / SO Search" role="combobox" type="search" value={search}/></label>
         {searchOpen ? <div className="calendar-search-results" id="calendar-search-results" role="listbox">
           {/* React's refs rule cannot trace that these callbacks run only from click events. */}
           {/* eslint-disable-next-line react-hooks/refs */}
-          {searchOptions.length ? searchOptions.map((option,index)=>option.kind==='card'?<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.card.bookingId)} key={option.card.bookingId} onClick={()=>selectSearchResult(option.card)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.card.customer?.trim()||option.card.title?.trim()||'Untitled'}</span><small>{option.card.jobId?.trim()||'Unlinked'} · {calendarItemTypeLabel(option.card)} · {option.card.productionDate?formatSearchDate(option.card.productionDate):'Needs Attention'}</small></button>:<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.target.bookingId)} key={option.target.bookingId} onClick={()=>selectSearchTarget(option.target)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.target.customer}</span><small>{option.target.jobId?.trim()||'Unlinked'} · {searchTargetTypeLabel(option.target.calendarItemType)} · {formatSearchDate(option.target.productionDate)}</small></button>) : <p className="calendar-search-empty">No Calendar matches.</p>}
+          {searchOptions.length ? searchOptions.map((option,index)=>option.kind==='card'?<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.card.bookingId)} key={option.card.bookingId} onClick={()=>selectSearchResult(option.card)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.card.customer?.trim()||option.card.title?.trim()||'Untitled'}</span><small>{option.card.jobId?.trim()||'No SO'} · {calendarItemTypeLabel(option.card)} · {option.card.productionDate?formatSearchDate(option.card.productionDate):'Needs Attention'}</small></button>:<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.target.bookingId)} key={option.target.bookingId} onClick={()=>selectSearchTarget(option.target)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.target.customer}</span><small>{option.target.jobId?.trim()||'No SO'} · {searchTargetTypeLabel(option.target.calendarItemType)} · {formatSearchDate(option.target.productionDate)}</small></button>) : <p className="calendar-search-empty">No Calendar matches.</p>}
         </div> : null}
       </div>
-      <LayersPicker layers={layers} open={layersOpen} setOpen={setLayersOpen} toggle={toggleLayer} visible={visibleLayers}/>
-      <NeedsAttentionToolbar calendarWeek={displayBoard.startDate} canInteract={canInteract} canManageProduction={canManageProduction} canOpenJobs={canOpenJobs} cards={visibleNeedsAttention} count={displayBoard.needsAttentionCards.length} dropReady={needsAttentionDropReady} highlightedBookingId={highlightedBookingId} onAdd={()=>setQuickAdd({date:null})} onDetails={openDetails} onDragEnd={onCardDragEnd} onDragStart={onCardDragStart} onDrop={onNeedsAttentionDrop} onToggle={() => setNeedsAttentionOpen((open) => !open)} open={needsAttentionOpen} wrapperRef={needsAttentionWrapper}/>
+      <LayersPicker colors={layerColors} layers={layers} onColor={setLayerColor} open={layersOpen} setOpen={setLayersOpen} toggle={toggleLayer} visible={visibleLayers}/>
+      <NeedsAttentionToolbar calendarWeek={displayBoard.startDate} canInteract={canInteract} canManageProduction={canManageProduction} canOpenJobs={canOpenJobs} cards={visibleNeedsAttention} colorIdForCard={colorIdForCard} count={displayBoard.needsAttentionCards.length} dropReady={needsAttentionDropReady} highlightedBookingId={highlightedBookingId} onAdd={()=>setQuickAdd({date:null})} onDetails={openDetails} onDragEnd={onCardDragEnd} onDragStart={onCardDragStart} onDrop={onNeedsAttentionDrop} onToggle={() => setNeedsAttentionOpen((open) => !open)} open={needsAttentionOpen} wrapperRef={needsAttentionWrapper}/>
       <button className="calendar-toolbar-button" type="button" title="Calendar document workflow is planned for a later pass">Documents · 0</button>
       {pending ? <span className="sr-only" role="status">Loading Calendar…</span> : null}
     </header>
@@ -430,20 +445,9 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
       consumeOutsideCalendarClick.current = false;
       event.preventDefault();
       event.stopPropagation();
-    }} onPointerCancelCapture={() => { consumeOutsideCalendarClick.current = false; }} onPointerDownCapture={(event) => {
-      if (!expandedDate) return;
-      const day = (event.target as HTMLElement).closest<HTMLElement>('[data-calendar-date]');
-      const date = day?.dataset.calendarDate;
-      if (!date || date === expandedDate) return;
-      const decision = resolveExpandedCalendarInteraction(expandedDate, { kind: 'day', date, interactiveChild: true });
-      if (!decision.consume) return;
-      consumeOutsideCalendarClick.current = true;
-      setExpandedDate(null);
-      event.preventDefault();
-      event.stopPropagation();
-    }} onPointerUpCapture={() => { window.setTimeout(() => { consumeOutsideCalendarClick.current = false; }, 0); }} onScroll={(event)=>{const stream=event.currentTarget;const top=stream.getBoundingClientRect().top+8;const visible=[...stream.querySelectorAll<HTMLElement>('[data-calendar-week]')].find((week)=>week.getBoundingClientRect().bottom>top);if(visible?.dataset.calendarWeek)setNavigationMonday(visible.dataset.calendarWeek);if(stream.scrollTop<480&&displayBoard.startDate>bounds.minimumMonday)void fetchChunk(displayBoard,'prepend',true);if(stream.scrollHeight-stream.scrollTop-stream.clientHeight<640&&displayBoard.endDateExclusive<bounds.maximumEndExclusive)void fetchChunk(displayBoard,'append',false);}} ref={streamRef}>
+    }} onPointerCancelCapture={() => { consumeOutsideCalendarClick.current = false; dragOwnedGesture.current=false; }} onScroll={(event)=>{const stream=event.currentTarget;const top=stream.getBoundingClientRect().top+8;const visible=[...stream.querySelectorAll<HTMLElement>('[data-calendar-week]')].find((week)=>week.getBoundingClientRect().bottom>top);if(visible?.dataset.calendarWeek)setNavigationMonday(visible.dataset.calendarWeek);if(stream.scrollTop<480&&displayBoard.startDate>bounds.minimumMonday)void fetchChunk(displayBoard,'prepend',true);if(stream.scrollHeight-stream.scrollTop-stream.clientHeight<640&&displayBoard.endDateExclusive<bounds.maximumEndExclusive)void fetchChunk(displayBoard,'append',false);}} ref={streamRef}>
       {displayBoard.weekGroups.map((week) => <section className="calendar-week" data-calendar-week={week.startDate} key={week.startDate}>
-        <div className="calendar-month-row" aria-hidden="true" style={calendarWeekGridStyle(week.days.map((day) => day.date), expandedDate)}>
+        <div className="calendar-month-row" onClick={()=>{if(expandedDate)setExpandedWithAnchor(null);}} style={calendarWeekGridStyle(week.days.map((day) => day.date), expandedDate)}>
           {calendarMonthSegments(week.days.map((day) => day.date)).map((segment) => <span key={`${week.startDate}-${segment.label}`} style={{ gridColumn: `${segment.startColumn} / span ${segment.span}` }}>{segment.label}</span>)}
         </div>
         <div className="calendar-days" style={calendarWeekGridStyle(week.days.map((day) => day.date), expandedDate)}>
@@ -451,19 +455,20 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
             const cards = day.cards.filter((card) => visibleLayers.includes(calendarItemLayerKey(card)));
             const overloaded = day.capacityKnown && day.availableHours !== null && day.totalKnownShopHours > day.availableHours;
             const expanded = expandedDate === day.date;
-            return <article className="calendar-day" data-calendar-date={day.date} data-day-state={day.dateState} data-drop-target={dropTarget?.date === day.date || undefined} data-expanded={expanded || undefined} data-overloaded={overloaded || undefined} key={day.date} onClick={() => {
+            const capacityState=day.isClosed?'closed':!day.capacityKnown||day.availableHours===null?'unknown':overloaded?'over':day.totalKnownShopHours===day.availableHours&&day.missingShopHoursCount===0?'full':'free';
+            return <article className="calendar-day" data-calendar-date={day.date} data-capacity-state={capacityState} data-day-state={day.dateState} data-drop-target={dropTarget?.date === day.date || undefined} data-expanded={expanded || undefined} data-overloaded={overloaded || undefined} key={day.date} onClick={(event) => {
+              if(dragOwnedGesture.current||(event.target as HTMLElement).closest('button,a,input,select,textarea,.calendar-production-card,.calendar-expanded-production'))return;
               const decision = resolveExpandedCalendarInteraction(expandedDate, { kind: 'day', date: day.date, interactiveChild: false });
-              if (decision.collapse) setExpandedDate(null);
-              else if (decision.interact) setExpandedDate(day.date);
+              if(decision.interact)setExpandedWithAnchor(expanded?null:day.date,day.date);
             }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget((current) => current?.date === day.date ? null : current); }} onDragOver={(event) => onDayDragOver(day.date, event)} onDrop={(event) => onDayDrop(day.date, event)}>
               <header className="calendar-day-header">
                 <div><strong>{formatDay(day.date)}</strong><span>{calendarCapacityLabel(day)}</span></div>
-                <div className="calendar-day-actions">{expanded ? <button onClick={(event) => { event.stopPropagation(); setExpandedDate(null); }} type="button">Close</button> : null}<button onClick={(event) => { event.stopPropagation(); setQuickAdd({date:day.date}); }} type="button">+ Add</button></div>
+                <div className="calendar-day-actions">{expanded ? <button onClick={(event) => { event.stopPropagation(); setExpandedWithAnchor(null,day.date); }} type="button">Close</button> : null}<button onClick={(event) => { event.stopPropagation(); setQuickAdd({date:day.date}); }} type="button">+ Add</button></div>
               </header>
               <div className="calendar-card-list">
                 {cards.map((card) => expanded
-                  ? <ExpandedProductionCard calendarWeek={displayBoard.startDate} canDrag={canInteract && !dragBusy && !card.locked && !card.completedAt} canInteract={canInteract} canOpenJobs={canOpenJobs} card={card} dropPosition={dropTarget?.date === day.date && dropTarget.targetId === card.bookingId ? (dropTarget.before ? 'before' : 'after') : null} highlighted={card.bookingId === highlightedBookingId} key={card.bookingId} onComplete={() => void completeCard(card)} onDetails={() => openDetails(card)} onDragEnd={onCardDragEnd} onDragStart={(event) => onCardDragStart(card, event)} onReopen={() => void reopenCard(card)} pending={completionPendingId === card.bookingId}/>
-                  : <CalendarProductionCard canDrag={canInteract && !dragBusy && !card.locked && !card.completedAt} card={card} dropPosition={dropTarget?.date === day.date && dropTarget.targetId === card.bookingId ? (dropTarget.before ? 'before' : 'after') : null} highlighted={card.bookingId === highlightedBookingId} key={card.bookingId} onDragEnd={onCardDragEnd} onDragStart={(event) => onCardDragStart(card, event)}/>)}
+                  ? <ExpandedProductionCard calendarWeek={displayBoard.startDate} canDrag={canInteract && !dragBusy && !card.locked && !card.completedAt} canInteract={canInteract} canOpenJobs={canOpenJobs} card={card} colorId={colorIdForCard(card)} dropPosition={dropTarget?.date === day.date && dropTarget.targetId === card.bookingId ? (dropTarget.before ? 'before' : 'after') : null} highlighted={card.bookingId === highlightedBookingId} key={card.bookingId} onComplete={() => void completeCard(card)} onDetails={() => openDetails(card)} onDragEnd={onCardDragEnd} onDragStart={(event) => onCardDragStart(card, event)} onReopen={() => void reopenCard(card)} pending={completionPendingId === card.bookingId}/>
+                  : <CalendarProductionCard canDrag={canInteract && !dragBusy && !card.locked && !card.completedAt} card={card} colorId={colorIdForCard(card)} dropPosition={dropTarget?.date === day.date && dropTarget.targetId === card.bookingId ? (dropTarget.before ? 'before' : 'after') : null} highlighted={card.bookingId === highlightedBookingId} key={card.bookingId} onDragEnd={onCardDragEnd} onDragStart={(event) => onCardDragStart(card, event)}/>)}
               </div>
             </article>;
           })}
@@ -478,20 +483,20 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   </div>;
 }
 
-function NeedsAttentionToolbar({ calendarWeek, canInteract, canManageProduction, canOpenJobs, cards, count, dropReady, highlightedBookingId, onAdd, onDetails, onDragEnd, onDragStart, onDrop, onToggle, open, wrapperRef }: {
-  calendarWeek:string; canInteract:boolean;canManageProduction:boolean; canOpenJobs:boolean; cards:ProductionBoardCard[]; count:number; dropReady:boolean; highlightedBookingId:string|null;onAdd:()=>void;
+function NeedsAttentionToolbar({ calendarWeek, canInteract, canManageProduction, canOpenJobs, cards, colorIdForCard, count, dropReady, highlightedBookingId, onAdd, onDetails, onDragEnd, onDragStart, onDrop, onToggle, open, wrapperRef }: {
+  calendarWeek:string; canInteract:boolean;canManageProduction:boolean; canOpenJobs:boolean; cards:ProductionBoardCard[];colorIdForCard:(card:ProductionBoardCard)=>CalendarLayerColorId|undefined; count:number; dropReady:boolean; highlightedBookingId:string|null;onAdd:()=>void;
   onDetails:(card:ProductionBoardCard)=>void; onDragEnd:()=>void; onDragStart:(card:ProductionBoardCard,event:React.DragEvent<HTMLElement>)=>void;
   onDrop:(event:React.DragEvent<HTMLElement>)=>void; onToggle:()=>void; open:boolean; wrapperRef:React.RefObject<HTMLDivElement|null>;
 }) {
   const preview=cards[0]??null;
   return <div className="calendar-needs-attention-toolbar" data-drop-ready={dropReady||undefined} data-empty={!preview||undefined} onDragOver={(event)=>{event.preventDefault();event.dataTransfer.dropEffect='move';}} onDrop={onDrop} ref={wrapperRef}>
     <button aria-expanded={count>0&&open} className="calendar-needs-attention-toggle" onClick={count>0?onToggle:undefined} type="button">Needs Attention · {count}</button>
-    {preview?<CalendarProductionCard canDrag={canInteract&&!preview.locked&&!preview.completedAt&&(preview.recordKind==='calendar_item'||canManageProduction)} card={preview} dropPosition={null} highlighted={preview.bookingId===highlightedBookingId} onDragEnd={onDragEnd} onDragStart={(event)=>onDragStart(preview,event)}/>:count>0?<span className="calendar-needs-attention-hidden">Hidden by Layers</span>:null}
+    {preview?<CalendarProductionCard canDrag={canInteract&&!preview.locked&&!preview.completedAt&&(preview.recordKind==='calendar_item'||canManageProduction)} card={preview} colorId={colorIdForCard(preview)} dropPosition={null} highlighted={preview.bookingId===highlightedBookingId} onDragEnd={onDragEnd} onDragStart={(event)=>onDragStart(preview,event)}/>:count>0?<span className="calendar-needs-attention-hidden">Hidden by Layers</span>:null}
     <button className="calendar-needs-attention-add" disabled={!canInteract} onClick={onAdd} type="button">+ Add</button>
     {count>0?<button aria-expanded={open} className="calendar-needs-attention-expand" onClick={onToggle} type="button">{open?'Collapse':'Expand'}</button>:null}
     {open&&count>0?<section aria-label="Needs Attention items" className="calendar-needs-attention-dropdown">
       <div className="calendar-needs-attention-list">
-      {cards.length?cards.map((card)=><div className="calendar-needs-attention-item" data-booking-id={card.bookingId} data-completed={card.completedAt!==null||undefined} data-highlighted={card.bookingId===highlightedBookingId||undefined} draggable={canInteract&&!card.locked&&!card.completedAt&&(card.recordKind==='calendar_item'||canManageProduction)||undefined} id={`${bookingElementId(card.bookingId)}-needs-attention`} key={card.bookingId} onDragEnd={onDragEnd} onDragStart={(event)=>onDragStart(card,event)} style={{backgroundColor:calendarCardColor(card).background,color:calendarCardColor(card).foreground}}>
+      {cards.length?cards.map((card)=><div className="calendar-needs-attention-item" data-booking-id={card.bookingId} data-completed={card.completedAt!==null||undefined} data-highlighted={card.bookingId===highlightedBookingId||undefined} draggable={canInteract&&!card.locked&&!card.completedAt&&(card.recordKind==='calendar_item'||canManageProduction)||undefined} id={`${bookingElementId(card.bookingId)}-needs-attention`} key={card.bookingId} onDragEnd={onDragEnd} onDragStart={(event)=>onDragStart(card,event)} style={{backgroundColor:calendarCardColor(card,colorIdForCard(card)).background,color:calendarCardColor(card,colorIdForCard(card)).foreground}}>
         <span aria-hidden="true" className="calendar-drag-handle">⋮⋮</span><CalendarItemIcon card={card}/><div><strong>{card.customer?.trim()||card.title?.trim()||'Untitled'}</strong><span>{calendarCardText(card)}</span></div>
         {card.completedAt?<span aria-label="Completed">✓</span>:null}{card.internalJobId&&canOpenJobs?<Link href={jobHref(card.internalJobId,calendarWeek)}>Open Job</Link>:null}<button aria-label="More details" onClick={()=>onDetails(card)} type="button">•••</button>
       </div>):<p className="calendar-needs-attention-empty">No visible Needs Attention items.</p>}
@@ -500,7 +505,7 @@ function NeedsAttentionToolbar({ calendarWeek, canInteract, canManageProduction,
   </div>;
 }
 
-function LayersPicker({ layers, open, setOpen, toggle, visible }: { layers: CalendarLayer[]; open: boolean; setOpen: (open: boolean) => void; toggle: (key: string) => void; visible: string[] }) {
+function LayersPicker({ colors, layers, onColor, open, setOpen, toggle, visible }: { colors:Record<string,CalendarLayerColorId>;layers: CalendarLayer[]; onColor:(key:string,color:CalendarLayerColorId)=>void;open: boolean; setOpen: (open: boolean) => void; toggle: (key: string) => void; visible: string[] }) {
   const wrapper = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -519,18 +524,18 @@ function LayersPicker({ layers, open, setOpen, toggle, visible }: { layers: Cale
   return <div className="calendar-layers" ref={wrapper}>
     <button aria-expanded={open} className="calendar-toolbar-button" onClick={() => setOpen(!open)} type="button">Layers</button>
     {open ? <div className="calendar-layers-menu">
-      {groups.map(([label, groupLayers]) => <fieldset key={label}><legend>{label}</legend>{groupLayers.map((layer) => <label data-unavailable={!layer.available || undefined} key={layer.key}><input checked={layer.available && visible.includes(layer.key)} disabled={!layer.available} onChange={() => toggle(layer.key)} type="checkbox"/><span>{layer.label}</span>{!layer.available ? <small>Later</small> : null}</label>)}</fieldset>)}
+      {groups.map(([label, groupLayers]) => <fieldset key={label}><legend>{label}</legend>{groupLayers.map((layer) => <label data-unavailable={!layer.available || undefined} key={layer.key}><input checked={layer.available && visible.includes(layer.key)} disabled={!layer.available} onChange={() => toggle(layer.key)} type="checkbox"/><span>{layer.label}</span>{layer.available&&layer.kind==='production'?<select aria-label={`${layer.label} color`} onChange={(event)=>onColor(layer.key,event.target.value as CalendarLayerColorId)} style={{backgroundColor:layerPaletteColor(colors[layer.key]??layer.colorId).background,color:layerPaletteColor(colors[layer.key]??layer.colorId).foreground}} value={colors[layer.key]??layer.colorId}>{CALENDAR_LAYER_PALETTE.map((color)=><option key={color.id} value={color.id}>{color.label}</option>)}</select>:!layer.available?<small>Later</small>:null}</label>)}</fieldset>)}
     </div> : null}
   </div>;
 }
 
-function ExpandedProductionCard({ calendarWeek, card, canDrag, canInteract, canOpenJobs, dropPosition, highlighted, onComplete, onDetails, onDragEnd, onDragStart, onReopen, pending }: { calendarWeek: string; card: ProductionBoardCard; canDrag: boolean; canInteract: boolean; canOpenJobs: boolean; dropPosition: 'before' | 'after' | null; highlighted: boolean; onComplete: () => void; onDetails: () => void; onDragEnd: () => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void; onReopen: () => void; pending: boolean }) {
-  const color = calendarCardColor(card);
+function ExpandedProductionCard({ calendarWeek, card, canDrag, canInteract, canOpenJobs, colorId, dropPosition, highlighted, onComplete, onDetails, onDragEnd, onDragStart, onReopen, pending }: { calendarWeek: string; card: ProductionBoardCard; canDrag: boolean; canInteract: boolean; canOpenJobs: boolean;colorId?:CalendarLayerColorId; dropPosition: 'before' | 'after' | null; highlighted: boolean; onComplete: () => void; onDetails: () => void; onDragEnd: () => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void; onReopen: () => void; pending: boolean }) {
+  const color = calendarCardColor(card,colorId);
   const completed = card.completedAt !== null;
   const blocked = !canInteract || pending || (card.recordKind!=='calendar_item'&&getProductionScheduleCompletionBlockReason(card,false)!==null);
   return <div className="calendar-expanded-production" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} onClick={(event) => event.stopPropagation()}>
     <span aria-hidden="true" className="calendar-drag-handle" title="Drag Calendar item">⋮⋮</span>
-    <CalendarItemIcon card={card}/><div className="calendar-expanded-info"><strong>{card.customer?.trim() || card.title?.trim() || 'Untitled'}</strong><span>{calendarExpandedCardMeta(card)}</span></div>
+    <CalendarItemIcon card={card}/><div className="calendar-expanded-info"><strong>{card.customer?.trim() || card.title?.trim() || 'Untitled'}</strong>{calendarExpandedCardMeta(card)?<span>{calendarExpandedCardMeta(card)}</span>:null}</div>
     <div className="calendar-expanded-actions"><button disabled={blocked} onClick={completed ? onReopen : onComplete} type="button">{pending ? 'Saving…' : completed ? 'Reopen' : 'Complete'}</button>
     {card.internalJobId && canOpenJobs ? <Link href={jobHref(card.internalJobId, calendarWeek)}>Open Job</Link> : null}
     <button aria-label={`More details for ${card.customer?.trim() || card.title}`} onClick={onDetails} type="button">•••</button></div>
@@ -589,7 +594,7 @@ function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canD
     </header>
     <dl>
       <Detail label="Customer / name" value={card.customer?.trim() || card.title?.trim() || 'Untitled'}/>
-      <Detail label="Sales Order" value={card.jobId?.trim() || 'Unlinked'}/>
+      <Detail label="Sales Order" value={card.jobId?.trim() || 'Not provided'}/>
       <Detail label="Salesperson" value={card.salesperson?.trim() || 'Unassigned'}/>
       {card.recordKind!=='calendar_item'?<Detail label="Shop Hours" value={card.shopHoursKnown ? formatHours(card.shopHours ?? 0) : 'TBD'}/>:null}
       <Detail label={card.recordKind==='calendar_item'?'Scheduled date':'Production date'} value={card.productionDate ? formatSearchDate(card.productionDate) : 'Needs Attention'}/>
@@ -597,9 +602,8 @@ function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canD
       {card.fulfillmentNote?<Detail label="Fulfillment note" value={card.fulfillmentNote}/>:null}
       {card.details?<Detail label="Details" value={card.details}/>:null}
       <Detail label="Status" value={card.completedAt ? 'Completed' : 'Scheduled'}/>
-      <Detail label="Link status" value={card.internalJobId?'DoorGo-linked':'Unlinked'}/>
     </dl>
-    {card.recordKind==='calendar_item'&&card.calendarItemType!=='note'?<section className="calendar-included-orders"><strong>Operational item</strong><div className="calendar-order-disposition"><span>SO {card.nativeSalesOrder||'Unlinked'}</span><label>Type <select disabled={savingOrders||Boolean(card.completedAt)} onChange={(event)=>void changeType(event.target.value as 'delivery'|'customer_pickup')} value={card.calendarItemType}><option value="delivery">Delivery</option><option value="customer_pickup">Customer Pickup</option></select></label></div>{(card.availableFamilyOrders?.length??0)>1?<small>Related order family: {card.availableFamilyOrders?.join(', ')}</small>:null}{canDelete&&!card.completedAt&&card.currentPortionId&&card.nativeSalesOrder&&card.primarySalesOrder&&card.nativeSalesOrder!==card.primarySalesOrder?<button className="calendar-order-delete" disabled={savingOrders} onClick={()=>void deleteBackorder()} type="button">Delete Backorder {card.nativeSalesOrder}</button>:null}{orderError?<p role="alert">{orderError}</p>:null}</section>:null}
+    {card.recordKind==='calendar_item'&&card.calendarItemType!=='note'?<section className="calendar-included-orders"><strong>Operational item</strong><div className="calendar-order-disposition"><span>{card.nativeSalesOrder?`SO ${card.nativeSalesOrder}`:'No Sales Order'}</span><label>Type <select disabled={savingOrders||Boolean(card.completedAt)} onChange={(event)=>void changeType(event.target.value as 'delivery'|'customer_pickup')} value={card.calendarItemType}><option value="delivery">Delivery</option><option value="customer_pickup">Customer Pickup</option></select></label></div>{(card.availableFamilyOrders?.length??0)>1?<small>Related order family: {card.availableFamilyOrders?.join(', ')}</small>:null}{canDelete&&!card.completedAt&&card.currentPortionId&&card.nativeSalesOrder&&card.primarySalesOrder&&card.nativeSalesOrder!==card.primarySalesOrder?<button className="calendar-order-delete" disabled={savingOrders} onClick={()=>void deleteBackorder()} type="button">Delete Backorder {card.nativeSalesOrder}</button>:null}{orderError?<p role="alert">{orderError}</p>:null}</section>:null}
     {card.internalJobId && canOpenJobs ? <Link className="calendar-detail-job-link" href={jobHref(card.internalJobId, calendarWeek)}>Open Job</Link> : null}
     {canAddBackorders&&card.internalJobId&&card.primarySalesOrder&&card.recordKind==='calendar_item'&&card.calendarItemType!=='note'?<button className="calendar-detail-job-link" onClick={()=>setAddingBackorder(true)} type="button">Add Backorder Delivery / Pickup</button>:null}
     {deleteAllowed&&!card.completedAt&&!(card.recordKind==='calendar_item'&&card.currentPortionId&&card.nativeSalesOrder&&card.primarySalesOrder&&card.nativeSalesOrder!==card.primarySalesOrder)?<button className="calendar-detail-delete" disabled={deleting} onClick={()=>void remove()} type="button">{deleting?'Deleting…':'Delete'}</button>:null}
@@ -627,7 +631,7 @@ function QuickAddPicker({canManageProduction,date,defaultSalesperson,onClose,onC
       {kind==='note'?<label><span>Title *</span><input autoFocus required value={form.title} onChange={(event)=>setForm({...form,title:event.target.value})}/></label>:<label><span>Name *</span><input autoFocus readOnly={Boolean(form.linkedInternalJobId)} required value={form.name} onChange={(event)=>setForm({...form,name:event.target.value,linkedInternalJobId:null})}/></label>}
       <label><span>Find job / Sales Order{kind==='note'?' (optional)':''}</span><input aria-autocomplete="list" aria-controls="calendar-quick-add-job-results" aria-expanded={matches.length>0} onChange={(event)=>{setMatches([]);setSearching(Boolean(event.target.value.trim()));setForm({...form,find:event.target.value,linkedInternalJobId:null});setHighlightedJob(0);}} onKeyDown={(event)=>{if(!matches.length)return;if(event.key==='ArrowDown'){event.preventDefault();setHighlightedJob((value)=>(value+1)%matches.length);}else if(event.key==='ArrowUp'){event.preventDefault();setHighlightedJob((value)=>(value-1+matches.length)%matches.length);}else if(event.key==='Enter'){event.preventDefault();choose(matches[highlightedJob]);}}} placeholder="Customer, Sales Order, or DoorGo reference" role="combobox" value={form.find}/>{searching?<small>Searching DoorGo Jobs…</small>:null}{matches.length?<div className="calendar-quick-add-results" id="calendar-quick-add-job-results" role="listbox">{matches.map((job,index)=><button aria-selected={index===highlightedJob} key={job.internalJobId} onClick={()=>choose(job)} role="option" type="button"><strong>{job.customer||'Unnamed'}</strong><span>{job.salesOrder||job.doorGoReference}</span><small>{job.fulfillmentPlan||'Fulfillment unspecified'}</small></button>)}</div>:null}</label>
       {!searching&&form.find.trim()&&!form.linkedInternalJobId&&!matches.length&&!error?<p className="calendar-quick-add-empty">No matching DoorGo jobs.</p>:null}
-      {kind!=='note'?<label><span>Sales Order</span><input readOnly={Boolean(form.linkedInternalJobId)} value={form.salesOrder} onChange={(event)=>setForm({...form,salesOrder:event.target.value,linkedInternalJobId:null})}/>{form.linkedInternalJobId?<small>Linked to the selected DoorGo Job. Search again to change it.</small>:null}</label>:null}<label><span>Salesperson{kind==='production'?' *':''}</span><input required={kind==='production'} value={form.salesperson} onChange={(event)=>setForm({...form,salesperson:event.target.value})}/></label>
+      {kind!=='note'?<label><span>Sales Order</span><input readOnly={Boolean(form.linkedInternalJobId)} value={form.salesOrder} onChange={(event)=>setForm({...form,salesOrder:event.target.value,linkedInternalJobId:null})}/>{form.linkedInternalJobId?<small>Search again to choose a different Job.</small>:null}</label>:null}<label><span>Salesperson{kind==='production'?' *':''}</span><input required={kind==='production'} value={form.salesperson} onChange={(event)=>setForm({...form,salesperson:event.target.value})}/></label>
       {kind==='production'?<label><span>Shop Hours</span><input min="0" step="0.01" type="number" value={form.shopHours} onChange={(event)=>setForm({...form,shopHours:event.target.value})}/></label>:null}
       {(kind==='delivery'||kind==='customer_pickup')?<><label><span>Timing</span><input placeholder="AM, after lunch, before 3" value={form.timing} onChange={(event)=>setForm({...form,timing:event.target.value})}/></label><label><span>Fulfillment note</span><textarea value={form.fulfillmentNote} onChange={(event)=>setForm({...form,fulfillmentNote:event.target.value})}/></label></>:null}
       {kind==='note'?<label><span>Details</span><textarea value={form.details} onChange={(event)=>setForm({...form,details:event.target.value})}/></label>:null}{error?<p role="alert">{error}</p>:null}<footer><button disabled={saving} onClick={()=>setKind(null)} type="button">Back</button><button disabled={saving} type="submit">{saving?'Adding…':'Add'}</button></footer></form>}
@@ -648,8 +652,8 @@ function ExceptionalMovePanel({ state, onCancel, onChange, onSubmit }: { state: 
   </form></div>;
 }
 
-function CalendarProductionCard({ card, canDrag, dropPosition, highlighted, onDragEnd, onDragStart }: { card: ProductionBoardCard; canDrag: boolean; dropPosition: 'before' | 'after' | null; highlighted: boolean; onDragEnd: () => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void }) {
-  const color = calendarCardColor(card);
+function CalendarProductionCard({ card, canDrag, colorId, dropPosition, highlighted, onDragEnd, onDragStart }: { card: ProductionBoardCard; canDrag: boolean;colorId?:CalendarLayerColorId; dropPosition: 'before' | 'after' | null; highlighted: boolean; onDragEnd: () => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void }) {
+  const color = calendarCardColor(card,colorId);
   const text = calendarCardText(card);
   const completed = card.completedAt !== null;
   return <div className="calendar-production-card" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} title={text}>

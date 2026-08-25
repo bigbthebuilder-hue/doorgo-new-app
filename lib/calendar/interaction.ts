@@ -1,6 +1,11 @@
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 export type ExpandedCalendarInteraction = { collapse: boolean; consume: boolean; interact: boolean };
+export type CalendarViewportAnchor = { top: number };
+
+export function viewportAnchorAdjustment(before: CalendarViewportAnchor, after: CalendarViewportAnchor): number {
+  return after.top - before.top;
+}
 export function needsAttentionDismissal(target:'inside'|'toolbar'|'calendar') {
   return { close: target !== 'inside', consume: target === 'calendar' };
 }
@@ -11,7 +16,7 @@ export function resolveExpandedCalendarInteraction(
 ): ExpandedCalendarInteraction {
   if (!expandedDate) return { collapse: false, consume: false, interact: true };
   if (target.kind === 'toolbar') return { collapse: true, consume: false, interact: true };
-  if (target.date !== expandedDate) return { collapse: true, consume: true, interact: false };
+  if (target.date !== expandedDate) return { collapse: true, consume: false, interact: true };
   if (target.interactiveChild) return { collapse: false, consume: false, interact: true };
   return { collapse: true, consume: true, interact: false };
 }

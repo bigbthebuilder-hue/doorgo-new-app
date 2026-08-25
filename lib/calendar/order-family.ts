@@ -33,7 +33,7 @@ export function fulfillmentCardOrderLabel(orders: string[], fallback: string | n
   const actual = [...new Set(orders.map((value) => value.trim()).filter(Boolean))].sort();
   const first = actual[0] ?? fallback?.trim() ?? null;
   if (!first) return null;
-  return actual.length > 1 ? `${first} +${actual.length - 1}` : first;
+  return first;
 }
 
 export function compatibleFulfillmentTiming(left: string | null, right: string | null): { compatible: boolean; timing: string | null } {

@@ -507,13 +507,8 @@ body {
 .calendar-quick-add-form input,.calendar-quick-add-form textarea { width:100%;border:1px solid var(--app-color-border);border-radius:.3rem;padding:.35rem;font-size:.72rem;user-select:text; }
 .calendar-quick-add-form footer { display:flex;justify-content:flex-end;gap:.35rem; }
 .calendar-quick-add-form footer button { border:1px solid var(--app-color-border);border-radius:.3rem;padding:.35rem .65rem;font-size:.7rem;font-weight:700; }
-.calendar-partial-completion { display:grid;gap:.45rem;padding:.6rem; }
-.calendar-partial-completion > header { margin:-.6rem -.6rem 0; }
 .calendar-included-orders { display:grid;gap:.3rem;border-top:1px solid var(--app-color-border);padding:.6rem;font-size:.7rem; }
-.calendar-order-disposition { display:grid;grid-template-columns:minmax(4.5rem,1fr) auto auto;align-items:center;gap:.35rem;cursor:grab; }
-.calendar-segmented-control { display:flex;overflow:hidden;border-radius:.35rem;background:var(--app-color-surface-muted); }
-.calendar-segmented-control button { border-radius:0;border-color:transparent;background:transparent;color:var(--app-color-text-muted); }
-.calendar-segmented-control button[aria-pressed="true"] { background:rgb(2 132 199);color:white;box-shadow:inset 0 0 0 1px rgb(3 105 161); }
+.calendar-order-disposition { display:grid;grid-template-columns:minmax(4.5rem,1fr) auto;align-items:center;gap:.35rem; }
 .calendar-order-delete { color:rgb(190 24 93); }
 .calendar-backorder-number { display:grid;gap:.15rem;border:1px solid var(--app-color-border);border-radius:.35rem;padding:.55rem; }
 .calendar-backorder-number > span { font-size:.65rem;font-weight:800;text-transform:uppercase; }

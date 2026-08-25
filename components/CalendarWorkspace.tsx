@@ -10,7 +10,7 @@ import { createCalendarItem, deleteCalendarItem, moveCalendarItem, reorderCalend
 import type {CalendarJobOption} from '@/lib/calendar/calendar-job-linking';
 import {calendarOperationalBounds,dateWithinCalendarBounds,mergeContinuousCalendarBoards,nextCalendarChunk,preservedPrependScrollTop} from '@/lib/calendar/continuous-range';
 import { AddBackorderDialog } from '@/components/calendar/AddBackorderDialog';
-import { completeFulfillmentOrders, deleteFulfillmentBackorder, moveFulfillmentOrder, setFulfillmentOrderDispositions } from '@/lib/calendar/fulfillment-actions';
+import { deleteFulfillmentBackorder, setFulfillmentItemType } from '@/lib/calendar/fulfillment-actions';
 import { calendarItemLayerKey, calendarRecordKey, removeCalendarCardLocally, replaceCalendarCardLocally } from '@/lib/calendar/calendar-items';
 import { getProductionScheduleCompletionBlockReason } from '@/lib/production-schedule/completion-ui-contract';
 import { getProductionScheduleCardMoveBlockReason } from '@/lib/production-schedule/move-ui-contract';
@@ -21,6 +21,7 @@ import {
   calendarMonthSegments,
   calendarCardColor,
   calendarCardText,
+  calendarExpandedCardMeta,
   needsAttentionToolbarModel,
   searchCalendarCards,
   calendarItemTypeLabel,
@@ -69,7 +70,6 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   const [layersOpen, setLayersOpen] = useState(false);
   const [needsAttentionOpen, setNeedsAttentionOpen] = useState(false);
   const [needsAttentionDropReady, setNeedsAttentionDropReady] = useState(false);
-  const [partialCompletion,setPartialCompletion]=useState<ProductionBoardCard|null>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const streamRef=useRef<HTMLElement>(null);
   const rangeLoadRef=useRef<Promise<ProductionBoardViewModel|null>|null>(null);
@@ -79,9 +79,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   const highlightTimer = useRef<number | null>(null);
   const toastId = useRef(0);
   const draggedCard = useRef<ProductionBoardCard | null>(null);
-  const draggedOrder=useRef<{source:ProductionBoardCard;salesOrder:string}|null>(null);
   const consumeOutsideCalendarClick = useRef(false);
-  useEffect(()=>{const clear=()=>{draggedOrder.current=null;};document.addEventListener('dragend',clear);return()=>document.removeEventListener('dragend',clear);},[]);
   const allCards = useMemo(() => [...displayBoard.days.flatMap((day) => day.cards), ...displayBoard.needsAttentionCards], [displayBoard.days, displayBoard.needsAttentionCards]);
   const layers = useMemo(() => buildCalendarLayers(allCards), [allCards]);
   const availableKeys = useMemo(() => layers.filter((layer) => layer.available).map((layer) => layer.key), [layers]);
@@ -219,7 +217,6 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   const completeCard = async (card: ProductionBoardCard) => {
     if (!canInteract || completionPendingId) return;
     if(card.recordKind==='calendar_item'){
-      if(card.calendarItemType!=='note'&&(card.includedOrders?.length??0)>0){setPartialCompletion(card);return;}
       setCompletionPendingId(card.bookingId);const result=await setCalendarItemCompletion({commandId:createSecureCommandId(),itemId:card.bookingId.slice(5),expectedRevision:card.revision??0,completed:true});setCompletionPendingId(null);
       if(!result.ok){announce('error',result.message);return;}updateCompletionLocally(card.bookingId,new Date().toISOString());announce('success','Calendar item marked complete.');return;
     }
@@ -357,7 +354,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     event.dataTransfer.setData('text/plain', card.bookingId);
   };
   const onDayDragOver = (date: string, event: React.DragEvent<HTMLElement>) => {
-    if ((!draggedCard.current&&!draggedOrder.current) || dragBusy) return;
+    if (!draggedCard.current || dragBusy) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
     const target = (event.target as HTMLElement).closest<HTMLElement>('[data-booking-id]');
@@ -366,7 +363,6 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     setDropTarget((current) => current?.date === date && current.targetId === targetId && current.before === before ? current : { date, targetId, before });
   };
   const onDayDrop = (date: string, event: React.DragEvent<HTMLElement>) => {
-    const orderDrag=draggedOrder.current;if(orderDrag){event.preventDefault();draggedOrder.current=null;const target=(event.target as HTMLElement).closest<HTMLElement>('[data-booking-id]')?.dataset.bookingId;setDragBusy(true);void moveFulfillmentOrder({commandId:createSecureCommandId(),sourceItemId:orderDrag.source.bookingId.slice(5),salesOrder:orderDrag.salesOrder,destinationDate:date,destinationItemId:target?.startsWith('item:')?target.slice(5):null}).then((result)=>{setDragBusy(false);if(!result.ok){announce('error',result.message);return;}announce('success',`${orderDrag.salesOrder} moved.`);void reconcileDays([orderDrag.source.productionDate,date].filter((value):value is string=>Boolean(value)));});return;}
     const card = draggedCard.current;
     if (!card) return;
     event.preventDefault();
@@ -380,11 +376,10 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     }
     beginDateMove(card, date, sourceDay?.cards.map((item) => item.bookingId) ?? displayBoard.needsAttentionCards.map((item) => item.bookingId));
   };
-  const onCardDragEnd = () => { draggedCard.current = null;draggedOrder.current=null; setDropTarget(null); setNeedsAttentionDropReady(false); };
+  const onCardDragEnd = () => { draggedCard.current = null; setDropTarget(null); setNeedsAttentionDropReady(false); };
   const needsAttentionModel = needsAttentionToolbarModel(displayBoard.needsAttentionCards, visibleLayers);
   const visibleNeedsAttention = needsAttentionModel.visibleCards;
   const onNeedsAttentionDrop = (event: React.DragEvent<HTMLElement>) => {
-    const orderDrag=draggedOrder.current;if(orderDrag){event.preventDefault();draggedOrder.current=null;setDragBusy(true);void moveFulfillmentOrder({commandId:createSecureCommandId(),sourceItemId:orderDrag.source.bookingId.slice(5),salesOrder:orderDrag.salesOrder,destinationDate:null,destinationItemId:null}).then((result)=>{setDragBusy(false);if(!result.ok){announce('error',result.message);return;}announce('success',`${orderDrag.salesOrder} moved to Needs Attention.`);void reconcileDays([orderDrag.source.productionDate].filter((value):value is string=>Boolean(value)));});return;}
     const card = draggedCard.current;
     if (!card) return;
     event.preventDefault();
@@ -475,8 +470,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
         </div>
       </section>)}
     </main>
-    {detailCard ? <ProductionDetailPanel calendarWeek={displayBoard.startDate} canAddBackorders={canAddBackorders&&canInteract} canDelete={canInteract} canOpenJobs={canOpenJobs} card={detailCard} onCardCreated={(created)=>setDisplayBoard((current)=>insertCalendarCardLocally(current,created))} onCardDeleted={(deleted)=>{setDisplayBoard((current)=>removeCalendarCardLocally(current,deleted.bookingId));setDetailBookingId(null);announce('success','Deleted');void reconcileDays([deleted.productionDate].filter((value):value is string=>Boolean(value)));}} onCardUpdated={(updated)=>setDisplayBoard((current)=>replaceCalendarCardLocally(current,updated))} onClose={() => setDetailBookingId(null)} onOrderDragStart={(salesOrder,event)=>{draggedOrder.current={source:detailCard,salesOrder};setNeedsAttentionDropReady(detailCard.productionDate!==null);event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',`order:${salesOrder}`);}} position={detailPosition} setPosition={setDetailPosition} workspaceRef={workspaceRef}/> : null}
-    {partialCompletion?<PartialFulfillmentCompletion card={partialCompletion} onCancel={()=>setPartialCompletion(null)} onSaved={(dates)=>{setPartialCompletion(null);void reconcileDays(dates);}}/>:null}
+    {detailCard ? <ProductionDetailPanel calendarWeek={displayBoard.startDate} canAddBackorders={canAddBackorders&&canInteract} canDelete={canInteract} canOpenJobs={canOpenJobs} card={detailCard} onCardCreated={(created)=>setDisplayBoard((current)=>insertCalendarCardLocally(current,created))} onCardDeleted={(deleted)=>{setDisplayBoard((current)=>removeCalendarCardLocally(current,deleted.bookingId));setDetailBookingId(null);announce('success','Deleted');void reconcileDays([deleted.productionDate].filter((value):value is string=>Boolean(value)));}} onCardUpdated={(updated)=>setDisplayBoard((current)=>replaceCalendarCardLocally(current,updated))} onClose={() => setDetailBookingId(null)} position={detailPosition} setPosition={setDetailPosition} workspaceRef={workspaceRef}/> : null}
     {quickAdd ? <QuickAddPicker canManageProduction={canManageProduction} date={quickAdd.date} defaultSalesperson={defaultSalesperson} onClose={() => setQuickAdd(null)} onCreated={(card)=>{setDisplayBoard((current)=>insertCalendarCardLocally(current,card));setQuickAdd(null);announce('success','Calendar item added.');}} today={today}/> : null}
     {moveState ? <ExceptionalMovePanel state={moveState} onCancel={() => { if (!moveState.pending) setMoveState(null); }} onChange={(changes) => setMoveState((current) => current ? { ...current, ...changes, error: null } : current)} onSubmit={() => void executeMove(moveState)}/> : null}
     {moveUndo ? <div className="calendar-move-undo" role="status"><span>{moveUndo.toDate === null ? 'Moved to Needs Attention' : 'Scheduled'}</span><span aria-hidden="true">·</span><button disabled={dragBusy} onClick={beginUndo} type="button">Undo</button></div> : null}
@@ -536,16 +530,16 @@ function ExpandedProductionCard({ calendarWeek, card, canDrag, canInteract, canO
   const blocked = !canInteract || pending || (card.recordKind!=='calendar_item'&&getProductionScheduleCompletionBlockReason(card,false)!==null);
   return <div className="calendar-expanded-production" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} onClick={(event) => event.stopPropagation()}>
     <span aria-hidden="true" className="calendar-drag-handle" title="Drag Calendar item">⋮⋮</span>
-    <CalendarItemIcon card={card}/><div className="calendar-expanded-info"><strong>{card.customer?.trim() || card.title?.trim() || 'Untitled'}</strong><span>{calendarCardText(card)}</span></div>
+    <CalendarItemIcon card={card}/><div className="calendar-expanded-info"><strong>{card.customer?.trim() || card.title?.trim() || 'Untitled'}</strong><span>{calendarExpandedCardMeta(card)}</span></div>
     <div className="calendar-expanded-actions"><button disabled={blocked} onClick={completed ? onReopen : onComplete} type="button">{pending ? 'Saving…' : completed ? 'Reopen' : 'Complete'}</button>
     {card.internalJobId && canOpenJobs ? <Link href={jobHref(card.internalJobId, calendarWeek)}>Open Job</Link> : null}
     <button aria-label={`More details for ${card.customer?.trim() || card.title}`} onClick={onDetails} type="button">•••</button></div>
   </div>;
 }
 
-function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canOpenJobs, card, onCardCreated, onCardDeleted, onCardUpdated, onClose, onOrderDragStart, position, setPosition, workspaceRef }: { calendarWeek: string; canAddBackorders:boolean;canDelete:boolean; canOpenJobs: boolean; card: ProductionBoardCard; onCardCreated:(card:ProductionBoardCard)=>void;onCardDeleted:(card:ProductionBoardCard)=>void;onCardUpdated:(card:ProductionBoardCard)=>void;onClose: () => void;onOrderDragStart:(salesOrder:string,event:React.DragEvent<HTMLElement>)=>void; position: { x: number; y: number } | null; setPosition: (position: { x: number; y: number }) => void; workspaceRef: React.RefObject<HTMLDivElement | null> }) {
+function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canOpenJobs, card, onCardCreated, onCardDeleted, onCardUpdated, onClose, position, setPosition, workspaceRef }: { calendarWeek: string; canAddBackorders:boolean;canDelete:boolean; canOpenJobs: boolean; card: ProductionBoardCard; onCardCreated:(card:ProductionBoardCard)=>void;onCardDeleted:(card:ProductionBoardCard)=>void;onCardUpdated:(card:ProductionBoardCard)=>void;onClose: () => void; position: { x: number; y: number } | null; setPosition: (position: { x: number; y: number }) => void; workspaceRef: React.RefObject<HTMLDivElement | null> }) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [sendOrders,setSendOrders]=useState(card.sendOrders??card.includedOrders??[]);const [addingBackorder,setAddingBackorder]=useState(false);const [savingOrders,setSavingOrders]=useState(false);const [deleting,setDeleting]=useState(false);const [orderError,setOrderError]=useState<string|null>(null);
+  const [addingBackorder,setAddingBackorder]=useState(false);const [savingOrders,setSavingOrders]=useState(false);const [deleting,setDeleting]=useState(false);const [orderError,setOrderError]=useState<string|null>(null);
   const dragOffset = useRef<{ x: number; y: number } | null>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -585,8 +579,8 @@ function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canO
     if (!dragOffset.current) return;
     setPosition(clamp({ x: event.clientX - dragOffset.current.x, y: event.clientY - dragOffset.current.y }));
   };
-  const saveDispositions=async()=>{setSavingOrders(true);setOrderError(null);const result=await setFulfillmentOrderDispositions({commandId:createSecureCommandId(),itemId:card.bookingId.slice(5),expectedRevision:card.revision??0,sendSalesOrders:sendOrders});setSavingOrders(false);if(!result.ok){setOrderError(result.message);return;}onCardUpdated({...card,sendOrders:[...sendOrders].sort(),revision:Number(result.data.revision??(card.revision??0)+1)});};
-  const deleteBackorder=async(order:string)=>{if(!window.confirm(`Delete backorder ${order}?`))return;setSavingOrders(true);setOrderError(null);const result=await deleteFulfillmentBackorder({commandId:createSecureCommandId(),itemId:card.bookingId.slice(5),expectedRevision:card.revision??0,salesOrder:order});setSavingOrders(false);if(!result.ok){setOrderError(result.message);return;}const remaining=result.data.remaining_orders as string[];if(result.data.item_deleted){onCardDeleted(card);return;}const nextSend=sendOrders.filter((value)=>value!==order);setSendOrders(nextSend);onCardUpdated({...card,includedOrders:remaining,availableFamilyOrders:(card.availableFamilyOrders??[]).filter((value)=>value!==order),sendOrders:nextSend,revision:Number(result.data.revision)});};
+  const deleteBackorder=async()=>{const order=card.nativeSalesOrder;if(!order||!window.confirm(`Delete backorder ${order}? This removes its current fulfillment item but preserves history.`))return;setSavingOrders(true);setOrderError(null);const result=await deleteFulfillmentBackorder({commandId:createSecureCommandId(),itemId:card.bookingId.slice(5),expectedRevision:card.revision??0,salesOrder:order});setSavingOrders(false);if(!result.ok){setOrderError(result.message);return;}onCardDeleted(card);};
+  const changeType=async(itemType:'delivery'|'customer_pickup')=>{if(itemType===card.calendarItemType)return;setSavingOrders(true);setOrderError(null);const result=await setFulfillmentItemType({commandId:createSecureCommandId(),itemId:card.bookingId.slice(5),expectedRevision:card.revision??0,itemType});setSavingOrders(false);if(!result.ok){setOrderError(result.message);return;}onCardUpdated({...card,calendarItemType:itemType,bookingKind:itemType,revision:Number(result.data.revision)});};
   const remove=async()=>{const label=card.calendarItemType==='customer_pickup'?'Customer Pickup':card.calendarItemType==='delivery'?'Delivery':'Note';if(!window.confirm(`Delete this ${label}?`))return;setDeleting(true);setOrderError(null);const result=await deleteCalendarItem({commandId:createSecureCommandId(),itemId:card.bookingId.slice(5),expectedRevision:card.revision??0});setDeleting(false);if(!result.ok){setOrderError(result.message);return;}onCardDeleted(card);};
   return <aside className="calendar-detail-panel" ref={panelRef} style={position ? { left: position.x, top: position.y } : undefined}>
     <header onPointerDown={(event) => { if ((event.target as HTMLElement).closest('button')) return; const panel = panelRef.current?.getBoundingClientRect(); if (!panel) return; dragOffset.current = { x: event.clientX - panel.left, y: event.clientY - panel.top }; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={move} onPointerUp={(event) => { dragOffset.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}>
@@ -604,22 +598,16 @@ function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canO
       <Detail label="Status" value={card.completedAt ? 'Completed' : 'Scheduled'}/>
       <Detail label="Link status" value={card.internalJobId?'DoorGo-linked':'Unlinked'}/>
     </dl>
-    {card.recordKind==='calendar_item'&&card.calendarItemType!=='note'&&card.includedOrders?.length?<section className="calendar-included-orders"><strong>Included Orders</strong>{card.includedOrders.map((order)=><div className="calendar-order-disposition" draggable key={order} onDragStart={(event)=>onOrderDragStart(order,event)}><span>{order}</span><div aria-label={`${order} fulfillment disposition`} className="calendar-segmented-control" role="group"><button aria-pressed={sendOrders.includes(order)} disabled={savingOrders||Boolean(card.completedAt)} onClick={()=>setSendOrders((current)=>current.includes(order)?current:[...current,order])} type="button">Send</button><button aria-pressed={!sendOrders.includes(order)} disabled={savingOrders||Boolean(card.completedAt)} onClick={()=>setSendOrders((current)=>current.filter((value)=>value!==order))} type="button">Don&apos;t send</button></div>{canDelete&&!card.completedAt&&order!==card.nativeSalesOrder?<button aria-label={`Delete backorder ${order}`} className="calendar-order-delete" disabled={savingOrders} onClick={()=>void deleteBackorder(order)} type="button">Delete</button>:null}</div>)}{!card.completedAt?<button disabled={savingOrders||JSON.stringify([...sendOrders].sort())===JSON.stringify([...(card.sendOrders??card.includedOrders??[])].sort())} onClick={()=>void saveDispositions()} type="button">{savingOrders?'Saving…':'Save Dispositions'}</button>:<small>Reopen before deleting</small>}{orderError?<p role="alert">{orderError}</p>:null}</section>:null}
+    {card.recordKind==='calendar_item'&&card.calendarItemType!=='note'?<section className="calendar-included-orders"><strong>Operational item</strong><div className="calendar-order-disposition"><span>SO {card.nativeSalesOrder||'Unlinked'}</span><label>Type <select disabled={savingOrders||Boolean(card.completedAt)} onChange={(event)=>void changeType(event.target.value as 'delivery'|'customer_pickup')} value={card.calendarItemType}><option value="delivery">Delivery</option><option value="customer_pickup">Customer Pickup</option></select></label></div>{(card.availableFamilyOrders?.length??0)>1?<small>Related order family: {card.availableFamilyOrders?.join(', ')}</small>:null}{canDelete&&!card.completedAt&&card.nativeSalesOrder&&card.primarySalesOrder&&card.nativeSalesOrder!==card.primarySalesOrder?<button className="calendar-order-delete" disabled={savingOrders} onClick={()=>void deleteBackorder()} type="button">Delete Backorder {card.nativeSalesOrder}</button>:null}{card.completedAt&&card.nativeSalesOrder!==card.primarySalesOrder?<small>Reopen before changing or deleting this backorder.</small>:null}{orderError?<p role="alert">{orderError}</p>:null}</section>:null}
     {card.internalJobId && canOpenJobs ? <Link className="calendar-detail-job-link" href={jobHref(card.internalJobId, calendarWeek)}>Open Job</Link> : null}
-    {canAddBackorders&&card.internalJobId&&card.nativeSalesOrder&&card.recordKind==='calendar_item'&&card.calendarItemType!=='note'?<button className="calendar-detail-job-link" onClick={()=>setAddingBackorder(true)} type="button">Add Backorder</button>:null}
-    {canDelete&&card.recordKind==='calendar_item'&&!card.completedAt?<button className="calendar-detail-delete" disabled={deleting} onClick={()=>void remove()} type="button">{deleting?'Deleting…':'Delete'}</button>:null}
-    {addingBackorder&&card.internalJobId&&card.nativeSalesOrder?<AddBackorderDialog baseSalesOrder={card.nativeSalesOrder} customer={card.customer||card.nativeSalesOrder} linkedInternalJobId={card.internalJobId} onClose={()=>setAddingBackorder(false)} onCreated={onCardCreated}/>:null}
+    {canAddBackorders&&card.internalJobId&&card.primarySalesOrder&&card.recordKind==='calendar_item'&&card.calendarItemType!=='note'?<button className="calendar-detail-job-link" onClick={()=>setAddingBackorder(true)} type="button">Add Backorder</button>:null}
+    {canDelete&&card.recordKind==='calendar_item'&&card.calendarItemType==='note'&&!card.completedAt?<button className="calendar-detail-delete" disabled={deleting} onClick={()=>void remove()} type="button">{deleting?'Deleting…':'Delete Note'}</button>:null}
+    {addingBackorder&&card.internalJobId&&card.primarySalesOrder?<AddBackorderDialog baseSalesOrder={card.primarySalesOrder} customer={card.customer||card.primarySalesOrder} linkedInternalJobId={card.internalJobId} onClose={()=>setAddingBackorder(false)} onCreated={onCardCreated}/>:null}
   </aside>;
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
   return <div><dt>{label}</dt><dd>{value}</dd></div>;
-}
-
-function PartialFulfillmentCompletion({card,onCancel,onSaved}:{card:ProductionBoardCard;onCancel:()=>void;onSaved:(dates:string[])=>void}){
-  const orders=card.includedOrders??[];const fulfilled=card.sendOrders??orders;const remaining=orders.filter((order)=>!fulfilled.includes(order));const [pending,setPending]=useState(false);const [error,setError]=useState<string|null>(null);
-  const submit=async(event:React.FormEvent)=>{event.preventDefault();if(!fulfilled.length){setError('No orders are marked Send.');return;}setPending(true);setError(null);const result=await completeFulfillmentOrders({commandId:createSecureCommandId(),itemId:card.bookingId.slice(5),expectedRevision:card.revision??0,fulfilledSalesOrders:fulfilled,remainingDate:null});setPending(false);if(!result.ok){setError(result.message);return;}onSaved([card.productionDate].filter((value):value is string=>typeof value==='string'));};
-  return <div className="calendar-floating-backdrop"><form className="calendar-quick-add calendar-partial-completion" onSubmit={submit}><header><strong>Complete fulfillment</strong><button aria-label="Close fulfillment completion" onClick={onCancel} type="button">×</button></header><p>{fulfilled.length?`${fulfilled.join(', ')} will be completed.`:'No orders are marked Send.'}</p>{remaining.length?<p>{remaining.join(', ')} will move to Needs Attention.</p>:null}{error?<p role="alert">{error}</p>:null}<footer><button disabled={pending} onClick={onCancel} type="button">Cancel</button><button disabled={pending||fulfilled.length===0} type="submit">{pending?'Completing…':'Complete Fulfillment'}</button></footer></form></div>;
 }
 
 function QuickAddPicker({canManageProduction,date,defaultSalesperson,onClose,onCreated,today}:{canManageProduction:boolean;date:string|null;defaultSalesperson:string;onClose:()=>void;onCreated:(card:ProductionBoardCard)=>void;today:string}) {

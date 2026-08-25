@@ -50,6 +50,8 @@ export type ProductionBoardCard = {
   jobId: string | null;
   internalJobId?: string | null;
   nativeSalesOrder?: string | null;
+  primarySalesOrder?: string | null;
+  currentPortionId?: string | null;
   calendarId: string | null;
   calendarEventId: string | null;
   shopHours: number | null;

@@ -16,7 +16,7 @@ assert.equal(nextAvailableBackorderSalesOrder('1198765',['1198765','1198767']),'
 assert.equal(nextAvailableBackorderSalesOrder('1198765',['1198765','1198766','1198768']),'1198767');
 assert.equal(nextAvailableBackorderSalesOrder('1198765',['1198765','1198766','1198767','1198768','1198769']),null);
 assert.equal(fulfillmentCardOrderLabel(['123455'], null), '123455');
-assert.equal(fulfillmentCardOrderLabel(['123456', '123455', '123456'], null), '123455 +1');
+assert.equal(fulfillmentCardOrderLabel(['123456', '123455', '123456'], null), '123455');
 assert.deepEqual(compatibleFulfillmentTiming('', 'AM'), { compatible: true, timing: 'AM' });
 assert.deepEqual(compatibleFulfillmentTiming('AM', 'am'), { compatible: true, timing: 'AM' });
 assert.equal(compatibleFulfillmentTiming('AM', 'PM').compatible, false);

@@ -3,6 +3,7 @@ import {
   buildCalendarLayers,
   calendarCapacityLabel,
   calendarCardText,
+  calendarExpandedCardMeta,
   calendarItemTypeLabel,
   calendarMonthSegments,
   calendarProductionCardText,
@@ -27,9 +28,10 @@ assert.deepEqual(layers.filter((layer) => layer.available).map((layer) => layer.
 assert.equal(layers.some((layer) => layer.kind === 'delivery' && !layer.available), true);
 const delivery={...card(null),bookingId:'item:11111111-1111-4111-8111-111111111111',recordKind:'calendar_item' as const,calendarItemType:'delivery' as const,customer:'Hamilton',nativeSalesOrder:'123455',jobId:'123455',timing:'AM',shopHours:null};
 assert.equal(buildCalendarLayers([delivery]).find((layer)=>layer.key==='fulfillment:delivery')?.available,true);
-assert.equal(calendarCardText({...delivery,includedOrders:['123455','123456','123457']}),'Hamilton · 123455 +2 · AM');
+assert.equal(calendarCardText({...delivery,includedOrders:['123455','123456','123457']}),'Hamilton · 123455 · AM');
 assert.deepEqual(searchCalendarCards([{...delivery,includedOrders:['123455','123456']}],'123456').map((item)=>item.bookingId),[delivery.bookingId]);
 assert.equal(calendarCardText(delivery),'Hamilton · 123455 · AM');
+assert.equal(calendarExpandedCardMeta(delivery),'123455 · AM');
 const pickup={...delivery,bookingId:'item:22222222-2222-4222-8222-222222222222',calendarItemType:'customer_pickup' as const};
 const note={...delivery,bookingId:'item:33333333-3333-4333-8333-333333333333',calendarItemType:'note' as const,customer:null,title:'Check if this works',jobId:null,nativeSalesOrder:null};
 assert.equal(calendarItemTypeLabel(card('Alex')),'Production');assert.equal(calendarItemTypeLabel(delivery),'Delivery');assert.equal(calendarItemTypeLabel(pickup),'Pickup');assert.equal(calendarItemTypeLabel(note),'Note');

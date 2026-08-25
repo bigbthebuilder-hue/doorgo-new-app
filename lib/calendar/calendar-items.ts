@@ -4,15 +4,15 @@ export type CalendarItemRow = {
   item_id:string; item_type:'delivery'|'customer_pickup'|'note'; scheduled_date:string|null;
   linked_internal_job_id:string|null; customer_name:string; sales_order:string|null; salesperson:string|null;
   timing:string|null; fulfillment_note:string|null; title:string|null; details:string|null; day_order:number|string;
-  completed_at:string|null; revision:number|string; order_family_key:string|null;
+  completed_at:string|null; revision:number|string; order_family_key:string|null; current_portion_id?:string|null;
 };
 
 export function calendarItemCard(row:CalendarItemRow, linked?:{internalJobId:string;customer:string|null;salesOrder:string|null;salesperson:string|null},orders:{included:string[];available:string[];send?:string[]}={included:[],available:[]}):ProductionBoardCard {
   const customer=linked?.customer?.trim()||row.customer_name;
-  const salesOrder=linked?.salesOrder?.trim()||row.sales_order;
+  const salesOrder=row.sales_order?.trim()||linked?.salesOrder?.trim()||null;
   return {bookingId:`item:${row.item_id}`,recordKind:'calendar_item',calendarItemType:row.item_type,revision:Number(row.revision),type:linked?'doorgo_linked':'biztrack_only',
     typeLabel:linked?'DoorGo-linked':'BizTrack-only',productionDate:row.scheduled_date,dayOrder:Number(row.day_order),title:row.title?.trim()||customer,
-    customer,jobId:salesOrder,internalJobId:linked?.internalJobId,nativeSalesOrder:salesOrder,calendarId:null,calendarEventId:null,shopHours:null,
+    customer,jobId:salesOrder,internalJobId:linked?.internalJobId,nativeSalesOrder:salesOrder,primarySalesOrder:linked?.salesOrder?.trim()||null,currentPortionId:row.current_portion_id,calendarId:null,calendarEventId:null,shopHours:null,
     shopHoursKnown:true,salesperson:linked?.salesperson?.trim()||row.salesperson,source:'DoorGo Calendar',sourceSystem:'doorgo_native',bookingKind:row.item_type,
     locked:false,completedAt:row.completed_at,timing:row.timing,fulfillmentNote:row.fulfillment_note,details:row.details,orderFamilyKey:row.order_family_key,
     includedOrders:orders.included,sendOrders:orders.send??orders.included,availableFamilyOrders:orders.available};

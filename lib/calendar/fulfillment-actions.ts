@@ -21,25 +21,9 @@ export async function addBackorder(input:{commandId:string;linkedInternalJobId:s
 
 export async function loadNextBackorderSalesOrder(internalJobId:string,baseSalesOrder:string){const family=await loadJobFulfillmentFamily(internalJobId);return family.ok?{ok:true as const,salesOrder:nextAvailableBackorderSalesOrder(baseSalesOrder,family.orders)}:family;}
 
-export async function setFulfillmentOrderDispositions(input:{commandId:string;itemId:string;expectedRevision:number;sendSalesOrders:string[]}){if(getPermissionAccess(await getCurrentDoorGoAccess(),'calendar')!=='use')return fail('permission_required');const {data,error}=await (await createAuthenticatedSupabaseServerClient()).rpc('set_fulfillment_order_dispositions',{p_command_id:input.commandId,p_item_id:input.itemId,p_expected_revision:input.expectedRevision,p_send_sales_orders:input.sendSalesOrders});return error?fail(errorCode(error)):{ok:true as const,data:(data??{}) as Record<string,unknown>};}
+export async function setFulfillmentItemType(input:{commandId:string;itemId:string;expectedRevision:number;itemType:FulfillmentType}){if(getPermissionAccess(await getCurrentDoorGoAccess(),'calendar')!=='use')return fail('permission_required');const {data,error}=await (await createAuthenticatedSupabaseServerClient()).rpc('set_fulfillment_item_type',{p_command_id:input.commandId,p_item_id:input.itemId,p_expected_revision:input.expectedRevision,p_item_type:input.itemType});return error?fail(errorCode(error)):{ok:true as const,data:(data??{}) as Record<string,unknown>};}
 
 export async function deleteFulfillmentBackorder(input:{commandId:string;itemId:string;expectedRevision:number;salesOrder:string}){if(getPermissionAccess(await getCurrentDoorGoAccess(),'calendar')!=='use')return fail('permission_required');const {data,error}=await (await createAuthenticatedSupabaseServerClient()).rpc('delete_fulfillment_backorder',{p_command_id:input.commandId,p_item_id:input.itemId,p_expected_revision:input.expectedRevision,p_sales_order:input.salesOrder});return error?fail(errorCode(error)):{ok:true as const,data:(data??{}) as Record<string,unknown>};}
-
-export async function setIncludedOrders(input:{commandId:string;itemId:string;expectedRevision:number;salesOrders:string[];confirmReassignment:boolean}){
-  if(getPermissionAccess(await getCurrentDoorGoAccess(),'calendar')!=='use')return fail('permission_required');
-  const {data,error}=await (await createAuthenticatedSupabaseServerClient()).rpc('set_fulfillment_included_orders',{p_command_id:input.commandId,p_item_id:input.itemId,p_expected_revision:input.expectedRevision,p_sales_orders:input.salesOrders,p_confirm_reassignment:input.confirmReassignment});
-  return error?fail(errorCode(error)):{ok:true as const,data:(data??{}) as Record<string,unknown>};
-}
-
-export async function completeFulfillmentOrders(input:{commandId:string;itemId:string;expectedRevision:number;fulfilledSalesOrders:string[];remainingDate:string|null}){
-  if(getPermissionAccess(await getCurrentDoorGoAccess(),'calendar')!=='use')return fail('permission_required');
-  const {data,error}=await (await createAuthenticatedSupabaseServerClient()).rpc('complete_fulfillment_orders',{p_command_id:input.commandId,p_item_id:input.itemId,p_expected_revision:input.expectedRevision,p_fulfilled_sales_orders:input.fulfilledSalesOrders,p_remaining_date:input.remainingDate});
-  return error?fail(errorCode(error)):{ok:true as const,data:(data??{}) as Record<string,unknown>};
-}
-export async function moveFulfillmentOrder(input:{commandId:string;sourceItemId:string;salesOrder:string;destinationDate:string|null;destinationItemId:string|null}){
-  if(getPermissionAccess(await getCurrentDoorGoAccess(),'calendar')!=='use')return fail('permission_required');
-  const {data,error}=await (await createAuthenticatedSupabaseServerClient()).rpc('move_fulfillment_order',{p_command_id:input.commandId,p_source_item_id:input.sourceItemId,p_sales_order:input.salesOrder,p_destination_date:input.destinationDate,p_destination_item_id:input.destinationItemId});return error?fail(errorCode(error)):{ok:true as const,data:(data??{}) as Record<string,unknown>};
-}
 
 export async function loadJobFulfillmentFamily(internalJobId:string):Promise<{ok:true;familyKey:string|null;orders:string[]}|Failure>{
   const access=await getCurrentDoorGoAccess();if(getPermissionAccess(access,'jobs')==='none')return fail('jobs_permission_required');const client=await createAuthenticatedSupabaseServerClient();

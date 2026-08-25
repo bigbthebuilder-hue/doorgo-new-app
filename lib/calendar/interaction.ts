@@ -21,6 +21,9 @@ export function shouldExpandCollapsedCalendarCard(input:{dayDate:string;expanded
 export function needsAttentionDismissal(target:'inside'|'toolbar'|'calendar') {
   return { close: target !== 'inside', consume: target === 'calendar' };
 }
+export function shouldDismissQuickAdd(insidePicker:boolean,insideStaffAwayEditor:boolean):boolean{
+  return !insidePicker&&!insideStaffAwayEditor;
+}
 
 export function resolveExpandedCalendarInteraction(
   expandedDate: string | null,

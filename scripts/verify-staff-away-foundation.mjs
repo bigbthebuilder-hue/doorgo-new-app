@@ -5,4 +5,5 @@ assert.doesNotMatch(sql,/permission_key='settings'|is_manager|closure|special_da
 assert.match(sql,/effective_from<=p_date[\s\S]*ORDER BY latest\.effective_from DESC LIMIT 1/);assert.match(sql,/dg_staff_away_is_working_day/);assert.match(sql,/p_start_date<>p_end_date/);
 assert.match(queries,/loadStaffAwayRange\(params\.boardStart,params\.boardEndExclusive\)/);assert.match(actions,/canUse\(access,'production'\)/);assert.doesNotMatch(actions,/settings|is_manager/);
 assert.match(workspace,/StaffAwayEditor/);assert.match(workspace,/recordKind!=='staff_away'/);assert.match(editor,/Capacity Drag Hours/);assert.match(editor,/entire Staff Away period/);assert.match(presentation,/key: 'other:away'.*available: true/);
+assert.match(workspace,/shouldDismissQuickAdd[\s\S]*calendar-staff-away-editor/);assert.match(editor,/roster\[0\]\?\.staffId/);assert.match(editor,/Choose an active staff member/);assert.match(editor,/error instanceof Error/);assert.match(editor,/Adding…/);assert.match(editor,/savingRef\.current/);assert.match(editor,/onChanged[\s\S]*onClose\(\)/);
 console.log('Staff Away foundation static verification passed');

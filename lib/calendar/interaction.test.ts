@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { beginCalendarCardDrag, calendarDayDropTarget, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, shouldExpandCollapsedCalendarCard, viewportAnchorAdjustment } from './interaction';
+import { beginCalendarCardDrag, calendarDayDropTarget, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, shouldDismissQuickAdd, shouldExpandCollapsedCalendarCard, viewportAnchorAdjustment } from './interaction';
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 assert.deepEqual(reorderBookingIds(['a', 'b', 'c'], 'c', 'a', true), ['c', 'a', 'b']);
@@ -47,6 +47,9 @@ assert.equal(placeCalendarBookingLocally(pile,'a','2026-08-25').needsAttentionCa
 assert.deepEqual(needsAttentionDismissal('calendar'),{close:true,consume:true});
 assert.deepEqual(needsAttentionDismissal('toolbar'),{close:true,consume:false});
 assert.deepEqual(needsAttentionDismissal('inside'),{close:false,consume:false});
+assert.equal(shouldDismissQuickAdd(true,false),false,'controls inside the ordinary picker stay open');
+assert.equal(shouldDismissQuickAdd(false,true),false,'controls inside the Staff Away editor stay open');
+assert.equal(shouldDismissQuickAdd(false,false),true,'an unrelated Calendar surface still dismisses Quick Add');
 
 assert.deepEqual(getCalendarMoveRequirements('2026-08-10', '2026-08-11', '2026-08-20', false), {
   requiresClosedOverride: false,

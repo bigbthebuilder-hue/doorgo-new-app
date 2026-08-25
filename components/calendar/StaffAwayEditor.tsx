@@ -8,10 +8,10 @@ export function StaffAwayEditor({canEdit,card,initialDate,roster,onClose,onChang
   const [endDate,setEndDate]=useState(card?.staffAwayEndDate??initialDate??'');const [mode,setMode]=useState<'full_day'|'partial'>(card?.staffAwayMode??'full_day');
   const [partialDrag,setPartialDrag]=useState(card?.partialDragHours?.toString()??'');const [reason,setReason]=useState(card?.details??'');
   const options=card?.staffId&&!roster.some((staff)=>staff.staffId===card.staffId)?[{staffId:card.staffId,displayName:card.customer??card.title},...roster]:roster;
-  const submit=async(event:React.FormEvent)=>{event.preventDefault();if(!canEdit||savingRef.current)return;savingRef.current=true;setSaving(true);setError(null);
+  const submit=async(event:React.FormEvent)=>{event.preventDefault();if(!canEdit||savingRef.current)return;if(!staffId||!options.some((staff)=>staff.staffId===staffId)){setError('Choose an active staff member.');return;}if(!startDate||!endDate){setError('Choose valid Staff Away dates.');return;}if(mode==='partial'&&(!Number.isFinite(Number(partialDrag))||Number(partialDrag)<=0)){setError('Enter Capacity Drag Hours greater than zero.');return;}savingRef.current=true;setSaving(true);setError(null);
     try{const result=await saveStaffAway({commandId:crypto.randomUUID(),periodId:card?.staffAwayPeriodId??null,expectedRevision:card?.revision??null,staffId,startDate,endDate:mode==='partial'?startDate:endDate,mode,partialDragHours:mode==='partial'?Number(partialDrag):null,reason});
       if(!result.ok){setError(result.message);return;}const oldDates=card?.staffAwayStartDate&&card.staffAwayEndDate?datesInRange(card.staffAwayStartDate,card.staffAwayEndDate):[];onChanged([...new Set([...oldDates,...datesInRange(result.startDate,result.endDate)])]);onClose();
-    }catch{setError('Staff Away could not be saved. Please try again.');}finally{savingRef.current=false;setSaving(false);}};
+    }catch(error){setError(error instanceof Error&&error.message.trim()?error.message:'Staff Away could not be saved. Please try again.');}finally{savingRef.current=false;setSaving(false);}};
   const remove=async()=>{if(!canEdit||!card?.staffAwayPeriodId||savingRef.current||!window.confirm('Delete this entire Staff Away period?'))return;savingRef.current=true;setSaving(true);setError(null);
     try{const result=await deleteStaffAway({commandId:crypto.randomUUID(),periodId:card.staffAwayPeriodId,expectedRevision:card.revision??0});if(!result.ok){setError(result.message);return;}onChanged(datesInRange(result.startDate,result.endDate));onClose();
     }catch{setError('Staff Away could not be deleted. Please try again.');}finally{savingRef.current=false;setSaving(false);}};
@@ -23,7 +23,7 @@ export function StaffAwayEditor({canEdit,card,initialDate,roster,onClose,onChang
       {mode==='partial'?<label><span>Capacity Drag Hours</span><input disabled={!canEdit||saving} max="24" min="0" onChange={(event)=>setPartialDrag(event.target.value)} required step=".25" type="number" value={partialDrag}/></label>:null}
       <label><span>Reason / note</span><textarea disabled={!canEdit||saving} onChange={(event)=>setReason(event.target.value)} value={reason}/></label>
       {card?<small>Changes and deletion apply to the entire {card.staffAwayStartDate===card.staffAwayEndDate?'date':'date range'}.</small>:null}
-      {error?<p role="alert">{error}</p>:null}<footer>{card&&canEdit?<button disabled={saving} onClick={()=>void remove()} type="button">Delete</button>:null}<button disabled={saving} onClick={onClose} type="button">{canEdit?'Cancel':'Close'}</button>{canEdit?<button disabled={saving||!roster.length} type="submit">{saving?'Saving…':card?'Save Changes':'Add Staff Away'}</button>:null}</footer>
+      {error?<p aria-live="polite" role="alert">{error}</p>:null}<footer>{card&&canEdit?<button disabled={saving} onClick={()=>void remove()} type="button">Delete</button>:null}<button disabled={saving} onClick={onClose} type="button">{canEdit?'Cancel':'Close'}</button>{canEdit?<button aria-busy={saving||undefined} disabled={saving||!roster.length} type="submit">{saving?(card?'Saving…':'Adding…'):card?'Save Changes':'Add Staff Away'}</button>:null}</footer>
     </div>
   </form></div>;
 }

@@ -6,6 +6,9 @@ export type CalendarViewportAnchor = { top: number };
 export function viewportAnchorAdjustment(before: CalendarViewportAnchor, after: CalendarViewportAnchor): number {
   return after.top - before.top;
 }
+export function isActiveCalendarDragOrigin(target: Element | null): boolean {
+  return Boolean(target?.closest('[data-booking-id][draggable="true"]'));
+}
 export function needsAttentionDismissal(target:'inside'|'toolbar'|'calendar') {
   return { close: target !== 'inside', consume: target === 'calendar' };
 }

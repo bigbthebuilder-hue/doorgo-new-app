@@ -49,8 +49,11 @@ assert.deepEqual(normalizedLayers.map((layer) => [layer.key, layer.label]), [
 ]);
 assert.equal(buildCalendarLayers([card('ALEX')]).find((layer) => layer.available)?.label, 'Alex');
 assert.deepEqual(salespersonColor('Jerry'), salespersonColor('JERRY'));
-assert.equal(CALENDAR_LAYER_PALETTE.some((color)=>['#dcfce7','#fef3c7','#ffe4e6'].includes(color.background)),false);
+assert.equal(CALENDAR_LAYER_PALETTE.length,20);
+assert.equal(new Set(CALENDAR_LAYER_PALETTE.map((color)=>color.id)).size,CALENDAR_LAYER_PALETTE.length);
+assert.equal(CALENDAR_LAYER_PALETTE.some((color)=>['#ecfdf5','#fef9c3','#fee2e2','#f1f5f9','#f8fafc'].includes(color.background)),false);
 assert.equal(CALENDAR_LAYER_PALETTE.every((color)=>color.foreground.length===7),true);
+for(const stableId of ['sky','navy','purple','violet','indigo','pink','magenta','slate'])assert.equal(CALENDAR_LAYER_PALETTE.some((color)=>color.id===stableId),true);
 assert.deepEqual(layerPaletteColor('purple'),CALENDAR_LAYER_PALETTE.find((color)=>color.id==='purple'));
 
 const searchableCards = [

@@ -24,14 +24,26 @@ export type CalendarMonthSegment = {
 };
 
 export const CALENDAR_LAYER_PALETTE = [
-  { id: 'sky', label: 'Sky', background: '#dbeafe', foreground: '#1e3a5f' },
-  { id: 'navy', label: 'Navy', background: '#cbd5e1', foreground: '#172554' },
-  { id: 'purple', label: 'Purple', background: '#e9d5ff', foreground: '#581c87' },
-  { id: 'violet', label: 'Violet', background: '#ddd6fe', foreground: '#4c1d95' },
-  { id: 'indigo', label: 'Indigo', background: '#e0e7ff', foreground: '#312e81' },
-  { id: 'pink', label: 'Pink', background: '#fce7f3', foreground: '#831843' },
-  { id: 'magenta', label: 'Magenta', background: '#fae8ff', foreground: '#701a75' },
-  { id: 'slate', label: 'Slate', background: '#e2e8f0', foreground: '#334155' },
+  { id: 'sky', label: 'Sky', background: '#bae6fd', foreground: '#0c4a6e' },
+  { id: 'cobalt', label: 'Cobalt', background: '#bfdbfe', foreground: '#1e3a8a' },
+  { id: 'navy', label: 'Navy', background: '#c7d2fe', foreground: '#172554' },
+  { id: 'teal', label: 'Teal', background: '#99f6e4', foreground: '#134e4a' },
+  { id: 'turquoise', label: 'Turquoise', background: '#a5f3fc', foreground: '#164e63' },
+  { id: 'forest', label: 'Forest', background: '#bbf7d0', foreground: '#14532d' },
+  { id: 'emerald', label: 'Emerald', background: '#a7f3d0', foreground: '#064e3b' },
+  { id: 'olive', label: 'Olive', background: '#d9f99d', foreground: '#365314' },
+  { id: 'mustard', label: 'Mustard', background: '#fde68a', foreground: '#713f12' },
+  { id: 'amber', label: 'Amber', background: '#fed7aa', foreground: '#7c2d12' },
+  { id: 'rust', label: 'Rust', background: '#fdba74', foreground: '#7c2d12' },
+  { id: 'coral', label: 'Coral', background: '#fca5a5', foreground: '#7f1d1d' },
+  { id: 'burgundy', label: 'Burgundy', background: '#fecdd3', foreground: '#881337' },
+  { id: 'pink', label: 'Pink', background: '#f9a8d4', foreground: '#831843' },
+  { id: 'magenta', label: 'Magenta', background: '#f0abfc', foreground: '#701a75' },
+  { id: 'purple', label: 'Purple', background: '#d8b4fe', foreground: '#581c87' },
+  { id: 'violet', label: 'Violet', background: '#c4b5fd', foreground: '#4c1d95' },
+  { id: 'indigo', label: 'Indigo', background: '#a5b4fc', foreground: '#312e81' },
+  { id: 'brown', label: 'Brown', background: '#d6b896', foreground: '#422006' },
+  { id: 'slate', label: 'Slate', background: '#cbd5e1', foreground: '#334155' },
 ] as const;
 export type CalendarLayerColorId = typeof CALENDAR_LAYER_PALETTE[number]['id'];
 

@@ -14,7 +14,7 @@ import { deleteFulfillmentBackorder, setFulfillmentItemType } from '@/lib/calend
 import { calendarItemLayerKey, calendarRecordKey, removeCalendarCardLocally, replaceCalendarCardLocally } from '@/lib/calendar/calendar-items';
 import { getProductionScheduleCompletionBlockReason } from '@/lib/production-schedule/completion-ui-contract';
 import { getProductionScheduleCardMoveBlockReason } from '@/lib/production-schedule/move-ui-contract';
-import { clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
+import { clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
 import {
   buildCalendarLayers,
   calendarCapacityLabel,
@@ -132,6 +132,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     if (!needsAttentionOpen) return;
     const onPointerDown = (event: PointerEvent) => {
       if (needsAttentionWrapper.current?.contains(event.target as Node)) return;
+      if (isActiveCalendarDragOrigin(event.target as Element)) return;
       const decision=needsAttentionDismissal((event.target as HTMLElement).closest('.calendar-stream')?'calendar':'toolbar');
       if (decision.close) setNeedsAttentionOpen(false);
       if (decision.consume) {
@@ -445,7 +446,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
       consumeOutsideCalendarClick.current = false;
       event.preventDefault();
       event.stopPropagation();
-    }} onPointerCancelCapture={() => { consumeOutsideCalendarClick.current = false; dragOwnedGesture.current=false; }} onScroll={(event)=>{const stream=event.currentTarget;const top=stream.getBoundingClientRect().top+8;const visible=[...stream.querySelectorAll<HTMLElement>('[data-calendar-week]')].find((week)=>week.getBoundingClientRect().bottom>top);if(visible?.dataset.calendarWeek)setNavigationMonday(visible.dataset.calendarWeek);if(stream.scrollTop<480&&displayBoard.startDate>bounds.minimumMonday)void fetchChunk(displayBoard,'prepend',true);if(stream.scrollHeight-stream.scrollTop-stream.clientHeight<640&&displayBoard.endDateExclusive<bounds.maximumEndExclusive)void fetchChunk(displayBoard,'append',false);}} ref={streamRef}>
+    }} onPointerCancelCapture={() => { consumeOutsideCalendarClick.current = false; dragOwnedGesture.current=false; }} onPointerUpCapture={()=>{window.setTimeout(()=>{consumeOutsideCalendarClick.current=false;},0);}} onScroll={(event)=>{const stream=event.currentTarget;const top=stream.getBoundingClientRect().top+8;const visible=[...stream.querySelectorAll<HTMLElement>('[data-calendar-week]')].find((week)=>week.getBoundingClientRect().bottom>top);if(visible?.dataset.calendarWeek)setNavigationMonday(visible.dataset.calendarWeek);if(stream.scrollTop<480&&displayBoard.startDate>bounds.minimumMonday)void fetchChunk(displayBoard,'prepend',true);if(stream.scrollHeight-stream.scrollTop-stream.clientHeight<640&&displayBoard.endDateExclusive<bounds.maximumEndExclusive)void fetchChunk(displayBoard,'append',false);}} ref={streamRef}>
       {displayBoard.weekGroups.map((week) => <section className="calendar-week" data-calendar-week={week.startDate} key={week.startDate}>
         <div className="calendar-month-row" onClick={()=>{if(expandedDate)setExpandedWithAnchor(null);}} style={calendarWeekGridStyle(week.days.map((day) => day.date), expandedDate)}>
           {calendarMonthSegments(week.days.map((day) => day.date)).map((segment) => <span key={`${week.startDate}-${segment.label}`} style={{ gridColumn: `${segment.startColumn} / span ${segment.span}` }}>{segment.label}</span>)}
@@ -560,6 +561,7 @@ function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canD
     if (!panel) return;
     const onPointerDown = (event: PointerEvent) => {
       if (panel.contains(event.target as Node)) return;
+      if (isActiveCalendarDragOrigin(event.target as Element)) return;
       event.preventDefault();
       event.stopPropagation();
       onCloseRef.current();

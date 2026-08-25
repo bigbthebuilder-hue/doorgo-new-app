@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from './interaction';
+import { clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from './interaction';
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 assert.deepEqual(reorderBookingIds(['a', 'b', 'c'], 'c', 'a', true), ['c', 'a', 'b']);
@@ -64,5 +64,10 @@ assert.deepEqual(resolveExpandedCalendarInteraction(null, { kind: 'day', date: '
 assert.deepEqual(resolveExpandedCalendarInteraction('2026-08-24', { kind: 'toolbar' }), { collapse: true, consume: false, interact: true });
 assert.equal(viewportAnchorAdjustment({top:240},{top:176}),-64);
 assert.equal(viewportAnchorAdjustment({top:120},{top:124}),4);
+const activeDragElement={closest:(selector:string)=>selector==='[data-booking-id][draggable="true"]'?{}:null} as unknown as Element;
+const completedElement={closest:()=>null} as unknown as Element;
+assert.equal(isActiveCalendarDragOrigin(activeDragElement),true);
+assert.equal(isActiveCalendarDragOrigin(completedElement),false);
+assert.equal(isActiveCalendarDragOrigin(null),false);
 
 console.log('Calendar interaction tests passed');

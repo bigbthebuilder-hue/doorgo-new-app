@@ -1,6 +1,6 @@
 import { hasAtLeastView, type CurrentDoorGoAccess } from '../auth/access';
 
-export type AppNavigationIcon = 'home' | 'account' | 'calculator' | 'documents' | 'jobs' | 'production' | 'recovery' | 'schedule' | 'checkpoint';
+export type AppNavigationIcon = 'home' | 'account' | 'calculator' | 'documents' | 'jobs' | 'production' | 'recovery' | 'schedule' | 'checkpoint' | 'manager';
 
 export type AppNavigationItem = {
   href: string;
@@ -40,6 +40,7 @@ export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNav
     items.push({ ...productionBoard, label:'Production Board' });
   }
   if(hasAtLeastView(access,'production_checkpoints'))items.push({href:'/production-checkpoints',label:'Production Checkpoints',icon:'checkpoint',match:'section',showOnHome:true});
+  if(hasAtLeastView(access,'settings'))items.push({href:'/manager',label:'Manager',icon:'manager',match:'section',showOnHome:true});
   if (hasAtLeastView(access, 'documents')) items.push({ href: '/documents', label: 'Documents', icon: 'documents', match: 'section', showOnHome: true });
   if (hasAtLeastView(access, 'jobs')) {
     items.push(

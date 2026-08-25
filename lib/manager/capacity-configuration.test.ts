@@ -1,0 +1,5 @@
+import assert from'node:assert/strict';import{capacitySummary,validateWeekdays,type CapacityStaff,type WeekdayCapacity}from'./capacity-configuration';
+const days=(scheduled=8,capacity=7):WeekdayCapacity[]=>Array.from({length:7},(_,weekday)=>({weekday,scheduledHours:weekday===0||weekday===6?0:scheduled,capacityHours:weekday===0||weekday===6?0:capacity}));
+assert.equal(validateWeekdays('direct_production',days()),null);assert.equal(validateWeekdays('support',days(8,2)),null);assert.match(validateWeekdays('direct_production',days(6,7))??'',/cannot exceed/);assert.match(validateWeekdays('support',days(8,25))??'',/between 0 and 24/);assert.match(validateWeekdays('direct_production',days().slice(0,6))??'',/seven/);
+const staff:CapacityStaff={staffId:'a',displayName:'Jordan',active:true,revision:1,versions:[{effectiveFrom:'2026-01-01',capacityRole:'direct_production',weekdays:days()}]};assert.equal(capacitySummary(staff),'7h productive');assert.equal(capacitySummary({...staff,versions:[{...staff.versions[0],weekdays:staff.versions[0].weekdays.map((d,i)=>i===2?{...d,capacityHours:6}:d)}]}),'Varies by day');
+console.log('Manager capacity configuration tests passed');

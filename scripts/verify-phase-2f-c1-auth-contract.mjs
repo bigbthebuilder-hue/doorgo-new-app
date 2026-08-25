@@ -196,6 +196,11 @@ const laterPhaseCheckpointActionBoundary = new Set([
   'supabase/migrations/20260825000000_unified_active_calendar_item_delete.sql',
   'supabase/migrations/20260825010000_fix_null_fulfillment_sync.sql',
   'supabase/migrations/20260825020000_harden_production_delete_event_grants.sql',
+  'supabase/migrations/20260825030000_add_manager_capacity_foundation.sql',
+  'app/manager/page.tsx',
+  'components/manager/ManagerCapacityWorkspace.tsx',
+  'lib/manager/capacity-actions.ts',
+  'lib/manager/capacity-configuration.ts',
 ]);
 const reviewedNativeJobRpcBoundary = new Set(['lib/jobs/hosted-job-intake-repository.ts']);
 const applicationPaths = reviewablePaths.filter(

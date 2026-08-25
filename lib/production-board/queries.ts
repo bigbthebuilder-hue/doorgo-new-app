@@ -175,16 +175,18 @@ export async function loadProductionBoardReadOnly(params: {
   if(memberships.error)throw new Error(`Failed to load fulfillment order history: ${memberships.error.message}`);
   const portionIds=Array.from(new Set([...(memberships.data??[]).map((row)=>row.portion_id),...itemRows.map((row)=>row.current_portion_id).filter(Boolean)]));const portions=portionIds.length?await supabase.from('dg_fulfillment_order_portions').select('portion_id,linked_internal_job_id,family_key,sales_order').in('portion_id',portionIds).is('deleted_at',null):{data:[],error:null};
   if(portions.error)throw new Error(`Failed to load fulfillment order portions: ${portions.error.message}`);
-  const portionById=new Map((portions.data??[]).map((portion)=>[portion.portion_id,portion]));
-  const availableByFamily=new Map<string,string[]>();for(const portion of portions.data??[]){const key=`${portion.linked_internal_job_id}:${portion.family_key}`;availableByFamily.set(key,[...(availableByFamily.get(key)??[]),portion.sales_order]);}
+  const visiblePortions=portions.data??[];const contextJobIds=Array.from(new Set(visiblePortions.map((portion)=>portion.linked_internal_job_id)));const familyPortions=contextJobIds.length?await supabase.from('dg_fulfillment_order_portions').select('portion_id,linked_internal_job_id,family_key,sales_order').in('linked_internal_job_id',contextJobIds).is('deleted_at',null):{data:[],error:null};
+  if(familyPortions.error)throw new Error(`Failed to load fulfillment family context: ${familyPortions.error.message}`);
+  const allPortions=[...new Map([...visiblePortions,...(familyPortions.data??[])].map((portion)=>[portion.portion_id,portion])).values()];const portionById=new Map(allPortions.map((portion)=>[portion.portion_id,portion]));
+  const availableByFamily=new Map<string,string[]>();for(const portion of allPortions){const key=`${portion.linked_internal_job_id}:${portion.family_key}`;availableByFamily.set(key,[...(availableByFamily.get(key)??[]),portion.sales_order]);}
   const linked=new Map<string,{internalJobId:string;customer:string|null;salesOrder:string|null;salesperson:string|null}>();
+  const portionJobByItem=new Map<string,string>();for(const row of itemRows){const portion=row.current_portion_id?portionById.get(row.current_portion_id):undefined;if(portion){portionJobByItem.set(row.item_id,portion.linked_internal_job_id);linked.set(portion.linked_internal_job_id,{internalJobId:portion.linked_internal_job_id,customer:null,salesOrder:portion.family_key,salesperson:null});}}
   if(params.includeNativeJobLinks){
     const repository=createJobIntakeRepository();
-    const portionJobByItem=new Map<string,string>();for(const row of itemRows){const portion=row.current_portion_id?portionById.get(row.current_portion_id):undefined;if(portion)portionJobByItem.set(row.item_id,portion.linked_internal_job_id);}
     await Promise.all(Array.from(new Set([...itemRows.map((row)=>row.linked_internal_job_id),...portionJobByItem.values()].filter(Boolean) as string[])).map(async(id)=>{
       const job=await repository.findById(id); if(job)linked.set(id,{internalJobId:job.internalJobId,customer:job.customer,salesOrder:job.bizTrackSalesOrder,salesperson:job.salesperson});
     }));
     return mergeCalendarItems(productionBoard,itemRows.map((row)=>{const jobId=row.linked_internal_job_id??portionJobByItem.get(row.item_id);const job=jobId?linked.get(jobId):undefined;const familyKey=jobId&&row.order_family_key?`${jobId}:${row.order_family_key}`:'';return calendarItemCard(row,job,{included:row.sales_order?[row.sales_order]:[],available:(availableByFamily.get(familyKey)??[]).sort()});}));
   }
-  return mergeCalendarItems(productionBoard,itemRows.map((row)=>calendarItemCard(row,undefined,{included:row.sales_order?[row.sales_order]:[],available:[]})));
+  return mergeCalendarItems(productionBoard,itemRows.map((row)=>{const jobId=row.linked_internal_job_id??portionJobByItem.get(row.item_id);return calendarItemCard(row,jobId?linked.get(jobId):undefined,{included:row.sales_order?[row.sales_order]:[],available:[]});}));
 }

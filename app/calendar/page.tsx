@@ -19,6 +19,6 @@ export default async function CalendarPage({ searchParams }: { searchParams?: Pr
   const board = await loadProductionBoardReadOnly({ boardStart: startDate, boardEndExclusive: endDateExclusive, includeNativeJobLinks: canOpenJobs, includeOperationalCalendarItems:true, weeks, today });
 
   return <AppShell navigation={buildProtectedAppNavigation(access)} scrollOwner="workspace">
-    <CalendarWorkspace board={board} canAddBackorders={canUse(access,'jobs')} canInteract={canUse(access, 'calendar')} canManageProduction={canUse(access,'production')} canOpenJobs={canOpenJobs} currentMonday={getMondayForDate(today)} defaultSalesperson={access.profile.displayName} initialTargetMonday={requested.startDate} preferenceOwner={access.user.id} today={today}/>
+    <CalendarWorkspace board={board} canAddBackorders={canUse(access,'calendar')} canInteract={canUse(access, 'calendar')} canManageProduction={canUse(access,'production')} canOpenJobs={canOpenJobs} currentMonday={getMondayForDate(today)} defaultSalesperson={access.profile.displayName} initialTargetMonday={requested.startDate} preferenceOwner={access.user.id} today={today}/>
   </AppShell>;
 }

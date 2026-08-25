@@ -19,7 +19,6 @@ import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
 import { Workspace, WorkspaceSurface } from '@/components/app-shell/Workspace';
 import { useGuardedNavigation, useUnsavedChanges } from '@/components/app-shell/UnsavedChangesGuard';
-import { AddBackorderDialog } from '@/components/calendar/AddBackorderDialog';
 import { loadJobFulfillmentFamily } from '@/lib/calendar/fulfillment-actions';
 
 type FormValues = {
@@ -130,7 +129,6 @@ export function JobHeaderForm({
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
-  const [addingBackorder,setAddingBackorder]=useState(false);
   const [fulfillmentFamily,setFulfillmentFamily]=useState<{familyKey:string|null;orders:string[]}|null>(null);
   const commandId = useRef<string | null>(null);
   const dirty = snapshot() !== baseline;
@@ -235,7 +233,6 @@ export function JobHeaderForm({
   const deleteTarget = jobDeleteTarget(job, canPermanentlyDelete);
   const bottomActions = <>
     <button className="app-button app-button-secondary" onClick={leave} type="button">Exit</button>
-    {job&&canEdit&&job.bizTrackSalesOrder?<button className="app-button app-button-secondary" onClick={()=>setAddingBackorder(true)} type="button">Add Backorder Delivery / Pickup</button>:null}
     {job ? <details className="job-work-order-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
     {archiveTarget || deleteTarget ? <details className="job-actions-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Job Actions ▾</summary><div className="absolute right-0 z-20 grid min-w-52 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Actions</span><JobArchiveControl onArchive={archiveDraftJobAction} onNavigate={(path) => router.push(path)} target={archiveTarget}/><JobDeleteControl onDelete={deleteDraftJobAction} onNavigate={(path) => router.push(path)} target={deleteTarget}/></div></details> : null}
     {canEdit ? <><button className="app-button app-button-primary" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button className="app-button app-button-dark" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button> : null}</> : null}
@@ -319,7 +316,6 @@ export function JobHeaderForm({
       /> : null}
     </JobEditorWorkspaceFrame>
     {inAppShell ? <ContextBottomBar label="Job actions" status={<span className={message?.kind === 'error' ? 'text-rose-700' : undefined}>{bottomStatus}</span>} context="Confirmation requires one valid active door line · saving does not schedule production" actions={bottomActions}/> : null}
-    {addingBackorder&&job&&job.bizTrackSalesOrder?<AddBackorderDialog baseSalesOrder={job.bizTrackSalesOrder} beforeCreate={async()=>{const saved=await persistAggregate();if(!saved){setAddingBackorder(false);return null;}return {linkedInternalJobId:saved.internalJobId,baseSalesOrder:saved.bizTrackSalesOrder||saved.visibleIdentifier||job.bizTrackSalesOrder!,customer:saved.customer||saved.visibleIdentifier||job.customer||job.bizTrackSalesOrder!};}} customer={job.customer||job.bizTrackSalesOrder} linkedInternalJobId={job.internalJobId} onClose={()=>setAddingBackorder(false)} onCreated={async(_card,salesOrder)=>{const current=job;const result=await loadJobFulfillmentFamily(current.internalJobId);if(result.ok)setFulfillmentFamily({familyKey:result.familyKey,orders:result.orders});setMessage({kind:'success',text:`Backorder fulfillment ${salesOrder} added.`});router.refresh();}}/>:null}
     </>
   );
 }

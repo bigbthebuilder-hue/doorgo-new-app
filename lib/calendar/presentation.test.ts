@@ -3,6 +3,7 @@ import {
   buildCalendarLayers,
   calendarCapacityLabel,
   calendarCardText,
+  calendarCardIdentity,
   calendarExpandedCardMeta,
   calendarItemTypeLabel,
   calendarMonthSegments,
@@ -35,7 +36,7 @@ assert.deepEqual(searchCalendarCards([{...delivery,includedOrders:['123455','123
 assert.equal(calendarCardText(delivery),'Hamilton · 123455 · AM');
 assert.equal(calendarExpandedCardMeta(delivery),'123455 · AM');
 const pickup={...delivery,bookingId:'item:22222222-2222-4222-8222-222222222222',calendarItemType:'customer_pickup' as const};
-const note={...delivery,bookingId:'item:33333333-3333-4333-8333-333333333333',calendarItemType:'note' as const,customer:null,title:'Check if this works',jobId:null,nativeSalesOrder:null};
+const note={...delivery,bookingId:'item:33333333-3333-4333-8333-333333333333',calendarItemType:'note' as const,customer:null,title:'Check if this works',jobId:null,nativeSalesOrder:null,timing:null};
 assert.equal(calendarItemTypeLabel(card('Alex')),'Production');assert.equal(calendarItemTypeLabel(delivery),'Delivery');assert.equal(calendarItemTypeLabel(pickup),'Pickup');assert.equal(calendarItemTypeLabel(note),'Note');
 assert.deepEqual(dedupeCalendarRecords([delivery,delivery,pickup]).map((item)=>item.bookingId),[delivery.bookingId,pickup.bookingId]);
 assert.equal(dedupeCalendarRecords([card('Alex'),delivery]).length,2,'distinct Production and fulfillment records remain distinct');
@@ -82,11 +83,28 @@ assert.equal(calendarProductionCardText(nativeCard), '1 · Hamilton · 1234567')
 assert.equal(calendarProductionCardText(nativeCard).includes('SO# 1234567'), false);
 assert.equal(calendarExpandedCardMeta({...nativeCard,title:'Hamilton 1234567'}),'');
 assert.equal(calendarExpandedCardMeta({...nativeCard,title:'Hamilton 1234567',details:'Hardware staged'}),'Hardware staged');
+assert.deepEqual(calendarCardIdentity({...nativeCard,title:'1 Hamilton 1234567'}),{primary:'Hamilton',salesOrder:'1234567'});
+assert.equal(calendarExpandedCardMeta({...nativeCard,internalJobId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',title:'1 Hamilton 1234567'}),'','native raw title never repeats structured identity');
 assert.equal(
   calendarProductionCardText({ ...nativeCard, nativeSalesOrder: null }),
   '1 · Hamilton · SO# 1234567',
   'Legacy/imported Sales Order source text remains unchanged without structured native data',
 );
+
+const manualDelivery={...delivery,type:'biztrack_only' as const,typeLabel:'BizTrack-only' as const,internalJobId:null,customer:'new glass test',title:'new glass test',nativeSalesOrder:'1234567',jobId:'1234567',timing:null};
+assert.deepEqual(calendarCardIdentity(manualDelivery),{primary:'new glass test',salesOrder:'1234567'});
+assert.equal(calendarCardText(manualDelivery),'new glass test · 1234567');
+assert.equal(calendarCardText({...manualDelivery,nativeSalesOrder:null,jobId:null}),'new glass test');
+const manualPickup={...manualDelivery,calendarItemType:'customer_pickup' as const,customer:'Warehouse pickup',title:'Warehouse pickup'};
+assert.equal(calendarCardText({...manualPickup,nativeSalesOrder:null,jobId:null}),'Warehouse pickup');
+const manualProduction={...card('Alex'),type:'biztrack_only' as const,typeLabel:'BizTrack-only' as const,bookingId:'manual-11111111-1111-4111-8111-111111111111',sourceSystem:'doorgo_native',customer:null,title:'Custom door repair',nativeSalesOrder:null,jobId:'1234567',shopHours:2};
+assert.equal(calendarProductionCardText(manualProduction),'2 · Custom door repair · 1234567');
+assert.equal(calendarProductionCardText({...manualProduction,jobId:null}),'2 · Custom door repair');
+assert.equal(calendarCardText(note),'Check if this works');
+assert.equal(calendarExpandedCardMeta(note),'');
+assert.equal(calendarCardText({...manualDelivery,customer:'new glass test 1234567'}),'new glass test 1234567','SO already in a manual title is not repeated');
+assert.equal(calendarProductionCardText({...manualProduction,title:'Custom door repair 1234567'}),'2 · Custom door repair 1234567');
+assert.equal(calendarProductionCardText({...manualProduction,title:'Custom door repair 1234567',jobId:'SO# 1234567'}),'2 · Custom door repair 1234567','obvious legacy SO prefix duplication is suppressed');
 
 assert.equal(calendarCapacityLabel({ availableHours: 8, capacityKnown: true, isClosed: false, missingShopHoursCount: 0, totalKnownShopHours: 3.25 }), '4.75 free');
 assert.equal(calendarCapacityLabel({ availableHours: 8, capacityKnown: true, isClosed: false, missingShopHoursCount: 0, totalKnownShopHours: 8 }), 'FULL');

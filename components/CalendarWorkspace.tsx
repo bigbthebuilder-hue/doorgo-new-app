@@ -20,6 +20,7 @@ import {
   calendarCapacityLabel,
   calendarMonthSegments,
   calendarCardColor,
+  calendarCardIdentity,
   calendarCardText,
   calendarExpandedCardMeta,
   needsAttentionToolbarModel,
@@ -423,7 +424,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
         {searchOpen ? <div className="calendar-search-results" id="calendar-search-results" role="listbox">
           {/* React's refs rule cannot trace that these callbacks run only from click events. */}
           {/* eslint-disable-next-line react-hooks/refs */}
-          {searchOptions.length ? searchOptions.map((option,index)=>option.kind==='card'?<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.card.bookingId)} key={option.card.bookingId} onClick={()=>selectSearchResult(option.card)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.card.customer?.trim()||option.card.title?.trim()||'Untitled'}</span><small>{option.card.jobId?.trim()||'No SO'} · {calendarItemTypeLabel(option.card)} · {option.card.productionDate?formatSearchDate(option.card.productionDate):'Needs Attention'}</small></button>:<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.target.bookingId)} key={option.target.bookingId} onClick={()=>selectSearchTarget(option.target)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.target.customer}</span><small>{option.target.jobId?.trim()||'No SO'} · {searchTargetTypeLabel(option.target.calendarItemType)} · {formatSearchDate(option.target.productionDate)}</small></button>) : <p className="calendar-search-empty">No Calendar matches.</p>}
+          {searchOptions.length ? searchOptions.map((option,index)=>option.kind==='card'?<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.card.bookingId)} key={option.card.bookingId} onClick={()=>selectSearchResult(option.card)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{calendarCardIdentity(option.card).primary}</span><small>{[calendarCardIdentity(option.card).salesOrder,calendarItemTypeLabel(option.card),option.card.productionDate?formatSearchDate(option.card.productionDate):'Needs Attention'].filter(Boolean).join(' · ')}</small></button>:<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.target.bookingId)} key={option.target.bookingId} onClick={()=>selectSearchTarget(option.target)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.target.customer}</span><small>{[option.target.jobId?.trim(),searchTargetTypeLabel(option.target.calendarItemType),formatSearchDate(option.target.productionDate)].filter(Boolean).join(' · ')}</small></button>) : <p className="calendar-search-empty">No Calendar matches.</p>}
         </div> : null}
       </div>
       <LayersPicker colors={layerColors} layers={layers} onColor={setLayerColor} open={layersOpen} setOpen={setLayersOpen} toggle={toggleLayer} visible={visibleLayers}/>
@@ -483,7 +484,7 @@ function NeedsAttentionToolbar({ calendarWeek, canInteract, canManageProduction,
     {open&&count>0?<section aria-label="Needs Attention items" className="calendar-needs-attention-dropdown">
       <div className="calendar-needs-attention-list">
       {cards.length?cards.map((card)=><div className="calendar-needs-attention-item" data-booking-id={card.bookingId} data-completed={card.completedAt!==null||undefined} data-highlighted={card.bookingId===highlightedBookingId||undefined} draggable={canInteract&&!card.locked&&!card.completedAt&&(card.recordKind==='calendar_item'||canManageProduction)||undefined} id={`${bookingElementId(card.bookingId)}-needs-attention`} key={card.bookingId} onDragEnd={onDragEnd} onDragStart={(event)=>onDragStart(card,event)} style={{backgroundColor:calendarCardColor(card,colorIdForCard(card)).background,color:calendarCardColor(card,colorIdForCard(card)).foreground}}>
-        <span aria-hidden="true" className="calendar-drag-handle">⋮⋮</span><CalendarItemIcon card={card}/><div><strong>{card.customer?.trim()||card.title?.trim()||'Untitled'}</strong><span>{calendarCardText(card)}</span></div>
+        <span aria-hidden="true" className="calendar-drag-handle">⋮⋮</span><CalendarItemIcon card={card}/><div><strong>{calendarCardIdentity(card).primary}</strong>{calendarExpandedCardMeta(card)?<span>{calendarExpandedCardMeta(card)}</span>:null}</div>
         {card.completedAt?<span aria-label="Completed">✓</span>:null}{card.internalJobId&&canOpenJobs?<Link href={jobHref(card.internalJobId,calendarWeek)}>Open Job</Link>:null}<button aria-label="More details" onClick={()=>onDetails(card)} type="button">•••</button>
       </div>):<p className="calendar-needs-attention-empty">No visible Needs Attention items.</p>}
       </div>
@@ -529,7 +530,7 @@ function ExpandedProductionCard({ calendarWeek, card, canDrag, canInteract, canO
   const blocked = !canInteract || pending || (card.recordKind!=='calendar_item'&&getProductionScheduleCompletionBlockReason(card,false)!==null);
   return <div className="calendar-expanded-production" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} onClick={(event) => event.stopPropagation()}>
     <span aria-hidden="true" className="calendar-drag-handle" title="Drag Calendar item">⋮⋮</span>
-    <CalendarItemIcon card={card}/><div className="calendar-expanded-info"><strong>{card.customer?.trim() || card.title?.trim() || 'Untitled'}</strong>{calendarExpandedCardMeta(card)?<span>{calendarExpandedCardMeta(card)}</span>:null}</div>
+    <CalendarItemIcon card={card}/><div className="calendar-expanded-info"><strong>{calendarCardIdentity(card).primary}</strong>{calendarExpandedCardMeta(card)?<span>{calendarExpandedCardMeta(card)}</span>:null}</div>
     <div className="calendar-expanded-actions"><button disabled={blocked} onClick={completed ? onReopen : onComplete} type="button">{pending ? 'Saving…' : completed ? 'Reopen' : 'Complete'}</button>
     {card.internalJobId && canOpenJobs ? <Link href={jobHref(card.internalJobId, calendarWeek)}>Open Job</Link> : null}
     <button aria-label={`More details for ${card.customer?.trim() || card.title}`} onClick={onDetails} type="button">•••</button></div>
@@ -540,6 +541,7 @@ function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canD
   const panelRef = useRef<HTMLDivElement>(null);
   const [addingBackorder,setAddingBackorder]=useState(false);const [savingOrders,setSavingOrders]=useState(false);const [deleting,setDeleting]=useState(false);const [orderError,setOrderError]=useState<string|null>(null);
   const deleteAllowed=canDelete&&(card.recordKind==='calendar_item'||canDeleteProduction);
+  const identity=calendarCardIdentity(card);
   const dragOffset = useRef<{ x: number; y: number } | null>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -588,8 +590,8 @@ function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canD
       <strong>{card.recordKind==='calendar_item'?`${card.calendarItemType==='customer_pickup'?'Customer Pickup':card.calendarItemType==='delivery'?'Delivery':'Note'} details`:'Production details'}</strong><button aria-label="Close Calendar details" onClick={onClose} type="button">×</button>
     </header>
     <dl>
-      <Detail label="Customer / name" value={card.customer?.trim() || card.title?.trim() || 'Untitled'}/>
-      <Detail label="Sales Order" value={card.jobId?.trim() || 'Not provided'}/>
+      <Detail label="Customer / name" value={identity.primary}/>
+      {identity.salesOrder?<Detail label="Sales Order" value={identity.salesOrder}/>:null}
       <Detail label="Salesperson" value={card.salesperson?.trim() || 'Unassigned'}/>
       {card.recordKind!=='calendar_item'?<Detail label="Shop Hours" value={card.shopHoursKnown ? formatHours(card.shopHours ?? 0) : 'TBD'}/>:null}
       <Detail label={card.recordKind==='calendar_item'?'Scheduled date':'Production date'} value={card.productionDate ? formatSearchDate(card.productionDate) : 'Needs Attention'}/>
@@ -598,7 +600,7 @@ function ProductionDetailPanel({ calendarWeek, canAddBackorders, canDelete, canD
       {card.details?<Detail label="Details" value={card.details}/>:null}
       <Detail label="Status" value={card.completedAt ? 'Completed' : 'Scheduled'}/>
     </dl>
-    {card.recordKind==='calendar_item'&&card.calendarItemType!=='note'?<section className="calendar-included-orders"><strong>Operational item</strong><div className="calendar-order-disposition"><span>{card.nativeSalesOrder?`SO ${card.nativeSalesOrder}`:'No Sales Order'}</span><label>Type <select disabled={savingOrders||Boolean(card.completedAt)} onChange={(event)=>void changeType(event.target.value as 'delivery'|'customer_pickup')} value={card.calendarItemType}><option value="delivery">Delivery</option><option value="customer_pickup">Customer Pickup</option></select></label></div>{(card.availableFamilyOrders?.length??0)>1?<small>Related order family: {card.availableFamilyOrders?.join(', ')}</small>:null}{canDelete&&!card.completedAt&&card.currentPortionId&&card.nativeSalesOrder&&card.primarySalesOrder&&card.nativeSalesOrder!==card.primarySalesOrder?<button className="calendar-order-delete" disabled={savingOrders} onClick={()=>void deleteBackorder()} type="button">Delete Backorder {card.nativeSalesOrder}</button>:null}{orderError?<p role="alert">{orderError}</p>:null}</section>:null}
+    {card.recordKind==='calendar_item'&&card.calendarItemType!=='note'?<section className="calendar-included-orders"><strong>Operational item</strong><div className="calendar-order-disposition">{card.nativeSalesOrder?<span>SO {card.nativeSalesOrder}</span>:null}<label>Type <select disabled={savingOrders||Boolean(card.completedAt)} onChange={(event)=>void changeType(event.target.value as 'delivery'|'customer_pickup')} value={card.calendarItemType}><option value="delivery">Delivery</option><option value="customer_pickup">Customer Pickup</option></select></label></div>{(card.availableFamilyOrders?.length??0)>1?<small>Related order family: {card.availableFamilyOrders?.join(', ')}</small>:null}{canDelete&&!card.completedAt&&card.currentPortionId&&card.nativeSalesOrder&&card.primarySalesOrder&&card.nativeSalesOrder!==card.primarySalesOrder?<button className="calendar-order-delete" disabled={savingOrders} onClick={()=>void deleteBackorder()} type="button">Delete Backorder {card.nativeSalesOrder}</button>:null}{orderError?<p role="alert">{orderError}</p>:null}</section>:null}
     {card.internalJobId && canOpenJobs ? <Link className="calendar-detail-job-link" href={jobHref(card.internalJobId, calendarWeek)}>Open Job</Link> : null}
     {canAddBackorders&&card.internalJobId&&card.primarySalesOrder&&card.recordKind==='calendar_item'&&card.calendarItemType!=='note'?<button className="calendar-detail-job-link" onClick={()=>setAddingBackorder(true)} type="button">Add Backorder Delivery / Pickup</button>:null}
     {deleteAllowed&&!card.completedAt&&!(card.recordKind==='calendar_item'&&card.currentPortionId&&card.nativeSalesOrder&&card.primarySalesOrder&&card.nativeSalesOrder!==card.primarySalesOrder)?<button className="calendar-detail-delete" disabled={deleting} onClick={()=>void remove()} type="button">{deleting?'Deleting…':'Delete'}</button>:null}

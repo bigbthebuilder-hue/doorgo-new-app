@@ -135,24 +135,32 @@ export function needsAttentionToolbarModel(cards: ProductionBoardCard[], visible
 }
 
 export function calendarCardText(card:ProductionBoardCard):string {
-  if(card.recordKind!=='calendar_item')return calendarProductionCardText(card);
-  const name=card.customer?.trim()||card.title?.trim()||'Untitled';
-  const order=card.nativeSalesOrder?.trim()||card.jobId?.trim()||null;
-  const timing=card.timing?.trim();
-  return [name,order,timing].filter(Boolean).join(' · ');
+  const identity=calendarCardIdentity(card);
+  if(card.recordKind!=='calendar_item')return [card.shopHoursKnown?formatHours(card.shopHours??0):'◷',identity.primary,identity.salesOrder].filter(Boolean).join(' · ');
+  return [identity.primary,identity.salesOrder,card.timing?.trim()].filter(Boolean).join(' · ');
+}
+
+export function calendarCardIdentity(card:ProductionBoardCard):{primary:string;salesOrder:string|null}{
+  const primary=card.customer?.trim()||card.title?.trim()||'Untitled';
+  const salesOrder=card.nativeSalesOrder?.trim()||card.jobId?.trim()||null;
+  return {primary,salesOrder:salesOrder&&!identityContains(primary,salesOrder)?salesOrder:null};
 }
 
 export function calendarExpandedCardMeta(card:ProductionBoardCard):string {
+  const identity=calendarCardIdentity(card);
   if(card.recordKind!=='calendar_item') {
     const details=card.details?.trim();
     const title=card.title?.trim();
-    const primary=canonicalIdentity(calendarCardText(card));
-    return details && !primary.includes(canonicalIdentity(details)) ? details : title && !primary.includes(canonicalIdentity(title)) ? title : '';
+    const displayed=canonicalIdentity([identity.primary,identity.salesOrder].filter(Boolean).join(' '));
+    if(details&&!displayed.includes(canonicalIdentity(details)))return details;
+    if(!card.internalJobId&&title&&!displayed.includes(canonicalIdentity(title)))return title;
+    return '';
   }
-  return [card.nativeSalesOrder?.trim()||card.jobId?.trim(),card.timing?.trim()].filter(Boolean).join(' · ');
+  return [identity.salesOrder,card.timing?.trim()].filter(Boolean).join(' · ');
 }
 
 function canonicalIdentity(value:string){return value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();}
+function identityContains(primary:string,value:string){const normalized=canonicalIdentity(value);const withoutPrefix=normalized.replace(/^so\s+/,'');const displayed=canonicalIdentity(primary);return Boolean(normalized)&&(displayed.includes(normalized)||(withoutPrefix!==normalized&&displayed.includes(withoutPrefix)));}
 
 export function calendarCardColor(card:ProductionBoardCard, layerColorId?:CalendarLayerColorId){
   if(card.calendarItemType==='delivery')return {background:'#dbeafe',foreground:'#1e3a5f'};
@@ -168,7 +176,7 @@ export function calendarProductionCardText(card: Pick<
   const hours = card.shopHoursKnown ? formatHours(card.shopHours ?? 0) : '◷';
   const customer = card.customer?.trim() || card.title?.trim() || 'Untitled';
   const salesOrder = card.nativeSalesOrder?.trim() || card.jobId?.trim();
-  return [hours,customer,salesOrder].filter(Boolean).join(' · ');
+  return [hours,customer,salesOrder&&!identityContains(customer,salesOrder)?salesOrder:null].filter(Boolean).join(' · ');
 }
 
 export function calendarCapacityLabel(day: Pick<

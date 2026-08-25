@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const workspace=readFileSync('components/CalendarWorkspace.tsx','utf8');
 const css=readFileSync('app/globals.css','utf8');
 const presentation=readFileSync('lib/calendar/presentation.ts','utf8');
+const calendarActions=readFileSync('lib/calendar/calendar-item-actions.ts','utf8');
 
 assert.match(workspace,/setExpandedWithAnchor[\s\S]*viewportAnchorAdjustment/);
 assert.match(workspace,/isActiveCalendarDragOrigin\(event\.target as Element\)/);
@@ -26,5 +27,10 @@ assert.match(workspace,/function LayerColorPicker/);
 assert.match(workspace,/role="listbox"[\s\S]*role="option"/);
 assert.match(workspace,/backgroundColor:color\.background,color:color\.foreground/);
 assert.match(css,/calendar-layer-color-list[\s\S]*max-height: 15rem/);
+assert.match(workspace,/calendar-search-result[\s\S]*calendarCardIdentity\(option\.card\)\.primary/);
+assert.match(workspace,/calendar-expanded-info[\s\S]*calendarCardIdentity\(card\)\.primary/);
+assert.doesNotMatch(workspace,/No SO|No Sales Order|Not provided|DoorGo-linked|Unlinked/);
+assert.match(calendarActions,/loadNativeJobLinksByVisibleIdentifier[\s\S]*nativeByVisible/);
+assert.match(calendarActions,/linked_internal_job_id[\s\S]*nativeByInternal/);
 
 console.log('Calendar interaction and presentation static verification passed');

@@ -15,6 +15,9 @@ import {
   salespersonColor,
   CALENDAR_LAYER_PALETTE,
   layerPaletteColor,
+  calendarCardColor,
+  PERMANENT_CALENDAR_LAYER_DEFAULTS,
+  normalizeCalendarLayerColors,
 } from './presentation';
 import type { ProductionBoardCard } from '../production-board/types';
 
@@ -31,12 +34,17 @@ assert.deepEqual(layers.filter((layer) => layer.available).map((layer) => layer.
 assert.equal(layers.some((layer) => layer.kind === 'delivery' && !layer.available), true);
 const delivery={...card(null),bookingId:'item:11111111-1111-4111-8111-111111111111',recordKind:'calendar_item' as const,calendarItemType:'delivery' as const,customer:'Hamilton',nativeSalesOrder:'123455',jobId:'123455',timing:'AM',shopHours:null};
 assert.equal(buildCalendarLayers([delivery]).find((layer)=>layer.key==='fulfillment:delivery')?.available,true);
+for(const key of ['fulfillment:delivery','fulfillment:pickup','other:notes','other:away','other:closures'])assert.ok(buildCalendarLayers([]).find((layer)=>layer.key===key)?.colorId);
+assert.deepEqual(calendarCardColor(delivery),layerPaletteColor(PERMANENT_CALENDAR_LAYER_DEFAULTS['fulfillment:delivery']));
+assert.deepEqual(calendarCardColor(delivery,'brown'),layerPaletteColor('brown'),'current viewer preference recolors existing Delivery cards');
 assert.equal(calendarCardText({...delivery,includedOrders:['123455','123456','123457']}),'Hamilton · 123455 · AM');
 assert.deepEqual(searchCalendarCards([{...delivery,includedOrders:['123455','123456']}],'123456').map((item)=>item.bookingId),[delivery.bookingId]);
 assert.equal(calendarCardText(delivery),'Hamilton · 123455 · AM');
 assert.equal(calendarExpandedCardMeta(delivery),'123455 · AM');
 const pickup={...delivery,bookingId:'item:22222222-2222-4222-8222-222222222222',calendarItemType:'customer_pickup' as const};
 const note={...delivery,bookingId:'item:33333333-3333-4333-8333-333333333333',calendarItemType:'note' as const,customer:null,title:'Check if this works',jobId:null,nativeSalesOrder:null,timing:null};
+assert.notDeepEqual(calendarCardColor(delivery),calendarCardColor(pickup));
+assert.notDeepEqual(calendarCardColor(pickup),calendarCardColor(note));
 assert.equal(calendarItemTypeLabel(card('Alex')),'Production');assert.equal(calendarItemTypeLabel(delivery),'Delivery');assert.equal(calendarItemTypeLabel(pickup),'Pickup');assert.equal(calendarItemTypeLabel(note),'Note');
 assert.deepEqual(dedupeCalendarRecords([delivery,delivery,pickup]).map((item)=>item.bookingId),[delivery.bookingId,pickup.bookingId]);
 assert.equal(dedupeCalendarRecords([card('Alex'),delivery]).length,2,'distinct Production and fulfillment records remain distinct');
@@ -56,6 +64,7 @@ assert.equal(CALENDAR_LAYER_PALETTE.some((color)=>['#ecfdf5','#fef9c3','#fee2e2'
 assert.equal(CALENDAR_LAYER_PALETTE.every((color)=>color.foreground.length===7),true);
 for(const stableId of ['sky','navy','purple','violet','indigo','pink','magenta','slate'])assert.equal(CALENDAR_LAYER_PALETTE.some((color)=>color.id===stableId),true);
 assert.deepEqual(layerPaletteColor('purple'),CALENDAR_LAYER_PALETTE.find((color)=>color.id==='purple'));
+assert.deepEqual(normalizeCalendarLayerColors({'production:alex':'purple','fulfillment:delivery':'brown','other:notes':'invalid'}),{'production:alex':'purple','fulfillment:delivery':'brown'},'reload preserves existing Production and new layer choices while rejecting invalid palette IDs');
 
 const searchableCards = [
   card('Alex'),

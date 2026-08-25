@@ -41,6 +41,16 @@ export function reorderBookingIds(ids: string[], draggedId: string, targetId: st
   return [...withoutDragged.slice(0, insertionIndex), draggedId, ...withoutDragged.slice(insertionIndex)];
 }
 
+export function calendarDayDropTarget(
+  clientY: number,
+  cards: Array<{ id: string; top: number; bottom: number }>,
+): { targetId: string | null; before: boolean } {
+  for (const card of cards) {
+    if (clientY < card.top + (card.bottom - card.top) / 2) return { targetId: card.id, before: true };
+  }
+  return { targetId: null, before: false };
+}
+
 export function reorderCalendarDayLocally(board: ProductionBoardViewModel, date: string, orderedIds: string[]): ProductionBoardViewModel {
   const reorderDays = (days: ProductionBoardDay[]) => days.map((day) => {
     if (day.date !== date) return day;

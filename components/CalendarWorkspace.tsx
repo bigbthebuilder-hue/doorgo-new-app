@@ -14,7 +14,7 @@ import { deleteFulfillmentBackorder, setFulfillmentItemType } from '@/lib/calend
 import { calendarItemLayerKey, calendarRecordKey, removeCalendarCardLocally, replaceCalendarCardLocally } from '@/lib/calendar/calendar-items';
 import { getProductionScheduleCompletionBlockReason } from '@/lib/production-schedule/completion-ui-contract';
 import { getProductionScheduleCardMoveBlockReason } from '@/lib/production-schedule/move-ui-contract';
-import { beginCalendarCardDrag, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, shouldExpandCollapsedCalendarCard, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
+import { beginCalendarCardDrag, calendarDayDropTarget, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, shouldExpandCollapsedCalendarCard, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
 import {
   buildCalendarLayers,
   calendarCapacityLabel,
@@ -29,6 +29,7 @@ import {
   dedupeCalendarRecords,
   CALENDAR_LAYER_PALETTE,
   layerPaletteColor,
+  normalizeCalendarLayerColors,
   type CalendarLayerColorId,
   type CalendarLayer,
 } from '@/lib/calendar/presentation';
@@ -115,7 +116,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     }
   }, [availableKeys, layerStorageKey]);
 
-  useEffect(()=>{const stored=window.localStorage.getItem(layerColorStorageKey);if(!stored)return;try{const parsed=JSON.parse(stored) as Record<string,string>;const safe=Object.fromEntries(Object.entries(parsed).filter(([,value])=>CALENDAR_LAYER_PALETTE.some((color)=>color.id===value))) as Record<string,CalendarLayerColorId>;const timer=window.setTimeout(()=>setLayerColors(safe),0);return()=>window.clearTimeout(timer);}catch{/* Deterministic palette defaults remain available. */}},[layerColorStorageKey]);
+  useEffect(()=>{const stored=window.localStorage.getItem(layerColorStorageKey);if(!stored)return;try{const safe=normalizeCalendarLayerColors(JSON.parse(stored));const timer=window.setTimeout(()=>setLayerColors(safe),0);return()=>window.clearTimeout(timer);}catch{/* Deterministic palette defaults remain available. */}},[layerColorStorageKey]);
 
   useEffect(() => () => {
     if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current);
@@ -370,9 +371,10 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     if (!draggedCard.current || dragBusy) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
-    const target = (event.target as HTMLElement).closest<HTMLElement>('[data-booking-id]');
-    const targetId = target?.dataset.bookingId ?? null;
-    const before = target ? event.clientY < target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2 : false;
+    const targets=[...event.currentTarget.querySelectorAll<HTMLElement>(':scope > .calendar-card-list > [data-booking-id]')]
+      .filter((target)=>target.dataset.bookingId!==draggedCard.current?.bookingId)
+      .map((target)=>{const rect=target.getBoundingClientRect();return {id:target.dataset.bookingId!,top:rect.top,bottom:rect.bottom};});
+    const {targetId,before}=calendarDayDropTarget(event.clientY,targets);
     setDropTarget((current) => current?.date === date && current.targetId === targetId && current.before === before ? current : { date, targetId, before });
   };
   const onDayDrop = (date: string, event: React.DragEvent<HTMLElement>) => {
@@ -385,6 +387,10 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     const sourceDay = displayBoard.days.find((day) => day.date === card.productionDate);
     if (date === card.productionDate) {
       if (target?.targetId) void reorderDay(date, card.bookingId, target.targetId, target.before);
+      else {
+        const bottomTarget=sourceDay?.cards.findLast((item)=>item.bookingId!==card.bookingId);
+        if(bottomTarget)void reorderDay(date,card.bookingId,bottomTarget.bookingId,false);
+      }
       return;
     }
     beginDateMove(card, date, sourceDay?.cards.map((item) => item.bookingId) ?? displayBoard.needsAttentionCards.map((item) => item.bookingId));
@@ -514,7 +520,7 @@ function LayersPicker({ colors, layers, onColor, open, setOpen, toggle, visible 
   return <div className="calendar-layers" ref={wrapper}>
     <button aria-expanded={open} className="calendar-toolbar-button" onClick={() => setOpen(!open)} type="button">Layers</button>
     {open ? <div className="calendar-layers-menu">
-      {groups.map(([label, groupLayers]) => <fieldset key={label}><legend>{label}</legend>{groupLayers.map((layer) => <div className="calendar-layer-row" data-unavailable={!layer.available || undefined} key={layer.key}><label><input checked={layer.available && visible.includes(layer.key)} disabled={!layer.available} onChange={() => toggle(layer.key)} type="checkbox"/><span>{layer.label}</span></label>{layer.available&&layer.kind==='production'?<LayerColorPicker label={layer.label} onChange={(color)=>onColor(layer.key,color)} value={colors[layer.key]??layer.colorId??'sky'}/>:!layer.available?<small>Later</small>:null}</div>)}</fieldset>)}
+      {groups.map(([label, groupLayers]) => <fieldset key={label}><legend>{label}</legend>{groupLayers.map((layer) => <div className="calendar-layer-row" data-unavailable={!layer.available || undefined} key={layer.key}><label><input checked={layer.available && visible.includes(layer.key)} disabled={!layer.available} onChange={() => toggle(layer.key)} type="checkbox"/><span>{layer.label}</span></label>{!layer.available?<small>Later</small>:null}<LayerColorPicker label={layer.label} onChange={(color)=>onColor(layer.key,color)} value={colors[layer.key]??layer.colorId??'sky'}/></div>)}</fieldset>)}
     </div> : null}
   </div>;
 }

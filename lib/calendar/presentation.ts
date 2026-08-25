@@ -47,6 +47,14 @@ export const CALENDAR_LAYER_PALETTE = [
 ] as const;
 export type CalendarLayerColorId = typeof CALENDAR_LAYER_PALETTE[number]['id'];
 
+export const PERMANENT_CALENDAR_LAYER_DEFAULTS: Record<string, CalendarLayerColorId> = {
+  'fulfillment:delivery': 'cobalt',
+  'fulfillment:pickup': 'purple',
+  'other:notes': 'slate',
+  'other:away': 'mustard',
+  'other:closures': 'rust',
+};
+
 export function productionLayerKey(salesperson: string | null): string {
   return `production:${salesperson?.trim().toLocaleLowerCase() || 'unassigned'}`;
 }
@@ -72,11 +80,11 @@ export function buildCalendarLayers(cards: ProductionBoardCard[]): CalendarLayer
       available: true,
       colorId: salespersonColorId(salesperson.label),
     })),
-    { key: 'fulfillment:delivery', kind: 'delivery', label: 'Deliveries', available: cards.some((card)=>card.calendarItemType==='delivery') },
-    { key: 'fulfillment:pickup', kind: 'customer_pickup', label: 'Customer Pickups', available: cards.some((card)=>card.calendarItemType==='customer_pickup') },
-    { key: 'other:notes', kind: 'note', label: 'Notes', available: cards.some((card)=>card.calendarItemType==='note') },
-    { key: 'other:away', kind: 'staff_away', label: 'Staff Away', available: false },
-    { key: 'other:closures', kind: 'closure', label: 'Closures / Special Days', available: false },
+    { key: 'fulfillment:delivery', kind: 'delivery', label: 'Deliveries', available: cards.some((card)=>card.calendarItemType==='delivery'), colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['fulfillment:delivery'] },
+    { key: 'fulfillment:pickup', kind: 'customer_pickup', label: 'Customer Pickups', available: cards.some((card)=>card.calendarItemType==='customer_pickup'), colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['fulfillment:pickup'] },
+    { key: 'other:notes', kind: 'note', label: 'Notes', available: cards.some((card)=>card.calendarItemType==='note'), colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:notes'] },
+    { key: 'other:away', kind: 'staff_away', label: 'Staff Away', available: false, colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:away'] },
+    { key: 'other:closures', kind: 'closure', label: 'Closures / Special Days', available: false, colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:closures'] },
   ];
 }
 
@@ -102,6 +110,13 @@ export function salespersonColorId(salesperson: string | null): CalendarLayerCol
 
 export function layerPaletteColor(id: CalendarLayerColorId | undefined) {
   return CALENDAR_LAYER_PALETTE.find((color) => color.id === id) ?? CALENDAR_LAYER_PALETTE[0];
+}
+
+export function normalizeCalendarLayerColors(value: unknown): Record<string, CalendarLayerColorId> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, CalendarLayerColorId] =>
+    typeof entry[1] === 'string' && CALENDAR_LAYER_PALETTE.some((color) => color.id === entry[1]),
+  ));
 }
 
 export function searchCalendarCards(
@@ -163,10 +178,8 @@ function canonicalIdentity(value:string){return value.toLocaleLowerCase().replac
 function identityContains(primary:string,value:string){const normalized=canonicalIdentity(value);const withoutPrefix=normalized.replace(/^so\s+/,'');const displayed=canonicalIdentity(primary);return Boolean(normalized)&&(displayed.includes(normalized)||(withoutPrefix!==normalized&&displayed.includes(withoutPrefix)));}
 
 export function calendarCardColor(card:ProductionBoardCard, layerColorId?:CalendarLayerColorId){
-  if(card.calendarItemType==='delivery')return {background:'#dbeafe',foreground:'#1e3a5f'};
-  if(card.calendarItemType==='customer_pickup')return {background:'#ede9fe',foreground:'#4c1d95'};
-  if(card.calendarItemType==='note')return {background:'#f3f4f6',foreground:'#374151'};
-  return layerColorId ? layerPaletteColor(layerColorId) : salespersonColor(card.salesperson);
+  const fallback=PERMANENT_CALENDAR_LAYER_DEFAULTS[calendarItemLayerKey(card)];
+  return layerPaletteColor(layerColorId??fallback??salespersonColorId(card.salesperson));
 }
 
 export function calendarProductionCardText(card: Pick<

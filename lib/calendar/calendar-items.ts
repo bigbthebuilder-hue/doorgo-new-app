@@ -36,10 +36,11 @@ export function removeCalendarCardLocally(board:ProductionBoardViewModel,booking
 const order=(a:ProductionBoardCard,b:ProductionBoardCard)=>(a.dayOrder??0)-(b.dayOrder??0)||a.bookingId.localeCompare(b.bookingId);
 
 export function calendarRecordKey(card:ProductionBoardCard):string {
-  return card.recordKind==='calendar_item'?card.bookingId:`production:${card.bookingId}`;
+  return card.recordKind==='calendar_item'||card.recordKind==='staff_away'?card.bookingId:`production:${card.bookingId}`;
 }
 
 export function calendarItemLayerKey(card:ProductionBoardCard):string {
+  if(card.recordKind==='staff_away')return 'other:away';
   if(card.calendarItemType==='delivery')return 'fulfillment:delivery';
   if(card.calendarItemType==='customer_pickup')return 'fulfillment:pickup';
   if(card.calendarItemType==='note')return 'other:notes';

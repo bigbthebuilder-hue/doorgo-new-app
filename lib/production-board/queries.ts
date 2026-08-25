@@ -10,6 +10,8 @@ import { normalizeProductionBoard } from './normalize';
 import type { DoorGoJobRow, ProductionBookingRow, ProductionBoardViewModel } from './types';
 import { loadCalendarNativeJobLinks } from './native-job-links';
 import { calendarItemCard, mergeCalendarItems, type CalendarItemRow } from '@/lib/calendar/calendar-items';
+import {loadStaffAwayRange} from '@/lib/calendar/staff-away-queries';
+import {mergeStaffAway} from '@/lib/calendar/staff-away';
 
 export async function loadProductionBoardReadOnly(params: {
   boardStart: string;
@@ -18,6 +20,7 @@ export async function loadProductionBoardReadOnly(params: {
   today?: string;
   includeNativeJobLinks?: boolean;
   includeOperationalCalendarItems?: boolean;
+  includeStaffAway?: boolean;
 }): Promise<ProductionBoardViewModel> {
   const supabase = createTrustedReadOnlySupabaseClient();
   const checkpointAnchor =
@@ -29,7 +32,7 @@ export async function loadProductionBoardReadOnly(params: {
 
   // TODO: Use a persisted carry checkpoint or settings baseline to bound historical reads.
 
-  const [bookingResult, needsAttentionResult, calendarItemsResult, capacityRows, checkpoints] = await Promise.all([
+  const [bookingResult, needsAttentionResult, calendarItemsResult, staffAwayPayload, capacityRows, checkpoints] = await Promise.all([
     supabase
       .from('dg_production_bookings')
       .select(`
@@ -88,6 +91,7 @@ export async function loadProductionBoardReadOnly(params: {
     params.includeOperationalCalendarItems?supabase.from('dg_calendar_items').select('item_id,item_type,scheduled_date,linked_internal_job_id,current_portion_id,order_family_key,customer_name,sales_order,salesperson,timing,fulfillment_note,title,details,day_order,completed_at,revision')
       .or(`scheduled_date.is.null,and(scheduled_date.gte.${calculationStart},scheduled_date.lt.${params.boardEndExclusive})`)
       .is('deleted_at',null).order('day_order',{ascending:true}):Promise.resolve({data:[],error:null}),
+    params.includeStaffAway?loadStaffAwayRange(params.boardStart,params.boardEndExclusive):Promise.resolve({activeStaff:[],periods:[]}),
     loadDailyCapacityReadOnly({
       startDate: calculationStart,
       endDateExclusive: params.boardEndExclusive,
@@ -157,5 +161,6 @@ export async function loadProductionBoardReadOnly(params: {
     checkpoints,
     today: params.today,
   });
-  return mergeCalendarItems(productionBoard,itemRows.map((row)=>{const native=row.linked_internal_job_id?nativeLinks.byInternalJobId.get(row.linked_internal_job_id):undefined;const job=native?{internalJobId:native.internalJobId,customer:native.customer,salesOrder:native.salesOrder,salesperson:row.salesperson}:undefined;return calendarItemCard(row,job,{included:row.sales_order?[row.sales_order]:[],available:[]});}));
+  const withItems=mergeCalendarItems(productionBoard,itemRows.map((row)=>{const native=row.linked_internal_job_id?nativeLinks.byInternalJobId.get(row.linked_internal_job_id):undefined;const job=native?{internalJobId:native.internalJobId,customer:native.customer,salesOrder:native.salesOrder,salesperson:row.salesperson}:undefined;return calendarItemCard(row,job,{included:row.sales_order?[row.sales_order]:[],available:[]});}));
+  return mergeStaffAway(withItems,staffAwayPayload);
 }

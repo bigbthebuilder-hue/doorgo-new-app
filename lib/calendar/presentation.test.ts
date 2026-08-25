@@ -30,7 +30,7 @@ const card = (salesperson: string | null): ProductionBoardCard => ({
 });
 
 const layers = buildCalendarLayers([card('Alex'), card('Alex'), card(null)]);
-assert.deepEqual(layers.filter((layer) => layer.available).map((layer) => layer.label), ['Alex', 'Unassigned', 'Notes']);
+assert.deepEqual(layers.filter((layer) => layer.available).map((layer) => layer.label), ['Alex', 'Unassigned', 'Notes', 'Staff Away']);
 assert.equal(layers.some((layer) => layer.kind === 'delivery' && !layer.available), true);
 const emptyNotesLayer=buildCalendarLayers([]).find((layer)=>layer.key==='other:notes');
 assert.equal(emptyNotesLayer?.available,true,'Notes remains an available operational layer with zero Notes loaded');

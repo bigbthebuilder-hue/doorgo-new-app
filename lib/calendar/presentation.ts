@@ -83,7 +83,7 @@ export function buildCalendarLayers(cards: ProductionBoardCard[]): CalendarLayer
     { key: 'fulfillment:delivery', kind: 'delivery', label: 'Deliveries', available: cards.some((card)=>card.calendarItemType==='delivery'), colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['fulfillment:delivery'] },
     { key: 'fulfillment:pickup', kind: 'customer_pickup', label: 'Customer Pickups', available: cards.some((card)=>card.calendarItemType==='customer_pickup'), colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['fulfillment:pickup'] },
     { key: 'other:notes', kind: 'note', label: 'Notes', available: true, colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:notes'] },
-    { key: 'other:away', kind: 'staff_away', label: 'Staff Away', available: false, colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:away'] },
+    { key: 'other:away', kind: 'staff_away', label: 'Staff Away', available: true, colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:away'] },
     { key: 'other:closures', kind: 'closure', label: 'Closures / Special Days', available: false, colorId: PERMANENT_CALENDAR_LAYER_DEFAULTS['other:closures'] },
   ];
 }
@@ -137,6 +137,7 @@ export function searchCalendarCards(
 function searchRelevance(card:ProductionBoardCard,query:string){const values=[card.jobId,card.nativeSalesOrder,card.customer,card.title].map((value)=>value?.trim().toLocaleLowerCase());return values.some((value)=>value===query)?0:1;}
 function searchState(left:string|null,right:string|null){if(left===right)return 0;if(left===null)return -1;if(right===null)return 1;return left.localeCompare(right);}
 export function calendarItemTypeLabel(card:Pick<ProductionBoardCard,'recordKind'|'calendarItemType'>):string{
+  if(card.recordKind==='staff_away')return 'Staff Away';
   if(card.recordKind!=='calendar_item')return 'Production';
   if(card.calendarItemType==='delivery')return 'Delivery';
   if(card.calendarItemType==='customer_pickup')return 'Pickup';
@@ -151,6 +152,7 @@ export function needsAttentionToolbarModel(cards: ProductionBoardCard[], visible
 
 export function calendarCardText(card:ProductionBoardCard):string {
   const identity=calendarCardIdentity(card);
+  if(card.recordKind==='staff_away')return [identity.primary,'Away',card.staffAwayMode==='partial'?'Partial':null].filter(Boolean).join(' · ');
   if(card.recordKind!=='calendar_item')return [card.shopHoursKnown?formatHours(card.shopHours??0):'◷',identity.primary,identity.salesOrder].filter(Boolean).join(' · ');
   return [identity.primary,identity.salesOrder,card.timing?.trim()].filter(Boolean).join(' · ');
 }
@@ -163,6 +165,7 @@ export function calendarCardIdentity(card:ProductionBoardCard):{primary:string;s
 
 export function calendarExpandedCardMeta(card:ProductionBoardCard):string {
   const identity=calendarCardIdentity(card);
+  if(card.recordKind==='staff_away')return card.staffAwayMode==='partial'?'Away · Partial':'Away';
   if(card.recordKind!=='calendar_item') {
     const details=card.details?.trim();
     const title=card.title?.trim();

@@ -201,6 +201,9 @@ const laterPhaseCheckpointActionBoundary = new Set([
   'components/manager/ManagerCapacityWorkspace.tsx',
   'lib/manager/capacity-actions.ts',
   'lib/manager/capacity-configuration.ts',
+  'supabase/migrations/20260825040000_add_staff_away_operations.sql',
+  'lib/calendar/staff-away-actions.ts',
+  'lib/calendar/staff-away-queries.ts',
 ]);
 const reviewedNativeJobRpcBoundary = new Set(['lib/jobs/hosted-job-intake-repository.ts']);
 const applicationPaths = reviewablePaths.filter(
@@ -267,6 +270,7 @@ assert.deepEqual(
     'supabase/migrations/20260805010000_fix_direct_dimension_update_rpc_allowlist.sql',
     'supabase/migrations/20260806010000_fix_transferred_biztrack_update_identifier.sql',
     'supabase/migrations/20260815010000_add_manager_native_job_delete.sql',
+    'supabase/migrations/20260825040000_add_staff_away_operations.sql',
   ],
   'Service-role references must remain limited to approved runtime, placeholder, and verifier files',
 );

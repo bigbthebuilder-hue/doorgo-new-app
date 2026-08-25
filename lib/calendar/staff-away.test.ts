@@ -1,0 +1,13 @@
+import assert from'node:assert/strict';import{calendarCardOrder,datesInRange,staffAwayCard,type StaffAwayPeriod}from'./staff-away';import type{ProductionBoardCard}from'../production-board/types';import{buildCalendarLayers,calendarCardText,calendarItemTypeLabel,searchCalendarCards}from'./presentation';
+const period=(overrides:Partial<StaffAwayPeriod>={}):StaffAwayPeriod=>({periodId:'11111111-1111-4111-8111-111111111111',staffId:'22222222-2222-4222-8222-222222222222',staffName:'Jordan',startDate:'2026-08-27',endDate:'2026-08-31',mode:'full_day',partialDragHours:null,reason:'Vacation',revision:1,createdAt:'2026-08-25T00:00:00Z',updatedAt:'2026-08-25T00:00:00Z',occurrences:[{date:'2026-08-27',deductionHours:7},{date:'2026-08-28',deductionHours:7},{date:'2026-08-31',deductionHours:7}],...overrides});
+const away=staffAwayCard(period(),period().occurrences[0]);
+assert.equal(away.locked,true);assert.equal(away.productionDate,'2026-08-27');assert.equal(away.staffAwayPeriodId,period().periodId);assert.equal(calendarCardText(away),'Jordan · Away');assert.equal(calendarItemTypeLabel(away),'Staff Away');
+const partial=staffAwayCard(period({mode:'partial',startDate:'2026-08-27',endDate:'2026-08-27',partialDragHours:2.5,occurrences:[{date:'2026-08-27',deductionHours:2.5}]}),{date:'2026-08-27',deductionHours:2.5});
+assert.equal(calendarCardText(partial),'Jordan · Away · Partial');assert.equal(partial.partialDragHours,2.5);
+const ordinary={...away,bookingId:'ordinary',recordKind:'calendar_item' as const,calendarItemType:'note' as const,customer:'Note',title:'Note',dayOrder:1,locked:false};
+const alex=staffAwayCard(period({periodId:'33333333-3333-4333-8333-333333333333',staffName:'Alex'}),{date:'2026-08-27',deductionHours:5});
+assert.deepEqual(calendarCardOrder([ordinary as ProductionBoardCard,away,alex]).map((card)=>card.customer),['Alex','Jordan','Note']);
+assert.equal(buildCalendarLayers([]).find((layer)=>layer.key==='other:away')?.available,true);
+assert.deepEqual(searchCalendarCards([away],'jordan').map((card)=>card.bookingId),[away.bookingId]);
+assert.deepEqual(datesInRange('2026-08-28','2026-08-31'),['2026-08-28','2026-08-29','2026-08-30','2026-08-31']);
+console.log('Staff Away presentation and range tests passed');

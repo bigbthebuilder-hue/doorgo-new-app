@@ -9,6 +9,12 @@ export function viewportAnchorAdjustment(before: CalendarViewportAnchor, after: 
 export function isActiveCalendarDragOrigin(target: Element | null): boolean {
   return Boolean(target?.closest('[data-booking-id][draggable="true"]'));
 }
+export function beginCalendarCardDrag(card:Pick<ProductionBoardCard,'bookingId'|'completedAt'|'locked'>,allowed:boolean,dataTransfer:Pick<DataTransfer,'effectAllowed'|'setData'>):boolean{
+  if(!allowed||card.locked||card.completedAt)return false;
+  dataTransfer.effectAllowed='move';
+  dataTransfer.setData('text/plain',card.bookingId);
+  return true;
+}
 export function needsAttentionDismissal(target:'inside'|'toolbar'|'calendar') {
   return { close: target !== 'inside', consume: target === 'calendar' };
 }

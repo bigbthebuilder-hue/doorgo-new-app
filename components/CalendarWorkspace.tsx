@@ -14,7 +14,7 @@ import { deleteFulfillmentBackorder, setFulfillmentItemType } from '@/lib/calend
 import { calendarItemLayerKey, calendarRecordKey, removeCalendarCardLocally, replaceCalendarCardLocally } from '@/lib/calendar/calendar-items';
 import { getProductionScheduleCompletionBlockReason } from '@/lib/production-schedule/completion-ui-contract';
 import { getProductionScheduleCardMoveBlockReason } from '@/lib/production-schedule/move-ui-contract';
-import { clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
+import { beginCalendarCardDrag, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
 import {
   buildCalendarLayers,
   calendarCapacityLabel,
@@ -82,8 +82,6 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   const highlightTimer = useRef<number | null>(null);
   const toastId = useRef(0);
   const draggedCard = useRef<ProductionBoardCard | null>(null);
-  const dragOwnedGesture = useRef(false);
-  const consumeOutsideCalendarClick = useRef(false);
   const allCards = useMemo(() => [...displayBoard.days.flatMap((day) => day.cards), ...displayBoard.needsAttentionCards], [displayBoard.days, displayBoard.needsAttentionCards]);
   const layers = useMemo(() => buildCalendarLayers(allCards), [allCards]);
   const availableKeys = useMemo(() => layers.filter((layer) => layer.available).map((layer) => layer.key), [layers]);
@@ -135,11 +133,6 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
       if (isActiveCalendarDragOrigin(event.target as Element)) return;
       const decision=needsAttentionDismissal((event.target as HTMLElement).closest('.calendar-stream')?'calendar':'toolbar');
       if (decision.close) setNeedsAttentionOpen(false);
-      if (decision.consume) {
-        consumeOutsideCalendarClick.current = true;
-        event.preventDefault();
-        event.stopPropagation();
-      }
     };
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setNeedsAttentionOpen(false); };
     document.addEventListener('pointerdown', onPointerDown, true);
@@ -363,14 +356,11 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     beginDateMove(card, moveUndo.fromDate, moveUndo.sourceOrder, true);
   };
   const onCardDragStart = (card: ProductionBoardCard, event: React.DragEvent<HTMLElement>) => {
-    if (consumeOutsideCalendarClick.current || !canInteract || dragBusy || card.locked || card.completedAt || (card.recordKind!=='calendar_item'&&!canManageProduction)) { event.preventDefault(); return; }
+    if (!beginCalendarCardDrag(card,canInteract&&!dragBusy&&(card.recordKind==='calendar_item'||canManageProduction),event.dataTransfer)) { event.preventDefault(); return; }
     draggedCard.current = card;
-    dragOwnedGesture.current = true;
     if (card.productionDate !== null) {
       setNeedsAttentionDropReady(true);
     }
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', card.bookingId);
   };
   const onDayDragOver = (date: string, event: React.DragEvent<HTMLElement>) => {
     if (!draggedCard.current || dragBusy) return;
@@ -395,7 +385,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     }
     beginDateMove(card, date, sourceDay?.cards.map((item) => item.bookingId) ?? displayBoard.needsAttentionCards.map((item) => item.bookingId));
   };
-  const onCardDragEnd = () => { draggedCard.current = null; setDropTarget(null); setNeedsAttentionDropReady(false); window.setTimeout(()=>{dragOwnedGesture.current=false;},0); };
+  const onCardDragEnd = () => { draggedCard.current = null; setDropTarget(null); setNeedsAttentionDropReady(false); };
   const needsAttentionModel = needsAttentionToolbarModel(displayBoard.needsAttentionCards, visibleLayers);
   const visibleNeedsAttention = needsAttentionModel.visibleCards;
   const onNeedsAttentionDrop = (event: React.DragEvent<HTMLElement>) => {
@@ -441,12 +431,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
       <button className="calendar-toolbar-button" type="button" title="Calendar document workflow is planned for a later pass">Documents · 0</button>
       {pending ? <span className="sr-only" role="status">Loading Calendar…</span> : null}
     </header>
-    <main className="calendar-stream" aria-label="DoorGo Calendar" onClickCapture={(event) => {
-      if (!consumeOutsideCalendarClick.current) return;
-      consumeOutsideCalendarClick.current = false;
-      event.preventDefault();
-      event.stopPropagation();
-    }} onPointerCancelCapture={() => { consumeOutsideCalendarClick.current = false; dragOwnedGesture.current=false; }} onPointerUpCapture={()=>{window.setTimeout(()=>{consumeOutsideCalendarClick.current=false;},0);}} onScroll={(event)=>{const stream=event.currentTarget;const top=stream.getBoundingClientRect().top+8;const visible=[...stream.querySelectorAll<HTMLElement>('[data-calendar-week]')].find((week)=>week.getBoundingClientRect().bottom>top);if(visible?.dataset.calendarWeek)setNavigationMonday(visible.dataset.calendarWeek);if(stream.scrollTop<480&&displayBoard.startDate>bounds.minimumMonday)void fetchChunk(displayBoard,'prepend',true);if(stream.scrollHeight-stream.scrollTop-stream.clientHeight<640&&displayBoard.endDateExclusive<bounds.maximumEndExclusive)void fetchChunk(displayBoard,'append',false);}} ref={streamRef}>
+    <main className="calendar-stream" aria-label="DoorGo Calendar" onScroll={(event)=>{const stream=event.currentTarget;const top=stream.getBoundingClientRect().top+8;const visible=[...stream.querySelectorAll<HTMLElement>('[data-calendar-week]')].find((week)=>week.getBoundingClientRect().bottom>top);if(visible?.dataset.calendarWeek)setNavigationMonday(visible.dataset.calendarWeek);if(stream.scrollTop<480&&displayBoard.startDate>bounds.minimumMonday)void fetchChunk(displayBoard,'prepend',true);if(stream.scrollHeight-stream.scrollTop-stream.clientHeight<640&&displayBoard.endDateExclusive<bounds.maximumEndExclusive)void fetchChunk(displayBoard,'append',false);}} ref={streamRef}>
       {displayBoard.weekGroups.map((week) => <section className="calendar-week" data-calendar-week={week.startDate} key={week.startDate}>
         <div className="calendar-month-row" onClick={()=>{if(expandedDate)setExpandedWithAnchor(null);}} style={calendarWeekGridStyle(week.days.map((day) => day.date), expandedDate)}>
           {calendarMonthSegments(week.days.map((day) => day.date)).map((segment) => <span key={`${week.startDate}-${segment.label}`} style={{ gridColumn: `${segment.startColumn} / span ${segment.span}` }}>{segment.label}</span>)}
@@ -458,7 +443,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
             const expanded = expandedDate === day.date;
             const capacityState=day.isClosed?'closed':!day.capacityKnown||day.availableHours===null?'unknown':overloaded?'over':day.totalKnownShopHours===day.availableHours&&day.missingShopHoursCount===0?'full':'free';
             return <article className="calendar-day" data-calendar-date={day.date} data-capacity-state={capacityState} data-day-state={day.dateState} data-drop-target={dropTarget?.date === day.date || undefined} data-expanded={expanded || undefined} data-overloaded={overloaded || undefined} key={day.date} onClick={(event) => {
-              if(dragOwnedGesture.current||(event.target as HTMLElement).closest('button,a,input,select,textarea,.calendar-production-card,.calendar-expanded-production'))return;
+              if((event.target as HTMLElement).closest('button,a,input,select,textarea,.calendar-production-card,.calendar-expanded-production'))return;
               const decision = resolveExpandedCalendarInteraction(expandedDate, { kind: 'day', date: day.date, interactiveChild: false });
               if(decision.interact)setExpandedWithAnchor(expanded?null:day.date,day.date);
             }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget((current) => current?.date === day.date ? null : current); }} onDragOver={(event) => onDayDragOver(day.date, event)} onDrop={(event) => onDayDrop(day.date, event)}>
@@ -525,9 +510,17 @@ function LayersPicker({ colors, layers, onColor, open, setOpen, toggle, visible 
   return <div className="calendar-layers" ref={wrapper}>
     <button aria-expanded={open} className="calendar-toolbar-button" onClick={() => setOpen(!open)} type="button">Layers</button>
     {open ? <div className="calendar-layers-menu">
-      {groups.map(([label, groupLayers]) => <fieldset key={label}><legend>{label}</legend>{groupLayers.map((layer) => <label data-unavailable={!layer.available || undefined} key={layer.key}><input checked={layer.available && visible.includes(layer.key)} disabled={!layer.available} onChange={() => toggle(layer.key)} type="checkbox"/><span>{layer.label}</span>{layer.available&&layer.kind==='production'?<select aria-label={`${layer.label} color`} onChange={(event)=>onColor(layer.key,event.target.value as CalendarLayerColorId)} style={{backgroundColor:layerPaletteColor(colors[layer.key]??layer.colorId).background,color:layerPaletteColor(colors[layer.key]??layer.colorId).foreground}} value={colors[layer.key]??layer.colorId}>{CALENDAR_LAYER_PALETTE.map((color)=><option key={color.id} value={color.id}>{color.label}</option>)}</select>:!layer.available?<small>Later</small>:null}</label>)}</fieldset>)}
+      {groups.map(([label, groupLayers]) => <fieldset key={label}><legend>{label}</legend>{groupLayers.map((layer) => <div className="calendar-layer-row" data-unavailable={!layer.available || undefined} key={layer.key}><label><input checked={layer.available && visible.includes(layer.key)} disabled={!layer.available} onChange={() => toggle(layer.key)} type="checkbox"/><span>{layer.label}</span></label>{layer.available&&layer.kind==='production'?<LayerColorPicker label={layer.label} onChange={(color)=>onColor(layer.key,color)} value={colors[layer.key]??layer.colorId??'sky'}/>:!layer.available?<small>Later</small>:null}</div>)}</fieldset>)}
     </div> : null}
   </div>;
+}
+
+function LayerColorPicker({label,onChange,value}:{label:string;onChange:(color:CalendarLayerColorId)=>void;value:CalendarLayerColorId}){
+  const [open,setOpen]=useState(false);const [activeIndex,setActiveIndex]=useState(()=>Math.max(0,CALENDAR_LAYER_PALETTE.findIndex((color)=>color.id===value)));const wrapper=useRef<HTMLDivElement>(null);const selected=layerPaletteColor(value);
+  useEffect(()=>{if(!open)return;const pointer=(event:PointerEvent)=>{if(!wrapper.current?.contains(event.target as Node))setOpen(false);};const key=(event:KeyboardEvent)=>{if(event.key==='Escape')setOpen(false);};document.addEventListener('pointerdown',pointer);document.addEventListener('keydown',key);return()=>{document.removeEventListener('pointerdown',pointer);document.removeEventListener('keydown',key);};},[open]);
+  const focusOption=(index:number)=>{setActiveIndex(index);window.requestAnimationFrame(()=>wrapper.current?.querySelector<HTMLButtonElement>(`[data-color-index="${index}"]`)?.focus());};
+  const keyDown=(event:React.KeyboardEvent)=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();if(!open){setOpen(true);focusOption(Math.max(0,CALENDAR_LAYER_PALETTE.findIndex((color)=>color.id===value)));return;}focusOption((activeIndex+(event.key==='ArrowDown'?1:-1)+CALENDAR_LAYER_PALETTE.length)%CALENDAR_LAYER_PALETTE.length);}else if(event.key==='Home'&&open){event.preventDefault();focusOption(0);}else if(event.key==='End'&&open){event.preventDefault();focusOption(CALENDAR_LAYER_PALETTE.length-1);}};
+  return <div className="calendar-layer-color-picker" onKeyDown={keyDown} ref={wrapper}><button aria-expanded={open} aria-haspopup="listbox" aria-label={`${label} color: ${selected.label}`} className="calendar-layer-color-button" onClick={()=>setOpen((current)=>!current)} style={{backgroundColor:selected.background,color:selected.foreground}} type="button">{selected.label}<span aria-hidden="true">▾</span></button>{open?<div aria-label={`${label} colors`} className="calendar-layer-color-list" role="listbox">{CALENDAR_LAYER_PALETTE.map((color,index)=><button aria-selected={color.id===value} data-color-index={index} key={color.id} onClick={()=>{onChange(color.id);setOpen(false);}} role="option" style={{backgroundColor:color.background,color:color.foreground}} type="button">{color.label}</button>)}</div>:null}</div>;
 }
 
 function ExpandedProductionCard({ calendarWeek, card, canDrag, canInteract, canOpenJobs, colorId, dropPosition, highlighted, onComplete, onDetails, onDragEnd, onDragStart, onReopen, pending }: { calendarWeek: string; card: ProductionBoardCard; canDrag: boolean; canInteract: boolean; canOpenJobs: boolean;colorId?:CalendarLayerColorId; dropPosition: 'before' | 'after' | null; highlighted: boolean; onComplete: () => void; onDetails: () => void; onDragEnd: () => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void; onReopen: () => void; pending: boolean }) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from './interaction';
+import { beginCalendarCardDrag, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from './interaction';
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 assert.deepEqual(reorderBookingIds(['a', 'b', 'c'], 'c', 'a', true), ['c', 'a', 'b']);
@@ -69,5 +69,8 @@ const completedElement={closest:()=>null} as unknown as Element;
 assert.equal(isActiveCalendarDragOrigin(activeDragElement),true);
 assert.equal(isActiveCalendarDragOrigin(completedElement),false);
 assert.equal(isActiveCalendarDragOrigin(null),false);
+const transferred:string[]=[];const transfer={effectAllowed:'none',setData:(type:string,value:string)=>transferred.push(`${type}:${value}`)} as unknown as DataTransfer;
+assert.equal(beginCalendarCardDrag(first,true,transfer),true);assert.equal(transfer.effectAllowed,'move');assert.deepEqual(transferred,['text/plain:a']);
+assert.equal(beginCalendarCardDrag(completed,true,transfer),false);assert.equal(beginCalendarCardDrag(first,false,transfer),false);assert.deepEqual(transferred,['text/plain:a']);
 
 console.log('Calendar interaction tests passed');

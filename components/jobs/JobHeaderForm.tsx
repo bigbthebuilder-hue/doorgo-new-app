@@ -129,6 +129,7 @@ export function JobHeaderForm({
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
+  const [pendingSaveIntent,setPendingSaveIntent]=useState<'save'|'exit'|null>(null);
   const [fulfillmentFamily,setFulfillmentFamily]=useState<{familyKey:string|null;orders:string[]}|null>(null);
   const commandId = useRef<string | null>(null);
   const dirty = snapshot() !== baseline;
@@ -219,12 +220,17 @@ export function JobHeaderForm({
 
   function save(exitAfterSave: boolean) {
     if (!canEdit || isPending) return;
+    setPendingSaveIntent(exitAfterSave?'exit':'save');
     startTransition(async () => {
-      const saved = await persistAggregate();
-      if (!saved) return;
-      setMessage({ kind: 'success', text: jobSaveConfirmation(saved) });
-      if (exitAfterSave) router.push('/jobs');
-      else if (!job) router.replace(`/jobs/${saved.internalJobId}/edit`);
+      try {
+        const saved = await persistAggregate();
+        if (!saved) return;
+        setMessage({ kind: 'success', text: jobSaveConfirmation(saved) });
+        if (exitAfterSave) router.push('/jobs');
+        else if (!job) router.replace(`/jobs/${saved.internalJobId}/edit`);
+      } catch {
+        setMessage({ kind: 'error', text: 'DoorGo could not save this Job. Please try again.' });
+      } finally { setPendingSaveIntent(null); }
     });
   }
 
@@ -235,7 +241,7 @@ export function JobHeaderForm({
     <button className="app-button app-button-secondary" onClick={leave} type="button">Exit</button>
     {job ? <details className="job-work-order-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
     {archiveTarget || deleteTarget ? <details className="job-actions-menu relative"><summary className="app-button app-button-secondary cursor-pointer list-none">Job Actions ▾</summary><div className="absolute right-0 z-20 grid min-w-52 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Actions</span><JobArchiveControl onArchive={archiveDraftJobAction} onNavigate={(path) => router.push(path)} target={archiveTarget}/><JobDeleteControl onDelete={deleteDraftJobAction} onNavigate={(path) => router.push(path)} target={deleteTarget}/></div></details> : null}
-    {canEdit ? <><button className="app-button app-button-primary" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{isPending ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button className="app-button app-button-dark" disabled={isPending} onClick={() => save(true)} type="button">Save and Exit</button> : null}</> : null}
+    {canEdit ? <><button aria-busy={pendingSaveIntent==='save'||undefined} className="app-button app-button-primary" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{pendingSaveIntent==='save' ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button aria-busy={pendingSaveIntent==='exit'||undefined} className="app-button app-button-dark" disabled={isPending} onClick={() => save(true)} type="button">{pendingSaveIntent==='exit'?'Saving…':'Save and Exit'}</button> : null}</> : null}
   </>;
   return (
     <>

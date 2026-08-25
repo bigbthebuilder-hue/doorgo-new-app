@@ -40,6 +40,7 @@ function interaction(pendingBookingId: string | null = null): ProductionBoardInt
   return {
     mode: 'reschedule',
     pendingBookingId,
+    pendingAction: pendingBookingId ? 'completion' : null,
     hoveredDate: null,
     getMoveBlockReason: (card) => getProductionScheduleCardMoveBlockReason(
       card,
@@ -109,8 +110,8 @@ assert.doesNotMatch(completedView, /<button|draggable=/);
 const readyPending = render(ready, interaction(ready.bookingId));
 assert.match(readyPending, /aria-busy="true"/);
 assert.match(readyPending, /disabled=""/);
-assert.match(readyPending, />Move pending</);
-assert.match(readyPending, />Action pending</);
+assert.match(readyPending, />Move</);
+assert.match(readyPending, />Completing…</);
 const unrelatedPending = render(ready, interaction('another-booking'));
 assert.doesNotMatch(unrelatedPending, /aria-busy="true"|disabled=""/);
 assert.match(unrelatedPending, />Move</);

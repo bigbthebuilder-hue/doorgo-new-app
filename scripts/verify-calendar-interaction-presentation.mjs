@@ -30,7 +30,7 @@ assert.match(css,/calendar-layer-color-list[\s\S]*max-height: 15rem/);
 assert.match(workspace,/calendar-search-result[\s\S]*calendarCardIdentity\(option\.card\)\.primary/);
 assert.match(workspace,/calendar-expanded-info[\s\S]*calendarCardIdentity\(card\)\.primary/);
 assert.doesNotMatch(workspace,/No SO|No Sales Order|Not provided|DoorGo-linked|Unlinked/);
-assert.match(calendarActions,/loadNativeJobLinksByVisibleIdentifier[\s\S]*nativeByVisible/);
-assert.match(calendarActions,/linked_internal_job_id[\s\S]*nativeByInternal/);
+assert.match(calendarActions,/loadCalendarNativeJobLinks[\s\S]*byVisibleIdentifier/);
+assert.match(calendarActions,/linked_internal_job_id[\s\S]*byInternalJobId/);
 
 console.log('Calendar interaction and presentation static verification passed');

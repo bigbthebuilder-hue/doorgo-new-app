@@ -372,6 +372,7 @@ function ProductionScheduleInteractiveBoardSession({
   const interaction = useMemo<ProductionBoardInteraction>(() => ({
     mode: 'reschedule',
     pendingBookingId: active?.card.bookingId ?? completion?.card.bookingId ?? null,
+    pendingAction: active ? 'move' : completion ? 'completion' : null,
     hoveredDate,
     getMoveBlockReason: (card) => getProductionScheduleCardMoveBlockReason(
       card,

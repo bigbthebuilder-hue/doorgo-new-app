@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { useLinkStatus } from 'next/link';
 import { isAppNavigationItemActive, type AppNavigationIcon, type AppNavigationItem } from '@/lib/app-shell/navigation';
 import { GuardedLink } from './UnsavedChangesGuard';
 
@@ -21,12 +22,18 @@ export function DesktopNav({ items }: { items: AppNavigationItem[] }) {
             title={item.label}
           >
             <NavIcon name={item.icon}/>
-            <span className="app-shell-nav-label">{item.label}</span>
+            <NavPendingLabel active={active} label={item.label}/>
           </GuardedLink>
         );
       })}
     </nav>
   );
+}
+
+function NavPendingLabel({active,label}:{active:boolean;label:string}) {
+  const {pending}=useLinkStatus();
+  const loading=pending&&!active;
+  return <><span aria-busy={loading||undefined} className="app-shell-nav-label">{loading?'Loading…':label}</span>{loading?<span className="sr-only" role="status">Loading {label}</span>:null}</>;
 }
 
 function NavIcon({ name }: { name: AppNavigationIcon }) {

@@ -8,7 +8,7 @@ import { selectCheckpointAwareCalculationStart } from '@/lib/production-flow/che
 import { loadDailyCapacityReadOnly } from './capacity-queries';
 import { normalizeProductionBoard } from './normalize';
 import type { DoorGoJobRow, ProductionBookingRow, ProductionBoardViewModel } from './types';
-import { loadNativeJobLinksByVisibleIdentifier } from './native-job-links';
+import { loadCalendarNativeJobLinks } from './native-job-links';
 import { calendarItemCard, mergeCalendarItems, type CalendarItemRow } from '@/lib/calendar/calendar-items';
 
 export async function loadProductionBoardReadOnly(params: {
@@ -115,29 +115,16 @@ export async function loadProductionBoardReadOnly(params: {
   const jobIds = Array.from(
     new Set(bookingRows.map((row) => row.job_id).filter(Boolean)),
   ) as string[];
+  const itemRows=(calendarItemsResult.data??[]) as CalendarItemRow[];
+  const itemNativeJobIds=Array.from(new Set(itemRows.map((row)=>row.linked_internal_job_id).filter((value):value is string=>Boolean(value))));
 
   let jobRows: DoorGoJobRow[] = [];
+  const [nativeLinks,legacyResult]=await Promise.all([
+    params.includeNativeJobLinks?loadCalendarNativeJobLinks(jobIds,itemNativeJobIds,createJobIntakeRepository()):Promise.resolve({byVisibleIdentifier:new Map(),byInternalJobId:new Map()}),
+    jobIds.length?supabase.from('dg_jobs').select(`job_id,customer,site_address,salesperson,status,active,shop_hours,job_stage`).in('job_id',jobIds):Promise.resolve({data:[],error:null}),
+  ]);
 
   if (jobIds.length) {
-    const [legacyResult, internalIds] = await Promise.all([
-      supabase
-        .from('dg_jobs')
-        .select(`
-          job_id,
-          customer,
-          site_address,
-          salesperson,
-          status,
-          active,
-          shop_hours,
-          job_stage
-        `)
-        .in('job_id', jobIds),
-      params.includeNativeJobLinks
-        ? loadNativeJobLinksByVisibleIdentifier(jobIds, createJobIntakeRepository())
-        : Promise.resolve(new Map()),
-    ]);
-
     if (legacyResult.error) {
       throw new Error(`Failed to load DoorGo jobs: ${legacyResult.error.message}`);
     }
@@ -146,7 +133,7 @@ export async function loadProductionBoardReadOnly(params: {
 
     jobRows = jobIds.map((jobId) => {
       const legacy = jobsById.get(jobId);
-      const native = internalIds.get(jobId);
+      const native = nativeLinks.byVisibleIdentifier.get(jobId);
       return {
         job_id: jobId,
         customer: legacy?.customer ?? null,
@@ -170,23 +157,5 @@ export async function loadProductionBoardReadOnly(params: {
     checkpoints,
     today: params.today,
   });
-  const itemRows=(calendarItemsResult.data??[]) as CalendarItemRow[];
-  const itemIds=itemRows.map((row)=>row.item_id);const memberships=itemIds.length?await supabase.from('dg_calendar_item_orders').select('item_id,portion_id').in('item_id',itemIds):{data:[],error:null};
-  if(memberships.error)throw new Error(`Failed to load fulfillment order history: ${memberships.error.message}`);
-  const portionIds=Array.from(new Set([...(memberships.data??[]).map((row)=>row.portion_id),...itemRows.map((row)=>row.current_portion_id).filter(Boolean)]));const portions=portionIds.length?await supabase.from('dg_fulfillment_order_portions').select('portion_id,linked_internal_job_id,family_key,sales_order').in('portion_id',portionIds).is('deleted_at',null):{data:[],error:null};
-  if(portions.error)throw new Error(`Failed to load fulfillment order portions: ${portions.error.message}`);
-  const visiblePortions=portions.data??[];const contextJobIds=Array.from(new Set(visiblePortions.map((portion)=>portion.linked_internal_job_id)));const familyPortions=contextJobIds.length?await supabase.from('dg_fulfillment_order_portions').select('portion_id,linked_internal_job_id,family_key,sales_order').in('linked_internal_job_id',contextJobIds).is('deleted_at',null):{data:[],error:null};
-  if(familyPortions.error)throw new Error(`Failed to load fulfillment family context: ${familyPortions.error.message}`);
-  const allPortions=[...new Map([...visiblePortions,...(familyPortions.data??[])].map((portion)=>[portion.portion_id,portion])).values()];const portionById=new Map(allPortions.map((portion)=>[portion.portion_id,portion]));
-  const availableByFamily=new Map<string,string[]>();for(const portion of allPortions){const key=`${portion.linked_internal_job_id}:${portion.family_key}`;availableByFamily.set(key,[...(availableByFamily.get(key)??[]),portion.sales_order]);}
-  const linked=new Map<string,{internalJobId:string;customer:string|null;salesOrder:string|null;salesperson:string|null}>();
-  const portionJobByItem=new Map<string,string>();for(const row of itemRows){const portion=row.current_portion_id?portionById.get(row.current_portion_id):undefined;if(portion){portionJobByItem.set(row.item_id,portion.linked_internal_job_id);linked.set(portion.linked_internal_job_id,{internalJobId:portion.linked_internal_job_id,customer:null,salesOrder:portion.family_key,salesperson:null});}}
-  if(params.includeNativeJobLinks){
-    const repository=createJobIntakeRepository();
-    await Promise.all(Array.from(new Set([...itemRows.map((row)=>row.linked_internal_job_id),...portionJobByItem.values()].filter(Boolean) as string[])).map(async(id)=>{
-      const job=await repository.findById(id); if(job)linked.set(id,{internalJobId:job.internalJobId,customer:job.customer,salesOrder:job.bizTrackSalesOrder,salesperson:job.salesperson});
-    }));
-    return mergeCalendarItems(productionBoard,itemRows.map((row)=>{const jobId=row.linked_internal_job_id??portionJobByItem.get(row.item_id);const job=jobId?linked.get(jobId):undefined;const familyKey=jobId&&row.order_family_key?`${jobId}:${row.order_family_key}`:'';return calendarItemCard(row,job,{included:row.sales_order?[row.sales_order]:[],available:(availableByFamily.get(familyKey)??[]).sort()});}));
-  }
-  return mergeCalendarItems(productionBoard,itemRows.map((row)=>{const jobId=row.linked_internal_job_id??portionJobByItem.get(row.item_id);return calendarItemCard(row,jobId?linked.get(jobId):undefined,{included:row.sales_order?[row.sales_order]:[],available:[]});}));
+  return mergeCalendarItems(productionBoard,itemRows.map((row)=>{const native=row.linked_internal_job_id?nativeLinks.byInternalJobId.get(row.linked_internal_job_id):undefined;const job=native?{internalJobId:native.internalJobId,customer:native.customer,salesOrder:native.salesOrder,salesperson:row.salesperson}:undefined;return calendarItemCard(row,job,{included:row.sales_order?[row.sales_order]:[],available:[]});}));
 }

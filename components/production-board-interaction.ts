@@ -4,6 +4,7 @@ import type { ProductionBoardCard } from '@/lib/production-board/types';
 export type ProductionBoardInteraction = {
   mode: 'reschedule';
   pendingBookingId: string | null;
+  pendingAction: 'move' | 'completion' | null;
   hoveredDate: string | null;
   getMoveBlockReason: (card: ProductionBoardCard) => string | null;
   canDragCard: (card: ProductionBoardCard) => boolean;

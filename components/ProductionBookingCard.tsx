@@ -25,6 +25,8 @@ export function ProductionBookingCard({
   const canMove = Boolean(interaction && blockReason === null);
   const canDrag = Boolean(interaction && canMove && interaction.canDragCard(card));
   const pending = interaction?.pendingBookingId === card.bookingId;
+  const movePending = pending && interaction?.pendingAction === 'move';
+  const completionPending = pending && interaction?.pendingAction === 'completion';
   const completed = card.completedAt !== null;
   const completionBlockReason = interaction?.getCompletionBlockReason(card) ?? null;
   const canChangeCompletion = Boolean(interaction && completionBlockReason === null);
@@ -80,7 +82,7 @@ export function ProductionBookingCard({
                 onClick={(event) => interaction.onMoveRequest(card, event.currentTarget)}
                 className="min-h-7 rounded border border-sky-300 bg-white px-1.5 text-[10px] font-semibold text-sky-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
               >
-                {pending ? 'Move pending' : 'Move'}
+                {movePending ? 'Moving…' : 'Move'}
               </button>
             ) : null}
             <button
@@ -95,7 +97,7 @@ export function ProductionBookingCard({
                   : 'border-emerald-300 bg-emerald-50 text-emerald-900'
               }`}
             >
-              {pending ? 'Action pending' : completed ? 'Reopen' : 'Complete'}
+              {completionPending ? completed ? 'Reopening…' : 'Completing…' : completed ? 'Reopen' : 'Complete'}
             </button>
           </div>
         ) : null}

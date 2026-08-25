@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { loadNativeJobLinksByVisibleIdentifier } from './native-job-links';
+import { loadCalendarNativeJobLinks, loadNativeJobLinksByVisibleIdentifier } from './native-job-links';
 import type { JobIntakeRepository, NativeJobListItem, NativeJobListRequest } from '../jobs/job-intake-types';
 
 const item = (internalJobId: string, visibleIdentifier: string, updatedAt: string, bizTrackSalesOrder: string | null = null): NativeJobListItem => ({
@@ -41,6 +41,7 @@ async function main() {
   assert.deepEqual(links.get('SO-TARGET'), {
     internalJobId: '22222222-2222-4222-8222-222222222222',
     salesOrder: '1234567',
+    customer: null,
   });
   assert.equal(calls.length, 2, 'Native-job enrichment must follow the authoritative RPC pagination');
   assert.deepEqual(calls[1]?.cursor, firstCursor);
@@ -49,6 +50,11 @@ async function main() {
   const emptyRepository = { listPage: async () => { emptyCalls += 1; throw new Error('unexpected'); } } as unknown as JobIntakeRepository;
   assert.equal((await loadNativeJobLinksByVisibleIdentifier([], emptyRepository)).size, 0);
   assert.equal(emptyCalls, 0, 'Users without Jobs enrichment must not invoke the native-job read path');
+
+  calls.length = 0;
+  const batched = await loadCalendarNativeJobLinks([], ['22222222-2222-4222-8222-222222222222'], repository);
+  assert.equal(batched.byInternalJobId.get('22222222-2222-4222-8222-222222222222')?.salesOrder, '1234567');
+  assert.equal(calls.length, 2, 'Internal and visible Calendar identity enrichment shares bounded list pagination, never per-card aggregate RPCs');
 
   console.log('Production Board native-job link tests passed');
 }

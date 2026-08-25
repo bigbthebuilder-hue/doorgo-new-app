@@ -21,6 +21,7 @@ export type ProductionBookingRow = {
   source_system: string | null;
   locked: boolean | null;
   completed_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type DoorGoJobRow = {
@@ -62,6 +63,7 @@ export type ProductionBoardCard = {
   bookingKind: string | null;
   locked: boolean;
   completedAt: string | null;
+  updatedAt?: string | null;
   timing?: string | null;
   fulfillmentNote?: string | null;
   details?: string | null;

@@ -74,6 +74,7 @@ export function normalizeProductionBoard(
       bookingKind: row.booking_kind,
       locked: row.locked === true,
       completedAt: row.completed_at ?? null,
+      updatedAt: row.updated_at ?? null,
     };
   });
 

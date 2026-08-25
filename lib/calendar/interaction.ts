@@ -15,6 +15,9 @@ export function beginCalendarCardDrag(card:Pick<ProductionBoardCard,'bookingId'|
   dataTransfer.setData('text/plain',card.bookingId);
   return true;
 }
+export function shouldExpandCollapsedCalendarCard(input:{dayDate:string;expandedDate:string|null;interactiveChild:boolean;dragGesture:boolean}):boolean{
+  return !input.dragGesture&&!input.interactiveChild&&input.expandedDate!==input.dayDate;
+}
 export function needsAttentionDismissal(target:'inside'|'toolbar'|'calendar') {
   return { close: target !== 'inside', consume: target === 'calendar' };
 }

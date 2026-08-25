@@ -19,7 +19,7 @@ const recorded = (value: string) => new Intl.DateTimeFormat('en-CA', { dateStyle
 
 function HistoryCard({ item, current = false }: { item: CheckpointReadItem; current?: boolean }) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="app-workspace-panel rounded-xl p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-semibold">Revision {item.revisionNumber} · {checkpointHistoryStatusLabel(item, current)}</p>
         {current ? <span className="rounded-full bg-sky-100 px-2 py-1 text-xs font-semibold text-sky-800">Current</span> : null}
@@ -63,13 +63,13 @@ export default async function ProductionCheckpointsPage({ searchParams }: { sear
     <AppShell navigation={buildProtectedAppNavigation(access)} topBar={<ContextTopBar title="Carry Checkpoint" secondary="Record actual unfinished shop hours"/>}>
       <div className="app-workspace app-workspace-focused">
 
-        <form className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" method="get">
+        <form className="app-workspace-panel rounded-2xl p-4" method="get">
           <label className="grid gap-2 font-medium" htmlFor="checkpoint-date">Production date</label>
           <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]"><input className="min-h-12 rounded-xl border border-slate-300 px-3 text-lg focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-200" id="checkpoint-date" name="date" type="date" defaultValue={selection.selectedDate} max={today} required/><button className="min-h-12 rounded-xl bg-slate-900 px-5 font-semibold text-white" type="submit">View date</button></div>
           {selection.message ? <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900" role="status">{selection.message}</p> : null}
         </form>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="selected-date-heading">
+        <section className="app-workspace-panel rounded-2xl p-5" aria-labelledby="selected-date-heading">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected production date</p><h2 id="selected-date-heading" className="mt-1 text-xl font-semibold">{friendlyDate(selection.selectedDate)}</h2></div>{state.kind === 'removed' ? <span className="rounded-full bg-rose-100 px-3 py-1 text-sm font-semibold text-rose-800">Removed</span> : state.kind === 'confirmed' ? <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800">Confirmed</span> : <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">No checkpoint</span>}</div>
           {selection.selectedDate < today && reads.revisions.length ? <p className="mt-3 text-xs text-slate-500">Calculated carry is the calculation recorded with this checkpoint.</p> : null}
           <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">

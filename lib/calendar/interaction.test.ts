@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { beginCalendarCardDrag, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from './interaction';
+import { beginCalendarCardDrag, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, shouldExpandCollapsedCalendarCard, viewportAnchorAdjustment } from './interaction';
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 assert.deepEqual(reorderBookingIds(['a', 'b', 'c'], 'c', 'a', true), ['c', 'a', 'b']);
@@ -72,5 +72,10 @@ assert.equal(isActiveCalendarDragOrigin(null),false);
 const transferred:string[]=[];const transfer={effectAllowed:'none',setData:(type:string,value:string)=>transferred.push(`${type}:${value}`)} as unknown as DataTransfer;
 assert.equal(beginCalendarCardDrag(first,true,transfer),true);assert.equal(transfer.effectAllowed,'move');assert.deepEqual(transferred,['text/plain:a']);
 assert.equal(beginCalendarCardDrag(completed,true,transfer),false);assert.equal(beginCalendarCardDrag(first,false,transfer),false);assert.deepEqual(transferred,['text/plain:a']);
+assert.equal(shouldExpandCollapsedCalendarCard({dayDate:'2026-08-25',expandedDate:null,interactiveChild:false,dragGesture:false}),true);
+assert.equal(shouldExpandCollapsedCalendarCard({dayDate:'2026-08-25',expandedDate:'2026-08-24',interactiveChild:false,dragGesture:false}),true);
+assert.equal(shouldExpandCollapsedCalendarCard({dayDate:'2026-08-25',expandedDate:'2026-08-25',interactiveChild:false,dragGesture:false}),false);
+assert.equal(shouldExpandCollapsedCalendarCard({dayDate:'2026-08-25',expandedDate:null,interactiveChild:false,dragGesture:true}),false);
+assert.equal(shouldExpandCollapsedCalendarCard({dayDate:'2026-08-25',expandedDate:null,interactiveChild:true,dragGesture:false}),false);
 
 console.log('Calendar interaction tests passed');

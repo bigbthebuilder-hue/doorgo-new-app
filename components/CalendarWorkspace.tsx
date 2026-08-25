@@ -14,7 +14,7 @@ import { deleteFulfillmentBackorder, setFulfillmentItemType } from '@/lib/calend
 import { calendarItemLayerKey, calendarRecordKey, removeCalendarCardLocally, replaceCalendarCardLocally } from '@/lib/calendar/calendar-items';
 import { getProductionScheduleCompletionBlockReason } from '@/lib/production-schedule/completion-ui-contract';
 import { getProductionScheduleCardMoveBlockReason } from '@/lib/production-schedule/move-ui-contract';
-import { beginCalendarCardDrag, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
+import { beginCalendarCardDrag, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, shouldExpandCollapsedCalendarCard, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
 import {
   buildCalendarLayers,
   calendarCapacityLabel,
@@ -84,6 +84,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   const highlightTimer = useRef<number | null>(null);
   const toastId = useRef(0);
   const draggedCard = useRef<ProductionBoardCard | null>(null);
+  const suppressCardClick = useRef(false);
   const allCards = useMemo(() => [...displayBoard.days.flatMap((day) => day.cards), ...displayBoard.needsAttentionCards], [displayBoard.days, displayBoard.needsAttentionCards]);
   const layers = useMemo(() => buildCalendarLayers(allCards), [allCards]);
   const availableKeys = useMemo(() => layers.filter((layer) => layer.available).map((layer) => layer.key), [layers]);
@@ -360,6 +361,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
   const onCardDragStart = (card: ProductionBoardCard, event: React.DragEvent<HTMLElement>) => {
     if (!beginCalendarCardDrag(card,canInteract&&!dragBusy&&(card.recordKind==='calendar_item'||canManageProduction),event.dataTransfer)) { event.preventDefault(); return; }
     draggedCard.current = card;
+    suppressCardClick.current = true;
     if (card.productionDate !== null) {
       setNeedsAttentionDropReady(true);
     }
@@ -387,7 +389,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
     }
     beginDateMove(card, date, sourceDay?.cards.map((item) => item.bookingId) ?? displayBoard.needsAttentionCards.map((item) => item.bookingId));
   };
-  const onCardDragEnd = () => { draggedCard.current = null; setDropTarget(null); setNeedsAttentionDropReady(false); };
+  const onCardDragEnd = () => { draggedCard.current = null; setDropTarget(null); setNeedsAttentionDropReady(false); window.setTimeout(()=>{suppressCardClick.current=false;},0); };
   const needsAttentionModel = needsAttentionToolbarModel(displayBoard.needsAttentionCards, visibleLayers);
   const visibleNeedsAttention = needsAttentionModel.visibleCards;
   const onNeedsAttentionDrop = (event: React.DragEvent<HTMLElement>) => {
@@ -456,7 +458,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canInteract, canMan
               <div className="calendar-card-list">
                 {cards.map((card) => expanded
                   ? <ExpandedProductionCard calendarWeek={displayBoard.startDate} canDrag={canInteract && !dragBusy && !card.locked && !card.completedAt} canInteract={canInteract} canOpenJobs={canOpenJobs} card={card} colorId={colorIdForCard(card)} dropPosition={dropTarget?.date === day.date && dropTarget.targetId === card.bookingId ? (dropTarget.before ? 'before' : 'after') : null} highlighted={card.bookingId === highlightedBookingId} key={card.bookingId} onComplete={() => void completeCard(card)} onDetails={() => openDetails(card)} onDragEnd={onCardDragEnd} onDragStart={(event) => onCardDragStart(card, event)} onReopen={() => void reopenCard(card)} pending={completionPendingId === card.bookingId}/>
-                  : <CalendarProductionCard canDrag={canInteract && !dragBusy && !card.locked && !card.completedAt} card={card} colorId={colorIdForCard(card)} dropPosition={dropTarget?.date === day.date && dropTarget.targetId === card.bookingId ? (dropTarget.before ? 'before' : 'after') : null} highlighted={card.bookingId === highlightedBookingId} key={card.bookingId} onDragEnd={onCardDragEnd} onDragStart={(event) => onCardDragStart(card, event)}/>)}
+                  : <CalendarProductionCard canDrag={canInteract && !dragBusy && !card.locked && !card.completedAt} card={card} colorId={colorIdForCard(card)} dropPosition={dropTarget?.date === day.date && dropTarget.targetId === card.bookingId ? (dropTarget.before ? 'before' : 'after') : null} highlighted={card.bookingId === highlightedBookingId} key={card.bookingId} onClick={(interactiveChild)=>{if(shouldExpandCollapsedCalendarCard({dayDate:day.date,expandedDate,interactiveChild,dragGesture:suppressCardClick.current}))setExpandedWithAnchor(day.date,day.date);}} onDragEnd={onCardDragEnd} onDragStart={(event) => onCardDragStart(card, event)}/>)}
               </div>
             </article>;
           })}
@@ -650,11 +652,11 @@ function ExceptionalMovePanel({ state, onCancel, onChange, onSubmit }: { state: 
   </form></div>;
 }
 
-function CalendarProductionCard({ card, canDrag, colorId, dropPosition, highlighted, onDragEnd, onDragStart }: { card: ProductionBoardCard; canDrag: boolean;colorId?:CalendarLayerColorId; dropPosition: 'before' | 'after' | null; highlighted: boolean; onDragEnd: () => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void }) {
+function CalendarProductionCard({ card, canDrag, colorId, dropPosition, highlighted, onClick, onDragEnd, onDragStart }: { card: ProductionBoardCard; canDrag: boolean;colorId?:CalendarLayerColorId; dropPosition: 'before' | 'after' | null; highlighted: boolean; onClick?: (interactiveChild:boolean) => void; onDragEnd: () => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void }) {
   const color = calendarCardColor(card,colorId);
   const text = calendarCardText(card);
   const completed = card.completedAt !== null;
-  return <div className="calendar-production-card" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} title={text}>
+  return <div className="calendar-production-card" data-booking-id={card.bookingId} data-completed={completed || undefined} data-drop-position={dropPosition ?? undefined} data-highlighted={highlighted || undefined} draggable={canDrag || undefined} id={bookingElementId(card.bookingId)} onClick={(event)=>{event.stopPropagation();onClick?.(Boolean((event.target as HTMLElement).closest('button,a,input,select,textarea')));}} onDragEnd={onDragEnd} onDragStart={onDragStart} style={{ backgroundColor: color.background, color: color.foreground }} title={text}>
     <CalendarItemIcon card={card}/><span className="calendar-production-card-text">{text}</span>
     {completed ? <span aria-label="Completed" className="calendar-completion-cue">✓</span> : null}
   </div>;

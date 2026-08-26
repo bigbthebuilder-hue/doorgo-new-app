@@ -30,6 +30,6 @@ export function ManagerTabbedWorkspace({ canEdit, configuration, exceptions }: {
       </nav>
     </header>
     <ManagerCapacityWorkspace canEdit={canEdit} configuration={configuration}/>
-    <ManagerCapacityExceptionsWorkspace canEdit={canEdit} data={exceptions} roster={configuration.staff}/>
+    <ManagerCapacityExceptionsWorkspace canEdit={canEdit} data={exceptions} roster={configuration.staff} workweeks={configuration.workweeks}/>
   </div>;
 }

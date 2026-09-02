@@ -144,7 +144,8 @@ assert.match(standaloneGlass, /window\.print\(\)/, 'Valid Glass Calculator outpu
 assert.match(standaloneGlass, /<GlassUnitDiagram line=/, 'Glass Calculator print document must contain the authoritative diagram');
 assert.match(glassBuilder, /aria-label="Add left sidelight"/, 'Authoritative Glass diagram must expose keyboard-operable topology actions');
 assert.doesNotMatch(glassBuilder, /<strong>Left: \{composition\.leftSidelightCount\}/, 'Duplicate blank structural control must be removed');
-assert.match(standaloneGlass, /Send unavailable/, 'Glass Calculator Send must fail closed pending an approved message contract');
+assert.doesNotMatch(standaloneGlass, /Send unavailable/, 'Glass Calculator must not expose Send pending an approved message contract');
+assert.match(standaloneGlass, /isFrameGlassConfiguration\(line\.config\)[\s\S]*sidelightSpecifications[\s\S]*Not applicable/, 'Glass Calculator print must use the selected T-bar for applicable frame-glass configurations');
 assert.match(archiveControl, /app-overlay-workspace/, 'Normal archive overlay must preserve shell geometry');
 assert.doesNotMatch(schedulePage, /href="\/(?:production-board|account)"/, 'Production context must not duplicate permanent rail navigation');
 assert.match(schedulePage, /href="\/production-recovery"[^>]*>Past Schedule/, 'Past Schedule must remain available as an Edit Schedule utility');

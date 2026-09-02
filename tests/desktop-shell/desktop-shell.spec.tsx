@@ -401,6 +401,32 @@ test('Archive Job stays in an accessible job-level bottom action menu', async ({
   }
 });
 
+test('job bottom menus toggle, switch exclusively, and close on outside click', async ({ mount, page }) => {
+  const component = await mount(<JobEditorWorkbenchHarness saved/>);
+  const documents = component.getByText('Documents ▾', { exact: true });
+  const jobActions = component.getByText('Job Actions ▾', { exact: true });
+  const preview = component.getByRole('button', { name: 'Preview' });
+  const archive = component.getByRole('button', { name: 'Archive Job' });
+
+  await documents.click();
+  await expect(preview).toBeVisible();
+  await documents.click();
+  await expect(preview).toBeHidden();
+
+  await documents.click();
+  await jobActions.click();
+  await expect(preview).toBeHidden();
+  await expect(archive).toBeVisible();
+  await documents.click();
+  await expect(archive).toBeHidden();
+  await expect(preview).toBeVisible();
+
+  await component.locator('.job-editor-surface').click({ position: { x: 10, y: 10 } });
+  await expect(preview).toBeHidden();
+  await expect(archive).toBeHidden();
+  await page.keyboard.press('Tab');
+});
+
 test('job shell keeps its accepted desktop layout and responsive fallback at required widths', async ({ mount, page }) => {
   const component = await mount(<JobEditorWorkbenchHarness/>);
   for (const viewport of [
@@ -800,7 +826,7 @@ test('standalone Glass Calculator uses the shared live builder result and a purp
   await expect(editor).toBeVisible();
   await expect(page.getByRole('region', { name: 'Glass Calculator actions' })).toBeVisible();
   await expect(results).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Glass Calculator actions' }).getByRole('button', { name: 'Send unavailable' })).toBeDisabled();
+  await expect(page.getByRole('region', { name: 'Glass Calculator actions' }).getByRole('button', { name: /Send/ })).toHaveCount(0);
   await expect(page.locator('.app-context-bar').getByRole('button', { name: 'Print' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Update Result' })).toHaveCount(0);
   await expect(page.locator('.glass-unit-builder[role="dialog"]')).toHaveCount(0);
@@ -809,6 +835,14 @@ test('standalone Glass Calculator uses the shared live builder result and a purp
   const sharedGlassType = page.getByRole('region', { name: 'Shared sidelight specification' }).locator('label').filter({ hasText: /^Glass Type/ }).locator('select');
   await expect(sharedGlassType).toHaveCount(1);
   await expect(sharedGlassType).toHaveValue('CLEAR');
+  const printInputs = page.locator('.glass-calculator-print').getByLabel('Glass calculation inputs');
+  await expect(printInputs).toContainText('T-bar2.25');
+  await page.getByLabel('Unit T-bar Size').selectOption('1.5');
+  await expect(printInputs).toContainText('T-bar1.5');
+  await page.getByRole('button', { name: 'Remove left sidelight' }).click();
+  await expect(printInputs).toContainText('T-barNot applicable');
+  await page.getByRole('button', { name: 'Add left sidelight' }).click();
+  await page.getByLabel('Unit T-bar Size').selectOption('2.25');
   await expect(editor.locator('.glass-unit-diagram')).toHaveCount(1);
   await page.getByRole('button', { name: 'Add right sidelight' }).click();
   await page.getByRole('button', { name: 'Add left sidelight' }).click();

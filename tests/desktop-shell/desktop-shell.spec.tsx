@@ -924,6 +924,56 @@ test('shared Glass Unit Builder keeps left and right topology independent of swi
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 });
 
+test('T/DD exposes 1.5 and preserves 2.25 through calculation and print output', async ({ mount, page }) => {
+  await mount(<div className="app-workspace app-workspace-fluid"><StandaloneGlassCalculator/></div>);
+  await page.getByRole('button', { name: 'Remove left sidelight' }).click();
+  await page.getByRole('button', { name: 'Double Door' }).click();
+  await page.getByLabel('Slab Width').selectOption(`2'6"`);
+  await page.getByLabel('Swing').selectOption('LHOUT');
+  await page.getByLabel('RO Width (inches)').fill('62 9/16');
+  await page.getByLabel('RO Width (inches)').blur();
+  await page.getByLabel('RO Height (inches)').fill('95');
+  await page.getByLabel('RO Height (inches)').blur();
+  await page.getByRole('button', { name: 'Add transom' }).click();
+
+  const tBar = page.getByLabel('Transom T-bar Size');
+  await expect(page.locator('.glass-unit-builder header').locator('p')).toHaveText('T/DD');
+  await expect(tBar.locator('option')).toHaveText(['1-1/2 inch', '2-1/4 inch']);
+  await expect(tBar).toHaveValue('2.25');
+  await expect(page.locator('[data-glass-result="transom"]')).toContainText('60 7/16" × 11 1/8"');
+  await tBar.selectOption('1.5');
+  await expect(tBar).toHaveValue('1.5');
+  await expect(page.getByLabel('Calculated measurements')).toContainText('/ 1 1/2"');
+  await expect(page.locator('[data-glass-result="transom"]')).toContainText('60 7/16" × 11 7/8"');
+  await expect(page.locator('.glass-calculator-print').getByLabel('Glass calculation inputs')).toContainText('T-bar1.5');
+  await expect(page.locator('.glass-calculator-print')).toContainText('60 7/16" × 11 7/8"');
+});
+
+test('T/DDS selected T-bar recalculates shared transom height and print output', async ({ mount, page }) => {
+  await mount(<div className="app-workspace app-workspace-fluid"><StandaloneGlassCalculator/></div>);
+  await page.getByRole('button', { name: 'Double Door' }).click();
+  await page.getByLabel('Slab Width').selectOption(`2'6"`);
+  await page.getByLabel('Swing').selectOption('LHOUT');
+  await page.getByLabel('RO Width (inches)').fill('80');
+  await page.getByLabel('RO Width (inches)').blur();
+  await page.getByLabel('RO Height (inches)').fill('95');
+  await page.getByLabel('RO Height (inches)').blur();
+  await page.getByRole('button', { name: 'Add transom' }).click();
+
+  const tBar = page.getByLabel('Unit T-bar Size');
+  await expect(page.locator('.glass-unit-builder header').locator('p')).toHaveText('T/SDD');
+  await page.getByRole('button', { name: 'Remove left sidelight' }).click();
+  await page.getByRole('button', { name: 'Add right sidelight' }).click();
+  await expect(page.locator('.glass-unit-builder header').locator('p')).toHaveText('T/DDS');
+  await expect(tBar.locator('option')).toHaveText(['1-1/2 inch', '2-1/4 inch']);
+  await tBar.selectOption('2.25');
+  await expect(page.locator('[data-glass-result="transom"]')).toContainText('11 1/8"');
+  await tBar.selectOption('1.5');
+  await expect(page.locator('[data-glass-result="transom"]')).toContainText('11 7/8"');
+  await expect(page.locator('.glass-calculator-print').getByLabel('Glass calculation inputs')).toContainText('T-bar1.5');
+  await expect(page.locator('.glass-calculator-print')).toContainText('11 7/8"');
+});
+
 test('flexible exterior topology exposes structural Shop Hours in Job Lines', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   const component = await mount(<FlexibleShopHoursHarness/>);

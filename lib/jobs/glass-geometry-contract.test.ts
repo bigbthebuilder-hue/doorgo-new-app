@@ -8,6 +8,7 @@ import {
   glassConfigurationTopology,
   glassLineNeedsAttention,
   isGlassLineProductionReady,
+  numericDimension,
   normalizeSidelightType,
   retainCompatibleGlassFields,
 } from './glass-geometry-contract';
@@ -58,7 +59,7 @@ assert.equal(acceptedTransfer.glassCalc?.jambLeg, `97 1/2"`);
 assert.equal(acceptedTransfer.glassCalc?.headerWidth, `52"`);
 assert.deepEqual(acceptedTransfer.glassUnits.map(({ position, width, height }) => ({ position, width, height })), [
   { position: 'Right sidelight 1', width: `14 3/8"`, height: `79 1/8"` },
-  { position: 'Transom', width: `51 7/8"`, height: `14 1/8"` },
+  { position: 'Transom', width: `51 7/8"`, height: `14 7/8"` },
 ]);
 assert.match(acceptedTransfer.workorderDetail, /Jamb legs: 97 1\/2"/);
 assert.doesNotMatch(JSON.stringify(acceptedTransfer), /NaN|Infinity|"-\d/);
@@ -284,6 +285,25 @@ assert.equal((singleTransomOverride.glassCalc?.transomTBar as {nonStandard:boole
 const doubleTransomOverride = calculateGlassGeometry(line({ config: 'T/SDDS', roWidth: '96', roHeight: '96', transomTBarSize: '1.5' }));
 assert.equal((doubleTransomOverride.glassCalc?.transomTBar as {automaticDefault:string;nonStandard:boolean}).automaticDefault, '2.25');
 assert.equal((doubleTransomOverride.glassCalc?.transomTBar as {nonStandard:boolean}).nonStandard, true);
+const tddWithStandardTBar = calculateGlassGeometry(line({ config: 'T/DD', width: `2'6"`, hand: 'LHOUT', roWidth: '62 9/16', roHeight: '95', transomTBarSize: '2.25' }));
+const tddWithNarrowTBar = calculateGlassGeometry(line({ config: 'T/DD', width: `2'6"`, hand: 'LHOUT', roWidth: '62 9/16', roHeight: '95', transomTBarSize: '1.5' }));
+assert.equal(tddWithStandardTBar.glassCalc?.transomHeight, `11 1/8"`);
+assert.equal(tddWithNarrowTBar.glassCalc?.transomHeight, `11 7/8"`);
+const standardTddHeight = numericDimension(tddWithStandardTBar.glassCalc?.transomHeight);
+const narrowTddHeight = numericDimension(tddWithNarrowTBar.glassCalc?.transomHeight);
+assert.equal(standardTddHeight.ok && narrowTddHeight.ok ? narrowTddHeight.inches - standardTddHeight.inches : null, 0.75,
+  'reducing the T/DD T-bar by 3/4 inch increases transom height by 3/4 inch');
+const tddsWithStandardTBar = calculateGlassGeometry(line({ config: 'T/DDS', width: `2'6"`, hand: 'LHOUT', roWidth: '80', roHeight: '95', transomTBarSize: '2.25' }));
+const tddsWithNarrowTBar = calculateGlassGeometry(line({ config: 'T/DDS', width: `2'6"`, hand: 'LHOUT', roWidth: '80', roHeight: '95', transomTBarSize: '1.5' }));
+assert.equal(tddsWithStandardTBar.glassCalc?.transomHeight, `11 1/8"`);
+assert.equal(tddsWithNarrowTBar.glassCalc?.transomHeight, `11 7/8"`);
+const standardTddsHeight = numericDimension(tddsWithStandardTBar.glassCalc?.transomHeight);
+const narrowTddsHeight = numericDimension(tddsWithNarrowTBar.glassCalc?.transomHeight);
+assert.equal(standardTddsHeight.ok && narrowTddsHeight.ok ? narrowTddsHeight.inches - standardTddsHeight.inches : null, 0.75,
+  'reducing the T/DDS T-bar by 3/4 inch increases transom height by 3/4 inch');
+assert.deepEqual(calculateGlassGeometry(line({ config: 'D', transomTBarSize: '1.5' })).glassCalc,
+  calculateGlassGeometry(line({ config: 'D', transomTBarSize: '2.25' })).glassCalc,
+  'a configuration without an applicable T-bar is unchanged by an inapplicable stored value');
 assert.equal(calculateGlassGeometry(line({ transomTBarSize: '2' as never })).status, 'Blocked');
 const immutableLegacy = line();
 const immutableLegacySnapshot = structuredClone(immutableLegacy);

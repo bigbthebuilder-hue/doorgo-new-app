@@ -357,7 +357,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   let transomHeight: number | null = null;
   if (topology.hasTransom) {
     transomWidth = hasPanel || config === 'T/DD' || config === 'T/D' ? headerWidth - 0.125 : roW - 2.125;
-    transomHeight = (roH as number) - slab.height - (config === 'T/D' ? (outswing ? 4.125 : 4.375) : (outswing ? 4.875 : 5.125));
+    transomHeight = (roH as number) - slab.height - Number(unitTBar) - (outswing ? 2.625 : 2.875);
     if (hasPanel) transomHeight += 0.75;
     if (!(transomWidth > 0)) blockers.push(issue('nonpositive_transom_width', 'Transom width is zero or negative.'));
     if (!(transomHeight > 0)) blockers.push(issue('nonpositive_transom_height', 'RO height is too short; transom height would be zero or negative.'));

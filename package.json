@@ -18,6 +18,8 @@
     "verify:calendar-production-order": "node scripts/verify-calendar-production-order.mjs",
     "verify:calendar-needs-attention": "node scripts/verify-calendar-needs-attention.mjs",
     "verify:calendar-operational-items": "node scripts/verify-calendar-operational-items.mjs",
+    "verify:job-editor-return-navigation": "node scripts/verify-job-editor-return-navigation.mjs && node -e \"const fs=require('fs');const dir='.tmp-job-editor-navigation-test';if(fs.existsSync(dir))fs.rmSync(dir,{recursive:true,force:true});fs.mkdirSync(dir,{recursive:true});\" && npx tsc --pretty false --target es2022 --module commonjs --moduleResolution node --esModuleInterop --outDir .tmp-job-editor-navigation-test ./lib/jobs/job-editor-navigation.test.ts ./lib/jobs/job-editor-navigation.ts && node .tmp-job-editor-navigation-test/job-editor-navigation.test.js && node -e \"const fs=require('fs');const dir='.tmp-job-editor-navigation-test';if(fs.existsSync(dir))fs.rmSync(dir,{recursive:true,force:true});\"",
+    "verify:calendar-notes-database-contract": "node scripts/verify-calendar-notes-database-contract.mjs",
     "verify:calendar-continuous-range": "node scripts/verify-calendar-continuous-range.mjs",
     "verify:calendar-fulfillment-families": "node scripts/verify-calendar-fulfillment-families.mjs",
     "verify:calendar-unified-delete-lifecycle": "node scripts/verify-calendar-unified-delete-lifecycle.mjs",

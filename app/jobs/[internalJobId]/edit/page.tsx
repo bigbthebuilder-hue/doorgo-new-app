@@ -7,15 +7,19 @@ import { findJobWithAccess } from '@/lib/jobs/job-intake-service';
 import { AppShell } from '@/components/app-shell/AppShell';
 import { ContextTopBar } from '@/components/app-shell/ContextTopBar';
 import { buildProtectedAppNavigation } from '@/lib/app-shell/navigation';
+import { safeJobEditorReturnTarget } from '@/lib/jobs/job-editor-navigation';
 
 export default async function EditJobPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ internalJobId: string }>;
+  searchParams: Promise<{ returnTo?: string | string[] }>;
 }) {
   const access = await requireDoorGoProtectedAccess();
   if (!hasAtLeastView(access, 'jobs')) redirect('/account');
   const { internalJobId } = await params;
+  const returnTo = safeJobEditorReturnTarget((await searchParams).returnTo);
 
   let job;
   try {
@@ -32,7 +36,7 @@ export default async function EditJobPage({
 
   return (
     <AppShell hasBottomBar hasTopBar navigation={buildProtectedAppNavigation(access)} scrollOwner="workspace">
-      <JobHeaderForm canEdit={getPermissionAccess(access, 'jobs') === 'use'} canPermanentlyDelete={access.state === 'active' && access.profile.isManager} defaultSalesperson="" initialJob={job} inAppShell/>
+      <JobHeaderForm canEdit={getPermissionAccess(access, 'jobs') === 'use'} canPermanentlyDelete={access.state === 'active' && access.profile.isManager} defaultSalesperson="" initialJob={job} inAppShell returnTo={returnTo}/>
     </AppShell>
   );
 }

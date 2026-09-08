@@ -22,7 +22,7 @@ assert.match(nullSync,/SECURITY DEFINER SET search_path=''/);
 assert.match(hardenedGrants,/REVOKE ALL ON TABLE public\.dg_production_booking_delete_events FROM anon,authenticated/);
 assert.match(hardenedGrants,/GRANT SELECT ON TABLE public\.dg_production_booking_delete_events TO authenticated/);
 assert.match(workspace,/Delete Backorder \{card\.nativeSalesOrder\}/);
-assert.match(workspace,/deleteAllowed&&!card\.completedAt/);
+assert.match(workspace,/deleteAllowed&&!noteCard&&!card\.completedAt/);
 assert.match(workspace,/Reopen before deleting\./);
 assert.match(workspace,/card\.recordKind==='calendar_item'\?await deleteCalendarItem[\s\S]*deleteCalendarProductionBooking/);
 assert.match(calendarActions,/backorder_delete_required:'Use Delete Backorder/);

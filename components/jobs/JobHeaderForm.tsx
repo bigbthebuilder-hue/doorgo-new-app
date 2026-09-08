@@ -20,6 +20,7 @@ import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
 import { Workspace, WorkspaceSurface } from '@/components/app-shell/Workspace';
 import { useGuardedNavigation, useUnsavedChanges } from '@/components/app-shell/UnsavedChangesGuard';
 import { loadJobFulfillmentFamily } from '@/lib/calendar/fulfillment-actions';
+import { jobEditorPostSaveNavigation, type JobEditorReturnTarget } from '@/lib/jobs/job-editor-navigation';
 
 type FormValues = {
   bizTrackSalesOrder: string;
@@ -107,6 +108,7 @@ export function JobHeaderForm({
   initialDraft,
   transferReview,
   inAppShell = false,
+  returnTo = '/jobs',
 }: {
   initialJob: NativeJobAggregate | null;
   canEdit: boolean;
@@ -115,6 +117,7 @@ export function JobHeaderForm({
   initialDraft?: { header: JobHeaderInput; lines: DoorLineInput[] };
   transferReview?: LegacyTransferReviewContext;
   inAppShell?: boolean;
+  returnTo?: JobEditorReturnTarget;
 }) {
   const router = useRouter();
   const requestNavigation = useGuardedNavigation();
@@ -170,7 +173,7 @@ export function JobHeaderForm({
   }
 
   function leave() {
-    requestNavigation('/jobs');
+    requestNavigation(returnTo);
   }
 
   function outputPath(internalJobId: string, intent: WorkOrderOutputIntent) {
@@ -239,8 +242,8 @@ export function JobHeaderForm({
         const saved = await persistAggregate();
         if (!saved) return;
         setMessage({ kind: 'success', text: jobSaveConfirmation(saved) });
-        if (exitAfterSave) router.push('/jobs');
-        else if (!job) router.replace(`/jobs/${saved.internalJobId}/edit`);
+        const navigation=jobEditorPostSaveNavigation({exitAfterSave,hadJobBeforeSave:Boolean(job),internalJobId:saved.internalJobId,returnTo});
+        if(navigation)router[navigation.method](navigation.href);
       } catch {
         setMessage({ kind: 'error', text: 'DoorGo could not save this Job. Please try again.' });
       } finally { setPendingSaveIntent(null); }

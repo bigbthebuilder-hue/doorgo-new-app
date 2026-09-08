@@ -7,6 +7,10 @@ export type CalendarItemRow = {
   completed_at:string|null; revision:number|string; order_family_key:string|null; current_portion_id?:string|null;
 };
 
+export function isCalendarNoteCard(card:ProductionBoardCard):boolean{
+  return card.recordKind==='calendar_item'&&(card.calendarItemType==='note'||card.bookingKind==='note');
+}
+
 export function calendarItemCard(row:CalendarItemRow, linked?:{internalJobId:string;customer:string|null;salesOrder:string|null;salesperson:string|null},orders:{included:string[];available:string[];send?:string[]}={included:[],available:[]}):ProductionBoardCard {
   const customer=linked?.customer?.trim()||row.customer_name;
   const salesOrder=row.sales_order?.trim()||linked?.salesOrder?.trim()||null;
@@ -26,8 +30,9 @@ export function mergeCalendarItems(board:ProductionBoardViewModel,cards:Producti
     needsAttentionCards:[...board.needsAttentionCards,...needs].sort(order)};
 }
 export function replaceCalendarCardLocally(board:ProductionBoardViewModel,card:ProductionBoardCard):ProductionBoardViewModel{
-  const update=(cards:ProductionBoardCard[])=>cards.map((current)=>current.bookingId===card.bookingId?card:current);
-  return {...board,days:board.days.map((day)=>({...day,cards:update(day.cards)})),weekGroups:board.weekGroups.map((week)=>({...week,days:week.days.map((day)=>({...day,cards:update(day.cards)}))})),needsAttentionCards:update(board.needsAttentionCards)};
+  const update=(days:typeof board.days)=>days.map((day)=>{const cards=day.cards.filter((current)=>current.bookingId!==card.bookingId);if(day.date===card.productionDate)cards.push(card);return {...day,cards:cards.sort(order),bookingCount:cards.length};});
+  const needsAttentionCards=board.needsAttentionCards.filter((current)=>current.bookingId!==card.bookingId);if(card.productionDate===null)needsAttentionCards.push(card);
+  return {...board,days:update(board.days),weekGroups:board.weekGroups.map((week)=>({...week,days:update(week.days)})),needsAttentionCards:needsAttentionCards.sort(order)};
 }
 export function removeCalendarCardLocally(board:ProductionBoardViewModel,bookingId:string):ProductionBoardViewModel{
   const remove=(cards:ProductionBoardCard[])=>cards.filter((card)=>card.bookingId!==bookingId);

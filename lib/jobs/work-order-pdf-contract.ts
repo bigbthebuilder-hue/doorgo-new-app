@@ -6,7 +6,7 @@ const PAGE_WIDTH = 792;
 const PAGE_HEIGHT = 612;
 const MARGIN = 24;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-export const WORK_ORDER_PDF_COLUMN_WIDTHS = [28, 40, 60, 38, 70, 64, 55, 48, 65, 48, 36, 192] as const;
+export const WORK_ORDER_PDF_COLUMN_WIDTHS = [28, 64, 76, 38, 64, 58, 55, 48, 61, 48, 36, 168] as const;
 const FOOTER_CLEARANCE = 34;
 export const WORK_ORDER_PDF_TEXT_SIZES = { headerLabel: 8.5, headerValue: 10, tableHeader: 9, primary: 10.5, detail: 10 } as const;
 const DIAGRAM_MAX_WIDTH = 110;
@@ -44,7 +44,14 @@ function wrapText(font: PDFFont, value: string, size: number, maxWidth: number):
   if (!safe) return [''];
   const lines: string[] = [];
   let current = '';
-  for (const word of safe.split(/\s+/)) {
+  const rawWords = safe.split(/[ \t\r\n]+/);
+  const words: string[] = [];
+  for (let index = 0; index < rawWords.length; index += 1) {
+    const word = rawWords[index];
+    if (word === '×' && rawWords[index + 1]) words.push(`${word} ${rawWords[index += 1]}`);
+    else words.push(word);
+  }
+  for (const word of words) {
     const pending = current ? `${current} ${word}` : word;
     if (font.widthOfTextAtSize(pending, size) <= maxWidth) { current = pending; continue; }
     if (current) lines.push(current);

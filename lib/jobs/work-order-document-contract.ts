@@ -6,6 +6,7 @@ import { calculatePersistedGlassDiagramLayout, type GlassDiagramLayout } from '.
 import { withDerivedGlassGeometry } from './glass-geometry-contract';
 import { isFrameGlassConfiguration } from './glass-unit-composition-contract';
 import { unifiedJobIdentifier } from './unified-job-identifier';
+import { hasDoubleDoorCore, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
 
 export const WORK_ORDER_COLUMNS = ['Qty', 'Config', 'Size', 'Thick', 'Door Type', 'Drill', 'Hinge', 'Swing', 'Jamb', 'Sill', 'W/S', 'Notes/Glass'] as const;
 export const FIRST_PAGE_WEIGHT_CAPACITY = 22;
@@ -92,6 +93,13 @@ export type WorkOrderValidationIssue = {
 export type WorkOrderGenerationInput = { generatedAt: string; generatedDate: string };
 
 function text(value: unknown): string { return String(value ?? '').trim(); }
+
+export const WORK_ORDER_MEASUREMENT_NBSP = '\u00a0';
+
+/** Keeps the whole-number and fraction portions of mixed-inch measurements together. */
+export function protectWorkOrderMeasurements(value: string): string {
+  return value.replace(/(\d+)[ \t]+(\d+\/\d+)(?=["″])/g, `$1${WORK_ORDER_MEASUREMENT_NBSP}$2`);
+}
 
 export function resolveWorkOrderIdentifier(job: Pick<NativeJobAggregate, 'bizTrackSalesOrder' | 'doorGoReference'> & Partial<Pick<NativeJobAggregate, 'legacyJobId'>>): string {
   try { return unifiedJobIdentifier(job).value; }
@@ -201,9 +209,10 @@ function calculatedGlassProductionLine(line: NativeDoorLine): string {
   const sidelights = Array.isArray(calc.resolvedSidelights) ? calc.resolvedSidelights as ResolvedSidelight[] : [];
   const transomTBar = calc.transomTBar as ResolvedTBar | undefined;
   const unitTBar = transomTBar?.resolvedSize ?? sidelights[0]?.tBar.resolvedSize;
-  if (unitTBar) parts.push(`Unit T-bar: ${unitTBar}`);
+  if (unitTBar) parts.push(`Unit T-bar: ${canonicalStoredDimension(unitTBar)}`);
   const cutDown = canonicalStoredDimension(calc.cutDown);
   if (cutDown && cutDown !== '0"' && text(calc.finalDoorHeight)) parts.push(`Door cut to: ${text(calc.finalDoorHeight)}`);
+  if (hasDoubleDoorCore(line.config) && normalizeDoubleDoorAstragal(line.doubleDoorAstragal) === 'wood-ferco-astra-lock') parts.push('Astragal: Wood / Ferco Astra Lock — 1"');
   return parts.join(' | ');
 }
 
@@ -312,8 +321,17 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
       ? 'Blocked'
       : 'Complete';
   const details = compactWorkOrderDetails(glassConfiguration ? glassDetailRows(outputLine) : nonGlassDetailRows(nonGlassResult!));
-  const detailLineCount = details.flatMap((row) => row.lines).filter(Boolean).length;
-  return {
+  if (!glassConfiguration && hasDoubleDoorCore(outputLine.config) && normalizeDoubleDoorAstragal(outputLine.doubleDoorAstragal) === 'wood-ferco-astra-lock') {
+    const frame = details.find((row) => row.kind === 'frame');
+    if (frame) frame.lines = [...frame.lines, 'Astragal: Wood / Ferco Astra Lock — 1"'];
+    else details.unshift({ kind: 'frame', lines: ['Astragal: Wood / Ferco Astra Lock — 1"'] });
+  }
+  const diagram = glassConfiguration && outputLine.includeDiagramOnWorkOrder !== false ? calculatePersistedGlassDiagramLayout(outputLine) : null;
+  const detailCharactersPerLine = diagram ? 75 : 100;
+  const detailLineCount = details.reduce((count, row) => count + row.lines.reduce(
+    (lineCount, value) => lineCount + Math.max(1, Math.ceil(protectWorkOrderMeasurements(value).length / detailCharactersPerLine)), 0,
+  ), 0);
+  const group: WorkOrderRowGroup = {
     primaryRow: {
       lineId: outputLine.lineId, lineIndex: outputLine.lineIndex, status,
       cells: {
@@ -325,8 +343,16 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
       },
     },
     detailRows: details,
-    weightedUnits: 1 + (detailLineCount ? Math.max(2, Math.ceil(detailLineCount / 3)) : 0),
-    diagram: glassConfiguration && outputLine.includeDiagramOnWorkOrder !== false ? calculatePersistedGlassDiagramLayout(outputLine) : null,
+    weightedUnits: 1 + (detailLineCount ? Math.max(2, detailLineCount) : 0),
+    diagram,
+  };
+  return {
+    ...group,
+    primaryRow: {
+      ...group.primaryRow,
+      cells: Object.fromEntries(Object.entries(group.primaryRow.cells).map(([key, value]) => [key, protectWorkOrderMeasurements(value)])) as WorkOrderPrimaryRow['cells'],
+    },
+    detailRows: group.detailRows.map((detail) => ({ ...detail, lines: detail.lines.map(protectWorkOrderMeasurements) })),
   };
 }
 

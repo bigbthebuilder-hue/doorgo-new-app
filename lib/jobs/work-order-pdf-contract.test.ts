@@ -4,7 +4,7 @@ import { decodePDFRawStream, PDFArray, PDFDocument, PDFRawStream, StandardFonts 
 import { resolveCurrentDoorGoAccess } from '../auth/access';
 import { JobIntakeFailure, type NativeDoorLine, type NativeJobAggregate } from './job-intake-types';
 import { calculateGlassGeometry } from './glass-geometry-contract';
-import { createWorkOrderRowGroup, generateWorkOrderDocument, type WorkOrderDocument, type WorkOrderRowGroup } from './work-order-document-contract';
+import { createWorkOrderRowGroup, generateWorkOrderDocument, paginateWorkOrder, type WorkOrderDocument, type WorkOrderRowGroup } from './work-order-document-contract';
 import { calculateWorkOrderDiagramBounds, measureWorkOrderGroup, normalizeWorkOrderPdfText, printedWorkOrderStatusLabel, renderWorkOrderPdf, WORK_ORDER_PDF_COLUMN_WIDTHS, WORK_ORDER_PDF_TEXT_SIZES, WORK_ORDER_PDF_UNSUPPORTED_CHARACTER_FALLBACK, workOrderPdfHeaders } from './work-order-pdf-contract';
 import { generateRevisionPinnedSavedWorkOrderPdfWithAccess, generateSavedWorkOrderPdfWithAccess } from './work-order-pdf-service-contract';
 import { APPLY_LINE_BEFORE_OUTPUT_MESSAGE, buildWorkOrderPdfUrl, workOrderOutputDecision } from './work-order-preview-contract';
@@ -75,8 +75,54 @@ async function main() {
   assert.equal(calculateGlassGeometry(acceptedTransomSource).glassCalc?.jambLeg, `97 1/2"`);
   const acceptedTransomDocument = generateWorkOrderDocument(aggregate({ lines: [acceptedTransomSource] }), generation);
   const acceptedTransomPdfText = await extractedWinAnsiText(await renderWorkOrderPdf(acceptedTransomDocument));
-  assert.ok(acceptedTransomPdfText.includes('Jamb legs: 97 1/2"'), 'PDF text uses the shared corrected transom jamb-leg result');
+  assert.ok(acceptedTransomPdfText.includes('Jamb legs: 97\u00a01/2"'), 'PDF text uses the shared corrected transom jamb-leg result with atomic measurement spacing');
   assert.equal(acceptedTransomPdfText.includes('Jamb legs: 81"'), false);
+  const tttSource = line({
+    mode: 'Exterior', config: 'TTT/SDDS', width: `3'0"`, height: `8'0"`, material: 'fiberglass', hand: 'RHOUT',
+    roWidth: '142 13/16', roHeight: '112', sidelightType: 'Glass', transomTBarSize: '2.25', transomGlassTypeCode: 'CLEAR', includeDiagramOnWorkOrder: true,
+    sidelightSpecifications: [
+      { side: 'left', index: 1, finishedWidth: '31.75', tBarSize: '2.25', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+      { side: 'right', index: 1, finishedWidth: '31.75', tBarSize: '2.25', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+    ],
+  });
+  const tttCalculated = calculateGlassGeometry(tttSource);
+  const tttAggregate = aggregate({ lines: [{
+    ...tttSource, glassCalcStatus: tttCalculated.status, glassCalc: tttCalculated.glassCalc,
+    glassUnits: tttCalculated.glassUnits, glassWorkorderDetail: tttCalculated.workorderDetail,
+  }] });
+  const tttRepository = { findById: async () => tttAggregate };
+  const tttPreview = await generateSavedWorkOrderPdfWithAccess(access('view'), tttAggregate.internalJobId, 'inline', tttRepository);
+  const tttDownload = await generateSavedWorkOrderPdfWithAccess(access('view'), tttAggregate.internalJobId, 'attachment', tttRepository);
+  const tttSend = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access('view'), tttAggregate.internalJobId, tttAggregate.revision, tttRepository);
+  const tttBytes = tttPreview.bytes;
+  assert.ok(tttBytes.length > 500, 'representative TTT/SDDS saved work order generates non-empty PDF bytes');
+  assert.equal(tttPreview.headers.get('content-disposition')?.startsWith('inline;'), true, 'preview and print use the inline saved-revision PDF');
+  assert.equal(tttDownload.headers.get('content-disposition')?.startsWith('attachment;'), true, 'download uses the attachment response for the same saved revision');
+  assert.ok(tttDownload.bytes.length > 500 && tttSend.bytes.length > 500, 'download and Send generate the same authoritative saved revision successfully');
+  assert.equal(tttSend.document.internalCorrelation.sourceAggregateRevision, tttAggregate.revision);
+  assert.equal((await PDFDocument.load(tttBytes)).getPageCount(), 1, 'representative TTT/SDDS output is a valid PDF');
+  const tttPdfText = await extractedWinAnsiText(tttBytes);
+  assert.ok(tttPdfText.includes(`142\u00a013/16"`), 'rendered PDF contains the atomic fractional RO measurement');
+  assert.ok(tttPdfText.includes(`2\u00a01/4"`), 'rendered PDF contains the normalized configured 2-1/4 inch T-bar size');
+  for (const product of ['Left transom', 'Center transom', 'Right transom']) assert.ok(tttPdfText.includes(product), `rendered PDF contains ${product}`);
+  const fercoSource = { ...tttSource, roWidth: '143.0625', doubleDoorAstragal: 'wood-ferco-astra-lock' as const };
+  const fercoCalculated = calculateGlassGeometry(fercoSource);
+  const fercoDocument = generateWorkOrderDocument(aggregate({ lines: [{ ...fercoSource, glassCalcStatus: fercoCalculated.status, glassCalc: fercoCalculated.glassCalc, glassUnits: fercoCalculated.glassUnits, glassWorkorderDetail: fercoCalculated.workorderDetail }] }), generation);
+  const fercoPdfBytes = await renderWorkOrderPdf(fercoDocument);
+  assert.ok(fercoPdfBytes.length > 500 && (await PDFDocument.load(fercoPdfBytes)).getPageCount() === 1, 'Wood/Ferco DD work order renders as a valid PDF');
+  assert.match(await extractedWinAnsiText(fercoPdfBytes), /Astragal: Wood \/ Ferco Astra Lock.*1"/);
+  assert.ok(tttPreview.document.rowGroups[0].weightedUnits >= 5, 'long compacted TTT detail reserves its physical wrapped height');
+  const simpleRealRows = Array.from({ length: 6 }, (_, index) => createWorkOrderRowGroup(line({
+    lineId: `00000000-0000-4000-8000-${String(index + 2).padStart(12, '0')}`, lineIndex: index + 2,
+    mode: 'Exterior', config: index === 5 ? 'DD' : 'D', material: 'fiberglass', hand: 'LH',
+  }), 'C15'));
+  const realPayloadGroups = [simpleRealRows[0], tttPreview.document.rowGroups[0], ...simpleRealRows.slice(1)];
+  const realPayloadDocument: WorkOrderDocument = {
+    ...tttPreview.document, rowGroups: realPayloadGroups,
+    pages: paginateWorkOrder(realPayloadGroups, tttPreview.document.header),
+  };
+  assert.ok(realPayloadDocument.pages.length > 1, 'real seven-row payload characteristic moves the long TTT group before physical overflow');
+  assert.equal((await PDFDocument.load(await renderWorkOrderPdf(realPayloadDocument))).getPageCount(), realPayloadDocument.pages.length, 'real multi-row payload renders without printable-area failure');
   const measurementPdf = await PDFDocument.create();
   const measurementFont = await measurementPdf.embedFont(StandardFonts.Helvetica);
   const measurementBold = await measurementPdf.embedFont(StandardFonts.HelveticaBold);
@@ -97,6 +143,13 @@ async function main() {
   const safeWordLayout = measureWorkOrderGroup(safeWordRow, [], measurementFont);
   assert.deepEqual(safeWordLayout.primaryLines[4], ['Custom', 'Fiberglass'], 'Door Type wraps only between words');
   assert.equal(safeWordLayout.primaryLines.flat().some((value) => value === 'Fiberg' || value === 'lass'), false, 'normal words are never split mid-word');
+  const crowdedRow = createWorkOrderRowGroup(line({ config: 'TTT/SDDS', customSlab: 'WoodCustom', customSlabWidth: `142 13/16"`, customSlabHeight: `112"` }), null);
+  const crowdedLayout = measureWorkOrderGroup(crowdedRow.primaryRow, [], measurementFont);
+  assert.deepEqual(crowdedLayout.primaryLines[1], ['TTT/SDDS'], 'long configuration remains inside its widened Config column');
+  assert.equal(measurementFont.widthOfTextAtSize(crowdedLayout.primaryLines[1][0], WORK_ORDER_PDF_TEXT_SIZES.primary) <= WORK_ORDER_PDF_COLUMN_WIDTHS[1] - 6, true, 'TTT/SDDS does not collide with Size output');
+  assert.deepEqual(crowdedLayout.primaryLines[2], [`142\u00a013/16"`, `× 112"`], 'compound dimensions wrap only at the multiplication boundary');
+  assert.equal(crowdedLayout.primaryLines[2].includes('142'), false, '142 13/16 inch remains one visual token');
+  assert.equal(WORK_ORDER_PDF_COLUMN_WIDTHS.reduce((sum, width) => sum + width, 0), 744, 'column rebalance preserves the printable table width');
   assert.deepEqual(WORK_ORDER_PDF_TEXT_SIZES, { headerLabel: 8.5, headerValue: 10, tableHeader: 9, primary: 10.5, detail: 10 });
   base.columns.forEach((heading, index) => assert.ok(measurementBold.widthOfTextAtSize(heading, WORK_ORDER_PDF_TEXT_SIZES.tableHeader) <= WORK_ORDER_PDF_COLUMN_WIDTHS[index] - 6, `${heading} remains on one line`));
   assert.equal(base.rowGroups[0].detailRows.flatMap((row) => row.lines).some((value) => /FRAME\/CUT|F\.O\.\/CUT|^GLASS:/i.test(value)), false, 'production detail has no category prefixes');

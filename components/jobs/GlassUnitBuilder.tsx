@@ -14,6 +14,7 @@ import { aggregateVendorCopy, glassResultRows } from '@/lib/jobs/glass-result-pr
 import type { DoorLineInput, GlassTypeCode, SidelightSpecification, SidelightType } from '@/lib/jobs/job-intake-types';
 import { GlassUnitDiagram } from './GlassUnitDiagram';
 import { UnsavedChangesDialog } from '@/components/app-shell/UnsavedChangesGuard';
+import { DEFAULT_DOUBLE_DOOR_ASTRAGAL, DOUBLE_DOOR_ASTRAGALS, type DoubleDoorAstragalType } from '@/lib/jobs/double-door-astragal-contract';
 
 const control = 'min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-600 dark:bg-slate-950';
 const button = 'min-h-11 rounded-xl border border-slate-300 px-3 font-semibold dark:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40';
@@ -21,7 +22,7 @@ const button = 'min-h-11 rounded-xl border border-slate-300 px-3 font-semibold d
 function initialComposition(line: DoorLineInput): GlassUnitComposition {
   const parsed = parseGlassUnitConfiguration(line.config);
   if (parsed.ok) return parsed.value;
-  return { door: String(line.config).includes('DD') ? 'DD' : 'D', leftSidelightCount: 0, rightSidelightCount: 0, hasTransom: false };
+  return { door: String(line.config).includes('DD') ? 'DD' : 'D', leftSidelightCount: 0, rightSidelightCount: 0, hasTransom: false, transomSections: 0 };
 }
 
 function initialBuilderDraft(line: DoorLineInput): DoorLineInput {
@@ -32,8 +33,8 @@ function initialBuilderDraft(line: DoorLineInput): DoorLineInput {
   const savedSpecificationTBar = Array.isArray(withConfig.sidelightSpecifications)
     ? withConfig.sidelightSpecifications.map((entry) => normalizeTBarSize(entry.tBarSize)).find(Boolean) ?? null
     : null;
-  const unitTBar = normalizeTBarSize(withConfig.transomTBarSize) ?? savedSpecificationTBar
-    ?? (composition.hasTransom ? automaticTransomTBar(doorCount) : automaticSidelightTBar(normalizeSidelightType(withConfig.sidelightType) ?? 'Glass'));
+  const unitTBar = normalizeTBarSize(withConfig.transomTBarSize)
+    ?? (composition.hasTransom ? automaticTransomTBar(doorCount) : savedSpecificationTBar ?? automaticSidelightTBar(normalizeSidelightType(withConfig.sidelightType) ?? 'Glass'));
   const sidelightSpecifications = canonicalSidelightSpecifications(withConfig).map((entry) => ({ ...entry, tBarSize: unitTBar }));
   const initialized = {
     ...withConfig,
@@ -126,10 +127,12 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
       'config',
       config,
       );
+      const unitTBar = normalizeTBarSize(retained.transomTBarSize)
+        ?? (next.hasTransom ? automaticTransomTBar(next.door === 'DD' ? 2 : 1) : normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticSidelightTBar(normalizeSidelightType(retained.sidelightType) ?? 'Glass'));
       return {
         ...retained,
-        sidelightSpecifications: canonicalSidelightSpecifications({ ...retained, config }).map((entry) => { const existing = retained.sidelightSpecifications?.some((candidate) => candidate.side === entry.side && candidate.index === entry.index); return { ...entry, glassTypeCode: existing || (normalizeSidelightType(retained.sidelightType) ?? 'Glass') !== 'Glass' ? entry.glassTypeCode : 'CLEAR', tBarSize: normalizeTBarSize(retained.transomTBarSize) ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticSidelightTBar(normalizeSidelightType(retained.sidelightType) ?? 'Glass') }; }),
-        transomTBarSize: next.hasTransom ? normalizeTBarSize(retained.transomTBarSize) ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticTransomTBar(next.door === 'DD' ? 2 : 1) : null,
+        sidelightSpecifications: canonicalSidelightSpecifications({ ...retained, config }).map((entry) => { const existing = retained.sidelightSpecifications?.some((candidate) => candidate.side === entry.side && candidate.index === entry.index); return { ...entry, glassTypeCode: existing || (normalizeSidelightType(retained.sidelightType) ?? 'Glass') !== 'Glass' ? entry.glassTypeCode : 'CLEAR', tBarSize: unitTBar }; }),
+        transomTBarSize: next.hasTransom ? unitTBar : null,
         transomGlassTypeCode: next.hasTransom && !previousComposition.hasTransom && !normalizeGlassTypeCode(retained.transomGlassTypeCode ?? retained.transomGlass) ? 'CLEAR' : retained.transomGlassTypeCode,
       };
     });
@@ -194,6 +197,18 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
       return edit.kind === 'roHeight'
         ? { ...current, ...reconciled.sourcePatch }
         : nextGlassBuilderDraft({ ...current, ...reconciled.sourcePatch }, 'sidelightSpecifications', reconciled.sourcePatch.sidelightSpecifications);
+    });
+  }
+
+  function setAstragal(value: DoubleDoorAstragalType) {
+    setDraft((current) => {
+      const next = nextGlassBuilderDraft(current, 'doubleDoorAstragal', value);
+      const first = canonicalSidelightSpecifications(next)[0];
+      if (!first?.finishedWidth) return next;
+      const reconciled = reconcileGlassDimensionCommit(next, { kind: 'sidelightWidth', side: first.side, index: first.index, value: first.finishedWidth });
+      if (reconciled.blockers.length) { setMessage(reconciled.blockers[0].message); return next; }
+      setMessage('Astragal updated; required RO and dependent DD geometry recalculated.');
+      return { ...next, ...reconciled.sourcePatch };
     });
   }
 
@@ -279,7 +294,7 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
   const vendorCopy = aggregateVendorCopy(projected, calculation.glassUnits, calculation.vendorCopyText);
   function toggleTransom() {
     if (composition.hasTransom && (draft.transomGlass || draft.roHeight) && !window.confirm('Remove the transom and discard its entered data?')) return;
-    updateComposition({ ...composition, hasTransom: !composition.hasTransom });
+    updateComposition({ ...composition, hasTransom: !composition.hasTransom, transomSections: composition.hasTransom ? 0 : 1 });
     if (composition.hasTransom) setDraft((current) => ({ ...current, transomGlass: null, roHeight: null }));
   }
   return <div className={embedded ? 'glass-calculator-editor min-w-0' : 'app-overlay-workspace grid bg-slate-950/70 p-0 sm:p-4'} onMouseDown={embedded ? undefined : (event) => { if (event.target === event.currentTarget) close(); }}>
@@ -296,12 +311,14 @@ export function GlassUnitBuilder({ line, onCancel, onUse, onDraftChange, commitL
             {composition.rightSidelightCount ? <button aria-label="Remove right sidelight" className="glass-structure-action glass-structure-action--right-remove" onClick={() => updateComposition({ ...composition, rightSidelightCount: Math.max(0, composition.rightSidelightCount - 1) })} type="button">−</button> : null}
             <button aria-label={composition.hasTransom ? 'Remove transom' : 'Add transom'} className="glass-structure-action glass-structure-action--transom" onClick={toggleTransom} type="button">{composition.hasTransom ? '− Transom' : '+ Transom'}</button>
           </div>
+          {composition.hasTransom && composition.leftSidelightCount === 1 && composition.rightSidelightCount === 1 ? <label className="grid gap-1 font-semibold">Transom Layout<select className={control} onChange={(event) => updateComposition({ ...composition, transomSections: event.target.value === '3' ? 3 : 1 })} value={String(composition.transomSections ?? 1)}><option value="1">Single section</option><option value="3">Three aligned sections (TTT)</option></select></label> : null}
           <p className="text-xs text-slate-600 dark:text-slate-300">Viewed from outside. Left and right positions are independent; each side supports up to three sidelights.</p>
         </section>
         <section className="glass-builder-fields mt-3 grid content-start gap-2 lg:mt-0">
           <label className="grid gap-1 font-semibold">Swing<select className={control} onChange={(event) => changeSwing(event.target.value)} value={String(draft.hand ?? 'LH')}><option>LH</option><option>RH</option><option>LHOUT</option><option>RHOUT</option></select></label>
           <div className="grid grid-cols-2 gap-3"><label className="grid gap-1 font-semibold">Slab Width<select className={control} onChange={(event) => setField('width', event.target.value)} value={String(draft.width ?? '')}>{EXTERIOR_WIDTHS.map((value) => <option key={value}>{value}</option>)}</select></label><label className="grid gap-1 font-semibold">Slab Height<select className={control} onChange={(event) => setHeight(event.target.value)} value={String(draft.height ?? '')}>{DOOR_HEIGHTS.map((value) => <option key={value}>{value}</option>)}</select></label></div>
           <div className="grid grid-cols-2 gap-3"><label className="grid gap-1 font-semibold">RO Width (inches)<input className={control} onBlur={(event) => commitDimension({ kind: 'roWidth', value: event.target.value })} onChange={(event) => setField('roWidth', event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} value={String(draft.roWidth ?? '')}/></label><label className="grid gap-1 font-semibold">RO Height (inches)<input className={control} onBlur={(event) => commitRoHeight(event.target.value)} onChange={(event) => setField('roHeight', event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitRoHeight(event.currentTarget.value); event.currentTarget.blur(); } }} value={String(draft.roHeight ?? '')}/></label></div>
+          {composition.door === 'DD' ? <label className="grid gap-1 font-semibold">Astragal<select className={control} onChange={(event) => setAstragal(event.target.value as DoubleDoorAstragalType)} value={String(draft.doubleDoorAstragal ?? DEFAULT_DOUBLE_DOOR_ASTRAGAL)}>{Object.entries(DOUBLE_DOOR_ASTRAGALS).map(([value, option]) => <option key={value} value={value}>{option.label}</option>)}</select></label> : null}
           {sideCount ? <section className="grid gap-2" aria-label="Shared sidelight specification"><label className="grid gap-1 font-semibold">Sidelight Type<select className={control} onChange={(event) => setUnitSidelightType(event.target.value as SidelightType)} value={type ?? 'Glass'}><option>Glass</option><option>Panel</option></select></label><label className="grid gap-1 font-semibold">Unit T-bar Size<select className={control} onChange={(event) => setUnitTBar(event.target.value)} value={String(draft.transomTBarSize ?? specifications[0]?.tBarSize ?? automaticSidelightTBar(type ?? 'Glass'))}><option value="1.5">1-1/2 inch</option><option value="2.25">2-1/4 inch</option></select></label><label className="grid gap-1 font-semibold">Sidelight Product Width (inches)<input className={control} onBlur={(event) => commitUnitSidelightWidth(event.target.value)} onChange={(event) => setDraft((current) => nextGlassBuilderDraft(current, 'sidelightSpecifications', canonicalSidelightSpecifications(current).map((entry) => ({ ...entry, finishedWidth: event.target.value }))))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} value={specifications[0]?.finishedWidth ?? ''}/></label>{type === 'Glass' ? <><label className="grid gap-1 font-semibold">Glass Type<select className={control} onChange={(event) => updateUnitSidelightSpecification({ glassTypeCode: event.target.value as GlassTypeCode, customGlassDescription: event.target.value === 'CUSTOM' ? specifications[0]?.customGlassDescription : null })} value={specifications[0]?.glassTypeCode ?? 'CLEAR'}><option value="CLEAR">Clear</option><option value="SATIN_ETCH">Satin Etch</option><option value="CUSTOM">Custom</option></select></label>{specifications[0]?.glassTypeCode === 'CUSTOM' ? <label className="grid gap-1 font-semibold">Custom Glass Description<input className={control} onChange={(event) => updateUnitSidelightSpecification({ customGlassDescription: event.target.value })} value={specifications[0]?.customGlassDescription ?? ''}/></label> : null}</> : null}</section> : null}
           {sideCount && type === 'Panel' ? <label className="grid gap-1 font-semibold">Sidelight Panel Construction Notes<textarea className={control} onChange={(event) => setUnitPanelConstructionNotes(event.target.value)} value={specifications[0]?.panelConstructionNotes ?? ''}/></label> : null}
           {composition.hasTransom ? <fieldset className="grid gap-3 rounded-xl border border-slate-300 p-3 dark:border-slate-600"><legend className="px-2 font-bold">Transom</legend>{composition.door === 'DD' && !sideCount ? <label className="grid gap-1 font-semibold">Transom T-bar Size<select className={control} onChange={(event) => setUnitTBar(event.target.value)} value={String(draft.transomTBarSize ?? automaticTransomTBar(2))}><option value="1.5">1-1/2 inch</option><option value="2.25">2-1/4 inch</option></select></label> : null}<label className="grid gap-1 font-semibold">Transom Glass Type<select className={control} onChange={(event) => setField('transomGlassTypeCode', event.target.value)} value={String(draft.transomGlassTypeCode ?? '')}><option value="">Choose glass</option><option value="CLEAR">Clear</option><option value="SATIN_ETCH">Satin Etch</option><option value="CUSTOM">Custom</option></select></label>{draft.transomGlassTypeCode === 'CUSTOM' ? <label className="grid gap-1 font-semibold">Custom Transom Glass Description<input className={control} onChange={(event) => setField('transomCustomGlassDescription', event.target.value)} value={String(draft.transomCustomGlassDescription ?? '')}/></label> : null}<label className="grid gap-1 font-semibold">Transom Product Width (inches)<input className={control} onBlur={(event) => commitTransomWidth(event.target.value)} onChange={(event) => setTransomWidthInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} value={transomWidthInput}/></label></fieldset> : null}

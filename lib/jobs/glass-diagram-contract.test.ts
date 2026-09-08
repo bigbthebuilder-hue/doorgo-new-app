@@ -6,7 +6,7 @@ import type { DoorLineInput } from './job-intake-types';
 function fixture(config: string): DoorLineInput {
   const line: DoorLineInput = {
     lineId: config, mode: 'Exterior', config, width: `3'0"`, height: `6'8"`, material: 'fiberglass',
-    customSlab: 'No', hand: 'LH', roWidth: '96', roHeight: config.startsWith('T/') ? '100' : '',
+    customSlab: 'No', hand: 'LH', roWidth: '96', roHeight: config.startsWith('T') ? '100' : '',
     sidelightType: 'Glass', sidelightGlass: 'CLR_SB60_K4SG', transomGlass: 'CLR_SB60_K4SG',
   };
   const result = calculateGlassGeometry(line);
@@ -46,4 +46,12 @@ assert.equal(mixedLayout?.parts.find((part) => part.id === 'left-sidelight-1')?.
 assert.equal(mixedLayout?.parts.find((part) => part.id === 'right-sidelight-1')?.kind, 'glass');
 assert.equal(mixedLayout?.parts.find((part) => part.id === 'left-divider-1')?.width, 1.5);
 assert.equal(mixedLayout?.parts.find((part) => part.id === 'right-divider-1')?.width, 1.5, 'one unit-wide T-bar drives every divider');
+for (const config of ['TTT/SDS', 'TTT/SDDS']) {
+  const layout = calculateGlassDiagramLayout(fixture(config));
+  assert.equal(layout?.parts.filter((part) => part.id.startsWith('transom-') && part.kind === 'glass').length, 3, `${config} has three transom sections`);
+  const lower = layout?.parts.filter((part) => part.kind === 'divider' && !part.id.startsWith('upper-')) ?? [];
+  const upper = layout?.parts.filter((part) => part.id.startsWith('upper-')) ?? [];
+  assert.deepEqual(upper.map((part) => [part.x, part.width]), [lower[0], lower.at(-1)].map((part) => [part?.x, layout?.dividerWidth]), `${config} upper dividers align with lower boundaries and use the unit T-bar`);
+  assert.ok(upper.every((part) => part.y === 0 && lower.every((lowerPart) => lowerPart.y > 0)), `${config} upper and lower dividers terminate at the horizontal T-bar`);
+}
 console.log('Glass Unit Builder diagram contract: PASS');

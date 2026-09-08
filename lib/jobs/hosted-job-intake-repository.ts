@@ -25,6 +25,12 @@ function fromRow(row:unknown,fields:readonly string[]):Record<string,unknown>{
   const source=row as Record<string,unknown>;
   return Object.fromEntries(fields.map((field)=>[field,source[snake(field)]]));
 }
+
+function fromLineRow(row: unknown): Record<string, unknown> {
+  const mapped = fromRow(row, serverLineFields);
+  const calc = mapped.glassCalc;
+  return { ...mapped, doubleDoorAstragal: calc && typeof calc === 'object' && !Array.isArray(calc) ? (calc as Record<string, unknown>).doubleDoorAstragal : null };
+}
 function createHeaderPayload(input:JobHeaderInput,defaultSalesperson:string|null):Record<string,unknown>{
   const normalized=normalizeJobHeaderInput(input,defaultSalesperson);
   if(normalized.ok===false)throw new JobIntakeFailure('validation_failed',normalized.message,normalized.fieldErrors);
@@ -63,7 +69,7 @@ function aggregate(value:unknown):NativeJobAggregate{
   const envelope=value as Record<string,unknown>;
   const job=fromRow(envelope.job,serverJobFields);
   if(typeof job.internalJobId!=='string'||(job.doorGoReference!==null&&typeof job.doorGoReference!=='string')||typeof job.revision!=='number'||!Array.isArray(envelope.lines)) throw unavailable();
-  const lines=envelope.lines.map((row)=>fromRow(row,serverLineFields) as NativeDoorLine);
+  const lines=envelope.lines.map((row)=>fromLineRow(row) as NativeDoorLine);
   return {...job,lines} as NativeJobAggregate;
 }
 function listItem(value:unknown):NativeJobListItem{

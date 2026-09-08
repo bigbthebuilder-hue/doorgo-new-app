@@ -4,7 +4,7 @@ import {
   totalSidelightCount,
 } from './glass-unit-composition-contract';
 
-for (const config of ['D', 'DD', 'T/D', 'T/DD', 'SD', 'DS', 'SDS', 'DSS', 'DSSS', 'SSD', 'SSSD', 'SDDS', 'T/SD', 'T/DS', 'T/SDS', 'T/DSS', 'T/DSSS', 'T/SDDS']) {
+for (const config of ['D', 'DD', 'T/D', 'T/DD', 'SD', 'DS', 'SDS', 'DSS', 'DSSS', 'SSD', 'SSSD', 'SDDS', 'T/SD', 'T/DS', 'T/SDS', 'T/DSS', 'T/DSSS', 'T/SDDS', 'TTT/SDS', 'TTT/SDDS']) {
   const parsed = parseGlassUnitConfiguration(config);
   assert.equal(parsed.ok, true, config);
   if (parsed.ok) assert.equal(resolveGlassUnitConfiguration(parsed.value), config);

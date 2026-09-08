@@ -3,6 +3,7 @@ export type GlassUnitComposition = {
   leftSidelightCount: number;
   rightSidelightCount: number;
   hasTransom: boolean;
+  transomSections?: 0 | 1 | 3;
 };
 
 export type GlassCompositionParseResult =
@@ -16,14 +17,17 @@ export function resolveGlassUnitConfiguration(composition: GlassUnitComposition)
       !Number.isSafeInteger(composition.rightSidelightCount) || composition.rightSidelightCount < 0) {
     throw new Error('Sidelight counts must be nonnegative integers.');
   }
-  return `${composition.hasTransom ? 'T/' : ''}${'S'.repeat(composition.leftSidelightCount)}${composition.door}${'S'.repeat(composition.rightSidelightCount)}`;
+  const dividedTransom = composition.transomSections === 3 && composition.leftSidelightCount === 1 && composition.rightSidelightCount === 1;
+  const prefix = dividedTransom ? 'TTT/' : composition.hasTransom ? 'T/' : '';
+  return `${prefix}${'S'.repeat(composition.leftSidelightCount)}${composition.door}${'S'.repeat(composition.rightSidelightCount)}`;
 }
 
 export function parseGlassUnitConfiguration(value: unknown): GlassCompositionParseResult {
   const raw = String(value ?? '').trim().toUpperCase();
   const normalized = raw.startsWith('T-') ? `T/${raw.slice(2)}` : raw;
-  const hasTransom = normalized.startsWith('T/');
-  const body = hasTransom ? normalized.slice(2) : normalized;
+  const dividedTransom = normalized.startsWith('TTT/');
+  const hasTransom = dividedTransom || normalized.startsWith('T/');
+  const body = dividedTransom ? normalized.slice(4) : hasTransom ? normalized.slice(2) : normalized;
   const match = /^(S*)(DD|D)(S*)$/.exec(body);
   if (!match) return { ok: false, code: 'invalid_configuration', message: 'Configuration must contain one D or DD with optional exterior-view sidelights and T/ transom prefix.' };
   const valueResult: GlassUnitComposition = {
@@ -31,7 +35,9 @@ export function parseGlassUnitConfiguration(value: unknown): GlassCompositionPar
     leftSidelightCount: count(match[1], 'S'),
     rightSidelightCount: count(match[3], 'S'),
     hasTransom,
+    transomSections: dividedTransom ? 3 : hasTransom ? 1 : 0,
   };
+  if (dividedTransom && !['SDS', 'SDDS'].includes(body)) return { ok: false, code: 'invalid_configuration', message: 'TTT divided transoms are supported for SDS and SDDS.' };
   return { ok: true, value: valueResult, canonicalConfig: resolveGlassUnitConfiguration(valueResult) };
 }
 
@@ -67,13 +73,13 @@ export function placeSingleSidelightForSwing(composition: GlassUnitComposition, 
 export type GlassPhysicalComponent =
   | { kind: 'sidelight'; side: 'left' | 'right'; index: number }
   | { kind: 'door'; index: number }
-  | { kind: 'transom'; index: 1 };
+  | { kind: 'transom'; index: number };
 
 export function orderedGlassUnitComponents(value: GlassUnitComposition): GlassPhysicalComponent[] {
   return [
     ...Array.from({ length: value.leftSidelightCount }, (_, index) => ({ kind: 'sidelight' as const, side: 'left' as const, index: index + 1 })),
     ...Array.from({ length: value.door === 'DD' ? 2 : 1 }, (_, index) => ({ kind: 'door' as const, index: index + 1 })),
     ...Array.from({ length: value.rightSidelightCount }, (_, index) => ({ kind: 'sidelight' as const, side: 'right' as const, index: index + 1 })),
-    ...(value.hasTransom ? [{ kind: 'transom' as const, index: 1 as const }] : []),
+    ...Array.from({ length: value.transomSections ?? (value.hasTransom ? 1 : 0) }, (_, index) => ({ kind: 'transom' as const, index: index + 1 })),
   ];
 }

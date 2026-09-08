@@ -58,6 +58,10 @@ async function main() {
   assert.equal(exteriorDd.values?.doubleDoorCoreWidth?.display, `72 9/16"`);
   assert.equal(exteriorDd.values?.headerWidth?.display, `72 9/16"`);
   assert.equal(exteriorDd.values?.jambLeg?.display, `81"`);
+  const exteriorDdFerco = complete({ mode: 'Exterior', config: 'DD', doubleDoorAstragal: 'wood-ferco-astra-lock', material: 'fiberglass', hand: 'RHOUT', prep: 'STD', sill: 'STD', weatherstrip: 'WHT', jambWidth: `6-9/16"`, hingeType: 'BB' });
+  assert.equal(exteriorDdFerco.values?.doubleDoorCoreWidth?.display, `72 13/16"`, 'plain DD uses the shared one-inch Ferco astragal width');
+  const interiorDdFerco = complete({ config: 'DD', doubleDoorAstragal: 'wood-ferco-astra-lock', hand: null, prep: 'BOTH' });
+  assert.equal(interiorDdFerco.values?.doubleDoorCoreWidth?.display, `72 1/2"`, 'interior DD preserves its independent clearance allowance and adds only the astragal delta');
 
   const custom = complete({ mode: 'Exterior', material: 'wood', customSlab: 'WoodCustom', customSlabWidth: '35.75', customSlabHeight: '79.125', hand: 'LH', prep: 'STD', sill: 'STD', weatherstrip: 'WHT', jambWidth: `6-9/16"`, hingeType: 'BB' });
   assert.equal(custom.values?.actualSlabWidth.display, `35 3/4"`);

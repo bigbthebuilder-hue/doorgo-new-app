@@ -40,6 +40,14 @@ async function main(){
   assert.equal(calls[1].name,'dg_update_native_job');assert.equal(calls[1].args.p_expected_revision,1);
   await repository.archive({internalJobId:job.internal_job_id,expectedRevision:2,reason:'Done'});assert.equal(calls[2].name,'dg_archive_native_job');
   assert.equal((await repository.findById(job.internal_job_id))?.lines[0].config,'D');assert.equal(calls[3].name,'dg_get_native_job');
+  const fercoRepository=createHostedJobIntakeRepository({client:{rpc:async()=>({data:{job,lines:[{...line,config:'DD',glass_calc:{doubleDoorAstragal:'wood-ferco-astra-lock'}}]},error:null})}});
+  assert.equal((await fercoRepository.findById(job.internal_job_id))?.lines[0].doubleDoorAstragal,'wood-ferco-astra-lock','hosted reads rehydrate the explicit astragal from the existing glass_calc JSON unit payload');
+  let fercoPayload:Record<string,unknown>|null=null;
+  const fercoWriteRepository=createHostedJobIntakeRepository({client:{rpc:async(_name,args)=>{fercoPayload=args;return {data:{job,lines:[line]},error:null};}}});
+  await fercoWriteRepository.create({commandId:'88888888-8888-4888-8888-888888888888',actorUserId:job.created_by_user_id,defaultSalesperson:'Tester',input:{customer:'Ferco'},lines:[{lineId:line.line_id,mode:'Exterior',config:'DD',width:`3'0"`,height:`6'8"`,customSlab:'No',hand:'LHOUT',prep:'STD',jambWidth:`6-9/16"`,jambType:'Primed',sill:'STD',weatherstrip:'WHT',hingeType:'BB',material:'fiberglass',doubleDoorAstragal:'wood-ferco-astra-lock',qty:1}]});
+  assert.ok(fercoPayload);
+  const writtenLine=((fercoPayload as unknown as Record<string,unknown>).p_lines as Record<string,unknown>[])[0];
+  assert.equal((writtenLine.glass_calc as Record<string,unknown>).doubleDoorAstragal,'wood-ferco-astra-lock','hosted writes persist the stable enum in the existing glass_calc JSON unit payload');
   const page=await repository.listPage({limit:2,cursor:{updatedAt:'2026-07-29T11:00:00.000Z',internalJobId:'55555555-5555-4555-8555-555555555555'}});
   assert.equal(page.items[0].activeLineCount,1);assert.equal(page.page.hasMore,true);assert.equal(page.page.nextCursor?.internalJobId,job.internal_job_id);
   assert.deepEqual(calls[4].args,{p_include_archived:false,p_limit:2,p_cursor_updated_at:'2026-07-29T11:00:00.000Z',p_cursor_internal_job_id:'55555555-5555-4555-8555-555555555555'});

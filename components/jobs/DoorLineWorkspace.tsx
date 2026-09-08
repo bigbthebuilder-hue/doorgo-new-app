@@ -19,11 +19,12 @@ import { GlassUnitBuilder } from './GlassUnitBuilder';
 import { GlassUnitDiagram } from './GlassUnitDiagram';
 import { parseGlassUnitConfiguration, resolveGlassUnitConfiguration } from '@/lib/jobs/glass-unit-composition-contract';
 import { importedLineRenderKey } from '@/lib/jobs/legacy-transfer-review-presentation';
-import { replaceDoorLineAtIndex } from '@/lib/jobs/door-line-editor-state';
+import { duplicateDoorLine, replaceDoorLineById } from '@/lib/jobs/door-line-editor-state';
+import { DEFAULT_DOUBLE_DOOR_ASTRAGAL, DOUBLE_DOOR_ASTRAGALS, type DoubleDoorAstragalType } from '@/lib/jobs/double-door-astragal-contract';
 
 const control = 'min-h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-950';
 const button = 'min-h-9 rounded-md border border-slate-300 px-2 text-sm font-semibold dark:border-slate-600 disabled:cursor-not-allowed disabled:opacity-50';
-const geometryFields = new Set(['config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand', 'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'transomGlass', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight']);
+const geometryFields = new Set(['doubleDoorAstragal', 'config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand', 'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'transomGlass', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight']);
 
 function lineTitle(line: DoorLineInput): string {
   return [line.mode, line.doorType || 'TBD', `${line.width} × ${line.height}`, line.config, line.hand, line.jambWidth].filter(Boolean).join(' · ');
@@ -76,7 +77,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
 }) {
   const [editor, setEditor] = useState<DoorLineInput>(() => defaultDoorLine('Exterior'));
   const [editorBaseline, setEditorBaseline] = useState(() => JSON.stringify(defaultDoorLine('Exterior')));
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [workspacePane, setWorkspacePane] = useState<'input' | 'lines'>('input');
   const [ripMode, setRipMode] = useState(false);
   const [message, setMessage] = useState<{ error: boolean; text: string; lifecycleStage: JobLifecycleStage } | null>(null);
@@ -208,7 +209,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   }
 
   function resetEditor() {
-    const next = defaultDoorLine(mode); setEditor(next); setEditorBaseline(JSON.stringify(next)); setEditingIndex(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+    const next = defaultDoorLine(mode); setEditor(next); setEditorBaseline(JSON.stringify(next)); setEditingLineId(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
   function commitEditor(detailNeeded = explicitGlassDetailNeeded, submittedEditor: DoorLineInput = editor): boolean {
@@ -218,7 +219,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     const candidate = { ...submittedEditor, lineId: submittedEditor.lineId ?? globalThis.crypto.randomUUID(), lineStatus: 'Active' as const };
     const normalized = normalizeDoorLineInput(candidate);
     if (!normalized.ok) {
-      const special = lifecycleStage === 'Confirmed Job' && editingIndex !== null && active.length === 1 ? CONFIRMED_JOB_LINE_MESSAGE : Object.values(normalized.fieldErrors)[0] ?? normalized.message;
+      const special = lifecycleStage === 'Confirmed Job' && editingLineId !== null && active.length === 1 ? CONFIRMED_JOB_LINE_MESSAGE : Object.values(normalized.fieldErrors)[0] ?? normalized.message;
       setFieldErrors(normalized.fieldErrors);
       clearMessageTimer();
       setMessage({ error: true, text: special, lifecycleStage });
@@ -231,23 +232,24 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
       clearMessageTimer(); setMessage({ error: true, text: 'Leave Glass Detail Needed is available only while required glass information is missing.', lifecycleStage }); return false;
     }
     const saved = { ...candidate, ...normalized.value };
-    if (editingIndex !== null) onChange(replaceDoorLineAtIndex(lines, editingIndex, saved));
+    if (editingLineId !== null) onChange(replaceDoorLineById(lines, editingLineId, saved));
     else onChange([...lines, saved]);
-    showTransientMessage({ error: false, text: editingIndex !== null ? 'Door line updated. Save the job to persist it.' : 'Door line added. Save the job to persist it.' });
-    const nextEditor = defaultDoorLine(mode); setEditor(nextEditor); setEditorBaseline(JSON.stringify(nextEditor)); setEditingIndex(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false);
+    showTransientMessage({ error: false, text: editingLineId !== null ? 'Door line updated. Save the job to persist it.' : 'Door line added. Save the job to persist it.' });
+    const nextEditor = defaultDoorLine(mode); setEditor(nextEditor); setEditorBaseline(JSON.stringify(nextEditor)); setEditingLineId(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false);
     return true;
   }
 
   function edit(line: DoorLineInput) {
+    if (typeof line.lineId !== 'string' || !line.lineId) { showTransientMessage({ error: true, text: 'This door line has no stable identity. Reload and review the job.' }); return; }
     const editable = structuredClone(line);
     for (const name of ['roWidth', 'roHeight', 'customSlabWidth', 'customSlabHeight', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight'] as const) editable[name] = storedShopInput(editable[name]);
-    setEditor(editable); setEditorBaseline(JSON.stringify(editable)); setEditingIndex(lines.indexOf(line)); setRipMode(String(line.ripJamb ?? '').toLowerCase() === 'yes'); setCalculationStatus(null);
+    setEditor(editable); setEditorBaseline(JSON.stringify(editable)); setEditingLineId(line.lineId); setRipMode(String(line.ripJamb ?? '').toLowerCase() === 'yes'); setCalculationStatus(null);
     setFieldErrors({}); setOverrideReason(line.glassOverride?.reason ?? ''); setAcceptedValues(line.glassOverride?.acceptedValues ?? line.glassCalc ?? {}); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
     setWorkspacePane('input');
   }
 
   function duplicate(line: DoorLineInput) {
-    const duplicateLine = { ...structuredClone(line), lineId: globalThis.crypto.randomUUID(), lineStatus: 'Active' as const, lineIndex: lines.length + 1, glassOverride: null, glassCalcStatus: line.glassCalcStatus === 'Manual Override' ? 'Warning' as const : line.glassCalcStatus };
+    const duplicateLine = duplicateDoorLine(line, globalThis.crypto.randomUUID(), lines.length + 1);
     onChange([...lines, duplicateLine]); showTransientMessage({ error: false, text: 'Door line duplicated with a new identity. Any manual override requires fresh approval.' });
   }
 
@@ -310,7 +312,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
       <button aria-controls="job-lines-pane" aria-pressed={workspacePane === 'lines'} onClick={() => setWorkspacePane('lines')} type="button">Job Lines ({active.length})</button>
     </div>
     <div className="door-input-pane min-w-0 rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="door-input-pane">
-      <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Door editor</p><h2 className="text-base font-semibold">{editingIndex !== null ? 'Edit Door Line' : 'Add Door Line'}</h2></div><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold dark:bg-slate-800">{isGlass ? 'Glass unit' : 'Door line'}</span></div>
+      <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Door editor</p><h2 className="text-base font-semibold">{editingLineId !== null ? 'Edit Door Line' : 'Add Door Line'}</h2></div><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold dark:bg-slate-800">{isGlass ? 'Glass unit' : 'Door line'}</span></div>
       {!canEdit ? <p className="mt-4 rounded-xl bg-sky-50 p-3 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-100">Door lines and geometry are read-only with jobs = view.</p> : <>
         <div className="mt-2 grid grid-cols-2 gap-1.5" aria-label="Door mode">{(['Exterior', 'Interior'] as const).map((value) => <button className={`${button} ${mode === value ? 'border-sky-700 bg-sky-700 text-white' : ''}`} key={value} onClick={() => chooseMode(value)} type="button">{value}</button>)}</div>
         <div className="door-primary-grid mt-2 grid gap-2 sm:grid-cols-3 2xl:grid-cols-4">
@@ -321,6 +323,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
           <label className="grid gap-1 text-sm font-semibold">Width<select className={control} onChange={(event) => set('width', event.target.value)} value={String(editor.width)}>{widths.map((value) => <option key={value}>{value}</option>)}</select></label>
           <label className="grid gap-1 text-sm font-semibold">Height<select className={control} onChange={(event) => setHeight(event.target.value)} value={String(editor.height)}>{DOOR_HEIGHTS.map((value) => <option key={value}>{value}</option>)}</select></label>
           {!noJamb ? <label className="grid gap-1 text-sm font-semibold">Swing<select className={control} onChange={(event) => setSwing(event.target.value)} value={String(editor.hand ?? '')}>{mode === 'Interior' && config === 'DD' ? <option value="">No handing</option> : null}<option>LH</option><option>RH</option>{mode === 'Exterior' ? <><option>LHOUT</option><option>RHOUT</option></> : null}</select></label> : null}
+          {mode === 'Exterior' && config === 'DD' ? <label className="grid gap-1 text-sm font-semibold">Astragal<select className={control} onChange={(event) => set('doubleDoorAstragal', event.target.value as DoubleDoorAstragalType)} value={String(editor.doubleDoorAstragal ?? DEFAULT_DOUBLE_DOOR_ASTRAGAL)}>{Object.entries(DOUBLE_DOOR_ASTRAGALS).map(([value, option]) => <option key={value} value={value}>{option.label}</option>)}</select></label> : null}
           <label className="grid gap-1 text-sm font-semibold">Prep<select className={control} onChange={(event) => set('prep', event.target.value)} value={String(editor.prep ?? '')}>{prepChoices(mode, config).map((value) => <option key={value}>{value}</option>)}</select></label>
           <label className="grid gap-1 text-sm font-semibold">Quantity<input className={control} min="1" onChange={(event) => set('qty', event.target.value)} step="1" type="number" value={String(editor.qty ?? 1)}/></label>
         </div>
@@ -343,11 +346,11 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
         </div>
         <div className="door-input-local-footer mt-2">
           <div className="door-input-preview text-xs"><span className="font-semibold">Preview:</span> {lineTitle(editor)}</div>
-          <div className="door-input-local-actions flex flex-wrap gap-2"><button className={`${button} border-sky-700 bg-sky-700 text-white`} onClick={() => commitEditor()} type="button">{editingIndex !== null ? 'Update Door' : 'Add Door'}</button>{editingIndex !== null ? <button className={button} onClick={resetEditor} type="button">Cancel Edit</button> : null}</div>
+          <div className="door-input-local-actions flex flex-wrap gap-2"><button className={`${button} border-sky-700 bg-sky-700 text-white`} onClick={() => commitEditor()} type="button">{editingLineId !== null ? 'Update Door' : 'Add Door'}</button>{editingLineId !== null ? <button className={button} onClick={resetEditor} type="button">Cancel Edit</button> : null}</div>
         </div>
       </>}
       {visibleMessage ? <p aria-live="polite" className={`mt-4 rounded-xl p-3 text-sm ${visibleMessage.error ? 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100' : 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'}`} role="status">{visibleMessage.text}</p> : null}
-      {builderOpen ? <GlassUnitBuilder commitLabel={editingIndex !== null ? 'Save Door Changes' : 'Add Door to Order'} line={structuredClone(editor)} onCancel={() => setBuilderOpen(false)} onUse={(next, explicitDetailNeeded) => { const committed = commitEditor(explicitDetailNeeded, next); if (committed) { setBuilderOpen(false); setCalculationStatus(null); clearWorkspaceMessage(); } return committed; }}/>: null}
+      {builderOpen ? <GlassUnitBuilder commitLabel={editingLineId !== null ? 'Save Door Changes' : 'Add Door to Order'} line={structuredClone(editor)} onCancel={() => setBuilderOpen(false)} onUse={(next, explicitDetailNeeded) => { const committed = commitEditor(explicitDetailNeeded, next); if (committed) { setBuilderOpen(false); setCalculationStatus(null); clearWorkspaceMessage(); } return committed; }}/>: null}
     </div>
 
     <aside className="job-lines-pane min-w-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="job-lines-pane">

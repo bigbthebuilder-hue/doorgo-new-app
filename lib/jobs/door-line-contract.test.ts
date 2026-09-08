@@ -16,6 +16,7 @@ import {
 
 import { canReadJobs, canWriteJobs } from './job-intake-contract';
 import { createLocalJobIntakeRepository } from './local-job-intake-repository';
+import { duplicateDoorLine, replaceDoorLineById } from './door-line-editor-state';
 import { JobIntakeFailure, type DoorLineInput, type NativeDoorLine } from './job-intake-types';
 
 const actor = 'user-j2';
@@ -32,6 +33,26 @@ function failure(code: string) {
 }
 
 async function main() {
+  const firstSd = validLine({ config: 'SD', hand: 'LH', roWidth: '60', hingeType: 'BB', notes: 'first', sidelightSpecifications: [{ side: 'left', index: 1, finishedWidth: '12', tBarSize: '1.5', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null }] });
+  const middleSingle = validLine({ lineId: lineId2, config: 'D', hand: 'LH', width: `2'8"`, notes: 'middle' });
+  const thirdSd = validLine({ lineId: lineId3, config: 'SD', hand: 'RH', roWidth: '72', hingeType: 'NRP', notes: 'third', sidelightSpecifications: [{ side: 'left', index: 1, finishedWidth: '18', tBarSize: '2.25', glassTypeCode: 'SATIN_ETCH', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null }] });
+  const reordered = [thirdSd, firstSd, middleSingle];
+  const editedThird = replaceDoorLineById(reordered, lineId3, { ...structuredClone(thirdSd), hand: 'LHOUT', roWidth: '74' });
+  assert.deepEqual(editedThird.map((line) => line.lineId), [lineId3, lineId1, lineId2], 'reorder preserves stable line identity and order');
+  assert.equal(editedThird.find((line) => line.lineId === lineId1)?.hand, 'LH', 'SD + Single + SD edit cannot leak to the other SD line');
+  assert.equal(editedThird.find((line) => line.lineId === lineId1)?.roWidth, '60', 'identical configurations retain independent dimensions');
+  assert.equal(editedThird.find((line) => line.lineId === lineId3)?.hand, 'LHOUT', 'the selected line receives its own swing edit after reorder');
+  assert.throws(() => replaceDoorLineById(reordered, lineId3, { ...thirdSd, lineId: lineId1 }), /identity cannot change/, 'an edit cannot be redirected to another identity');
+
+  const copied = duplicateDoorLine(thirdSd, '44444444-4444-4444-8444-444444444444', 4);
+  (copied.sidelightSpecifications as Array<{ finishedWidth: string | null }>)[0].finishedWidth = '20';
+  copied.glassWarnings = [{ code: 'duplicate-only', message: 'duplicate-only' }];
+  assert.equal((thirdSd.sidelightSpecifications as Array<{ finishedWidth: string | null }>)[0].finishedWidth, '18', 'duplicate nested glass/T-bar state is independent from its source');
+  assert.deepEqual(thirdSd.glassWarnings, [], 'duplicate nested arrays are independent from their source');
+  const sourceAfterDuplicateEdit = replaceDoorLineById([thirdSd, copied], lineId3, { ...thirdSd, hand: 'RHOUT', hingeType: 'BB' });
+  assert.equal(sourceAfterDuplicateEdit.find((line) => line.lineId === copied.lineId)?.hand, 'RH', 'editing the source after duplication does not change the duplicate');
+  assert.equal(sourceAfterDuplicateEdit.find((line) => line.lineId === copied.lineId)?.hingeType, 'NRP', 'hardware stays attached to the duplicated identity');
+
   assert.deepEqual(jambWidthChoices('Exterior'), [`6-9/16"`, `4-9/16"`, `7-1/4"`, `8-7/8"`]);
   assert.deepEqual(jambWidthChoices('Interior'), [`4-9/16"`, `6-9/16"`, `7-1/4"`, `8-7/8"`]);
   const deepJamb = normalizeDoorLineInput(validLine({ jambWidth: `8-7/8"` }));
@@ -171,6 +192,12 @@ async function main() {
     assert.equal(bp.ok && bp.value.roHeight, '80', 'B.P. preserves cutting F.O. height');
     const j2bPartial = normalizeDoorLineInput(validLine({ config: 'SD' }));
     assert.equal(j2bPartial.ok && j2bPartial.value.glassCalcStatus, 'Glass Detail Needed', 'J2B glass configs are now save-valid when detail is incomplete');
+    const exteriorDdDefault = normalizeDoorLineInput(validLine({ config: 'DD' }));
+    assert.equal(exteriorDdDefault.ok && exteriorDdDefault.value.doubleDoorAstragal, 'standard-metal-ds347', 'new and omitted exterior DD astragals resolve to Standard Metal');
+    const exteriorDdFerco = normalizeDoorLineInput(validLine({ config: 'DD', doubleDoorAstragal: 'wood-ferco-astra-lock' }));
+    assert.equal(exteriorDdFerco.ok && exteriorDdFerco.value.doubleDoorAstragal, 'wood-ferco-astra-lock', 'plain exterior DD preserves an explicit Wood/Ferco selection');
+    const exteriorSingle = normalizeDoorLineInput(validLine({ config: 'D', doubleDoorAstragal: 'wood-ferco-astra-lock' }));
+    assert.equal(exteriorSingle.ok && exteriorSingle.value.doubleDoorAstragal, null, 'single exterior doors cannot retain astragal state');
     assert.equal(normalizeDoorLineInput(validLine({ customSlab: 'WoodCustom', material: 'wood', customSlabWidth: '', customSlabHeight: '80' })).ok, false);
     assert.equal(normalizeDoorLineInput(validLine({ ripJamb: 'Yes', jambWidth: 'RIP' })).ok, false);
 

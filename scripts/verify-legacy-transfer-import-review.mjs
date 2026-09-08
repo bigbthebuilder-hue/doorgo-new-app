@@ -55,7 +55,7 @@ assert.doesNotMatch(glassBuilder, /key=\{issue\.code\}/, 'nested glass evidence 
 assert.match(mapping, /function lineEvidencePath[\s\S]*`lines\.\$\{index\}\.\$\{field\}`[\s\S]*uniqueLegacyTransferIssues/, 'exact evidence duplicates must be removed without losing line scope');
 assert.match(presentation, /JSON\.stringify\(\[group, issue\.code, issue\.path, issue\.message, occurrence\]\)/, 'evidence keys must include stable content and occurrence');
 assert.match(browserTest, /consoleErrors[\s\S]*same key[\s\S]*toEqual\(\[\]\)/, 'focused rendering must assert that React reports no duplicate keys');
-assert.match(lines, /editingIndex !== null[\s\S]*replaceDoorLineAtIndex\(lines, editingIndex, saved\)/, 'id-less imported lines must update by their local editor position');
+assert.match(lines, /editingLineId !== null[\s\S]*replaceDoorLineById\(lines, editingLineId, saved\)/, 'imported lines must update by their stable transfer-line identity');
 assert.match(glassBrowserTest, /Status: Complete[\s\S]*attention-count[\s\S]*toHaveText\('0'\)/, 'completed imported glass must clear attention state');
 assert.doesNotMatch(glassBrowserTest, /createTransferredJobAction|\.rpc\(|fetch\(/, 'focused glass rendering must remain local-only');
 for (const forbidden of ['dg_production', 'dg_calendar', 'dg_fulfillment', 'dg_document', 'resend', 'send email']) {

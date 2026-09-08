@@ -11,6 +11,7 @@ import { GlassUnitDiagram } from './GlassUnitDiagram';
 import { ContextBottomBar } from '@/components/app-shell/ContextBottomBar';
 import { glassResultRows } from '@/lib/jobs/glass-result-presentation';
 import { isFrameGlassConfiguration } from '@/lib/jobs/glass-unit-composition-contract';
+import { DOUBLE_DOOR_ASTRAGALS, hasDoubleDoorCore, normalizeDoubleDoorAstragal } from '@/lib/jobs/double-door-astragal-contract';
 
 const initialLine = (): DoorLineInput => ({
   ...defaultDoorLine('Exterior'),
@@ -32,6 +33,7 @@ export function StandaloneGlassCalculator() {
   const selectedTBar = isFrameGlassConfiguration(line.config)
     ? normalizeTBarSize(line.transomTBarSize) ?? line.sidelightSpecifications?.map((entry) => normalizeTBarSize(entry.tBarSize)).find(Boolean) ?? null
     : null;
+  const selectedAstragal = hasDoubleDoorCore(line.config) ? DOUBLE_DOOR_ASTRAGALS[normalizeDoubleDoorAstragal(line.doubleDoorAstragal)].label : null;
   const actions = <div className="glass-calculator-actions flex flex-wrap justify-end gap-1.5">
     {printable ? <button className="app-button app-button-primary" onClick={() => window.print()} type="button">Print</button> : null}
   </div>;
@@ -44,7 +46,7 @@ export function StandaloneGlassCalculator() {
         <header><Image alt="DoorGo" height={48} src="/brand/doorgo-mark.svg" width={48}/><div><strong>DoorGo</strong><h1>Glass Calculation</h1></div><p className="ml-auto font-semibold">{result.status}</p></header>
         <h2>Configuration</h2>
         <GlassUnitDiagram line={{ ...line, glassCalc: result.glassCalc }}/>
-        <dl aria-label="Glass calculation inputs"><div><dt>Configuration</dt><dd>{line.config}</dd></div><div><dt>Swing</dt><dd>{line.hand ?? 'Not selected'}</dd></div><div><dt>Slab size</dt><dd>{String(line.width ?? '—')} × {String(line.height ?? '—')}</dd></div><div><dt>Rough opening</dt><dd>{String(line.roWidth ?? '—')} × {String(line.roHeight ?? '—')}</dd></div><div><dt>Structure</dt><dd>{line.sidelightType ?? 'Door only'}</dd></div><div><dt>T-bar</dt><dd>{selectedTBar ?? 'Not applicable'}</dd></div></dl>
+        <dl aria-label="Glass calculation inputs"><div><dt>Configuration</dt><dd>{line.config}</dd></div><div><dt>Swing</dt><dd>{line.hand ?? 'Not selected'}</dd></div><div><dt>Slab size</dt><dd>{String(line.width ?? '—')} × {String(line.height ?? '—')}</dd></div><div><dt>Rough opening</dt><dd>{String(line.roWidth ?? '—')} × {String(line.roHeight ?? '—')}</dd></div><div><dt>Structure</dt><dd>{line.sidelightType ?? 'Door only'}</dd></div>{selectedAstragal ? <div><dt>Astragal</dt><dd>{selectedAstragal}</dd></div> : null}<div><dt>T-bar</dt><dd>{selectedTBar ?? 'Not applicable'}</dd></div></dl>
         <h2>Calculated measurements</h2>
         {result.glassCalc ? <dl><div><dt>Jamb legs</dt><dd>{String(result.glassCalc.jambLeg)}</dd></div><div><dt>Header / sill / T-bar</dt><dd>{String(result.glassCalc.headerWidth)} / {String(result.glassCalc.divider)}</dd></div>{resultRows.map((row) => <div key={`print:${row.key}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl> : <p>Calculation is incomplete.</p>}
         {[...result.incompleteDetails, ...result.warnings, ...result.blockers].length ? <><h2>Warnings and status</h2>{[...result.incompleteDetails, ...result.warnings, ...result.blockers].map((issue, index) => <p key={`print:${issue.code}:${issue.message}:${index}`}>{issue.message}</p>)}</> : null}

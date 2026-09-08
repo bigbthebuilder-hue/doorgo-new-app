@@ -69,7 +69,17 @@ export function calculateGlassCompositionSchematic(line: DoorLineInput): GlassDi
   }
   if (parsed.value.hasTransom) {
     parts.push({ id: 'transom-divider', kind: 'transom-divider', x: 0, y: transomHeight, width, height: dividerWidth });
-    parts.push({ id: 'transom', kind: 'glass', x: 0, y: 0, width, height: transomHeight });
+    if (parsed.value.transomSections === 3) {
+      const lowerDividers = parts.filter((part) => part.kind === 'divider');
+      const left = lowerDividers[0]; const right = lowerDividers.at(-1);
+      if (left && right) {
+        parts.push({ id: 'transom-left', kind: 'glass', x: 0, y: 0, width: left.x, height: transomHeight });
+        parts.push({ id: 'upper-left-divider', kind: 'divider', x: left.x, y: 0, width: dividerWidth, height: transomHeight });
+        parts.push({ id: 'transom-center', kind: 'glass', x: left.x + dividerWidth, y: 0, width: right.x - left.x - dividerWidth, height: transomHeight });
+        parts.push({ id: 'upper-right-divider', kind: 'divider', x: right.x, y: 0, width: dividerWidth, height: transomHeight });
+        parts.push({ id: 'transom-right', kind: 'glass', x: right.x + dividerWidth, y: 0, width: width - right.x - dividerWidth, height: transomHeight });
+      }
+    } else parts.push({ id: 'transom', kind: 'glass', x: 0, y: 0, width, height: transomHeight });
   }
   return { width, height: bodyY + doorHeight, dividerWidth, parts };
 }
@@ -141,7 +151,17 @@ function diagramLayoutFromValues(line: DoorLineInput, calc: GlassGeometryValues)
   }
   if (topology.hasTransom) {
     parts.push({ id: 'transom-divider', kind: 'transom-divider', x: 0, y: transomHeight, width, height: dividerWidth });
-    parts.push({ id: 'transom', kind: 'glass', x: (width - transomWidth) / 2, y: 0, width: transomWidth, height: transomHeight, label: 'Transom' });
+    if (composition.value.transomSections === 3) {
+      const lowerDividers = parts.filter((part) => part.kind === 'divider');
+      const left = lowerDividers[0]; const right = lowerDividers.at(-1);
+      if (left && right) {
+        parts.push({ id: 'transom-left', kind: 'glass', x: 0, y: 0, width: left.x, height: transomHeight, label: 'Transom L' });
+        parts.push({ id: 'upper-left-divider', kind: 'divider', x: left.x, y: 0, width: dividerWidth, height: transomHeight });
+        parts.push({ id: 'transom-center', kind: 'glass', x: left.x + dividerWidth, y: 0, width: right.x - left.x - dividerWidth, height: transomHeight, label: 'Transom C' });
+        parts.push({ id: 'upper-right-divider', kind: 'divider', x: right.x, y: 0, width: dividerWidth, height: transomHeight });
+        parts.push({ id: 'transom-right', kind: 'glass', x: right.x + dividerWidth, y: 0, width: width - right.x - dividerWidth, height: transomHeight, label: 'Transom R' });
+      }
+    } else parts.push({ id: 'transom', kind: 'glass', x: (width - transomWidth) / 2, y: 0, width: transomWidth, height: transomHeight, label: 'Transom' });
   }
   return { width, height: bodyY + bodyHeight, dividerWidth, parts };
 }

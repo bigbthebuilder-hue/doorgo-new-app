@@ -22,10 +22,12 @@ for (const required of [
   'Apply Manual Override', 'Remove Override', 'GlassUnitBuilder', 'Needs Attention',
   '54, 54 1/2, 54-1/2, or 54.5', 'aria-label={`${label}, inches`',
   'explicitGlassDetailNeeded', 'commitEditor()', 'commitEditor(explicitDetailNeeded, next)',
-  'resolvedConfiguration(config)', 'prepAfterHeightChange', 'replaceDoorLineAtIndex(lines, editingIndex, saved)',
+  'resolvedConfiguration(config)', 'prepAfterHeightChange', 'replaceDoorLineById(lines, editingLineId, saved)',
 ]) assert.ok(workspace.includes(required), `J2B2 workspace missing ${required}`);
+assert.equal(workspace.includes('replaceDoorLineAtIndex'), false, 'saved line edits must never target a mutable array position');
 assert.equal(workspace.includes('onChange((current)'), false, 'workspace must not update child state from a parent updater');
 const builder = await readFile('components/jobs/GlassUnitBuilder.tsx', 'utf8');
+const calculator = await readFile('components/jobs/StandaloneGlassCalculator.tsx', 'utf8');
 for (const required of [
   'commitLabel', 'Leave Glass Detail Needed', 'Cancel', 'calculateGlassGeometry',
   'calculateGlassCompositionSchematic', 'nextGlassBuilderDraft', 'GlassUnitDiagram',
@@ -44,6 +46,11 @@ assert.equal((builder.match(/Unit T-bar Size/g) ?? []).length, 1, 'builder expos
 assert.equal((builder.match(/>Glass Type</g) ?? []).length, 1, 'builder exposes one unit-wide sidelight glass selector');
 assert.ok(builder.includes('updateUnitSidelightSpecification'), 'shared sidelight choices must project across every persisted position');
 assert.deepEqual([...builder.matchAll(/<option value="(1\.5|2\.25)">/g)].map((match) => match[1]).filter((value, index, values) => values.indexOf(value) === index).sort(), ['1.5', '2.25'], 'builder exposes only canonical T-bar sizes');
+for (const required of ['doubleDoorAstragal', 'DEFAULT_DOUBLE_DOOR_ASTRAGAL', 'DOUBLE_DOOR_ASTRAGALS', "mode === 'Exterior' && config === 'DD'"]) assert.ok(workspace.includes(required), `plain DD Door Editor missing ${required}`);
+for (const required of ['GlassUnitBuilder', 'selectedAstragal', 'DOUBLE_DOOR_ASTRAGALS', 'hasDoubleDoorCore(line.config)']) assert.ok(calculator.includes(required), `standalone calculator missing shared astragal behavior: ${required}`);
+for (const label of ['Standard Metal — DS347 — 3/4"', 'Wood + Ferco Astra Lock — 1"']) {
+  assert.ok((await readFile('lib/jobs/double-door-astragal-contract.ts', 'utf8')).includes(label), `shared astragal label missing: ${label}`);
+}
 
 const diagram = await readFile('components/jobs/GlassUnitDiagram.tsx', 'utf8');
 for (const required of ['preserveAspectRatio="xMidYMid meet"', 'calculateGlassDiagramLayout(line)', 'layout.parts.map', 'data-kind', 'diagram-background', 'var(--glass-diagram-background', 'var(--glass-diagram-stroke']) assert.ok(diagram.includes(required));

@@ -74,6 +74,22 @@ async function main() {
     assert.equal(invalidated.lines[0].glassCalcStatus, 'Warning');
     const duplicatedApproval = await repository.update({ internalJobId: invalidated.internalJobId, expectedRevision: 4, actorUserId: actor, input: { customer: 'Override audit', lifecycleStage: 'Draft' }, lines: [invalidated.lines[0], { ...approved.lines[0], lineId: secondLineId }] });
     assert.equal(duplicatedApproval.lines[1].glassOverride, null, 'duplicate does not inherit original approval actor/timestamp');
+
+    const tttInput = glassLine({ lineId: undefined, config: 'TTT/SDDS', height: `8'0"`, hand: 'RHOUT', roWidth: '143.0625', roHeight: '112', doubleDoorAstragal: 'wood-ferco-astra-lock', transomTBarSize: '2.25', transomGlassTypeCode: 'CLEAR', sidelightSpecifications: [
+      { side: 'left', index: 1, finishedWidth: '20', tBarSize: '2.25', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+      { side: 'right', index: 1, finishedWidth: '20', tBarSize: '2.25', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+    ] });
+    const tttJob = await repository.create({ commandId: 'ttt-job', actorUserId: actor, defaultSalesperson: null, input: { customer: 'TTT persistence', lifecycleStage: 'Draft' }, lines: [tttInput] });
+    const reopenedTtt = await repository.findById(tttJob.internalJobId);
+    assert.equal(reopenedTtt?.lines[0].config, 'TTT/SDDS');
+    assert.equal(reopenedTtt?.lines[0].transomTBarSize, '2.25');
+    assert.equal(reopenedTtt?.lines[0].doubleDoorAstragal, 'wood-ferco-astra-lock');
+    assert.equal(reopenedTtt?.lines[0].glassCalc?.transomHeight, `12 1/8"`);
+    const tttDuplicate = structuredClone(reopenedTtt!.lines[0]);
+    tttDuplicate.lineId = secondLineId; tttDuplicate.transomTBarSize = '1.5'; tttDuplicate.doubleDoorAstragal = 'standard-metal-ds347';
+    const isolatedTtt = await repository.update({ internalJobId: tttJob.internalJobId, expectedRevision: 1, actorUserId: actor, input: { customer: 'TTT persistence', lifecycleStage: 'Draft' }, lines: [reopenedTtt!.lines[0], tttDuplicate] });
+    assert.deepEqual(isolatedTtt.lines.map((entry) => entry.glassCalc?.transomHeight), [`12 1/8"`, `12 7/8"`], 'duplicate TTT lines recalculate independently from their selected T-bar');
+    assert.deepEqual(isolatedTtt.lines.map((entry) => entry.doubleDoorAstragal), ['wood-ferco-astra-lock', 'standard-metal-ds347'], 'duplicate astragal selection is copied state and remains line-isolated');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

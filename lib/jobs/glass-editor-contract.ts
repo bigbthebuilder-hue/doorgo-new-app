@@ -57,7 +57,7 @@ const MATERIAL_GLASS_FIELDS = new Set([
   'config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand',
   'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'panelSidelightWidth',
   'transomGlass', 'sidelightSpecifications', 'transomTBarSize', 'transomGlassTypeCode',
-  'transomCustomGlassDescription',
+  'transomCustomGlassDescription', 'doubleDoorAstragal',
 ]);
 
 export function nextGlassBuilderDraft(line: DoorLineInput, field: string, value: unknown): DoorLineInput {

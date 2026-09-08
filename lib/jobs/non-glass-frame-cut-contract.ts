@@ -1,5 +1,6 @@
 import type { NativeDoorLine } from './job-intake-types';
 import { formatShopDimension, parseDimension, parseStoredShopDimension } from './dimension-contract';
+import { doubleDoorCoreWidth, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
 
 export type NonGlassFrameCutStatus = 'Complete' | 'Incomplete' | 'Blocked' | 'Not Applicable';
 export type NonGlassFrameCutIssue = { code: string; field: string | null; message: string };
@@ -167,7 +168,7 @@ export function calculateNonGlassFrameCut(line: Readonly<NativeDoorLine>): NonGl
   const finalHeight = Math.min(slab.height, requestedHeight);
   const cutDown = Math.max(0, slab.height - finalHeight);
   const doubleCore = isDouble
-    ? interior ? slab.width * 2 + 0.25 : slab.width * 2 + 13 / 16 + 0.25
+    ? doubleDoorCoreWidth([slab.width, slab.width], normalizeDoubleDoorAstragal(line.doubleDoorAstragal), interior ? -0.5 : 5 / 16)
     : null;
   const header = doubleCore ?? (interior ? slab.width + 7 / 32 : slab.width + 0.25);
   const blockers: NonGlassFrameCutIssue[] = [];

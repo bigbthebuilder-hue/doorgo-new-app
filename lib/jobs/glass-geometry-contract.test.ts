@@ -11,6 +11,9 @@ import {
   numericDimension,
   normalizeSidelightType,
   retainCompatibleGlassFields,
+  roHeightFromTransom,
+  transomHeightDeduction,
+  transomHeightFromRo,
 } from './glass-geometry-contract';
 import type { DoorLineInput, GlassGeometryValues } from './job-intake-types';
 import { reconcileGlassDimensionCommit } from './glass-dimension-reconciliation-contract';
@@ -21,6 +24,70 @@ function line(overrides: DoorLineInput = {}): DoorLineInput {
     roWidth: '60', roHeight: '', sidelightType: 'Glass', sidelightGlass: 'CLR_SB60_K4SG',
     transomGlass: 'SAT_SB60_K4SG', ...overrides,
   };
+}
+
+assert.equal(transomHeightDeduction('2.25', 'inswing'), 5.125);
+assert.equal(transomHeightDeduction('2.25', 'outswing'), 4.875);
+assert.equal(transomHeightDeduction('1.5', 'inswing'), 4.375);
+assert.equal(transomHeightDeduction('1.5', 'outswing'), 4.125);
+assert.equal(transomHeightFromRo(112, 95, '2.25', 'outswing'), 12.125);
+assert.equal(transomHeightFromRo(112, 95, '1.5', 'outswing'), 12.875);
+assert.equal(transomHeightFromRo(112, 94.5, '2.25', 'outswing'), 12.625, 'a half-inch cutdown increases transom height one-for-one');
+assert.equal(roHeightFromTransom(95, 12.125, '2.25', 'outswing'), 112, 'forward and reverse height equations agree');
+
+const astragalFixture = (doubleDoorAstragal: DoorLineInput['doubleDoorAstragal'], roWidth: string) => calculateGlassGeometry(line({
+  config: 'TTT/SDDS', width: `3'0"`, height: `8'0"`, hand: 'LHOUT', roWidth, roHeight: '112', sidelightType: 'Panel',
+  doubleDoorAstragal, transomTBarSize: '2.25', transomGlassTypeCode: 'CLEAR', sidelightSpecifications: [
+    { side: 'left', index: 1, finishedWidth: '31.75', tBarSize: '2.25', glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: null },
+    { side: 'right', index: 1, finishedWidth: '31.75', tBarSize: '2.25', glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: null },
+  ],
+}));
+const standardAstragal = astragalFixture(undefined, '142.8125');
+const fercoAstragal = astragalFixture('wood-ferco-astra-lock', '143.0625');
+assert.equal(standardAstragal.glassCalc?.headerWidth, `140 13/16"`, 'legacy DD geometry defaults to the 3/4-inch DS347');
+assert.equal(fercoAstragal.glassCalc?.headerWidth, `141 1/16"`);
+assert.equal(fercoAstragal.glassCalc?.recommendedRoWidth, `143 1/16"`);
+assert.equal(fercoAstragal.glassCalc?.transomHeight, `12 1/8"`, 'astragal does not affect vertical geometry');
+assert.deepEqual(fercoAstragal.glassUnits.filter((unit) => /transom/i.test(unit.position)).map((unit) => unit.width), [`31 3/4"`, `72 13/16"`, `31 3/4"`]);
+assert.equal(Number(fercoAstragal.glassCalc?.headerWidth && numericDimension(fercoAstragal.glassCalc.headerWidth).ok ? (numericDimension(fercoAstragal.glassCalc.headerWidth) as { ok: true; inches: number }).inches : 0) - Number(standardAstragal.glassCalc?.headerWidth && numericDimension(standardAstragal.glassCalc.headerWidth).ok ? (numericDimension(standardAstragal.glassCalc.headerWidth) as { ok: true; inches: number }).inches : 0), 0.25);
+assert.match(fercoAstragal.vendorCopyText, /Wood \/ Ferco Astra Lock.*1"/);
+const reverseFerco = reconcileGlassDimensionCommit({ ...line({ ...fercoAstragal.glassCalc, config: 'TTT/SDDS', width: `3'0"`, height: `8'0"`, hand: 'LHOUT', roHeight: '112', sidelightType: 'Panel', doubleDoorAstragal: 'wood-ferco-astra-lock', transomTBarSize: '2.25', transomGlassTypeCode: 'CLEAR', sidelightSpecifications: [
+  { side: 'left', index: 1, finishedWidth: '31.75', tBarSize: '2.25', glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: null },
+  { side: 'right', index: 1, finishedWidth: '31.75', tBarSize: '2.25', glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'custom', panelConstructionNotes: null },
+] }), roWidth: '' }, { kind: 'sidelightWidth', side: 'left', index: 1, value: '31.75' });
+assert.equal(reverseFerco.sourcePatch.roWidth, `143 1/16"`, 'reverse RO includes the selected astragal');
+assert.equal(astragalFixture('wood-ferco-astra-lock', '142.8125').status, 'Blocked', 'fixed RO conflict blocks instead of cutting a leaf');
+for (const config of ['T/DD', 'SDDS', 'T/SDDS', 'TTT/SDDS']) {
+  const specifications = config === 'T/DD' ? [] : [
+    { side: 'left' as const, index: 1, finishedWidth: '20', tBarSize: '2.25' as const, glassTypeCode: 'CLEAR' as const, customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+    { side: 'right' as const, index: 1, finishedWidth: '20', tBarSize: '2.25' as const, glassTypeCode: 'CLEAR' as const, customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+  ];
+  const common = { config, roWidth: '160', roHeight: config.startsWith('T') ? '112' : '', transomTBarSize: '2.25' as const, transomGlassTypeCode: 'CLEAR' as const, sidelightSpecifications: specifications };
+  const standard = calculateGlassGeometry(line(common));
+  const ferco = calculateGlassGeometry(line({ ...common, doubleDoorAstragal: 'wood-ferco-astra-lock' }));
+  const standardHeader = numericDimension(standard.glassCalc?.headerWidth); const fercoHeader = numericDimension(ferco.glassCalc?.headerWidth);
+  assert.equal(standardHeader.ok && fercoHeader.ok ? fercoHeader.inches - standardHeader.inches : null, 0.25, `${config} consumes the shared selected DD astragal width`);
+}
+const fullCustom = calculateGlassGeometry(line({ config: 'T/D', material: 'wood', customSlab: 'WoodCustom', customSlabWidth: '36', customSlabHeight: '95', hand: 'RHOUT', roWidth: '40', roHeight: '112', transomTBarSize: '2.25', transomGlassTypeCode: 'CLEAR' }));
+const cutCustom = calculateGlassGeometry(line({ config: 'T/D', material: 'wood', customSlab: 'WoodCustom', customSlabWidth: '36', customSlabHeight: '94.5', hand: 'RHOUT', roWidth: '40', roHeight: '112', transomTBarSize: '2.25', transomGlassTypeCode: 'CLEAR' }));
+assert.equal(fullCustom.glassCalc?.transomHeight, `12 1/8"`);
+assert.equal(cutCustom.glassCalc?.transomHeight, `12 5/8"`, 'the real engine uses custom/cutdown finished height one-for-one');
+
+for (const [tBar, expectedHeight] of [['2.25', `12 1/8"`], ['1.5', `12 7/8"`]] as const) {
+  const result = calculateGlassGeometry(line({ config: 'T/SDDS', height: `8'0"`, hand: 'RHOUT', roWidth: '143', roHeight: '112', sidelightType: 'Panel', transomTBarSize: tBar, transomGlassTypeCode: 'CLEAR', sidelightSpecifications: [
+    { side: 'left', index: 1, finishedWidth: '11.75', tBarSize: tBar, glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'standard', panelConstructionNotes: null },
+    { side: 'right', index: 1, finishedWidth: '11.75', tBarSize: tBar, glassTypeCode: null, customGlassDescription: null, panelSizeMode: 'standard', panelConstructionNotes: null },
+  ] }));
+  assert.equal(result.glassCalc?.transomHeight, expectedHeight, `T/SDDS Panel uses the selected ${tBar}-inch unit T-bar`);
+}
+
+for (const config of ['TTT/SDS', 'TTT/SDDS']) {
+  const result = calculateGlassGeometry(line({ config, height: `8'0"`, hand: 'RHOUT', roWidth: '143', roHeight: '112', transomTBarSize: '2.25', sidelightSpecifications: [
+    { side: 'left', index: 1, finishedWidth: '20', tBarSize: '2.25', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+    { side: 'right', index: 1, finishedWidth: '20', tBarSize: '2.25', glassTypeCode: 'CLEAR', customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null },
+  ] }));
+  assert.equal(result.glassCalc?.transomHeight, `12 1/8"`, config);
+  assert.deepEqual(result.glassUnits.filter((unit) => unit.position.toLowerCase().includes('transom')).map((unit) => unit.position), ['Left transom', 'Center transom', 'Right transom']);
 }
 
 const expected = {

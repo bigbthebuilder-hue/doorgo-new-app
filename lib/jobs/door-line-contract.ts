@@ -10,6 +10,7 @@ import { isGlassConfiguration, normalizeGlassDomainFields } from './glass-geomet
 import { calculateNonGlassFrameCut } from './non-glass-frame-cut-contract';
 import { normalizeHingeType } from './hinge-contract';
 import { parseGlassUnitConfiguration, totalSidelightCount } from './glass-unit-composition-contract';
+import { hasDoubleDoorCore, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
 
 export const INTERIOR_WIDTHS = [
   `1'6"`, `2'0"`, `2'2"`, `2'4"`, `2'6"`, `2'8"`, `2'10"`, `3'0"`,
@@ -117,6 +118,7 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
     sidelightMeasurementLeft: '', sidelightMeasurementRight: '',
     panelSidelightWidth: '', panelSidelights: [], sidelightSpecifications: [],
     transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
+    doubleDoorAstragal: null,
     includeDiagramOnWorkOrder: false,
   };
 }
@@ -208,10 +210,11 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       hingeType: hingeType.ok ? hingeType.value : null, notes: text(input.notes), qty: quantity,
       roWidth: noJamb ? null : text(input.roWidth), roHeight: config === 'PKT' ? null : roHeight,
       material, doorThickness: text(input.doorThickness),
+      doubleDoorAstragal: hasDoubleDoorCore(config) ? normalizeDoubleDoorAstragal(input.doubleDoorAstragal) : null,
       includeDiagramOnWorkOrder: Boolean(mode === 'Exterior' && config && isGlassConfiguration(config) && input.includeDiagramOnWorkOrder !== false),
       ...(glassDomain ?? {
         glassCalcStatus: 'Ready' as const, glassWorkorderDetail: null, glassWarnings: [], glassBlockers: [],
-        glassOverride: null, glassUnits: [], glassCalc: null, vendorCopyText: null, sidelightType: null,
+        glassOverride: null, glassUnits: [], glassCalc: hasDoubleDoorCore(config) ? { doubleDoorAstragal: normalizeDoubleDoorAstragal(input.doubleDoorAstragal) } : null, vendorCopyText: null, sidelightType: null,
         sidelightGlass: null, transomGlass: null, sidelightMeasurementLeft: null,
         sidelightMeasurementRight: null, panelSidelightWidth: null, panelSidelights: [], sidelightSpecifications: [],
         transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
@@ -294,7 +297,7 @@ const DEPLOYED_MERGE_FIELDS = [
   'doorThickness', 'glassCalcStatus', 'glassWorkorderDetail', 'glassWarnings',
   'vendorCopyText', 'sidelightType', 'sidelightGlass', 'transomGlass',
   'sidelightMeasurementLeft', 'sidelightMeasurementRight', 'panelSidelightWidth',
-  'sidelightSpecifications', 'transomTBarSize', 'transomGlassTypeCode', 'transomCustomGlassDescription',
+  'sidelightSpecifications', 'transomTBarSize', 'transomGlassTypeCode', 'transomCustomGlassDescription', 'doubleDoorAstragal',
 ] as const;
 
 export function doorLineEquivalenceKey(line: DoorLineInput): string {

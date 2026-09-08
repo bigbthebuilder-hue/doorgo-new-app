@@ -70,18 +70,18 @@ export function canonicalSidelightSpecifications(input: DoorLineInput, positions
   });
 }
 
-function fixedHeaderWidth(input: DoorLineInput): { width: number; slabWidth: number; doorCount: 1 | 2 } | null {
+function fixedHeaderWidth(input: DoorLineInput): { width: number; slabWidth: number; doorCount: 1 | 2; astragal: unknown } | null {
   const slab = slabFor(input);
   if (!slab.ok || !isGlassConfiguration(input.config)) return null;
   const doorCount = glassConfigurationTopology(input.config).doorCount;
-  return { width: glassDoorCoreHeaderWidth(slab.width, doorCount), slabWidth: slab.width, doorCount };
+  return { width: glassDoorCoreHeaderWidth(slab.width, doorCount, input.doubleDoorAstragal), slabWidth: slab.width, doorCount, astragal: input.doubleDoorAstragal };
 }
 
-function availableSidelightWidth(roWidth: number, fixed: { slabWidth: number; doorCount: 1 | 2 }, specifications: SidelightSpecification[]): number {
-  return availableSidelightWidthForRo(roWidth, fixed.slabWidth, fixed.doorCount, specifications.map((entry) => entry.tBarSize as GlassTBarSize));
+function availableSidelightWidth(roWidth: number, fixed: { slabWidth: number; doorCount: 1 | 2; astragal: unknown }, specifications: SidelightSpecification[]): number {
+  return availableSidelightWidthForRo(roWidth, fixed.slabWidth, fixed.doorCount, specifications.map((entry) => entry.tBarSize as GlassTBarSize), fixed.astragal);
 }
 
-function currentWidths(input: DoorLineInput, specifications: SidelightSpecification[], fixed: { slabWidth: number; doorCount: 1 | 2 }): number[] | null {
+function currentWidths(input: DoorLineInput, specifications: SidelightSpecification[], fixed: { slabWidth: number; doorCount: 1 | 2; astragal: unknown }): number[] | null {
   const parsed = specifications.map((entry) => numericDimension(entry.finishedWidth));
   if (parsed.every((entry) => entry.ok)) return parsed.map((entry) => entry.ok ? entry.inches : 0);
   const legacyPanel = numericDimension(input.panelSidelightWidth);

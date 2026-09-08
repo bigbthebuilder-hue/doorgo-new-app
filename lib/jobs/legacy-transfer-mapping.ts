@@ -56,7 +56,7 @@ function line(payload: LegacyJobTransferPayloadV1, index: number): DoorLineInput
     transomGlass: glass?.transom_glass ?? null, sidelightMeasurementLeft: glass?.sidelight_measurement_left ?? null,
     sidelightMeasurementRight: glass?.sidelight_measurement_right ?? null,
     panelSidelightWidth: glass?.panel_sidelight_width ?? null, panelSidelights: [], sidelightSpecifications: [],
-    transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
+    transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null, doubleDoorAstragal: null,
     includeDiagramOnWorkOrder: false,
   };
 }
@@ -92,12 +92,12 @@ export function mapLegacyTransferToUnsavedEditor(input: string | unknown): Legac
     if (normalized.ok === false) return entry;
     const hasGlassInputs = value(payload.lines[index].fields.glass_inputs) !== null;
     return {
-      ...normalized.value, lineIndex: index + 1, lineStatus: 'Active' as const,
+      ...normalized.value, lineId: payload.lines[index].transfer_line_id, lineIndex: index + 1, lineStatus: 'Active' as const,
       ...(hasGlassInputs ? {
         glassCalcStatus: 'Glass Detail Needed' as const, glassWorkorderDetail: null,
         glassWarnings: [], glassBlockers: [], glassOverride: null, glassUnits: [], glassCalc: null,
         vendorCopyText: null, panelSidelights: [], sidelightSpecifications: [], transomTBarSize: null,
-        transomGlassTypeCode: null, transomCustomGlassDescription: null, includeDiagramOnWorkOrder: false,
+        transomGlassTypeCode: null, transomCustomGlassDescription: null, doubleDoorAstragal: null, includeDiagramOnWorkOrder: false,
       } : {}),
     };
   });

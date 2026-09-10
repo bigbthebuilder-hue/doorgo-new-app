@@ -301,19 +301,15 @@ async function main() {
   ], glassCalc: null }), null);
   assert.equal(sevenDetailLines.weightedUnits, 3, 'compact blocker text occupies one attached detail line');
 
-  assert.equal(paginateWorkOrder([weighted(1, 21)], pageHeader()).length, 1, 'below first-page capacity');
-  assert.equal(paginateWorkOrder([weighted(1, 22)], pageHeader()).length, 1, 'exact first-page capacity');
-  const over = paginateWorkOrder([weighted(1, 20), weighted(2, 3)], pageHeader());
-  assert.equal(over.length, 2);
-  assert.equal(over[1]?.kind, 'Continuation');
-  assert.equal(over[1]?.continuationHeader?.label, 'Continued');
-  const continuation = paginateWorkOrder([weighted(1, 22), weighted(2, 26), weighted(3, 26), weighted(4, 1)], pageHeader());
-  assert.deepEqual(continuation.map((page) => page.weightedUnitsUsed), [22, 26, 26, 1]);
-  assert.equal(continuation[3]?.footerText, 'Sales Order / Job ID: DG-1 | Page 4 of 4');
-  assert.deepEqual(continuation.flatMap((page) => page.rowGroups.map((group) => group.primaryRow.lineIndex)), [1, 2, 3, 4]);
-  const oversized = paginateWorkOrder([weighted(1, 30), weighted(2, 1)], pageHeader());
-  assert.deepEqual(oversized.map((page) => page.weightedUnitsUsed), [30, 1], 'oversized group stays intact on its own page');
-  assert.deepEqual(paginateWorkOrder([], pageHeader()).map((page) => page.rowGroups.length), [0], 'empty model has one non-trailing page');
+  const physicalGroups = Array.from({ length: 40 }, (_, index) => weighted(index + 1, 1000));
+  const physicalPages = paginateWorkOrder(physicalGroups, pageHeader());
+  assert.ok(physicalPages.length >= 3, 'physical content repeatedly creates continuation pages');
+  assert.ok(physicalPages[0].rowGroups.length > 1, 'legacy weights no longer govern page assignment');
+  assert.equal(physicalPages[1].kind, 'Continuation');
+  assert.equal(physicalPages[1].continuationHeader?.label, 'Continued');
+  assert.deepEqual(physicalPages.flatMap(page => page.rowGroups), physicalGroups, 'whole groups retain identity and ordering');
+  assert.equal(physicalPages.at(-1)?.footerText, `Sales Order / Job ID: DG-1 | Page ${physicalPages.length} of ${physicalPages.length}`);
+  assert.deepEqual(paginateWorkOrder([], pageHeader()).map(page => page.rowGroups.length), [0]);
 
   const repository = { findById: async () => aggregate() };
   const savedView = await generateSavedWorkOrderWithAccess(activeAccess('view'), 'id', repository);

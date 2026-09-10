@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const files = [
   'lib/jobs/work-order-pdf-contract.ts', 'lib/jobs/work-order-pdf-service-contract.ts',
   'lib/jobs/work-order-preview-contract.ts', 'components/jobs/WorkOrderPreview.tsx',
-  'lib/jobs/work-order-preflight-contract.ts',
+  'lib/jobs/work-order-preflight-contract.ts', 'lib/jobs/work-order-layout.ts',
   'app/jobs/[internalJobId]/work-order/page.tsx', 'app/jobs/[internalJobId]/work-order/pdf/route.ts',
 ];
 const entries = await Promise.all(files.map(async (file) => [file, await readFile(file, 'utf8')]));
@@ -32,13 +32,13 @@ assert.equal((groupDrawing.match(/page\.drawRectangle/g) ?? []).length, 1, 'one 
 assert.ok(groupDrawing.includes('thickness: 1.4'), 'each complete door group must end with a strong bottom boundary');
 assert.equal(groupDrawing.includes('start: { x: MARGIN, y: y - layout.primaryHeight }'), false, 'no horizontal divider may separate a primary row from its details');
 assert.ok(groupDrawing.includes('y: y - layout.primaryHeight'), 'primary cells must have aligned vertical divisions');
-assert.ok(pdf.includes('WORK_ORDER_PDF_TEXT_SIZES = { headerLabel: 8.5, headerValue: 10, tableHeader: 9, primary: 10.5, detail: 10 }'));
+assert.ok(source.includes('WORK_ORDER_PDF_TEXT_SIZES = { headerLabel: 8.5, headerValue: 10, tableHeader: 9, primary: 10.5, detail: 10 }'));
 assert.ok(pdf.includes('function drawDiagram(') && pdf.includes('if (diagram) drawDiagram('));
 assert.equal(/calculateGlassGeometry|calculateGlassDiagramLayout/.test(pdf), false, 'PDF renderer must not calculate diagram business geometry');
 const diagramDrawing = pdf.slice(pdf.indexOf('function drawDiagram'), pdf.indexOf('function drawDoorGroup'));
 assert.equal(diagramDrawing.includes('drawText('), false, 'printed diagrams must contain no text');
 assert.ok(diagramDrawing.includes("part.kind === 'glass' ? rgb(0.84, 0.84, 0.84) : rgb(0.97, 0.97, 0.97)"), 'glass is shaded while panels share the door fill');
-assert.equal(/pending\.slice|slice\(0,\s*end\)/.test(pdf), false, 'normal PDF wrapping must not split words by character');
+assert.equal(/pending\.slice|slice\(0,\s*end\)/.test(source), false, 'normal PDF wrapping must not split words by character');
 
 const route = entries.find(([file]) => file.endsWith('pdf/route.ts'))?.[1] ?? '';
 assert.ok(route.includes('generateCurrentSavedWorkOrder(internalJobId'));

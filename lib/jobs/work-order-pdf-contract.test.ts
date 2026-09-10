@@ -1,3 +1,4 @@
+import { GROUP_SPACING, WORK_ORDER_FONT_METRICS, workOrderPrintableHeight } from './work-order-layout';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { decodePDFRawStream, PDFArray, PDFDocument, PDFRawStream, StandardFonts } from 'pdf-lib';
@@ -121,11 +122,67 @@ async function main() {
     ...tttPreview.document, rowGroups: realPayloadGroups,
     pages: paginateWorkOrder(realPayloadGroups, tttPreview.document.header),
   };
-  assert.ok(realPayloadDocument.pages.length > 1, 'real seven-row payload characteristic moves the long TTT group before physical overflow');
+  assert.deepEqual(realPayloadDocument.pages.flatMap(page => page.rowGroups), realPayloadGroups, 'previous seven-row TTT fixture preserves every group with measured pagination');
   assert.equal((await PDFDocument.load(await renderWorkOrderPdf(realPayloadDocument))).getPageCount(), realPayloadDocument.pages.length, 'real multi-row payload renders without printable-area failure');
   const measurementPdf = await PDFDocument.create();
   const measurementFont = await measurementPdf.embedFont(StandardFonts.Helvetica);
   const measurementBold = await measurementPdf.embedFont(StandardFonts.HelveticaBold);
+  // Seven groups reproduce the measured failure without customer data or job-specific inputs.
+  function physicalGroup(index: number, thirdLine = false, mixedDetails = false): WorkOrderRowGroup {
+    return {
+      ...base.rowGroups[0], weightedUnits: 3, diagram: null,
+      primaryRow: { ...base.rowGroups[0].primaryRow, lineId: `physical-${index}`, lineIndex: index,
+        cells: { ...Object.fromEntries(Object.keys(base.rowGroups[0].primaryRow.cells).map(key => [key, ''])) as WorkOrderRowGroup['primaryRow']['cells'],
+          quantity: '1', doorType: 'Custom Fiberglass', drill: thirdLine ? 'Alpha Bravo Charlie' : 'NO' } },
+      detailRows: [{ kind: 'frame', lines: [mixedDetails ? 'Wrapped production detail '.repeat(30) : 'Frame detail'] }],
+    };
+  }
+  function measured(group: WorkOrderRowGroup) {
+    const actual = measureWorkOrderGroup(group.primaryRow, group.detailRows, measurementFont, group.diagram);
+    assert.deepEqual(measureWorkOrderGroup(group.primaryRow, group.detailRows, WORK_ORDER_FONT_METRICS, group.diagram), actual, 'pagination metrics match embedded rendering font exactly');
+    return actual;
+  }
+  async function verifyPhysicalPages(input: WorkOrderRowGroup[]) {
+    const pages = paginateWorkOrder(input, base.header);
+    assert.deepEqual(pages.flatMap(page => page.rowGroups), input, 'all whole groups occur once in original order');
+    for (const page of pages) {
+      const used = page.rowGroups.reduce((sum, group) => sum + measured(group).totalHeight + GROUP_SPACING, 0);
+      assert.ok(used <= workOrderPrintableHeight(page.kind), `page ${page.pageNumber} fits its own printable bounds`);
+      assert.equal(page.totalPages, pages.length);
+    }
+    const bytes = await renderWorkOrderPdf({ ...base, rowGroups: input, pages });
+    assert.equal((await PDFDocument.load(bytes)).getPageCount(), pages.length);
+    return pages;
+  }
+  await verifyPhysicalPages(realPayloadGroups);
+  const longDetailPages = await verifyPhysicalPages(Array.from({ length: 12 }, (_, index) => ({ ...tttPreview.document.rowGroups[0], primaryRow: { ...tttPreview.document.rowGroups[0].primaryRow, lineId: `ttt-${index}`, lineIndex: index + 1 } })));
+  assert.ok(longDetailPages.length >= 3, 'long TTT details repeatedly paginate without overflow');
+  assert.equal(workOrderPrintableHeight('First'), 402);
+  assert.equal(workOrderPrintableHeight('Continuation'), 495);
+  const primaryRegression = Array.from({ length: 7 }, (_, index) => physicalGroup(index + 1, index === 2));
+  assert.equal(primaryRegression.reduce((sum, group) => sum + group.weightedUnits, 0), 21, 'old 22-unit allowance accepted this page');
+  assert.equal(measured(primaryRegression[0]).primaryHeight, 34);
+  assert.equal(measured(primaryRegression[2]).primaryHeight, 46);
+  assert.equal(measured(primaryRegression[2]).primaryLines[5].length, 3);
+  assert.equal(primaryRegression.reduce((sum, group) => sum + measured(group).totalHeight + GROUP_SPACING, 0), 411);
+  const corrected = await verifyPhysicalPages(primaryRegression);
+  assert.deepEqual(corrected.map(page => page.rowGroups.length), [6, 1], 'last whole group moves before overflow');
+  await assert.rejects(renderWorkOrderPdf({ ...base, rowGroups: primaryRegression, pages: [{ ...base.pages[0], rowGroups: primaryRegression }] }), /does not fit the printable work-order area/, 'final renderer overflow guard remains active');
+  const twenty = await verifyPhysicalPages(Array.from({ length: 20 }, (_, index) => physicalGroup(index + 1, index % 3 === 0)));
+  assert.ok(twenty.length >= 3);
+  const largeGroups = Array.from({ length: 80 }, (_, index) => physicalGroup(index + 1, index % 3 === 0, index % 4 === 0));
+  assert.ok(measured(largeGroups[0]).detailLayouts[0].lines.length > 1, 'mixed fixture wraps detail and primary text');
+  const largePages = await verifyPhysicalPages(largeGroups);
+  assert.ok(largePages.length > twenty.length, 'page creation scales with content');
+  assert.equal(new Set(largePages.flatMap(page => page.rowGroups.map(group => group.primaryRow.lineId))).size, 80);
+  const tall = physicalGroup(1);
+  tall.detailRows = [{ kind: 'frame', lines: Array.from({ length: 36 }, () => 'Detail') }];
+  const tallPages = await verifyPhysicalPages([tall]);
+  assert.deepEqual(tallPages.map(page => page.rowGroups.length), [0, 1], 'group too tall for first page moves intact to continuation');
+  const oversizedGroup = physicalGroup(1);
+  oversizedGroup.detailRows = [{ kind: 'frame', lines: ['Oversized detail '.repeat(1500)] }];
+  assert.throws(() => paginateWorkOrder([oversizedGroup], base.header), /cannot fit on an empty continuation page/, 'oversized group fails synchronously without looping or truncation');
+
   const supportedPunctuation = '–—‘’“”°¼½¾';
   assert.equal(normalizeWorkOrderPdfText(measurementFont, supportedPunctuation), supportedPunctuation, 'required WinAnsi punctuation remains intact');
   assert.equal(normalizeWorkOrderPdfText(measurementFont, 'unsupported 😀'), `unsupported ${WORK_ORDER_PDF_UNSUPPORTED_CHARACTER_FALLBACK}`, 'unsupported font characters use the explicit fallback');

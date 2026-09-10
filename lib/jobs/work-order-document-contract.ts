@@ -1,3 +1,4 @@
+import { GROUP_SPACING, measureWorkOrderGroup, WORK_ORDER_FONT_METRICS, workOrderPrintableHeight } from './work-order-layout';
 import { parseStoredShopDimension } from './dimension-contract';
 import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-glass-frame-cut-contract';
 import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate, ResolvedSidelight, ResolvedTBar } from './job-intake-types';
@@ -363,11 +364,16 @@ export function paginateWorkOrder(
   let current: WorkOrderRowGroup[] = [];
   let used = 0;
   for (const group of groups) {
-    const limit = buckets.length === 0 ? FIRST_PAGE_WEIGHT_CAPACITY : CONTINUATION_PAGE_WEIGHT_CAPACITY;
-    if (current.length && used + group.weightedUnits > limit) {
+    const height = measureWorkOrderGroup(group.primaryRow, group.detailRows, WORK_ORDER_FONT_METRICS, group.diagram).totalHeight + GROUP_SPACING;
+    if (height > workOrderPrintableHeight('Continuation')) {
+      throw new Error(`Work-order door line ${group.primaryRow.lineIndex} requires ${height} pt and cannot fit on an empty continuation page (${workOrderPrintableHeight('Continuation')} pt).`);
+    }
+    const limit = workOrderPrintableHeight(buckets.length === 0 ? 'First' : 'Continuation');
+    if (used + height > limit) {
+      // An empty first page is retained when a whole group needs the taller continuation area.
       buckets.push(current); current = []; used = 0;
     }
-    current.push(group); used += group.weightedUnits;
+    current.push(group); used += height;
   }
   if (current.length) buckets.push(current);
   if (!buckets.length) buckets.push([]);

@@ -15,6 +15,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "DoorGo",
   description: "Door Shop Operations",
+  applicationName: "DoorGo",
+  icons: {
+    icon: [
+      { url: "/brand/doorgo-favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/brand/doorgo-mark.svg", type: "image/svg+xml", sizes: "any" },
+    ],
+    apple: [{ url: "/brand/doorgo-apple-touch-180.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: { capable: true, title: "DoorGo", statusBarStyle: "default" },
 };
 
 export default function RootLayout({

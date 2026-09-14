@@ -19,3 +19,14 @@ const deliveryMoved=replaceCalendarCardLocally(deliveryBoard,{...deliveryOnNext,
 const deliveryAttention=replaceCalendarCardLocally(deliveryMoved,{...deliveryOnNext,productionDate:null,revision:3});assert.equal(deliveryAttention.days.flatMap(value=>value.cards).some(card=>card.bookingId===deliveryOnNext.bookingId),false);assert.equal(deliveryAttention.needsAttentionCards.filter(card=>card.bookingId===deliveryOnNext.bookingId).length,1,'clearing Delivery moves it to Needs Attention exactly once');
 const pickupEdited=replaceCalendarCardLocally(deliveryAttention,{...linked,productionDate:'2026-08-25',revision:2});assert.equal(pickupEdited.days[1].cards.filter(card=>card.bookingId===linked.bookingId).length,1,'editing Customer Pickup keeps one authoritative card');assert.equal(pickupEdited.needsAttentionCards.some(card=>card.bookingId===linked.bookingId),false);
 console.log('Operational Calendar item tests passed');
+
+const completedNote=replaceCalendarCardLocally(restored,{...note,productionDate:'2026-08-25',completedAt:'2026-09-14T12:00:00Z',revision:4});
+assert.equal(completedNote.days[1].cards.find(card=>card.bookingId===note.bookingId)?.completedAt,'2026-09-14T12:00:00Z');
+assert.equal(completedNote.weekGroups[0].days[1].cards.find(card=>card.bookingId===note.bookingId)?.revision,4);
+const reopenedNote=replaceCalendarCardLocally(completedNote,{...note,productionDate:'2026-08-25',completedAt:null,revision:5});
+assert.equal(reopenedNote.days[1].cards.find(card=>card.bookingId===note.bookingId)?.completedAt,null);
+const deletedNote=removeCalendarCardLocally(reopenedNote,note.bookingId);
+assert.equal([...deletedNote.days.flatMap(day=>day.cards),...deletedNote.weekGroups.flatMap(week=>week.days.flatMap(day=>day.cards)),...deletedNote.needsAttentionCards].some(card=>card.bookingId===note.bookingId),false);
+const deletedUnscheduledNote=removeCalendarCardLocally(needs,note.bookingId);
+assert.equal(deletedUnscheduledNote.needsAttentionCards.some(card=>card.bookingId===note.bookingId),false);
+console.log('Note completion/reopen/removal model regressions passed');

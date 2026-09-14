@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
 
 const migration=fs.readFileSync('supabase/migrations/20260902000000_complete_first_class_calendar_notes.sql','utf8');
 const productionIdentityFix=fs.readFileSync('supabase/migrations/20260902010000_fix_calendar_production_native_link_inference.sql','utf8');
@@ -75,6 +77,13 @@ assert.match(workspace,/noteAction \? <NoteActionPanel/);
 assert.match(workspace,/onCardUpdated\([^;]+\);onClose\(\)/);
 assert.match(editor,/event\.key==='Escape'/);
 assert.match(editor,/input\.focus\(\);try\{input\.showPicker\(\)\}catch/);
+const noteEditor=editor.slice(editor.indexOf('function NoteEditor('),editor.indexOf('function NoteConverter('));
+assert.match(noteEditor, /label className="calendar-note-date-field" htmlFor="calendar-note-edit-date"/);
+assert.match(noteEditor, /DateOnlyPicker ariaLabel="Note date" disabled=\{saving\} id="calendar-note-edit-date" onChange=\{setDate\} value=\{date\}/);
+assert.doesNotMatch(noteEditor, /type="date"/, 'Note editing uses the existing full-field picker, not the native icon target');
+assert.match(productionIdentityFix, /CASE WHEN p_linked_internal_job_id IS NULL THEN p_shop_hours ELSE v_job\.shop_hours END/);
+assert.match(productionIdentityFix, /CASE WHEN p_scheduled_date IS NULL THEN NULL ELSE p_scheduled_date::text END/);
+assert.match(editor, /shopHours:hours===''\?null:Number\(hours\)/);
 assert.match(editor,/onSaved\(result\.card\);onClose\(\)/);
 assert.match(editor,/onConverted\([^;]+\);onClose\(\)/);
 assert.match(editor,/disabled=\{saving\} type="submit"/);
@@ -85,3 +94,69 @@ assert.doesNotMatch(actions,/for\s*\([^)]*\)[^{]*\{[^}]*\.from\(/s,'server actio
 assert.doesNotMatch(actions,/console\.(?:log|error|warn)/,'Calendar server actions must not retain temporary development logging');
 
 console.log('Calendar Notes database contract verification passed (static; PostgreSQL execution not proven)');
+
+// Exercise actual server-action argument forwarding with isolated session/RPC/read boundaries.
+// These checks never connect to Supabase or execute migration SQL.
+let allowed = true;
+let calls = [];
+let card = { bookingId: 'item:note', productionDate: null, title: 'Measure opening', revision: 1 };
+const actionModule = { exports: {} };
+const compiled = ts.transpileModule(actions, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+vm.runInNewContext(compiled, { exports: actionModule.exports, module: actionModule, require(name) {
+  if (name.endsWith('/auth/current-access')) return { getCurrentDoorGoAccess: async () => ({}) };
+  if (name.endsWith('/auth/access')) return { getPermissionAccess: () => allowed ? 'use' : 'none' };
+  if (name.endsWith('/supabase/server')) return { createAuthenticatedSupabaseServerClient: async () => ({ rpc: async (name, args) => {
+    calls.push({ name, args });
+    return { data: { id: 'note', record_kind: 'calendar_item' }, error: null };
+  } }) };
+  if (name.endsWith('/production-board/queries')) return { loadProductionBoardReadOnly: async () => ({ needsAttentionCards: card.productionDate === null ? [card] : [], days: [{ cards: card.productionDate ? [card] : [] }] }) };
+  return new Proxy({}, { get: () => () => { throw new Error(`Unexpected dependency: ${name}`); } });
+} });
+const api = actionModule.exports;
+const context = { commandId: 'command', itemId: 'note', expectedRevision: 1, boardStart: '2026-09-14', boardEndExclusive: '2026-09-28', weeks: 2, today: '2026-09-14' };
+const noteInput = { ...context, itemType: 'note', scheduledDate: null, linkedInternalJobId: null, name: 'Measure opening', title: 'Measure opening', details: 'Check dimensions', salesOrder: '', salesperson: '', shopHours: null, timing: '', fulfillmentNote: '' };
+assert.equal((await api.createCalendarItem(noteInput)).ok, true);
+assert.equal(calls.at(-1).name, 'create_calendar_item');
+assert.equal(calls.at(-1).args.p_item_type, 'note');
+assert.equal(calls.at(-1).args.p_scheduled_date, null);
+for (const date of ['2026-09-15', null, '2026-09-16']) {
+  card = { ...card, productionDate: date, revision: card.revision + 1 };
+  const saved = await api.updateCalendarNote({ ...noteInput, scheduledDate: date });
+  assert.equal(saved.ok, true);
+  assert.equal(saved.card.productionDate, date);
+  assert.equal(calls.at(-1).args.p_scheduled_date, date);
+}
+for (const completed of [true, false]) {
+  assert.equal((await api.setCalendarItemCompletion({ ...context, completed })).ok, true);
+  assert.equal(calls.at(-1).name, 'set_calendar_item_completion');
+  assert.equal(calls.at(-1).args.p_completed, completed);
+}
+assert.equal((await api.deleteCalendarItem(context)).ok, true);
+assert.equal(calls.at(-1).name, 'delete_calendar_item');
+for (const linkedInternalJobId of [null, 'explicit-native-job']) {
+  const result = await api.convertCalendarNote({ ...noteInput, destination: 'production', salesOrder: 'DG-000006', salesperson: 'Test', linkedInternalJobId });
+  assert.equal(result.ok, true);
+  assert.equal(calls.at(-1).name, 'convert_calendar_note');
+  assert.equal(calls.at(-1).args.p_linked_internal_job_id, linkedInternalJobId);
+  assert.equal(calls.at(-1).args.p_sales_order, 'DG-000006');
+  assert.equal(calls.at(-1).args.p_shop_hours, null);
+  assert.equal(calls.at(-1).args.p_scheduled_date, null);
+}
+allowed = false; calls = [];
+for (const request of [() => api.createCalendarItem(noteInput), () => api.updateCalendarNote(noteInput), () => api.setCalendarItemCompletion({ ...context, completed: true }), () => api.deleteCalendarItem(context), () => api.convertCalendarNote({ ...noteInput, destination: 'production' })]) {
+  assert.equal((await request()).ok, false);
+}
+assert.equal(calls.length, 0, 'Denied callers cannot reach mutation RPCs');
+console.log('Calendar Notes mocked server-action regressions passed: create/edit/date/complete/reopen/delete/conversion/permission denial');
+
+// Retain the existing relocation model tests in the focused Notes command.
+const mappingModule = { exports: {} };
+vm.runInNewContext(ts.transpileModule(itemMapping, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText,
+  { module: mappingModule, exports: mappingModule.exports });
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/calendar/calendar-items.test.ts', 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+}).outputText, { exports: {}, console, require(name) {
+  if (name === 'node:assert/strict') return assert;
+  if (name === './calendar-items') return mappingModule.exports;
+  throw new Error(`Unexpected relocation test dependency: ${name}`);
+} });

@@ -40,13 +40,13 @@ export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNav
     items.push({ ...productionBoard, label:'Production Board' });
   }
   if(hasAtLeastView(access,'production_checkpoints'))items.push({href:'/production-checkpoints',label:'Production Checkpoints',icon:'checkpoint',match:'section',showOnHome:true});
-  if(hasAtLeastView(access,'settings'))items.push({href:'/manager',label:'Manager',icon:'manager',match:'section',showOnHome:true});
+  if(hasAtLeastView(access,'settings') || hasAtLeastView(access,'users'))items.push({href:'/manager',label:'Admin',icon:'manager',match:'section',showOnHome:true});
   if (hasAtLeastView(access, 'documents')) items.push({ href: '/documents', label: 'Documents', icon: 'documents', match: 'section', showOnHome: true });
   if (hasAtLeastView(access, 'jobs')) {
-    items.push(
-      { href: '/jobs', label: 'Jobs', icon: 'jobs', match: 'section', showOnHome: true },
-      { href: '/glass-calculator', label: 'Glass Calculator', icon: 'calculator', showOnHome: true },
-    );
+    items.push({ href: '/jobs', label: 'Jobs', icon: 'jobs', match: 'section', showOnHome: true });
+  }
+  if (hasAtLeastView(access, 'tools')) {
+    items.push({ href: '/glass-calculator', label: 'Glass Calculator', icon: 'calculator', showOnHome: true });
   }
 
   items.push({ href: '/account', label: 'Account', icon: 'account', placement: 'bottom' });

@@ -10,7 +10,7 @@ import { requireDoorGoProtectedAccess } from '@/lib/auth/protected-access';
 
 export default async function GlassCalculatorPage() {
   const access = await requireDoorGoProtectedAccess();
-  if (!hasAtLeastView(access, 'jobs')) redirect('/account');
+  if (!hasAtLeastView(access, 'tools')) redirect('/account');
   return <AppShell
     navigation={buildProtectedAppNavigation(access)}
     scrollOwner="workspace"

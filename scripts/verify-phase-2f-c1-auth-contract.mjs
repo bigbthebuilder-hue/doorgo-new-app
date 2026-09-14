@@ -75,9 +75,9 @@ requirePattern(contract, /production_checkpoints[\s\S]*none[\s\S]*view[\s\S]*use
 requirePattern(access, /return access\.permissions\[permissionkey\] \?\? 'none'/, 'Missing permission rows must resolve to none');
 rejectPattern(access, /raw_user_meta_data|user_metadata/, 'Raw metadata must not authorize access');
 rejectPattern(profiles, /salesperson|calendar_id|calendar_color/, 'Auth profiles must not own salesperson/calendar identity');
-requirePattern(contract, /america\/vancouver[\s\S]*production board intentionally remains public and unprotected/, 'Current scope must document timezone and public Board');
-rejectPattern(productionBoardPage, /requiredorgoprotectedaccess|redirect\(['"]\/login/, 'Production Board must remain publicly reachable');
-requirePattern(productionBoardPage, /getcurrentdoorgoaccess[\s\S]*access\.state === 'active' \? buildprotectedappnavigation\(access\) : buildpublicappnavigation\(\)/, 'Public Board must enhance only authenticated sessions with permission-aware navigation');
+requirePattern(contract, /america\/vancouver/, 'Business timezone remains documented');
+requirePattern(productionBoardPage, /requiredoorgoprotectedaccess\(\)[\s\S]*hasatleastview\(access, 'production'\)[\s\S]*loadproductionboardreadonly\(/, 'Production Board must enforce production access before reading data');
+rejectPattern(productionBoardPage, /buildpublicappnavigation/, 'Protected Production Board must not use public navigation fallback');
 requirePattern(safeRedirect, /decoded\.startswith\(['"]\/\/['"]\)[\s\S]*decoded\.includes\(['"]\\\\['"]\)[\s\S]*target\.origin !== origin/, 'Redirect helper must reject protocol-relative, backslash, and foreign-origin targets');
 rejectPattern(login, /error\.message|setmessage\([^)]*error/, 'Login must not expose raw authentication errors');
 requirePattern(login, /email or password is incorrect/, 'Login must use a generic non-enumerating result');
@@ -165,6 +165,9 @@ const reviewablePaths = [...repositoryPaths].filter(
     statSync(path).isFile(),
 );
 const laterPhaseCheckpointActionBoundary = new Set([
+  // Approved Users & Access RPC boundary; covered by verify:admin-users.
+  'lib/admin/users-server.ts',
+  'lib/admin/users-service.ts',
   'lib/production-flow/checkpoint-action-contract.ts',
   'lib/production-flow/checkpoint-service.ts',
   'lib/production-flow/checkpoint-read-service.ts',
@@ -209,7 +212,38 @@ const reviewedNativeJobRpcBoundary = new Set(['lib/jobs/hosted-job-intake-reposi
 const applicationPaths = reviewablePaths.filter(
   (path) => !path.startsWith('scripts/') && !path.endsWith('.test.ts') && !laterPhaseCheckpointActionBoundary.has(path) && !reviewedNativeJobRpcBoundary.has(path),
 );
-const applicationDiffText = applicationPaths.map((path) => read(path)).join('\n');
+// Established capacity-exception callers: validate exact calls, then suppress only
+// those RPC tokens from the C1-only check. All other checks still inspect each file.
+const capacityReadPath = 'lib/calendar/capacity-exception-queries.ts';
+const capacityWritePath = 'lib/manager/capacity-exception-actions.ts';
+const capacityRead = read(capacityReadPath);
+const capacityWrite = read(capacityWritePath);
+assert.deepEqual([...capacityRead.matchAll(/\.rpc\(([^,)]*)/g)].map(match => match[1]),
+  ["'load_capacity_exceptions_calendar_range'"], 'Capacity read boundary must call only its established RPC');
+assert.deepEqual([...capacityWrite.matchAll(/\.rpc\(([^,)]*)/g)].map(match => match[1]),
+  ['rpc', "'load_manager_capacity_configuration'", "'save_special_day'"], 'Capacity action direct RPC calls must remain bounded');
+assert.deepEqual([...capacityWrite.matchAll(/\brun\(([^,)]*)/g)].map(match => match[1]), [
+  'rpc:string', "'save_capacity_closure'", "'delete_capacity_closure'", "'delete_special_day'",
+  "'set_regional_holiday_enabled'", "'save_capacity_override'",
+], 'Capacity action dispatcher must accept only the established internal call sites');
+requirePattern(capacityRead, /import\s*'server-only'/, 'Capacity reads must stay server-only');
+requirePattern(capacityWrite, /canuse\(access,'settings'\)\?createauthenticatedsupabaseserverclient\(\):null/, 'Capacity writes require settings=use');
+for (const source of [capacityRead, capacityWrite]) {
+  rejectPattern(source, /trusted-read-server|\.from\(/, 'Capacity RPC boundaries cannot introduce privileged clients or direct table access');
+}
+const applicationDiffText = applicationPaths.map((path) => {
+  const source = read(path);
+  return path === capacityReadPath || path === capacityWritePath
+    ? source.replace(/\.rpc\(/g, '.reviewedCapacityRpc(') : source;
+}).join('\n');
+// This pre-Admin table selects the holiday region for existing capacity settings.
+// Permit only its unchanged declaration in its original migration, not a name prefix.
+const capacitySettingsMigration = 'supabase/migrations/20260825050000_add_capacity_exceptions.sql';
+const capacitySettingsDeclaration = "CREATE TABLE public.dg_company_calendar_settings(company_location text PRIMARY KEY,region_code text NOT NULL DEFAULT 'CA-BC',updated_at timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp(),updated_by_user_id uuid NULL REFERENCES auth.users(id),CHECK(company_location=pg_catalog.btrim(company_location)AND company_location<>''),CHECK(region_code=pg_catalog.btrim(region_code)AND region_code<>''));";
+assert.equal(read(capacitySettingsMigration).split(capacitySettingsDeclaration).length, 2,
+  'The established capacity settings declaration must occur exactly once and remain unchanged');
+const identityTableReviewText = applicationPaths.map((path) => path === capacitySettingsMigration
+  ? read(path).replace(capacitySettingsDeclaration, '') : read(path)).join('\n');
 const nativeJobRpcAdapter = read('lib/jobs/hosted-job-intake-repository.ts');
 assert.deepEqual([...nativeJobRpcAdapter.matchAll(/call\('([^']+)'/g)].map((match) => match[1]).sort(),[
   'dg_archive_native_job','dg_create_native_job','dg_create_transferred_native_job','dg_delete_native_job','dg_get_native_job','dg_list_native_jobs','dg_update_native_job',
@@ -223,7 +257,7 @@ rejectPattern(
   'No checkpoint mutation path may be introduced',
 );
 rejectPattern(
-  applicationDiffText,
+  identityTableReviewText,
   /create table(?: if not exists)? public\.(?:[^\s(]*(?:company|tenant|organization|location|salesperson|calendar)[^\s(]*)/,
   'Complex company, tenant, salesperson, or calendar identity tables are forbidden',
 );
@@ -255,6 +289,7 @@ assert.deepEqual(
     'scripts/rollback-direct-dimension-update-rpc-allowlist.sql',
     'scripts/rollback-legacy-transfer-persistence.sql',
     'scripts/rollback-transferred-biztrack-update-identifier.sql',
+    'scripts/verify-admin-users.mjs',
     'scripts/verify-legacy-transfer-hosted-application.sql',
     'scripts/verify-legacy-transfer-hosted-package.mjs',
     'scripts/verify-legacy-transfer-persistence.mjs',
@@ -271,6 +306,7 @@ assert.deepEqual(
     'supabase/migrations/20260806010000_fix_transferred_biztrack_update_identifier.sql',
     'supabase/migrations/20260815010000_add_manager_native_job_delete.sql',
     'supabase/migrations/20260825040000_add_staff_away_operations.sql',
+    'supabase/migrations/20260911010000_add_user_administration.sql',
   ],
   'Service-role references must remain limited to approved runtime, placeholder, and verifier files',
 );

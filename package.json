@@ -62,7 +62,9 @@
     "verify:legacy-transfer-hosted-package": "node scripts/verify-legacy-transfer-hosted-package.mjs",
     "verify:j3c:browser-isolation": "node scripts/verify-j3c-browser-harness-isolation.mjs",
     "verify:j3c:browser": "playwright test -c playwright-ct.config.ts",
-    "acceptance:j3c:browser": "playwright test -c playwright-ct.config.ts"
+    "acceptance:j3c:browser": "playwright test -c playwright-ct.config.ts",
+    "verify:admin-users": "node scripts/verify-admin-users.mjs",
+    "verify:permission-routing": "node scripts/verify-permission-routing.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

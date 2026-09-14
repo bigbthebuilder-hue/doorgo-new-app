@@ -80,9 +80,10 @@ remains contained in a trusted server-only legacy/read client and never authoriz
 normal user actions.
 
 Phase 2F-C1 adds no checkpoint writes, permission-management UI, salesperson
-records, Calendar changes, or complex tenancy. The Production Board intentionally
-remains public and unprotected while login, session, profile, and permission reads
-are verified.
+records, Calendar changes, or complex tenancy. The Production Board originally
+remained public during that phase. The current permission-routing brief supersedes
+that temporary exception: `/production-board` now requires protected access and
+explicit `production=view/use`. See `permission-routing-audit.md` for the current matrix.
 
 Normal logout explicitly uses Supabase `scope: 'local'`, affecting only the
 current browser/device session. Other device sessions remain active. A future

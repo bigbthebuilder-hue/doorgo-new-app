@@ -51,8 +51,11 @@ assert.match(tests, /checkpointHistoryStatusLabel/);
 
 const board = read(paths.board);
 assert.match(board, /loadProductionBoardReadOnly/);
-assert.doesNotMatch(board, /requireDoorGoProtectedAccess|redirect\(['"]\/login/);
-assert.match(board, /getCurrentDoorGoAccess[\s\S]*access\.state === 'active' \? buildProtectedAppNavigation\(access\) : buildPublicAppNavigation\(\)/);
+assert.match(board, /await requireDoorGoProtectedAccess\(\)/);
+assert.match(board, /if \(!hasAtLeastView\(access, 'production'\)\) redirect\('\/account'\)/);
+assert.ok(board.indexOf("hasAtLeastView(access, 'production')") < board.indexOf('await loadProductionBoardReadOnly('), 'Production permission must precede trusted loading');
+assert.match(board, /buildProtectedAppNavigation\(access\)/);
+assert.doesNotMatch(board, /buildPublicAppNavigation/);
 const packageJson = JSON.parse(read(paths.packageJson));
 assert.match(packageJson.scripts['verify:phase-2f-c4a-checkpoint-read-contract'], /verify-phase-2f-c4a-checkpoint-read-contract\.mjs/);
 const migrationFiles = readdirSync('supabase/migrations')

@@ -61,6 +61,7 @@ const mainPaths = new Set(execFileSync('git', ['ls-tree', '-r', '--name-only', '
 const diffPaths = new Set(execFileSync('git', ['diff', '--name-only', 'main', '--'], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).map(normalizePath));
 const changed = [...repositoryPaths].filter((path) => diffPaths.has(path) || !mainPaths.has(path));
 const approvedLaterMigrations = new Set([
+  'supabase/migrations/20260911010000_add_user_administration.sql',
   'supabase/migrations/20260713000000_create_production_flow_checkpoint_read_rpcs.sql',
   'supabase/migrations/20260714000000_create_production_booking_move_contract.sql',
   'supabase/migrations/20260715000000_extend_production_booking_reschedule_contract.sql',
@@ -72,6 +73,10 @@ const approvedLaterMigrations = new Set([
 ]);
 assert.deepEqual(changed.filter((path) => path.startsWith('supabase/migrations/') && !approvedLaterMigrations.has(path)), [], 'Only exact reviewed later-phase migrations may follow C3');
 const approvedLaterUi = new Set([
+  'components/manager/UsersAccessWorkspace.tsx',
+  'app/manager/page.tsx',
+  'components/manager/ManagerCapacityWorkspace.tsx',
+  'components/manager/ManagerTabbedWorkspace.tsx',
   'app/layout.tsx',
   'app/page.tsx',
   'app/login/page.tsx',

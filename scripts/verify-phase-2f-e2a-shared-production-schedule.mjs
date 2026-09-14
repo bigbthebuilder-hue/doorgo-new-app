@@ -47,8 +47,11 @@ for (const route of [publicPage, privatePage]) {
 
 assert.match(publicPage, /title: 'Production Board'/);
 assert.match(publicPage, /statusLabel: 'Read only'/);
-assert.doesNotMatch(publicPage, /requireDoorGoProtectedAccess|getPermissionAccess|hasAtLeastView|canViewProductionSchedule|redirect\s*\(/);
-assert.match(publicPage, /getCurrentDoorGoAccess[\s\S]*access\.state === 'active' \? buildProtectedAppNavigation\(access\) : buildPublicAppNavigation\(\)/);
+assert.match(publicPage, /await requireDoorGoProtectedAccess\(\)/);
+assert.match(publicPage, /if \(!hasAtLeastView\(access, 'production'\)\) redirect\('\/account'\)/);
+assert.ok(publicPage.indexOf("hasAtLeastView(access, 'production')") < publicPage.indexOf('await loadProductionBoardReadOnly('), 'Production permission must precede trusted loading');
+assert.match(publicPage, /buildProtectedAppNavigation\(access\)/);
+assert.doesNotMatch(publicPage, /buildPublicAppNavigation/);
 assert.doesNotMatch(publicPage, /production-schedule|production-recovery|production-checkpoints|use server|checkpoint-actions|production-booking-actions/);
 
 assert.match(privatePage, /requireDoorGoProtectedAccess/);

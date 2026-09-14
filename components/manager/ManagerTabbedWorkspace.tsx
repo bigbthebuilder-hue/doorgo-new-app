@@ -5,6 +5,8 @@ import type { ManagerCapacityConfiguration } from '@/lib/manager/capacity-config
 import type { ManagerCapacityExceptions } from '@/lib/manager/capacity-exceptions';
 import { ManagerCapacityWorkspace } from './ManagerCapacityWorkspace';
 import { ManagerCapacityExceptionsWorkspace } from './ManagerCapacityExceptionsWorkspace';
+import { UsersAccessWorkspace } from './UsersAccessWorkspace';
+import type { ComponentProps } from 'react';
 
 const MANAGER_TABS = [
   { id: 'staff', label: 'Staff & Capacity' },
@@ -14,22 +16,25 @@ const MANAGER_TABS = [
   { id: 'overrides', label: 'Capacity Overrides' },
 ] as const;
 
-export type ManagerTab = (typeof MANAGER_TABS)[number]['id'];
+export type ManagerTab = (typeof MANAGER_TABS)[number]['id'] | 'users';
 
-export function ManagerTabbedWorkspace({ canEdit, configuration, exceptions }: {
+export function ManagerTabbedWorkspace({ canEdit, configuration, exceptions, usersAccess }: {
   canEdit: boolean;
-  configuration: ManagerCapacityConfiguration;
-  exceptions: ManagerCapacityExceptions;
+  configuration: ManagerCapacityConfiguration | null;
+  exceptions: ManagerCapacityExceptions | null;
+  usersAccess?: ComponentProps<typeof UsersAccessWorkspace>;
 }) {
-  const [activeTab, setActiveTab] = useState<ManagerTab>('staff');
+  const [activeTab, setActiveTab] = useState<ManagerTab>(usersAccess ? 'users' : 'staff');
   return <div className="app-workspace app-workspace-region manager-tabbed-workspace" data-active-tab={activeTab}>
     <header className="manager-workspace-header">
-      <div><h1>Manager</h1><p>Capacity configuration · {configuration.companyLocation}</p></div>
-      <nav aria-label="Manager sections" className="manager-tabs">
-        {MANAGER_TABS.map(tab => <button aria-pressed={activeTab === tab.id} className="manager-tab" key={tab.id} onClick={() => setActiveTab(tab.id)} type="button">{tab.label}</button>)}
+      <div><h1>Admin</h1><p>Company administration{configuration ? ` · ${configuration.companyLocation}` : ''}</p></div>
+      <nav aria-label="Admin sections" className="manager-tabs">
+        {usersAccess && <button aria-pressed={activeTab === 'users'} className="manager-tab" onClick={() => setActiveTab('users')} type="button">Users &amp; Access</button>}
+        {configuration && MANAGER_TABS.map(tab => <button aria-pressed={activeTab === tab.id} className="manager-tab" key={tab.id} onClick={() => setActiveTab(tab.id)} type="button">{tab.label}</button>)}
       </nav>
     </header>
-    <ManagerCapacityWorkspace canEdit={canEdit} configuration={configuration}/>
-    <ManagerCapacityExceptionsWorkspace canEdit={canEdit} data={exceptions} roster={configuration.staff} workweeks={configuration.workweeks}/>
+    {usersAccess && activeTab === 'users' && <UsersAccessWorkspace {...usersAccess}/>}
+    {configuration && <ManagerCapacityWorkspace canEdit={canEdit} configuration={configuration}/>}
+    {configuration && exceptions && <ManagerCapacityExceptionsWorkspace canEdit={canEdit} data={exceptions} roster={configuration.staff} workweeks={configuration.workweeks}/>}
   </div>;
 }

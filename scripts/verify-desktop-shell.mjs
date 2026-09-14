@@ -72,7 +72,7 @@ assert.match(nav, /label: 'Account'.*placement: 'bottom'/);
 assert.match(jobs, /<JobsWorkspace/);
 assert.match(jobsWorkspace, /controls={<label className="app-jobs-filter"/, 'Jobs filter must live in the contextual top bar');
 assert.match(jobsWorkspace, /density="compact"[\s\S]*Import Legacy Job[\s\S]*New Job/, 'Jobs actions must use the compact contextual top bar with accurate creation copy');
-assert.match(productionPage, /access\.state === 'active' \? buildProtectedAppNavigation\(access\) : buildPublicAppNavigation\(\)/, 'Authenticated Production Board must use permission-aware navigation while preserving public mode');
+assert.match(productionPage, /hasAtLeastView\(access, 'production'\)[\s\S]*navigation=\{buildProtectedAppNavigation\(access\)\}/, 'Production Board requires explicit production access and permission-aware navigation');
 assert.match(production, /<ContextTopBar/);
 assert.match(production, /<ProductionBoardSummary board=\{board\}/);
 for (const [name, source] of [['Account', account], ['Glass Calculator', calculator], ['job editor', editor]]) assert.match(source, /<AppShell/, `${name} must use AppShell`);
@@ -85,7 +85,7 @@ assert.equal((jobForm.match(/id="salesperson"/g) ?? []).length, 1, 'Salesperson 
 assert.equal((jobForm.match(/id="siteAddress"/g) ?? []).length, 1, 'Site / Address must have one editor input');
 assert.match(jobForm, /placeholder="Not entered"/, 'Blank contextual values must not repeat their labels');
 assert.match(editor, /hasBottomBar hasTopBar[\s\S]*scrollOwner="workspace"/, 'Saved native Job Editor must explicitly declare bounded workspace ownership and shell rows');
-assert.match(newJob, /hasBottomBar=\{intakeAvailable\}[\s\S]*hasTopBar=\{intakeAvailable\}[\s\S]*scrollOwner=\{intakeAvailable \? 'workspace' : undefined\}/, 'New native Job Editor must explicitly declare bounded workspace ownership when intake is available');
+assert.match(newJob, /hasBottomBar hasTopBar[\s\S]*scrollOwner="workspace"/, 'Hosted New Draft Job must declare bounded workspace ownership');
 assert.doesNotMatch(legacyImportPage, /<AppShell/, 'Legacy import shell ownership must live with its existing client review state');
 assert.match(legacyImportPage, /inAppShell navigation=\{buildProtectedAppNavigation\(access\)\}/, 'Legacy import route must provide navigation to its state-aware shell owner');
 assert.match(legacyImportReview, /review[\s\S]*<LegacyJobImportShell editorActive/, 'Legacy import must select editor ownership from its existing accepted review state');

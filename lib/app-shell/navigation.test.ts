@@ -26,7 +26,7 @@ assert.equal(isAppNavigationItemActive('/jobs', homeItem), false);
 
 const jobs = buildProtectedAppNavigation(access({ jobs: 'view' })).map((item) => item.href);
 assert.ok(jobs.includes('/jobs'));
-assert.ok(jobs.includes('/glass-calculator'));
+assert.ok(!jobs.includes('/glass-calculator'));
 assert.ok(!jobs.includes('/production-schedule'));
 assert.ok(!jobs.includes('/calendar'));
 const jobsItem = buildProtectedAppNavigation(access({ jobs: 'view' })).find((item) => item.href === '/jobs');
@@ -46,7 +46,7 @@ assert.ok(checkpoints.includes('/production-checkpoints'));
 const homeDestinations = buildProtectedAppNavigation(access({ jobs: 'view', production: 'view', production_checkpoints: 'view' }))
   .filter((item) => item.showOnHome)
   .map((item) => item.href);
-assert.deepEqual(homeDestinations, ['/production-board', '/production-checkpoints', '/jobs', '/glass-calculator']);
+assert.deepEqual(homeDestinations, ['/production-board', '/production-checkpoints', '/jobs']);
 
 const documents = buildProtectedAppNavigation(access({ documents: 'view' })).map((item) => item.href);
 assert.ok(documents.includes('/documents'));

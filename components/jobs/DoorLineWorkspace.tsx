@@ -19,7 +19,7 @@ import { GlassUnitBuilder } from './GlassUnitBuilder';
 import { GlassUnitDiagram } from './GlassUnitDiagram';
 import { parseGlassUnitConfiguration, resolveGlassUnitConfiguration } from '@/lib/jobs/glass-unit-composition-contract';
 import { importedLineRenderKey } from '@/lib/jobs/legacy-transfer-review-presentation';
-import { duplicateDoorLine, replaceDoorLineById } from '@/lib/jobs/door-line-editor-state';
+import { createNewDoorSession, isSameDoorMode, newDoorFromSession, rememberNewDoor, duplicateDoorLine, replaceDoorLineById } from '@/lib/jobs/door-line-editor-state';
 import { DEFAULT_DOUBLE_DOOR_ASTRAGAL, DOUBLE_DOOR_ASTRAGALS, type DoubleDoorAstragalType } from '@/lib/jobs/double-door-astragal-contract';
 
 const control = 'min-h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-950';
@@ -75,6 +75,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   onHingeColorChange?: (value: string) => void;
   lifecycleStage: JobLifecycleStage;
 }) {
+  const newDoorSession = useRef(createNewDoorSession());
   const [editor, setEditor] = useState<DoorLineInput>(() => defaultDoorLine('Exterior'));
   const [editorBaseline, setEditorBaseline] = useState(() => JSON.stringify(defaultDoorLine('Exterior')));
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
@@ -131,6 +132,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   }
 
   function set(name: string, value: unknown) {
+    if (name === 'doorType' || name === 'hingeType') newDoorSession.current = rememberNewDoor(newDoorSession.current, { ...editor, [name]: value }, editingLineId);
     if (geometryFields.has(name)) setExplicitGlassDetailNeeded(false);
     setEditor((current) => {
       const next = { ...current, [name]: value };
@@ -153,6 +155,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   }
 
   function setHeight(value: string) {
+    newDoorSession.current = rememberNewDoor(newDoorSession.current, { ...editor, height: value }, editingLineId);
     setEditor((current) => clearCalculated({
       ...current,
       height: value,
@@ -177,10 +180,13 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   }
 
   function chooseMode(nextMode: 'Interior' | 'Exterior') {
-    if (nextMode !== mode && !confirmsGlassDiscard()) return;
+    if (isSameDoorMode(editor, nextMode)) return;
+    if (!confirmsGlassDiscard()) return;
+    newDoorSession.current = rememberNewDoor(newDoorSession.current, editor, editingLineId);
+    if (editingLineId === null) newDoorSession.current = { ...newDoorSession.current, mode: nextMode };
     setEditor((current) => {
-      const defaults = defaultDoorLine(nextMode);
-      return { ...defaults, lineId: current.lineId, lineIndex: current.lineIndex, lineStatus: current.lineStatus, doorType: current.doorType, qty: current.qty, notes: current.notes, hingeType: hingeTypeAfterModeChange(nextMode, 'D', current.hingeType) };
+      const defaults = editingLineId === null ? newDoorFromSession(newDoorSession.current, nextMode) : defaultDoorLine(nextMode);
+      return { ...defaults, lineId: current.lineId, lineIndex: current.lineIndex, lineStatus: current.lineStatus, qty: current.qty, notes: current.notes, ...(editingLineId !== null ? { doorType: current.doorType, hingeType: hingeTypeAfterModeChange(nextMode, 'D', current.hingeType) } : {}) };
     }); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
@@ -209,7 +215,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   }
 
   function resetEditor() {
-    const next = defaultDoorLine(mode); setEditor(next); setEditorBaseline(JSON.stringify(next)); setEditingLineId(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+    const next = newDoorFromSession(newDoorSession.current); setEditor(next); setEditorBaseline(JSON.stringify(next)); setEditingLineId(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
   function commitEditor(detailNeeded = explicitGlassDetailNeeded, submittedEditor: DoorLineInput = editor): boolean {
@@ -235,12 +241,14 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     if (editingLineId !== null) onChange(replaceDoorLineById(lines, editingLineId, saved));
     else onChange([...lines, saved]);
     showTransientMessage({ error: false, text: editingLineId !== null ? 'Door line updated. Save the job to persist it.' : 'Door line added. Save the job to persist it.' });
-    const nextEditor = defaultDoorLine(mode); setEditor(nextEditor); setEditorBaseline(JSON.stringify(nextEditor)); setEditingLineId(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false);
+    newDoorSession.current = rememberNewDoor(newDoorSession.current, submittedEditor, editingLineId);
+    const nextEditor = newDoorFromSession(newDoorSession.current); setEditor(nextEditor); setEditorBaseline(JSON.stringify(nextEditor)); setEditingLineId(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false);
     return true;
   }
 
   function edit(line: DoorLineInput) {
     if (typeof line.lineId !== 'string' || !line.lineId) { showTransientMessage({ error: true, text: 'This door line has no stable identity. Reload and review the job.' }); return; }
+    newDoorSession.current = rememberNewDoor(newDoorSession.current, editor, editingLineId);
     const editable = structuredClone(line);
     for (const name of ['roWidth', 'roHeight', 'customSlabWidth', 'customSlabHeight', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight'] as const) editable[name] = storedShopInput(editable[name]);
     setEditor(editable); setEditorBaseline(JSON.stringify(editable)); setEditingLineId(line.lineId); setRipMode(String(line.ripJamb ?? '').toLowerCase() === 'yes'); setCalculationStatus(null);

@@ -1,4 +1,40 @@
-import type { DoorLineInput } from './job-intake-types';
+import type { DoorLineInput, DoorLineMode } from './job-intake-types';
+import { defaultDoorLine, prepAfterHeightChange } from './door-line-contract';
+import { hingeTypeOptions } from './hinge-contract';
+
+type StickyDoorValues = Pick<DoorLineInput, 'doorType' | 'hingeType' | 'height'>;
+export type NewDoorSession = { mode: DoorLineMode; values: Record<DoorLineMode, StickyDoorValues> };
+
+function stickyValues(line: DoorLineInput): StickyDoorValues {
+  return { doorType: line.doorType, hingeType: line.hingeType, height: line.height };
+}
+
+export function createNewDoorSession(): NewDoorSession {
+  return { mode: 'Exterior', values: {
+    Interior: stickyValues(defaultDoorLine('Interior')),
+    Exterior: stickyValues(defaultDoorLine('Exterior')),
+  } };
+}
+
+// Only new-door events may write session memory; saved-line edits are isolated.
+export function rememberNewDoor(session: NewDoorSession, line: DoorLineInput, editingLineId: string | null): NewDoorSession {
+  if (editingLineId !== null) return session;
+  const mode = line.mode === 'Interior' ? 'Interior' : 'Exterior';
+  const values = stickyValues(line);
+  // PKT/B.P. clear the editor hinge without erasing the remembered framed-door choice.
+  if (!hingeTypeOptions(mode).includes(String(values.hingeType ?? ''))) values.hingeType = session.values[mode].hingeType;
+  return { mode, values: { ...session.values, [mode]: values } };
+}
+
+export function newDoorFromSession(session: NewDoorSession, mode = session.mode): DoorLineInput {
+  const next = { ...defaultDoorLine(mode), ...session.values[mode] };
+  next.prep = prepAfterHeightChange(mode, String(next.config), next.prep, next.height);
+  return next;
+}
+
+export function isSameDoorMode(line: DoorLineInput, mode: DoorLineMode): boolean {
+  return line.mode === mode;
+}
 
 export function replaceDoorLineById(lines: readonly DoorLineInput[], editingLineId: string, saved: DoorLineInput): DoorLineInput[] {
   if (!editingLineId || saved.lineId !== editingLineId) throw new Error('Door line identity cannot change during an edit.');

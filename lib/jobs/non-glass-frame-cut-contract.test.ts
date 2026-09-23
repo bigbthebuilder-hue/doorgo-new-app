@@ -74,13 +74,13 @@ async function main() {
   assert.equal(invalidCustom.status, 'Blocked');
   assert.equal(invalidCustom.blockers[0]?.code, 'invalid_custom_slab_width');
 
-  const cutDown = complete({ roHeight: '78' });
+  const cutDown = complete({ customSlab: 'RO', roHeight: '78' });
   assert.equal(cutDown.values?.jambLeg?.display, `77 1/2"`);
-  assert.equal(cutDown.values?.finalSlabHeight.display, `75 5/8"`);
-  assert.equal(cutDown.values?.cutDown.display, `4 3/8"`);
-  assert.match(cutDown.detailLines.join('\n'), /Door cut to 75 5\/8"/);
+  assert.equal(cutDown.values?.finalSlabHeight.display, `75 1/4"`);
+  assert.equal(cutDown.values?.cutDown.display, `4 3/4"`);
+  assert.match(cutDown.detailLines.join('\n'), /Door cut to 75 1\/4"/);
 
-  const impossible = calculateNonGlassFrameCut(line({ roHeight: '1' }));
+  const impossible = calculateNonGlassFrameCut(line({ customSlab: 'RO', roHeight: '1' }));
   assert.equal(impossible.status, 'Blocked');
   assert.ok(impossible.blockers.some((entry) => entry.code === 'nonpositive_final_slab_height'));
 

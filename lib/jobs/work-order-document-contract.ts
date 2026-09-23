@@ -326,7 +326,7 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
     ? presentationStatus(outputLine)
     : nonGlassResult?.status === 'Blocked' || nonGlassResult?.status === 'Incomplete'
       ? 'Blocked'
-      : 'Complete';
+      : nonGlassResult?.warnings.length ? 'Warning' : 'Complete';
   const details = compactWorkOrderDetails(glassConfiguration ? glassDetailRows(outputLine) : nonGlassDetailRows(nonGlassResult!));
   if (!glassConfiguration && hasDoubleDoorCore(outputLine.config) && normalizeDoubleDoorAstragal(outputLine.doubleDoorAstragal) === 'wood-ferco-astra-lock') {
     const frame = details.find((row) => row.kind === 'frame');

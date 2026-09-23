@@ -9,6 +9,7 @@ import { validateDoubleDoorSizing } from './double-door-sizing-contract';
 import { SHOP_DIMENSION_FORMAT_HELP, parseStoredShopDimension } from './dimension-contract';
 import { isGlassConfiguration, normalizeGlassDomainFields } from './glass-geometry-contract';
 import { calculateNonGlassFrameCut } from './non-glass-frame-cut-contract';
+import { usesCustomRo } from './custom-ro-contract';
 import { normalizeHingeType } from './hinge-contract';
 import { parseGlassUnitConfiguration, totalSidelightCount } from './glass-unit-composition-contract';
 import { hasDoubleDoorCore, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
@@ -199,6 +200,12 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
     errors.glass = glassDomain.glassBlockers.map((entry) => entry.message).join(' ');
   }
 
+  const sizingInput = { ...input, material, customSlab, config: config ?? undefined };
+  if (usesCustomRo(sizingInput)) {
+    for (const blocker of calculateNonGlassFrameCut(sizingInput).blockers) {
+      errors[blocker.field ?? 'customSlab'] = blocker.message;
+    }
+  }
   if (Object.keys(errors).length) return { ok: false, message: 'Review the highlighted door-line fields.', fieldErrors: errors };
 
   return {

@@ -1,6 +1,6 @@
 import {
   JobIntakeFailure,
-  type ArchiveJobCommand,type CreateJobHeaderCommand,type CreateTransferredJobCommand,type DoorLineInput,type JobHeaderInput,
+  type DoubleDoorSizing,type ArchiveJobCommand,type CreateJobHeaderCommand,type CreateTransferredJobCommand,type DoorLineInput,type JobHeaderInput,
   type JobIntakeRepository,type NativeDoorLine,type NativeJobAggregate,type NativeJobListItem,type DeleteJobResult,
   type NativeJobListPage,type NativeJobListRequest,type UpdateJobHeaderCommand,
 } from './job-intake-types';
@@ -29,7 +29,7 @@ function fromRow(row:unknown,fields:readonly string[]):Record<string,unknown>{
 function fromLineRow(row: unknown): Record<string, unknown> {
   const mapped = fromRow(row, serverLineFields);
   const calc = mapped.glassCalc;
-  return { ...mapped, doubleDoorAstragal: calc && typeof calc === 'object' && !Array.isArray(calc) ? (calc as Record<string, unknown>).doubleDoorAstragal : null };
+  return { ...mapped, doubleDoorSizing: calc && typeof calc === 'object' && !Array.isArray(calc) ? ((calc as Record<string, unknown>).doubleDoorSizing as DoubleDoorSizing | undefined) ?? null : null, doubleDoorAstragal: calc && typeof calc === 'object' && !Array.isArray(calc) ? (calc as Record<string, unknown>).doubleDoorAstragal : null };
 }
 function createHeaderPayload(input:JobHeaderInput,defaultSalesperson:string|null):Record<string,unknown>{
   const normalized=normalizeJobHeaderInput(input,defaultSalesperson);

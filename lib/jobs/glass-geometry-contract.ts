@@ -21,6 +21,7 @@ import {
   parseGlassUnitConfiguration,
   type GlassUnitComposition,
 } from './glass-unit-composition-contract';
+import { resolvedDoubleDoorLeaves, validateDoubleDoorSizing } from './double-door-sizing-contract';
 import { doubleDoorCoreWidth, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
 
 export const GLASS_CONFIGS = ['SD', 'DS', 'SDS', 'SDDS', 'T/D', 'T/DD', 'T/SD', 'T/DS', 'T/SDS', 'T/SDDS'] as const;
@@ -101,6 +102,8 @@ export function numericDimension(value: unknown): { ok: true; inches: number; fo
 }
 
 export function slabFor(input: DoorLineInput): { ok: true; width: number; height: number; label: string } | { ok: false; message: string } {
+  const sizingError = validateDoubleDoorSizing(input);
+  if (sizingError) return { ok: false, message: sizingError };
   if (input.customSlab === 'WoodCustom' || input.customSlab === 'Yes') {
     const width = numericDimension(input.customSlabWidth);
     const height = numericDimension(input.customSlabHeight);
@@ -119,18 +122,18 @@ export function slabFor(input: DoorLineInput): { ok: true; width: number; height
   return { ok: true, width: actualWidth, height: actualHeight, label: `${text(input.material) ?? 'Fiberglass'} ${formatShopDimension(actualWidth)} x ${formatShopDimension(actualHeight)}` };
 }
 
-export const ddCoreHeaderWidth = (slabWidth: number, astragal?: unknown) => doubleDoorCoreWidth([slabWidth, slabWidth], astragal, 5 / 16);
+export const ddCoreHeaderWidth = (slabWidth: number, astragal?: unknown, leaves: readonly number[] = [slabWidth, slabWidth]) => doubleDoorCoreWidth(leaves, astragal, 5 / 16);
 
-export function glassDoorCoreHeaderWidth(slabWidth: number, doorCount: 1 | 2, astragal?: unknown): number {
-  return doorCount === 2 ? ddCoreHeaderWidth(slabWidth, astragal) : slabWidth + 0.25;
+export function glassDoorCoreHeaderWidth(slabWidth: number, doorCount: 1 | 2, astragal?: unknown, leaves?: readonly number[]): number {
+  return doorCount === 2 ? ddCoreHeaderWidth(slabWidth, astragal, leaves) : slabWidth + 0.25;
 }
 
-export function headerWidthFromResolvedSidelights(slabWidth: number, doorCount: 1 | 2, sidelights: Array<{ finishedWidth: number; tBarSize: GlassTBarSize }>, astragal?: unknown): number {
-  return glassDoorCoreHeaderWidth(slabWidth, doorCount, astragal) + sidelights.reduce((sum, entry) => sum + entry.finishedWidth + Number(entry.tBarSize) + 0.125, 0);
+export function headerWidthFromResolvedSidelights(slabWidth: number, doorCount: 1 | 2, sidelights: Array<{ finishedWidth: number; tBarSize: GlassTBarSize }>, astragal?: unknown, leaves?: readonly number[]): number {
+  return glassDoorCoreHeaderWidth(slabWidth, doorCount, astragal, leaves) + sidelights.reduce((sum, entry) => sum + entry.finishedWidth + Number(entry.tBarSize) + 0.125, 0);
 }
 
-export function availableSidelightWidthForRo(roWidth: number, slabWidth: number, doorCount: 1 | 2, tBars: GlassTBarSize[], astragal?: unknown): number {
-  return roWidth - 2 - glassDoorCoreHeaderWidth(slabWidth, doorCount, astragal) - tBars.reduce((sum, size) => sum + Number(size) + 0.125, 0);
+export function availableSidelightWidthForRo(roWidth: number, slabWidth: number, doorCount: 1 | 2, tBars: GlassTBarSize[], astragal?: unknown, leaves?: readonly number[]): number {
+  return roWidth - 2 - glassDoorCoreHeaderWidth(slabWidth, doorCount, astragal, leaves) - tBars.reduce((sum, size) => sum + Number(size) + 0.125, 0);
 }
 
 export function normalizeGlassTypeCode(value: unknown): GlassTypeCode | null {
@@ -175,8 +178,8 @@ export function sidelightSpecificationType(specification: SidelightSpecification
   return normalizeSidelightType(fallback);
 }
 
-function panelHeaderWidth(slabWidth: number, panelWidth: number, sides: number, doubleCore: boolean, astragal?: unknown): number {
-  return headerWidthFromResolvedSidelights(slabWidth, doubleCore ? 2 : 1, Array.from({ length: sides }, () => ({ finishedWidth: panelWidth, tBarSize: '1.5' })), astragal);
+function panelHeaderWidth(slabWidth: number, panelWidth: number, sides: number, doubleCore: boolean, astragal?: unknown, leaves?: readonly number[]): number {
+  return headerWidthFromResolvedSidelights(slabWidth, doubleCore ? 2 : 1, Array.from({ length: sides }, () => ({ finishedWidth: panelWidth, tBarSize: '1.5' })), astragal, leaves);
 }
 
 function glassTerm(code: unknown) {
@@ -342,17 +345,18 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
     if (roH !== null && cutDown > 2.5) warnings.push(issue('large_cut_down', 'Door cut-down is large. Confirm before cutting.'));
   }
 
+  const leaves = resolvedDoubleDoorLeaves(input.doubleDoorSizing, slab.width);
   const parsedPanelWidth = panel && panelWidth?.ok ? panelWidth.inches : null;
   const structuredHeaderWidth = sides > 0 && resolvedSidelights.length === sides
     ? headerWidthFromResolvedSidelights(slab.width, topology.doorCount, resolvedSidelights.map((entry) => {
       const width = numericDimension(entry.finishedWidth);
       return { finishedWidth: width.ok ? width.inches : 0, tBarSize: unitTBar };
-    }), doubleDoorAstragal)
+    }), doubleDoorAstragal, leaves)
     : null;
   const headerWidth = structuredHeaderWidth ?? (panel && parsedPanelWidth !== null
-    ? panelHeaderWidth(slab.width, parsedPanelWidth, sides, doubleCore, doubleDoorAstragal)
+    ? panelHeaderWidth(slab.width, parsedPanelWidth, sides, doubleCore, doubleDoorAstragal, leaves)
     : sides > 0 ? roW - 2
-      : topology.doorCount === 2 ? ddCoreHeaderWidth(slab.width, doubleDoorAstragal)
+      : topology.doorCount === 2 ? ddCoreHeaderWidth(slab.width, doubleDoorAstragal, leaves)
         : config === 'T/D' ? slab.width + 0.25 : roW - 2);
   const minimumRoWidth = headerWidth + 2;
   if (!doubleCore && (topology.doorCount === 2 || config === 'T/D') && roW + 0.001 < minimumRoWidth) blockers.push(issue('ro_too_narrow', `RO width is too narrow. Minimum RO width is ${formatShopDimension(minimumRoWidth)}.`));
@@ -361,7 +365,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   let sidelightWidth: number | null = null;
   let sidelightHeight: number | null = null;
   if (sides && !panel && !resolvedSidelights.length) {
-    sidelightWidth = availableSidelightWidthForRo(roW, slab.width, topology.doorCount, Array.from({ length: sides }, () => String(divider) as GlassTBarSize), doubleDoorAstragal) / sides;
+    sidelightWidth = availableSidelightWidthForRo(roW, slab.width, topology.doorCount, Array.from({ length: sides }, () => String(divider) as GlassTBarSize), doubleDoorAstragal, leaves) / sides;
     sidelightHeight = finalDoorHeight + 0.125;
     if (!(sidelightWidth > 0)) blockers.push(issue('nonpositive_sidelight_width', 'Sidelight width is zero or negative.'));
     if (!(sidelightHeight > 0)) blockers.push(issue('nonpositive_sidelight_height', 'Sidelight height is zero or negative.'));
@@ -407,7 +411,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
     const code = normalizeGlassTypeCode(input.transomGlassTypeCode ?? input.transomGlass ?? input.glass);
     const term = glassTerm(code);
     const transomWidths = composition.transomSections === 3 && resolvedSidelights.length === 2
-      ? [numericDimension(resolvedSidelights[0].finishedWidth), { ok: true as const, inches: glassDoorCoreHeaderWidth(slab.width, topology.doorCount, doubleDoorAstragal) }, numericDimension(resolvedSidelights[1].finishedWidth)]
+      ? [numericDimension(resolvedSidelights[0].finishedWidth), { ok: true as const, inches: glassDoorCoreHeaderWidth(slab.width, topology.doorCount, doubleDoorAstragal, leaves) }, numericDimension(resolvedSidelights[1].finishedWidth)]
       : [];
     if (transomWidths.length === 3 && transomWidths.every((entry) => entry.ok)) {
       ['Left', 'Center', 'Right'].forEach((label, index) => units.push({ position: `${label} transom`, width: formatShopDimension((transomWidths[index] as { ok: true; inches: number }).inches), height: formatShopDimension(transomHeight), glassType: code === 'CUSTOM' ? text(input.transomCustomGlassDescription) ?? '' : term.shopText, termCode: code === 'CUSTOM' ? 'CUSTOM' : term.code, qty: 1 }));
@@ -415,6 +419,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   }
   const calc: GlassGeometryValues = {
     config, swing, roWidth: formatShopDimension(roW), roHeight: roH === null ? '' : formatShopDimension(roH),
+    ...(input.doubleDoorSizing ? { doubleDoorSizing: structuredClone(input.doubleDoorSizing), activeLeafWidth: formatShopDimension(leaves[0]), inactiveLeafWidth: formatShopDimension(leaves[1]) } : {}),
     slabWidth: formatShopDimension(slab.width), slabHeight: formatShopDimension(slab.height), slabLabel: slab.label,
     headerWidth: formatShopDimension(headerWidth), minimumRoWidth: formatShopDimension(minimumRoWidth), recommendedRoWidth: formatShopDimension(minimumRoWidth), jambLeg: formatShopDimension(jambLeg),
     finalDoorHeight: formatShopDimension(finalDoorHeight), standardRoHeight: standardRoHeight === null ? '' : formatShopDimension(standardRoHeight), cutDown: formatShopDimension(cutDown),
@@ -466,7 +471,7 @@ export function removeManualGeometryOverride(accessLevel: DoorGoAccessLevel): nu
   return null;
 }
 
-const GEOMETRY_FIELDS = ['doubleDoorAstragal', 'config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand', 'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'transomGlass', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight', 'sidelightSpecifications', 'transomTBarSize', 'transomGlassTypeCode', 'transomCustomGlassDescription'] as const;
+const GEOMETRY_FIELDS = ['doubleDoorSizing', 'doubleDoorAstragal', 'config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand', 'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'transomGlass', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight', 'sidelightSpecifications', 'transomTBarSize', 'transomGlassTypeCode', 'transomCustomGlassDescription'] as const;
 
 export function geometryChanged(previous: DoorLineInput, next: DoorLineInput): boolean {
   return GEOMETRY_FIELDS.some((field) => JSON.stringify(previous[field] ?? null) !== JSON.stringify(next[field] ?? null));
@@ -474,6 +479,7 @@ export function geometryChanged(previous: DoorLineInput, next: DoorLineInput): b
 
 export function retainCompatibleGlassFields(previous: DoorLineInput, nextConfig: string, nextType: SidelightType | null): DoorLineInput {
   const next: DoorLineInput = { ...structuredClone(previous), config: nextConfig, sidelightType: nextType };
+  if (validateDoubleDoorSizing(next)) next.doubleDoorSizing = null;
   const previousConfig = String(previous.config ?? '');
   if ((previousConfig === 'SD' && nextConfig === 'DS') || (previousConfig === 'DS' && nextConfig === 'SD') || (previousConfig === 'T/SD' && nextConfig === 'T/DS') || (previousConfig === 'T/DS' && nextConfig === 'T/SD')) {
     next.sidelightMeasurementLeft = null;
@@ -518,7 +524,7 @@ export function normalizeGlassDomainFields(input: DoorLineInput): Pick<NativeDoo
   return {
     glassCalcStatus: result.status, glassWorkorderDetail: result.workorderDetail || null,
     glassWarnings: result.warnings, glassBlockers: result.blockers, glassOverride: result.override,
-    glassUnits: result.glassUnits, glassCalc: result.glassCalc, vendorCopyText: result.vendorCopyText || null,
+    glassUnits: result.glassUnits, glassCalc: input.doubleDoorSizing ? { ...(result.glassCalc ?? {}), doubleDoorSizing: structuredClone(input.doubleDoorSizing) } : result.glassCalc, vendorCopyText: result.vendorCopyText || null,
     sidelightType: normalizeSidelightType(input.sidelightType), sidelightGlass: text(input.sidelightGlass ?? input.glass),
     transomGlass: text(input.transomGlass ?? input.glass), sidelightMeasurementLeft: text(input.sidelightMeasurementLeft),
     sidelightMeasurementRight: text(input.sidelightMeasurementRight), panelSidelightWidth: text(result.glassCalc?.panelWidth ?? input.panelSidelightWidth), panelSidelights: result.panelSidelights,

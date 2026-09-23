@@ -1,3 +1,4 @@
+import { PATIO_DOOR_PRESETS, resolvedDoubleDoorLeaves, validateDoubleDoorSizing } from './double-door-sizing-contract';
 import type { NativeDoorLine } from './job-intake-types';
 import { formatShopDimension, parseDimension, parseStoredShopDimension } from './dimension-contract';
 import { doubleDoorCoreWidth, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
@@ -9,6 +10,8 @@ export type ShopDimension = { inches: number; display: string };
 export type NonGlassFrameCutValues = {
   nominalWidth: string;
   nominalHeight: string;
+  activeLeafWidth?: ShopDimension;
+  inactiveLeafWidth?: ShopDimension;
   actualSlabWidth: ShopDimension;
   actualSlabHeight: ShopDimension;
   finalSlabWidth: ShopDimension;
@@ -61,6 +64,10 @@ function parseNominal(value: unknown): number | null {
 function actualSlab(line: Readonly<NativeDoorLine>):
   | { ok: true; width: number; height: number }
   | { ok: false; missing: string[]; blockers: NonGlassFrameCutIssue[] } {
+  if (line.doubleDoorSizing?.kind === 'patio') {
+    const preset = PATIO_DOOR_PRESETS[line.doubleDoorSizing.preset];
+    return { ok: true, width: preset.activeWidth, height: preset.height };
+  }
   const custom = line.customSlab === 'WoodCustom' || line.customSlab === 'Yes';
   if (custom) {
     const missing = [
@@ -112,6 +119,8 @@ export function calculateNonGlassFrameCut(line: Readonly<NativeDoorLine>): NonGl
   if (missing.length) return { ...baseResult(line, 'Incomplete'), missingFields: missing };
   if (line.config === 'PKT' || !SUPPORTED.has(key)) return baseResult(line, 'Not Applicable');
 
+  const sizingError = validateDoubleDoorSizing(line);
+  if (sizingError) return blocked(line, [issue('invalid_dd_sizing', 'doubleDoorSizing', sizingError)]);
   const slab = actualSlab(line);
   if (slab.ok === false) {
     if (slab.missing.length) return { ...baseResult(line, 'Incomplete'), missingFields: slab.missing };
@@ -153,7 +162,8 @@ export function calculateNonGlassFrameCut(line: Readonly<NativeDoorLine>): NonGl
   }
 
   const isDouble = line.config === 'DD';
-  const roHeightText = String(line.roHeight ?? '').trim();
+  const leaves = resolvedDoubleDoorLeaves(line.doubleDoorSizing, slab.width);
+  const roHeightText = String((line.doubleDoorSizing?.kind === 'patio' ? null : line.roHeight) ?? '').trim();
   let roHeight: number | null = null;
   if (roHeightText) {
     const parsed = parseStoredShopDimension(roHeightText);
@@ -168,7 +178,7 @@ export function calculateNonGlassFrameCut(line: Readonly<NativeDoorLine>): NonGl
   const finalHeight = Math.min(slab.height, requestedHeight);
   const cutDown = Math.max(0, slab.height - finalHeight);
   const doubleCore = isDouble
-    ? doubleDoorCoreWidth([slab.width, slab.width], normalizeDoubleDoorAstragal(line.doubleDoorAstragal), interior ? -0.5 : 5 / 16)
+    ? doubleDoorCoreWidth(leaves, normalizeDoubleDoorAstragal(line.doubleDoorAstragal), interior ? -0.5 : 5 / 16)
     : null;
   const header = doubleCore ?? (interior ? slab.width + 7 / 32 : slab.width + 0.25);
   const blockers: NonGlassFrameCutIssue[] = [];
@@ -181,6 +191,7 @@ export function calculateNonGlassFrameCut(line: Readonly<NativeDoorLine>): NonGl
     nominalWidth, nominalHeight,
     actualSlabWidth: dimension(slab.width), actualSlabHeight: dimension(slab.height),
     finalSlabWidth: dimension(slab.width), finalSlabHeight: dimension(finalHeight),
+    ...(isDouble ? { activeLeafWidth: dimension(leaves[0]), inactiveLeafWidth: dimension(leaves[1]), actualSlabWidth: dimension(leaves[0]), finalSlabWidth: dimension(leaves[0]) } : {}),
     jambLeg: dimension(jambLeg), headerWidth: dimension(header),
     sillOrThresholdWidth: interior ? null : dimension(header), frameWidth: dimension(header),
     doubleDoorCoreWidth: doubleCore === null ? null : dimension(doubleCore), cutDown: dimension(cutDown),
@@ -190,6 +201,10 @@ export function calculateNonGlassFrameCut(line: Readonly<NativeDoorLine>): NonGl
     ? [issue('door_cut_down', 'roHeight', `Door will be cut down ${values.cutDown.display}.`)]
     : [];
   const detailLines = [
+    ...(isDouble && line.doubleDoorSizing ? [
+      ...(line.doubleDoorSizing.kind === 'patio' ? [`Patio Door Replacement / ${line.doubleDoorSizing.preset}'`] : []),
+      `Active slab: ${dimension(leaves[0]).display} x ${dimension(finalHeight).display}; Inactive slab: ${dimension(leaves[1]).display} x ${dimension(finalHeight).display}`,
+    ] : []),
     `Jamb legs: ${values.jambLeg?.display}`,
     `${interior ? 'Header' : 'Header/Sill'}: ${values.headerWidth?.display}`,
     ...(cutDown > 0 ? [`Door cut to ${values.finalSlabHeight.display}`] : []),

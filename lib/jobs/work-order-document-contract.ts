@@ -1,3 +1,4 @@
+import { PATIO_DOOR_PRESETS } from './double-door-sizing-contract';
 import { GROUP_SPACING, measureWorkOrderGroup, WORK_ORDER_FONT_METRICS, workOrderPrintableHeight } from './work-order-layout';
 import { parseStoredShopDimension } from './dimension-contract';
 import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-glass-frame-cut-contract';
@@ -167,6 +168,10 @@ function jambDisplay(line: NativeDoorLine): string {
 }
 
 function sizeDisplay(line: NativeDoorLine): string {
+  if (line.doubleDoorSizing?.kind === 'patio') {
+    const preset = PATIO_DOOR_PRESETS[line.doubleDoorSizing.preset];
+    if (preset) return `2 @ ${canonicalStoredDimension(preset.activeWidth)} x ${canonicalStoredDimension(preset.height)}`;
+  }
   if ((line.customSlab === 'WoodCustom' || line.customSlab === 'Yes') && line.customSlabWidth && line.customSlabHeight) {
     return `${canonicalStoredDimension(line.customSlabWidth)} × ${canonicalStoredDimension(line.customSlabHeight)}`;
   }
@@ -205,6 +210,7 @@ function nonGlassDetailRows(result: NonGlassFrameCutResult): WorkOrderDetailRow[
 function calculatedGlassProductionLine(line: NativeDoorLine): string {
   const calc = line.glassCalc ?? {};
   const parts: string[] = [];
+  if (line.doubleDoorSizing && text(calc.activeLeafWidth) && text(calc.inactiveLeafWidth)) parts.push(`Active slab: ${text(calc.activeLeafWidth)} x ${text(calc.finalDoorHeight)}; Inactive slab: ${text(calc.inactiveLeafWidth)} x ${text(calc.finalDoorHeight)}`);
   if (text(calc.jambLeg)) parts.push(`Jamb legs: ${text(calc.jambLeg)}`);
   if (text(calc.headerWidth)) parts.push(`${line.config.startsWith('T/') ? 'Header/Sill/T-bar' : 'Header/Sill'}: ${text(calc.headerWidth)}`);
   const sidelights = Array.isArray(calc.resolvedSidelights) ? calc.resolvedSidelights as ResolvedSidelight[] : [];

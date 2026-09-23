@@ -5,6 +5,7 @@ import {
   type JobHeaderInput,
   type NativeDoorLine,
 } from './job-intake-types';
+import { validateDoubleDoorSizing } from './double-door-sizing-contract';
 import { SHOP_DIMENSION_FORMAT_HELP, parseStoredShopDimension } from './dimension-contract';
 import { isGlassConfiguration, normalizeGlassDomainFields } from './glass-geometry-contract';
 import { calculateNonGlassFrameCut } from './non-glass-frame-cut-contract';
@@ -118,7 +119,7 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
     sidelightMeasurementLeft: '', sidelightMeasurementRight: '',
     panelSidelightWidth: '', panelSidelights: [], sidelightSpecifications: [],
     transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
-    doubleDoorAstragal: null,
+    doubleDoorAstragal: null, doubleDoorSizing: null,
     includeDiagramOnWorkOrder: false,
   };
 }
@@ -131,6 +132,9 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const width = text(input.width);
   const height = text(input.height);
   const errors: Record<string, string> = {};
+  const sizingError = validateDoubleDoorSizing({ ...input, config: config ?? undefined });
+  if (sizingError) errors.doubleDoorSizing = sizingError;
+  const patio = input.doubleDoorSizing?.kind === 'patio';
 
   if (mode !== 'Interior' && mode !== 'Exterior') errors.mode = 'Choose Interior or Exterior.';
   const supported = mode && config
@@ -150,6 +154,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   if (mode === 'Exterior' && !['fiberglass', 'wood'].includes(material)) errors.material = 'Choose Fiberglass or Wood.';
 
   let customSlab = text(input.customSlab) ?? 'No';
+  if (patio) customSlab = 'No';
   if (customSlab === 'Yes') customSlab = 'WoodCustom';
   if (noJamb) customSlab = 'No';
   if (!['No', 'RO', 'WoodCustom'].includes(customSlab)) errors.customSlab = 'Choose Standard, Custom RO / Cut Down, or Custom Wood Slab.';
@@ -162,7 +167,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const allowedPreps = mode && config ? prepChoices(mode, config) : [];
   let prep = text(input.prep);
   if (prep === 'Round') prep = 'Round Weiser';
-  if (mode && config && height) prep = prepAfterHeightChange(mode, config, prep, height);
+  if (!patio && mode && config && height) prep = prepAfterHeightChange(mode, config, prep, height);
   if (!prep || !allowedPreps.includes(prep)) errors.prep = 'Choose a deployed prep option.';
 
   const hand = noJamb ? null : text(input.hand);
@@ -179,7 +184,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const hingeType = normalizeHingeType(mode, config, input.hingeType);
   if (hingeType.ok === false) errors.hingeType = hingeType.message;
 
-  let roHeight = text(input.roHeight);
+  let roHeight = patio ? null : text(input.roHeight);
   if (config === 'B.P.' && roHeight && height) {
     const finishedOpening = parseDoorInches(roHeight);
     const slabHeight = parseDoorInches(height);
@@ -208,13 +213,14 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       sill: mode === 'Interior' ? null : text(input.sill),
       weatherstrip: mode === 'Interior' ? null : text(input.weatherstrip),
       hingeType: hingeType.ok ? hingeType.value : null, notes: text(input.notes), qty: quantity,
-      roWidth: noJamb ? null : text(input.roWidth), roHeight: config === 'PKT' ? null : roHeight,
+      roWidth: noJamb || patio ? null : text(input.roWidth), roHeight: config === 'PKT' ? null : roHeight,
       material, doorThickness: text(input.doorThickness),
+      doubleDoorSizing: input.doubleDoorSizing ? structuredClone(input.doubleDoorSizing) : null,
       doubleDoorAstragal: hasDoubleDoorCore(config) ? normalizeDoubleDoorAstragal(input.doubleDoorAstragal) : null,
       includeDiagramOnWorkOrder: Boolean(mode === 'Exterior' && config && isGlassConfiguration(config) && input.includeDiagramOnWorkOrder !== false),
       ...(glassDomain ?? {
         glassCalcStatus: 'Ready' as const, glassWorkorderDetail: null, glassWarnings: [], glassBlockers: [],
-        glassOverride: null, glassUnits: [], glassCalc: hasDoubleDoorCore(config) ? { doubleDoorAstragal: normalizeDoubleDoorAstragal(input.doubleDoorAstragal) } : null, vendorCopyText: null, sidelightType: null,
+        glassOverride: null, glassUnits: [], glassCalc: hasDoubleDoorCore(config) ? { doubleDoorAstragal: normalizeDoubleDoorAstragal(input.doubleDoorAstragal), ...(input.doubleDoorSizing ? { doubleDoorSizing: structuredClone(input.doubleDoorSizing) } : {}) } : null, vendorCopyText: null, sidelightType: null,
         sidelightGlass: null, transomGlass: null, sidelightMeasurementLeft: null,
         sidelightMeasurementRight: null, panelSidelightWidth: null, panelSidelights: [], sidelightSpecifications: [],
         transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
@@ -311,6 +317,7 @@ export function doorLineEquivalenceKey(line: DoorLineInput): string {
     glassBlockers: JSON.stringify(line.glassBlockers ?? []),
     glassOverride: JSON.stringify(line.glassOverride ?? null),
     glassUnits: JSON.stringify(line.glassUnits ?? []),
+    doubleDoorSizing: JSON.stringify(line.doubleDoorSizing ?? null),
     glassCalc: JSON.stringify(line.glassCalc ?? null),
     panelSidelights: JSON.stringify(line.panelSidelights ?? []),
   });

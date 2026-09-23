@@ -17,6 +17,8 @@ export type SidelightType = 'Glass' | 'Panel';
 export type GlassTypeCode = 'CLEAR' | 'SATIN_ETCH' | 'CUSTOM';
 export type GlassTBarSize = '1.5' | '2.25';
 export type DoubleDoorAstragalType = 'standard-metal-ds347' | 'wood-ferco-astra-lock';
+export type DoubleDoorSizing = { kind: 'patio'; preset: '5' | '6' }
+  | { kind: 'actual-leaves'; activeWidth: number; inactiveWidth: number };
 export type PanelSizeMode = 'standard' | 'custom';
 export type SidelightSpecification = {
   side: 'left' | 'right';
@@ -60,7 +62,7 @@ export type PanelSidelight = {
   qty: number;
   constructionNotes?: string | null;
 };
-export type GlassGeometryValues = Record<string, string | number | boolean | null | PanelSidelight[] | ResolvedSidelight[] | ResolvedTBar>;
+export type GlassGeometryValues = Record<string, string | number | boolean | null | PanelSidelight[] | ResolvedSidelight[] | ResolvedTBar | DoubleDoorSizing>;
 export type GlassOverrideApproval = {
   approvedLineId: string;
   calculatedValues: GlassGeometryValues;
@@ -117,6 +119,7 @@ export type NativeDoorLine = {
   transomGlassTypeCode?: GlassTypeCode | null;
   transomCustomGlassDescription?: string | null;
   doubleDoorAstragal?: DoubleDoorAstragalType | null;
+  doubleDoorSizing?: DoubleDoorSizing | null;
   panelSidelights: PanelSidelight[];
   includeDiagramOnWorkOrder: boolean;
   createdAt: string;

@@ -20,6 +20,8 @@ function optionalText(value: unknown): string | null {
   return normalized || null;
 }
 
+export const normalizeSalesOrder = optionalText;
+
 function optionalHours(value: unknown): number | null | typeof Number.NaN {
   const text = optionalText(value);
   if (text === null) return null;
@@ -90,7 +92,7 @@ export function normalizeJobHeaderInput(
   return {
     ok: true,
     value: {
-      bizTrackSalesOrder: optionalText(input.bizTrackSalesOrder),
+      bizTrackSalesOrder: normalizeSalesOrder(input.bizTrackSalesOrder),
       customer,
       siteAddress,
       phone: optionalText(input.phone),

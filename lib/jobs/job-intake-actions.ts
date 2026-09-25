@@ -1,6 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { salesOrderIsDuplicate, type SalesOrderCheckResult } from './sales-order-check-contract';
+import { createJobIntakeRepository } from './job-intake-repository';
 import { getPermissionAccess } from '@/lib/auth/access';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { canWriteJobs, jobFailureMessage } from './job-intake-contract';
@@ -46,6 +48,15 @@ function actionWriteCheck(access: Awaited<ReturnType<typeof getCurrentDoorGoAcce
   }
   if (!canWriteJobs(getPermissionAccess(access, 'jobs'))) {
     throw new JobIntakeFailure('permission_required', jobFailureMessage('permission_required'));
+  }
+}
+
+export async function checkSalesOrderAction(value: string, internalJobId?: string): Promise<SalesOrderCheckResult> {
+  try {
+    actionWriteCheck(await getCurrentDoorGoAccess());
+    return { ok: true, duplicate: await salesOrderIsDuplicate(createJobIntakeRepository(), value, internalJobId) };
+  } catch {
+    return { ok: false, message: 'Could not check Sales Order. Leave the field again to retry.' };
   }
 }
 

@@ -2,9 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
-import { archiveDraftJobAction, createDraftJobAction, createTransferredJobAction, deleteDraftJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
+import { archiveDraftJobAction, checkSalesOrderAction, createDraftJobAction, createTransferredJobAction, deleteDraftJobAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine, withEffectiveShopHours } from '@/lib/jobs/door-line-contract';
-import { jobAggregateDirtySnapshot, jobSaveConfirmation, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
+import { jobAggregateDirtySnapshot, jobFailureMessage, jobSaveConfirmation, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
 import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggregate } from '@/lib/jobs/job-intake-types';
 import type { LegacyTransferIssue, UnifiedTransferIdentifier } from '@/lib/jobs/legacy-transfer-types';
 import { unresolvedTransferBlockers } from '@/lib/jobs/legacy-transfer-import-contract';
@@ -131,6 +131,12 @@ export function JobHeaderForm({
   const [baseline, setBaseline] = useState(() => { const initial = initialValues(initialJob, defaultSalesperson, initialDraft?.header); return jobAggregateDirtySnapshot({ values: initial, lines: initialJob?.lines ?? initialDraft?.lines ?? [], lifecycleStage: initialLifecycle(initialJob, initialDraft?.header), pendingPoNumber: poNumberText(initial.poNumbers) }); });
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [salesOrderChecking, setSalesOrderChecking] = useState(false);
+  const [earlySalesOrderError, setEarlySalesOrderError] = useState(false);
+  const salesOrderFieldMessage = earlySalesOrderError && fieldErrors.bizTrackSalesOrder === jobFailureMessage('duplicate_biztrack_sales_order')
+    ? 'Sales Order already belongs to another job.' : fieldErrors.bizTrackSalesOrder;
+  const salesOrderRequest = useRef(0);
+  const [, startSalesOrderCheck] = useTransition();
   const [isPending, startTransition] = useTransition();
   const [pendingSaveIntent,setPendingSaveIntent]=useState<'save'|'exit'|null>(null);
   const [fulfillmentFamily,setFulfillmentFamily]=useState<{familyKey:string|null;orders:string[]}|null>(null);
@@ -167,9 +173,34 @@ export function JobHeaderForm({
   const effectiveShopHoursSource = input.shopHoursSource ?? '';
 
   function update(name: keyof FormValues, value: string) {
+    if (name === 'bizTrackSalesOrder') {
+      setEarlySalesOrderError(false);
+      salesOrderRequest.current += 1;
+      setSalesOrderChecking(false);
+    }
     setValues((current) => ({ ...current, [name]: value, ...(name === 'shopHours' ? { shopHoursSource: value.trim() ? 'Manual' : '' } : {}) }));
     setFieldErrors((current) => ({ ...current, [name]: '' }));
     setMessage(null);
+  }
+
+  function checkSalesOrder() {
+    if (!canEdit || transferReview) return;
+    const request = ++salesOrderRequest.current;
+    if (!values.bizTrackSalesOrder.trim()) return;
+    setSalesOrderChecking(true);
+    startSalesOrderCheck(async () => {
+      let error = '';
+      try {
+        const result = await checkSalesOrderAction(values.bizTrackSalesOrder, job?.internalJobId);
+        error = result.ok ? (result.duplicate ? jobFailureMessage('duplicate_biztrack_sales_order') : '') : result.message;
+      } catch {
+        error = 'Could not check Sales Order. Leave the field again to retry.';
+      }
+      if (request !== salesOrderRequest.current) return;
+      setEarlySalesOrderError(Boolean(error));
+      setSalesOrderChecking(false);
+      setFieldErrors((current) => ({ ...current, bizTrackSalesOrder: error }));
+    });
   }
 
   function leave() {
@@ -182,6 +213,10 @@ export function JobHeaderForm({
   }
 
   function validateAggregateBeforeSave(): boolean {
+    if (salesOrderChecking || fieldErrors.bizTrackSalesOrder) {
+      setMessage({ kind: 'error', text: salesOrderChecking ? 'Wait for the Sales Order check.' : fieldErrors.bizTrackSalesOrder });
+      return false;
+    }
     const normalizedPoNumbers = normalizePoNumbers(poNumbersFromText(pendingPoNumber));
     if (!normalizedPoNumbers.ok) {
       setFieldErrors((current) => ({ ...current, poNumbers: normalizedPoNumbers.message }));
@@ -208,6 +243,7 @@ export function JobHeaderForm({
         ? await createTransferredJobAction({ commandId: commandId.current as string, rawPayload: transferReview.rawPayload, input, lines })
         : await createDraftJobAction({ commandId: commandId.current as string, input, lines });
     if (!result.ok) {
+      setEarlySalesOrderError(false);
       setMessage({ kind: 'error', text: result.message });
       setFieldErrors(result.fieldErrors ?? {});
       return null;
@@ -257,7 +293,7 @@ export function JobHeaderForm({
     <button className="app-button app-button-secondary" onClick={leave} type="button">Exit</button>
     {job ? <details className="job-work-order-menu relative" open={openBottomMenu === 'documents'} ref={documentsMenu}><summary className="app-button app-button-secondary cursor-pointer list-none" onClick={(event) => { event.preventDefault(); setOpenBottomMenu((current) => current === 'documents' ? null : 'documents'); }}>Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
     {archiveTarget || deleteTarget ? <details className="job-actions-menu relative" open={openBottomMenu === 'job-actions'} ref={jobActionsMenu}><summary className="app-button app-button-secondary cursor-pointer list-none" onClick={(event) => { event.preventDefault(); setOpenBottomMenu((current) => current === 'job-actions' ? null : 'job-actions'); }}>Job Actions ▾</summary><div className="absolute right-0 z-20 grid min-w-52 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Actions</span><JobArchiveControl onArchive={archiveDraftJobAction} onNavigate={(path) => router.push(path)} target={archiveTarget}/><JobDeleteControl onDelete={deleteDraftJobAction} onNavigate={(path) => router.push(path)} target={deleteTarget}/></div></details> : null}
-    {canEdit ? <><button aria-busy={pendingSaveIntent==='save'||undefined} className="app-button app-button-primary" disabled={isPending || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{pendingSaveIntent==='save' ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button aria-busy={pendingSaveIntent==='exit'||undefined} className="app-button app-button-dark" disabled={isPending} onClick={() => save(true)} type="button">{pendingSaveIntent==='exit'?'Saving…':'Save and Exit'}</button> : null}</> : null}
+    {canEdit ? <><button aria-busy={pendingSaveIntent==='save'||undefined} className="app-button app-button-primary" disabled={isPending || salesOrderChecking || Boolean(fieldErrors.bizTrackSalesOrder) || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{pendingSaveIntent==='save' ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button aria-busy={pendingSaveIntent==='exit'||undefined} className="app-button app-button-dark" disabled={isPending || salesOrderChecking || Boolean(fieldErrors.bizTrackSalesOrder)} onClick={() => save(true)} type="button">{pendingSaveIntent==='exit'?'Saving…':'Save and Exit'}</button> : null}</> : null}
   </>;
   return (
     <>
@@ -268,7 +304,7 @@ export function JobHeaderForm({
         <label className="app-job-context-field job-shell-customer" htmlFor="customer"><span>Customer</span><input aria-invalid={fieldErrors.customer ? true : undefined} disabled={!canEdit} id="customer" onChange={(event) => update('customer', event.target.value)} placeholder="Not entered" title={fieldErrors.customer || undefined} value={values.customer}/></label>
         <label className="app-job-context-field job-shell-site" htmlFor="siteAddress"><span>Site / Address</span><input aria-invalid={fieldErrors.siteAddress ? true : undefined} disabled={!canEdit} id="siteAddress" onChange={(event) => update('siteAddress', event.target.value)} placeholder="Not entered" title={fieldErrors.siteAddress || undefined} value={values.siteAddress}/></label>
         <label className="app-job-context-field job-shell-salesperson" htmlFor="salesperson"><span>Salesperson</span><input disabled={!canEdit} id="salesperson" onChange={(event) => update('salesperson', event.target.value)} placeholder="Not assigned" value={values.salesperson}/></label>
-        <label className="app-job-context-field job-shell-sales-order" htmlFor="bizTrackSalesOrder"><span>BizTrack Sales Order</span><input aria-invalid={fieldErrors.bizTrackSalesOrder ? true : undefined} disabled={!canEdit || Boolean(transferReview)} id="bizTrackSalesOrder" onChange={(event) => update('bizTrackSalesOrder', event.target.value)} placeholder="Optional" title={fieldErrors.bizTrackSalesOrder || undefined} value={values.bizTrackSalesOrder}/></label>
+        <label className="app-job-context-field job-shell-sales-order" htmlFor="bizTrackSalesOrder"><span>BizTrack Sales Order</span><input aria-invalid={fieldErrors.bizTrackSalesOrder ? true : undefined} disabled={!canEdit || Boolean(transferReview)} aria-describedby={fieldErrors.bizTrackSalesOrder || salesOrderChecking ? "sales-order-check" : undefined} className={fieldErrors.bizTrackSalesOrder ? "outline outline-2 outline-rose-600" : undefined} id="bizTrackSalesOrder" onBlur={checkSalesOrder} onChange={(event) => update('bizTrackSalesOrder', event.target.value)} placeholder="Optional" title={salesOrderFieldMessage || undefined} value={values.bizTrackSalesOrder}/>{fieldErrors.bizTrackSalesOrder || salesOrderChecking ? <span id="sales-order-check" role="status" className="job-sales-order-message">{salesOrderChecking ? "Checking Sales Order..." : salesOrderFieldMessage}</span> : null}</label>
         <label className="app-job-context-field job-shell-phone" htmlFor="phone"><span>Phone</span><input autoComplete="tel" disabled={!canEdit} id="phone" onChange={(event) => update('phone', event.target.value)} placeholder="Not entered" type="tel" value={values.phone}/></label>
         <label className="app-job-context-field job-shell-email" htmlFor="email"><span>Email</span><input aria-invalid={fieldErrors.email ? true : undefined} autoComplete="email" disabled={!canEdit} id="email" onChange={(event) => update('email', event.target.value)} placeholder="Not entered" title={fieldErrors.email || undefined} type="email" value={values.email}/></label>
         <label className="app-job-context-field job-shell-hours" htmlFor="shopHours"><span>Shop Hours</span><input aria-invalid={fieldErrors.shopHours ? true : undefined} disabled={!canEdit} id="shopHours" min="0" onChange={(event) => update('shopHours', event.target.value)} step="0.25" type="number" value={effectiveShopHours}/></label>
@@ -311,7 +347,7 @@ export function JobHeaderForm({
       <div className="job-operational-strip mt-1 grid gap-1.5">
         {job&&fulfillmentFamily?.orders.length?<section className="rounded-md border border-slate-200 px-2 py-1.5 text-xs" aria-label="Order family"><strong>Order family {fulfillmentFamily.familyKey}</strong><span className="ml-2">Actual orders: {fulfillmentFamily.orders.join(', ')}</span></section>:null}
         <section aria-label="Job header validation">
-          {fieldErrors.bizTrackSalesOrder ? <p className="text-sm text-rose-700" role="alert">BizTrack Sales Order: {fieldErrors.bizTrackSalesOrder}</p> : null}
+          {fieldErrors.bizTrackSalesOrder && !earlySalesOrderError ? <p className="text-sm text-rose-700" role="alert">BizTrack Sales Order: {fieldErrors.bizTrackSalesOrder}</p> : null}
           {fieldErrors.email ? <p className="text-sm text-rose-700" role="alert">Email: {fieldErrors.email}</p> : null}
           {inAppShell && fieldErrors.customer ? <p className="mt-2 text-sm text-rose-700" role="alert">Customer: {fieldErrors.customer}</p> : null}
           {inAppShell && fieldErrors.siteAddress ? <p className="mt-2 text-sm text-rose-700" role="alert">Site / Address: {fieldErrors.siteAddress}</p> : null}

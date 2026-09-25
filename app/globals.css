@@ -202,6 +202,13 @@
   .doorgo-entry-card > .app-button { grid-column: 1 / -1; justify-self: start; }
 }
 
+.job-sales-order-message { display: block; min-width: 0; color: #be123c; font-size: .6875rem; font-weight: 500; line-height: .875rem; letter-spacing: normal; text-transform: none; overflow-wrap: anywhere; white-space: normal; }
+.job-shell-sales-order:has([aria-invalid="true"]) { box-shadow: inset 0 -2px #be123c; }
+@media (min-width: 768px) {
+  .app-context-bar:has(.app-job-shell-fields #sales-order-check) { height: auto; max-height: none; grid-template-rows: 2rem minmax(2rem, auto) 2rem; }
+  .app-job-shell-fields .job-shell-sales-order:has(#sales-order-check) { align-content: start; }
+}
+
 @media (min-width: 768px) {
   :root { --app-shell-gutter: .75rem; }
   .app-shell { display: grid; height: 100vh; grid-template-columns: var(--app-shell-nav-width) minmax(0, 1fr); overflow: hidden; }

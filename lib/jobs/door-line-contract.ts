@@ -1,3 +1,4 @@
+import { normalizeConstruction, validConstruction } from './construction-contract';
 import {
   JobIntakeFailure,
   type DoorLineInput,
@@ -120,7 +121,7 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
     sidelightMeasurementLeft: '', sidelightMeasurementRight: '',
     panelSidelightWidth: '', panelSidelights: [], sidelightSpecifications: [],
     transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
-    doubleDoorAstragal: null, doubleDoorSizing: null,
+    construction: 'standard', doubleDoorAstragal: null, doubleDoorSizing: null,
     includeDiagramOnWorkOrder: false,
   };
 }
@@ -133,6 +134,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const width = text(input.width);
   const height = text(input.height);
   const errors: Record<string, string> = {};
+  if (!validConstruction(input.construction)) errors.construction = 'Choose Standard or Low Profile 1/4" Sill.';
   const sizingError = validateDoubleDoorSizing({ ...input, config: config ?? undefined });
   if (sizingError) errors.doubleDoorSizing = sizingError;
   const patio = input.doubleDoorSizing?.kind === 'patio';
@@ -159,7 +161,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   if (customSlab === 'Yes') customSlab = 'WoodCustom';
   if (noJamb) customSlab = 'No';
   if (!['No', 'RO', 'WoodCustom'].includes(customSlab)) errors.customSlab = 'Choose Standard, Custom RO / Cut Down, or Custom Wood Slab.';
-  if (customSlab === 'WoodCustom') {
+  if (customSlab === 'WoodCustom' && !hasDoubleDoorCore(config)) {
     if (material !== 'wood') errors.customSlab = 'Custom slab dimensions are available for Wood only.';
     if (!parseStoredShopDimension(input.customSlabWidth).ok) errors.customSlabWidth = `Enter a valid custom slab width. ${SHOP_DIMENSION_FORMAT_HELP}`;
     if (!parseStoredShopDimension(input.customSlabHeight).ok) errors.customSlabHeight = `Enter a valid custom slab height. ${SHOP_DIMENSION_FORMAT_HELP}`;
@@ -172,7 +174,8 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   if (!prep || !allowedPreps.includes(prep)) errors.prep = 'Choose a deployed prep option.';
 
   const hand = noJamb ? null : text(input.hand);
-  const handOptions = mode === 'Exterior' ? ['LH', 'RH', 'LHOUT', 'RHOUT'] : config === 'DD' ? [null, 'LH', 'RH'] : ['LH', 'RH'];
+  const handOptions = mode === 'Exterior' ? ['LH', 'RH', 'LHOUT', 'RHOUT']
+    : [...(config === 'DD' ? [null] : []), 'LH', 'RH', ...(normalizeConstruction(input.construction) === 'low-profile-quarter-sill' ? ['LHOUT', 'RHOUT'] : [])];
   if (!noJamb && !handOptions.includes(hand)) errors.hand = 'Choose a deployed handing option.';
 
   const jambWidth = noJamb ? null : text(input.jambWidth);
@@ -211,6 +214,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   return {
     ok: true,
     value: {
+      construction: normalizeConstruction(input.construction),
       mode: mode as DoorLineMode,
       doorType: text(input.doorType), config: config as string, width: width as string, height: height as string,
       customSlab, customSlabWidth: customSlab === 'WoodCustom' ? text(input.customSlabWidth) : null,
@@ -320,6 +324,7 @@ export function doorLineEquivalenceKey(line: DoorLineInput): string {
   if (parsedConfig.ok) comparable.config = parsedConfig.canonicalConfig;
   return JSON.stringify({
     ...comparable,
+    construction: normalizeConstruction(line.construction),
     glassWarnings: JSON.stringify(line.glassWarnings ?? []),
     glassBlockers: JSON.stringify(line.glassBlockers ?? []),
     glassOverride: JSON.stringify(line.glassOverride ?? null),

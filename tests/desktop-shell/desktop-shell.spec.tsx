@@ -229,7 +229,7 @@ test('routine native door choices share one compact desktop workspace', async ({
   for (const viewport of [{ width: 1600, height: 900 }, { width: 1280, height: 720 }]) {
     await page.setViewportSize(viewport);
     const component = await mount(<DoorLineWorkspaceHarness/>);
-    for (const label of ['Door Type', 'Configuration', 'Width', 'Height', 'Swing', 'Prep', 'Quantity', 'Jamb Width', 'Jamb Type', 'Hinge Type', 'Material', 'Sill', 'Weatherstrip', 'Custom Slab / RO', 'Door Thickness']) await expect(component.locator('label').filter({ hasText: new RegExp(`^${label.replace('/', '\\/')}`) }).first().locator('input,select,textarea')).toBeVisible();
+    for (const label of ['Door Type', 'Configuration', 'Width', 'Height', 'Swing', 'Prep', 'Quantity', 'Jamb Width', 'Jamb Type', 'Hinge Type', 'Material', 'Sill', 'Weatherstrip', 'Door Thickness']) await expect(component.locator('label').filter({ hasText: new RegExp(`^${label.replace('/', '\\/')}`) }).first().locator('input,select,textarea')).toBeVisible();
     await expect(component.getByText('More Details', { exact: true })).toHaveCount(0);
     await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', viewport.width > 1440 ? 'hidden' : 'visible');
     await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', viewport.width > 1440 ? 'auto' : 'visible');
@@ -283,7 +283,7 @@ test('compact job workspace provides one vertical scroll path to every Door Inpu
     await expect(workspace).toHaveCSS('overflow-y', 'auto');
     await expect(component.locator('.door-input-pane')).toHaveCSS('overflow-y', 'visible');
     await component.getByRole('combobox', { name: 'Material', exact: true }).selectOption('wood');
-    await component.getByRole('combobox', { name: 'Custom Slab / RO', exact: true }).selectOption('WoodCustom');
+    await component.getByRole('switch', { name: 'Custom Slab', exact: true }).click();
     const addDoor = component.getByRole('button', { name: 'Add Door', exact: true });
     const doorInput = component.locator('.door-input-pane');
     const lineNotes = component.getByRole('textbox', { name: 'Line Notes' });
@@ -324,7 +324,7 @@ test('compact job workspace provides one vertical scroll path to every Door Inpu
     await linesTab.click();
     await expect(component.locator('.job-lines-pane')).toHaveCSS('overflow-y', 'visible');
     await component.getByRole('button', { name: 'Door Input' }).click();
-    await expect(component.getByRole('combobox', { name: 'Custom Slab / RO', exact: true })).toHaveValue('WoodCustom');
+    await expect(component.getByRole('switch', { name: 'Custom Slab', exact: true })).toBeChecked();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
     await component.unmount();
   }
@@ -457,7 +457,7 @@ test('job shell keeps its accepted desktop layout and responsive fallback at req
     expect(widths.shopDate).toBeGreaterThanOrEqual(128);
     expect(widths.notes).toBeGreaterThanOrEqual(288);
     const doorWidths: Record<string, number> = {};
-    for (const name of ['Jamb Width', 'Jamb Type', 'Hinge Color', 'Material', 'Custom Slab / RO', 'Door Thickness']) {
+    for (const name of ['Jamb Width', 'Jamb Type', 'Hinge Color', 'Material', 'Door Thickness']) {
       doorWidths[name] = await component.getByRole('combobox', { name, exact: true }).evaluate((element) => element.getBoundingClientRect().width);
       expect(doorWidths[name]).toBeGreaterThanOrEqual(144);
     }

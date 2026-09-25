@@ -1,8 +1,24 @@
-import { PATIO_DOOR_PRESETS, resolvedDoubleDoorLeaves, validateDoubleDoorSizing } from './double-door-sizing-contract';
-import { usesCustomRo, customRoHeaderTarget, resolveCustomRoHeight } from './custom-ro-contract';
+import { constructionAllowance, lowProfileLabel } from './construction-contract';
+import { PATIO_DOOR_PRESETS, customDoubleDoorSlabs, resolvedDoubleDoorLeaves, validateDoubleDoorSizing } from './double-door-sizing-contract';
+import { usesCustomRo, customRoHeaderTarget, resolveCustomRoHeight, resolveCustomRoDoubleDoorWidth } from './custom-ro-contract';
 import type { DoorLineInput } from './job-intake-types';
 import { formatShopDimension, parseDimension, parseStoredShopDimension } from './dimension-contract';
 import { doubleDoorCoreWidth, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
+import { parseGlassUnitConfiguration, totalSidelightCount } from './glass-unit-composition-contract';
+
+export function usesAutomaticCustomSlabRoWidth(line: Readonly<DoorLineInput>): boolean {
+  const parsed = parseGlassUnitConfiguration(line.config);
+  return (line.customSlab === 'WoodCustom' || line.customSlab === 'Yes')
+    && parsed.ok && totalSidelightCount(parsed.value) === 0;
+}
+
+export function automaticCustomSlabRoWidth(line: Readonly<DoorLineInput>): ShopDimension | null {
+  if (!usesAutomaticCustomSlabRoWidth(line)) return null;
+  const parsed = parseGlassUnitConfiguration(line.config);
+  if (!parsed.ok) return null;
+  // Resolve the lower frame through the same calculator used for plain D/DD.
+  return calculateNonGlassFrameCut({ ...line, config: parsed.value.door }).values?.recommendedRoWidth ?? null;
+}
 
 export type NonGlassFrameCutStatus = 'Complete' | 'Incomplete' | 'Blocked' | 'Not Applicable';
 export type NonGlassFrameCutIssue = { code: string; field: string | null; message: string };
@@ -19,6 +35,7 @@ export type NonGlassFrameCutValues = {
   finalSlabHeight: ShopDimension;
   jambLeg: ShopDimension | null;
   headerWidth: ShopDimension | null;
+  recommendedRoWidth?: ShopDimension;
   sillOrThresholdWidth: ShopDimension | null;
   frameWidth: ShopDimension | null;
   doubleDoorCoreWidth: ShopDimension | null;
@@ -69,6 +86,8 @@ function parseNominal(value: unknown): number | null {
 function actualSlab(line: Readonly<DoorLineInput>):
   | { ok: true; width: number; height: number }
   | { ok: false; missing: string[]; blockers: NonGlassFrameCutIssue[] } {
+  const customDD = customDoubleDoorSlabs(line.doubleDoorSizing);
+  if (customDD) return { ok: true, width: customDD.activeWidth, height: customDD.height };
   if (line.doubleDoorSizing?.kind === 'patio') {
     const preset = PATIO_DOOR_PRESETS[line.doubleDoorSizing.preset];
     return { ok: true, width: preset.activeWidth, height: preset.height };
@@ -182,7 +201,7 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
   const outswing = String(line.hand ?? '').includes('OUT');
   // Preserve existing Standard/Patio allowances; the locked Custom RO path
   // uses the supplied normal inswing/outswing shop totals.
-  const deduction = !customRo && interior ? 1.875 : outswing ? 2 : 2.25;
+  const deduction = constructionAllowance(line.construction, outswing, !customRo && interior ? 1.875 : undefined);
   const height = resolveCustomRoHeight(slab.height, deduction, dimensions.roHeight);
   const jambLeg = height.jambLeg;
   const finalHeight = height.finalSlabHeight;
@@ -193,10 +212,11 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
     ? doubleDoorCoreWidth(leaves, normalizeDoubleDoorAstragal(line.doubleDoorAstragal), nonAstragalAllowance)
     : slab.width + singleAllowance;
   const targetHeader = customRoHeaderTarget(normalHeader, dimensions.roWidth);
-  const requiredReduction = Math.max(0, normalHeader - targetHeader);
-  const widthReviewRequired = isDouble && requiredReduction > 2;
+  const ddWidth = isDouble ? resolveCustomRoDoubleDoorWidth(leaves, normalizeDoubleDoorAstragal(line.doubleDoorAstragal), nonAstragalAllowance, dimensions.roWidth) : null;
+  const requiredReduction = ddWidth?.requiredReduction ?? Math.max(0, normalHeader - targetHeader);
+  const widthReviewRequired = ddWidth?.reviewRequired ?? false;
   const widthCut = widthReviewRequired ? 0 : requiredReduction;
-  const finalLeaves: readonly [number, number] = [leaves[0], leaves[1] - widthCut];
+  const finalLeaves: readonly [number, number] = ddWidth?.leaves ?? leaves;
   const finalWidth = isDouble ? leaves[0] : slab.width - widthCut;
   const doubleCore = isDouble
     ? doubleDoorCoreWidth(finalLeaves, normalizeDoubleDoorAstragal(line.doubleDoorAstragal), nonAstragalAllowance)
@@ -216,6 +236,7 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
     finalSlabWidth: dimension(finalWidth), finalSlabHeight: dimension(finalHeight),
     ...(isDouble ? { activeLeafWidth: dimension(leaves[0]), inactiveLeafWidth: dimension(finalLeaves[1]), actualSlabWidth: dimension(leaves[0]), finalSlabWidth: dimension(leaves[0]) } : {}),
     jambLeg: dimension(jambLeg), headerWidth: widthReviewRequired ? null : dimension(header),
+    ...((line.doubleDoorSizing?.kind === 'custom-slabs' || usesAutomaticCustomSlabRoWidth(line)) && !widthReviewRequired ? { recommendedRoWidth: dimension(header + 2) } : {}),
     sillOrThresholdWidth: interior || widthReviewRequired ? null : dimension(header), frameWidth: widthReviewRequired ? null : dimension(header),
     doubleDoorCoreWidth: doubleCore === null || widthReviewRequired ? null : dimension(doubleCore),
     ...(customRo ? { widthCutDown: dimension(widthCut), requiredWidthReduction: dimension(requiredReduction), widthReviewRequired, targetHeaderWidth: dimension(targetHeader) } : {}), cutDown: dimension(cutDown),
@@ -229,6 +250,7 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
     ? `Cut inactive slab ${dimension(widthCut).display} from ASTRAGAL EDGE ONLY. Active slab and inactive hinge edge remain unchanged.`
     : `Slab width cut: ${dimension(widthCut).display}. VERIFY SIZE AVAILABILITY if choosing a smaller nominal door instead.`));
   const detailLines = [
+    ...(lowProfileLabel(line) ? [lowProfileLabel(line)!] : []),
     ...(customRo && isDouble ? [`${widthReviewRequired ? 'Widths before special review' : 'Final slabs'}: active ${dimension(finalLeaves[0]).display} x ${dimension(finalHeight).display}; inactive ${dimension(finalLeaves[1]).display} x ${dimension(finalHeight).display}`] : []),
     ...(customRo && !isDouble && (widthCut > 0 || cutDown > 0) ? [`Final slab: ${dimension(finalWidth).display} x ${dimension(finalHeight).display}`] : []),
     ...(isDouble && line.doubleDoorSizing && !customRo ? [
@@ -236,6 +258,7 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
       `Active slab: ${dimension(leaves[0]).display} x ${dimension(finalHeight).display}; Inactive slab: ${dimension(leaves[1]).display} x ${dimension(finalHeight).display}`,
     ] : []),
     `Jamb legs: ${values.jambLeg?.display}`,
+    ...(values.recommendedRoWidth ? [`Recommended RO width: ${values.recommendedRoWidth.display}`] : []),
     ...(widthReviewRequired ? [`Target header/sill for review only: ${dimension(targetHeader).display}`] : [`${interior ? 'Header' : 'Header/Sill'}: ${values.headerWidth?.display}`]),
     ...(cutDown > 0 ? [`Door cut to ${values.finalSlabHeight.display}`] : []),
   ];

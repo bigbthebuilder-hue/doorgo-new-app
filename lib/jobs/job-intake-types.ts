@@ -1,3 +1,4 @@
+import type { DoorConstruction } from './construction-contract';
 export type JobLifecycleStage = 'Draft' | 'Confirmed Job';
 export type DoorLineMode = 'Interior' | 'Exterior';
 export type DoorLineStatus = 'Active' | 'Archived' | 'Merged';
@@ -18,6 +19,7 @@ export type GlassTypeCode = 'CLEAR' | 'SATIN_ETCH' | 'CUSTOM';
 export type GlassTBarSize = '1.5' | '2.25';
 export type DoubleDoorAstragalType = 'standard-metal-ds347' | 'wood-ferco-astra-lock';
 export type DoubleDoorSizing = { kind: 'patio'; preset: '5' | '6' }
+  | { kind: 'custom-slabs'; activeWidth: string; inactiveWidth: string; height: string }
   | { kind: 'actual-leaves'; activeWidth: number; inactiveWidth: number };
 export type PanelSizeMode = 'standard' | 'custom';
 export type SidelightSpecification = {
@@ -119,6 +121,7 @@ export type NativeDoorLine = {
   transomGlassTypeCode?: GlassTypeCode | null;
   transomCustomGlassDescription?: string | null;
   doubleDoorAstragal?: DoubleDoorAstragalType | null;
+  construction?: DoorConstruction;
   doubleDoorSizing?: DoubleDoorSizing | null;
   panelSidelights: PanelSidelight[];
   includeDiagramOnWorkOrder: boolean;

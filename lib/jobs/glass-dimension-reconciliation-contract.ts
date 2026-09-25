@@ -107,6 +107,13 @@ export function reconcileGlassDimensionCommit(input: DoorLineInput, edit: GlassC
   };
   const positions = orderedPositions(input);
   const fixed = fixedHeaderWidth(input);
+  if (input.customSlab === 'RO' && fixed?.doorCount === 2 && edit.kind === 'roWidth') {
+    const width = numericDimension(edit.value);
+    if (!width.ok) return { ...unchanged(), blockers: [issue('invalid_ro_width', 'Enter a valid RO width in inches.')] };
+    const sourcePatch = { roWidth: width.formatted };
+    const calculatedGeometry = calculateGlassGeometry({ ...input, ...sourcePatch });
+    return { sourcePatch, calculatedGeometry, blockers: calculatedGeometry.blockers, warnings: calculatedGeometry.warnings, informationalNotices: [] };
+  }
   if (edit.kind === 'roHeight') {
     const height = numericDimension(edit.value);
     if (!height.ok) return { ...unchanged(), blockers: [issue('invalid_ro_height', 'Enter a valid RO height in inches.')] };

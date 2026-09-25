@@ -1,12 +1,29 @@
+import { normalizeConstruction } from './construction-contract';
 import type { DoorLineInput, DoorLineMode } from './job-intake-types';
 import { defaultDoorLine, prepAfterHeightChange } from './door-line-contract';
 import { hingeTypeOptions } from './hinge-contract';
+import { hasDoubleDoorCore } from './double-door-astragal-contract';
+import { isGlassConfiguration } from './glass-geometry-contract';
 
-type StickyDoorValues = Pick<DoorLineInput, 'doorType' | 'hingeType' | 'height'>;
+// Sizing modes share existing persisted flags; switching discards inactive inputs.
+export function changeSizingMode(line: DoorLineInput, mode: 'No' | 'WoodCustom' | 'RO'): DoorLineInput {
+  return {
+    ...line, customSlab: mode, customSlabWidth: '', customSlabHeight: '',
+    roWidth: isGlassConfiguration(line.config) ? line.roWidth : '',
+    roHeight: isGlassConfiguration(line.config) ? line.roHeight : '',
+    doubleDoorSizing: mode === 'WoodCustom' && hasDoubleDoorCore(line.config)
+      ? { kind: 'custom-slabs', activeWidth: '', inactiveWidth: '', height: '' }
+      : line.doubleDoorSizing?.kind === 'patio' ? line.doubleDoorSizing : null,
+    glassCalc: null, glassOverride: null, glassWarnings: [], glassBlockers: [],
+    glassUnits: [], panelSidelights: [], glassWorkorderDetail: null, vendorCopyText: null,
+  };
+}
+
+type StickyDoorValues = Pick<DoorLineInput, 'doorType' | 'hingeType' | 'height' | 'construction'>;
 export type NewDoorSession = { mode: DoorLineMode; values: Record<DoorLineMode, StickyDoorValues> };
 
 function stickyValues(line: DoorLineInput): StickyDoorValues {
-  return { doorType: line.doorType, hingeType: line.hingeType, height: line.height };
+  return { doorType: line.doorType, hingeType: line.hingeType, height: line.height, construction: normalizeConstruction(line.construction) };
 }
 
 export function createNewDoorSession(): NewDoorSession {

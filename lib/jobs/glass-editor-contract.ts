@@ -1,6 +1,20 @@
 import { GLASS_CONFIGS, glassConfigurationTopology, isGlassConfiguration, normalizeSidelightType } from './glass-geometry-contract';
 import type { DoorLineInput } from './job-intake-types';
 import type { GlassCalculationStatus } from './job-intake-types';
+import { calculateGlassGeometry } from './glass-geometry-contract';
+import { usesAutomaticCustomSlabRoWidth } from './non-glass-frame-cut-contract';
+import { canonicalSidelightSpecifications, reconcileGlassDimensionCommit, type GlassDimensionAuthority } from './glass-dimension-reconciliation-contract';
+
+// Reuse direct-dimension reconciliation after structural changes; never choose a new authority.
+export function reconcileGlassTopology(previous: DoorLineInput, next: DoorLineInput, authority: GlassDimensionAuthority) {
+  const value = authority.kind === 'roWidth' ? previous.roWidth
+    : authority.kind === 'transomWidth' ? calculateGlassGeometry(previous).glassCalc?.transomWidth
+    : canonicalSidelightSpecifications(previous).find((entry) => entry.side === authority.side && entry.index === authority.index)?.finishedWidth;
+  const result = reconcileGlassDimensionCommit(next, { ...authority, value }, authority);
+  const draft = { ...next, ...result.sourcePatch };
+  if (authority.kind === 'roWidth') draft.roWidth = previous.roWidth;
+  return { ...result, draft };
+}
 
 export const EXTERIOR_GLASS_EDITOR_CONFIGS = [...GLASS_CONFIGS];
 
@@ -24,7 +38,7 @@ export function glassEditorVisibility(line: DoorLineInput): GlassEditorVisibilit
     showPanelWidth: topology.sidelightPositions.length > 0 && type === 'Panel',
     showSidelightGlass: topology.sidelightPositions.length > 0 && type === 'Glass',
     showTransomGlass: topology.hasTransom,
-    requireRoWidth: true,
+    requireRoWidth: !usesAutomaticCustomSlabRoWidth(line),
     requireRoHeight: topology.hasTransom,
   };
 }

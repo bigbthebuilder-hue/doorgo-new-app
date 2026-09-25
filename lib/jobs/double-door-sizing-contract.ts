@@ -1,5 +1,17 @@
 import type { DoorLineInput, DoubleDoorSizing } from './job-intake-types';
 import { hasDoubleDoorCore } from './double-door-astragal-contract';
+import { parseStoredShopDimension } from './dimension-contract';
+
+export const CUSTOM_DD_REQUIRED = 'Enter Active width, Inactive width, and shared slab height.';
+
+export function customDoubleDoorSlabs(sizing: DoubleDoorSizing | null | undefined): { activeWidth: number; inactiveWidth: number; height: number } | null {
+  if (sizing?.kind !== 'custom-slabs') return null;
+  const active = parseStoredShopDimension(sizing.activeWidth);
+  const inactive = parseStoredShopDimension(sizing.inactiveWidth);
+  const height = parseStoredShopDimension(sizing.height);
+  return active.ok && inactive.ok && height.ok
+    ? { activeWidth: active.inches, inactiveWidth: inactive.inches, height: height.inches } : null;
+}
 
 export const PATIO_DOOR_PRESETS = {
   '5': { activeWidth: 28.5, inactiveWidth: 28.5, height: 77, referenceWidth: 60, referenceHeight: 80 },
@@ -10,10 +22,12 @@ export function patioSizingAvailable(line: Pick<DoorLineInput, 'mode' | 'config'
   return line.mode === 'Exterior' && line.config === 'DD';
 }
 
-export function validateDoubleDoorSizing(line: Pick<DoorLineInput, 'mode' | 'config' | 'doubleDoorSizing'>): string | null {
+export function validateDoubleDoorSizing(line: Pick<DoorLineInput, 'mode' | 'config' | 'doubleDoorSizing' | 'customSlab'>): string | null {
   const sizing = line.doubleDoorSizing;
+  if (hasDoubleDoorCore(line.config) && ['WoodCustom', 'Yes'].includes(String(line.customSlab)) && sizing?.kind !== 'custom-slabs') return CUSTOM_DD_REQUIRED;
   if (sizing == null) return null;
   if (!hasDoubleDoorCore(line.config)) return 'Explicit leaf sizing requires a DD configuration.';
+  if (sizing.kind === 'custom-slabs') return customDoubleDoorSlabs(sizing) ? null : CUSTOM_DD_REQUIRED;
   if (sizing.kind === 'patio') {
     return patioSizingAvailable(line) && (sizing.preset === '5' || sizing.preset === '6')
       ? null : 'Patio Door Replacement requires Exterior DD and a 5\' or 6\' preset.';
@@ -25,6 +39,10 @@ export function validateDoubleDoorSizing(line: Pick<DoorLineInput, 'mode' | 'con
 }
 
 export function resolvedDoubleDoorLeaves(sizing: DoubleDoorSizing | null | undefined, defaultWidth: number): readonly [number, number] {
+  if (sizing?.kind === 'custom-slabs') {
+    const custom = customDoubleDoorSlabs(sizing);
+    return custom ? [custom.activeWidth, custom.inactiveWidth] : [NaN, NaN];
+  }
   if (sizing?.kind === 'patio') {
     const preset = PATIO_DOOR_PRESETS[sizing.preset];
     return [preset.activeWidth, preset.inactiveWidth];

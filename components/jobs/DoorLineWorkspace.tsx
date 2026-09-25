@@ -15,31 +15,28 @@ import { formatShopDimension, parseShopDimension, parseStoredShopDimension } fro
 import { canCommitGlassCalculation } from '@/lib/jobs/glass-editor-contract';
 import { HINGE_COLOR_OPTIONS, hingeTypeAfterModeChange, hingeTypeOptions, normalizeHingeColor } from '@/lib/jobs/hinge-contract';
 import type { DoorLineInput, GlassCalculationStatus, GlassGeometryValues, GlassIssue, JobLifecycleStage } from '@/lib/jobs/job-intake-types';
-import { GlassUnitBuilder } from './GlassUnitBuilder';
+import { GlassUnitBuilder, initialBuilderDraft } from './GlassUnitBuilder';
 import { GlassUnitDiagram } from './GlassUnitDiagram';
-import { parseGlassUnitConfiguration, resolveGlassUnitConfiguration } from '@/lib/jobs/glass-unit-composition-contract';
 import { importedLineRenderKey } from '@/lib/jobs/legacy-transfer-review-presentation';
-import { createNewDoorSession, isSameDoorMode, newDoorFromSession, rememberNewDoor, duplicateDoorLine, replaceDoorLineById } from '@/lib/jobs/door-line-editor-state';
-import { PATIO_DOOR_PRESETS, patioSizingAvailable, withPatioPreset } from '@/lib/jobs/double-door-sizing-contract';
+import { changeSizingMode, createNewDoorSession, isSameDoorMode, newDoorFromSession, rememberNewDoor, duplicateDoorLine, replaceDoorLineById } from '@/lib/jobs/door-line-editor-state';
+import { CUSTOM_DD_REQUIRED, customDoubleDoorSlabs, PATIO_DOOR_PRESETS, patioSizingAvailable, withPatioPreset } from '@/lib/jobs/double-door-sizing-contract';
+import { CONSTRUCTIONS, normalizeConstruction } from '@/lib/jobs/construction-contract';
 import { usesCustomRo } from '@/lib/jobs/custom-ro-contract';
-import { calculateNonGlassFrameCut } from '@/lib/jobs/non-glass-frame-cut-contract';
-import { DEFAULT_DOUBLE_DOOR_ASTRAGAL, DOUBLE_DOOR_ASTRAGALS, type DoubleDoorAstragalType } from '@/lib/jobs/double-door-astragal-contract';
+import { calculateNonGlassFrameCut, usesAutomaticCustomSlabRoWidth } from '@/lib/jobs/non-glass-frame-cut-contract';
+import { hasDoubleDoorCore, DEFAULT_DOUBLE_DOOR_ASTRAGAL, DOUBLE_DOOR_ASTRAGALS, type DoubleDoorAstragalType } from '@/lib/jobs/double-door-astragal-contract';
 
 const control = 'min-h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-950';
 const button = 'min-h-9 rounded-md border border-slate-300 px-2 text-sm font-semibold dark:border-slate-600 disabled:cursor-not-allowed disabled:opacity-50';
-const geometryFields = new Set(['doubleDoorSizing', 'doubleDoorAstragal', 'config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand', 'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'transomGlass', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight']);
+const geometryFields = new Set(['construction', 'doubleDoorSizing', 'doubleDoorAstragal', 'config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand', 'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'transomGlass', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight']);
 
 function lineTitle(line: DoorLineInput): string {
+  const custom = customDoubleDoorSlabs(line.doubleDoorSizing);
+  if (custom) return [line.mode, line.doorType || 'TBD', line.config, `Active: ${formatShopDimension(custom.activeWidth)} x ${formatShopDimension(custom.height)}; Inactive: ${formatShopDimension(custom.inactiveWidth)} x ${formatShopDimension(custom.height)}`, line.hand, line.jambWidth].filter(Boolean).join(' | ');
   if (line.doubleDoorSizing?.kind === 'patio') {
     const preset = PATIO_DOOR_PRESETS[line.doubleDoorSizing.preset];
     return [line.mode, line.doorType || 'TBD', `Patio Door Replacement / ${line.doubleDoorSizing.preset}'`, `2 @ ${formatShopDimension(preset.activeWidth)} x ${formatShopDimension(preset.height)}`, line.hand, line.jambWidth].filter(Boolean).join(' | ');
   }
   return [line.mode, line.doorType || 'TBD', `${line.width} × ${line.height}`, line.config, line.hand, line.jambWidth].filter(Boolean).join(' · ');
-}
-
-function resolvedConfiguration(config: string): string {
-  const parsed = parseGlassUnitConfiguration(config);
-  return parsed.ok ? resolveGlassUnitConfiguration(parsed.value) : config;
 }
 
 function statusTone(status: unknown): string {
@@ -68,12 +65,12 @@ function DimensionInput({ label, required = false, value, error, onValue }: { la
 }
 
 function CustomRoSummary({ line }: { line: DoorLineInput }) {
-  if (!usesCustomRo(line)) return null;
+  if (!usesCustomRo(line) && !usesAutomaticCustomSlabRoWidth(line) && line.doubleDoorSizing?.kind !== 'custom-slabs') return null;
   const result = calculateNonGlassFrameCut(line);
-  return <section aria-label="Custom RO sizing" className="mt-1.5 grid gap-1 text-sm leading-snug [&>section]:rounded-md [&>section]:p-2">
+  return <section aria-label={usesCustomRo(line) ? 'Custom RO sizing' : 'Custom slab sizing'} className="mt-1.5 grid gap-1 text-sm leading-snug [&>section]:rounded-md [&>section]:p-2">
     {result.detailLines.length ? <p>{result.detailLines.join(' | ')}</p> : null}
     <Issues issues={result.warnings} label="Cut-down instructions / review"/>
-    <Issues blocker issues={result.blockers} label="RO sizing blockers"/>
+    <Issues blocker issues={result.blockers} label={usesCustomRo(line) ? 'RO sizing blockers' : 'Custom slab sizing blockers'}/>
   </section>;
 }
 
@@ -102,8 +99,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [overrideReason, setOverrideReason] = useState('');
   const [acceptedValues, setAcceptedValues] = useState<GlassGeometryValues>({});
-  const [calculationStatus, setCalculationStatus] = useState<GlassCalculationStatus | 'Incomplete' | null>(null);
-  const [builderOpen, setBuilderOpen] = useState(false);
+  const [, setCalculationStatus] = useState<GlassCalculationStatus | 'Incomplete' | null>(null);
   const [explicitGlassDetailNeeded, setExplicitGlassDetailNeeded] = useState(false);
   const [isOverridePending, startOverrideTransition] = useTransition();
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,13 +109,14 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   const mode = editor.mode === 'Interior' ? 'Interior' : 'Exterior';
   const config = String(editor.config ?? 'D');
   const isGlass = mode === 'Exterior' && isGlassConfiguration(config);
-  const staffConfiguration = isGlass ? 'With SL / T' : config;
+  const staffConfiguration = isGlass ? 'With Glass' : config;
   const patio = editor.doubleDoorSizing?.kind === 'patio' ? editor.doubleDoorSizing.preset : null;
+  const customDD = hasDoubleDoorCore(config) && (editor.customSlab === 'WoodCustom' || editor.customSlab === 'Yes');
+  const customSizing = editor.doubleDoorSizing?.kind === 'custom-slabs' ? editor.doubleDoorSizing : null;
   const noJamb = mode === 'Interior' && (config === 'PKT' || config === 'B.P.');
   const widths = mode === 'Interior' ? INTERIOR_WIDTHS : EXTERIOR_WIDTHS;
   const visibleMessage = message?.lifecycleStage === lifecycleStage ? message : null;
-  const warnings = Array.isArray(editor.glassWarnings) ? editor.glassWarnings : [];
-  const blockers = Array.isArray(editor.glassBlockers) ? editor.glassBlockers : [];
+  const glassPresentation = isGlass ? withDerivedGlassGeometry(editor) : editor;
 
   function clearMessageTimer() {
     if (messageTimer.current !== null) clearTimeout(messageTimer.current);
@@ -150,10 +147,10 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   }
 
   function set(name: string, value: unknown) {
-    if (name === 'doorType' || name === 'hingeType') newDoorSession.current = rememberNewDoor(newDoorSession.current, { ...editor, [name]: value }, editingLineId);
+    if (name === 'doorType' || name === 'hingeType' || name === 'construction') newDoorSession.current = rememberNewDoor(newDoorSession.current, { ...editor, [name]: value }, editingLineId);
     if (geometryFields.has(name)) setExplicitGlassDetailNeeded(false);
     setEditor((current) => {
-      const next = { ...current, [name]: value };
+      const next = name === 'customSlab' ? changeSizingMode(current, value as 'No' | 'WoodCustom' | 'RO') : { ...current, [name]: value };
       return geometryFields.has(name) && geometryChanged(current, next) ? clearCalculated(next) : next;
     });
     setFieldErrors((current) => {
@@ -213,6 +210,16 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     }); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
+  function chooseStaffConfiguration(value: string) {
+    if (value === 'With Glass') {
+      const next = retainCompatibleGlassFields(patio ? withPatioPreset(editor, null) : editor, 'SD', 'Glass');
+      setEditor(initialBuilderDraft(next));
+      setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+      return;
+    }
+    chooseConfig(value);
+  }
+
   function chooseConfig(nextConfig: string) {
     if (isGlassConfiguration(config) && !isGlassConfiguration(nextConfig) && !confirmsGlassDiscard()) return;
     const previouslyApplicable = mode === 'Exterior' && isGlassConfiguration(config);
@@ -226,20 +233,12 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
       next = { ...next, hand: '', jambWidth: '', jambType: '', hingeType: '', ripJamb: '', customSlab: 'No', customSlabWidth: '', customSlabHeight: '' };
       setRipMode(false);
     }
-    setEditor(next); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+    setEditor(nextApplicable ? initialBuilderDraft(next) : next); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
   function choosePatio(preset: '5' | '6' | null) {
     setEditor((current) => clearCalculated(withPatioPreset(current, preset)));
     setFieldErrors({}); setCalculationStatus(null); clearWorkspaceMessage();
-  }
-
-  function chooseStaffConfiguration(nextConfig: string) {
-    if (nextConfig === 'With SL / T') {
-      setBuilderOpen(true);
-      return;
-    }
-    chooseConfig(nextConfig);
   }
 
   function resetEditor() {
@@ -277,7 +276,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   function edit(line: DoorLineInput) {
     if (typeof line.lineId !== 'string' || !line.lineId) { showTransientMessage({ error: true, text: 'This door line has no stable identity. Reload and review the job.' }); return; }
     newDoorSession.current = rememberNewDoor(newDoorSession.current, editor, editingLineId);
-    const editable = structuredClone(line);
+    const editable = isGlassConfiguration(line.config) ? initialBuilderDraft(line) : structuredClone(line);
     for (const name of ['roWidth', 'roHeight', 'customSlabWidth', 'customSlabHeight', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight'] as const) editable[name] = storedShopInput(editable[name]);
     setEditor(editable); setEditorBaseline(JSON.stringify(editable)); setEditingLineId(line.lineId); setRipMode(String(line.ripJamb ?? '').toLowerCase() === 'yes'); setCalculationStatus(null);
     setFieldErrors({}); setOverrideReason(line.glassOverride?.reason ?? ''); setAcceptedValues(line.glassOverride?.acceptedValues ?? line.glassCalc ?? {}); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
@@ -356,47 +355,53 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
         <div className="door-primary-grid mt-2 grid gap-2 sm:grid-cols-3 2xl:grid-cols-4">
           <label className="grid gap-1 text-sm font-semibold">Door Type<input className={control} onChange={(event) => set('doorType', event.target.value)} value={String(editor.doorType ?? '')}/></label>
           {mode === 'Exterior'
-            ? <label className="grid gap-1 text-sm font-semibold">Configuration<span className="flex min-w-0 gap-1"><select className={control} onChange={(event) => chooseStaffConfiguration(event.target.value)} value={staffConfiguration}><option value="D">D</option><option value="DD">DD</option><option value="With SL / T">With SL / T</option></select>{isGlass ? <button aria-label="Edit Glass Unit" className={`${button} shrink-0`} onClick={() => setBuilderOpen(true)} type="button">Edit Unit</button> : null}</span></label>
+            ? <label className="grid gap-1 text-sm font-semibold">Configuration<span className="flex min-w-0 gap-1"><select className={control} onChange={(event) => chooseStaffConfiguration(event.target.value)} value={staffConfiguration}><option value="D">D</option><option value="DD">DD</option><option value="With Glass">With Glass</option></select></span></label>
             : <label className="grid gap-1 text-sm font-semibold">Configuration<select className={control} onChange={(event) => chooseConfig(event.target.value)} value={config}>{J2A_CONFIGS[mode].map((value) => <option key={value}>{value}</option>)}</select></label>}
           {patioSizingAvailable(editor) ? <label className="grid gap-1 text-sm font-semibold">DD Sizing<select className={control} onChange={(event) => choosePatio(event.target.value === "standard" ? null : event.target.value as "5" | "6")} value={patio ?? "standard"}><option value="standard">Standard DD</option><option value="5">Patio Door Replacement / 5&apos;</option><option value="6">Patio Door Replacement / 6&apos;</option></select></label> : null}
           {patio ? <p className="text-sm">Factory slabs: 2 @ {formatShopDimension(PATIO_DOOR_PRESETS[patio].activeWidth)} x {formatShopDimension(PATIO_DOOR_PRESETS[patio].height)}. Reference opening: {PATIO_DOOR_PRESETS[patio].referenceWidth}&quot; x 80&quot;.</p> : <>
           <label className="grid gap-1 text-sm font-semibold">Width<select className={control} onChange={(event) => set('width', event.target.value)} value={String(editor.width)}>{widths.map((value) => <option key={value}>{value}</option>)}</select></label>
           <label className="grid gap-1 text-sm font-semibold">Height<select className={control} onChange={(event) => setHeight(event.target.value)} value={String(editor.height)}>{DOOR_HEIGHTS.map((value) => <option key={value}>{value}</option>)}</select></label>
           </>}
-          {!noJamb ? <label className="grid gap-1 text-sm font-semibold">Swing<select className={control} onChange={(event) => setSwing(event.target.value)} value={String(editor.hand ?? '')}>{mode === 'Interior' && config === 'DD' ? <option value="">No handing</option> : null}<option>LH</option><option>RH</option>{mode === 'Exterior' ? <><option>LHOUT</option><option>RHOUT</option></> : null}</select></label> : null}
+          {!noJamb ? <label className="grid gap-1 text-sm font-semibold">Swing<select className={control} onChange={(event) => setSwing(event.target.value)} value={String(editor.hand ?? '')}>{mode === 'Interior' && config === 'DD' ? <option value="">No handing</option> : null}<option>LH</option><option>RH</option>{mode === 'Exterior' || normalizeConstruction(editor.construction) === 'low-profile-quarter-sill' ? <><option>LHOUT</option><option>RHOUT</option></> : null}</select></label> : null}
           {mode === 'Exterior' && config === 'DD' ? <label className="grid gap-1 text-sm font-semibold">Astragal<select className={control} onChange={(event) => set('doubleDoorAstragal', event.target.value as DoubleDoorAstragalType)} value={String(editor.doubleDoorAstragal ?? DEFAULT_DOUBLE_DOOR_ASTRAGAL)}>{Object.entries(DOUBLE_DOOR_ASTRAGALS).map(([value, option]) => <option key={value} value={value}>{option.label}</option>)}</select></label> : null}
           <label className="grid gap-1 text-sm font-semibold">Prep<select className={control} onChange={(event) => set('prep', event.target.value)} value={String(editor.prep ?? '')}>{prepChoices(mode, config).map((value) => <option key={value}>{value}</option>)}</select></label>
           <label className="grid gap-1 text-sm font-semibold">Quantity<input className={control} min="1" onChange={(event) => set('qty', event.target.value)} step="1" type="number" value={String(editor.qty ?? 1)}/></label>
         </div>
 
-        {isGlass ? <section className="mt-2 grid gap-1.5 rounded-md border border-sky-200 bg-sky-50/50 p-2 dark:border-sky-900 dark:bg-sky-950/30">
-          <div className="flex flex-wrap items-center gap-2 text-sm"><strong>{resolvedConfiguration(config)}</strong><span>{[editor.hand, editor.roWidth ? `RO ${editor.roWidth}${editor.roHeight ? ` × ${editor.roHeight}` : ''}` : '', editor.sidelightType].filter(Boolean).join(' · ')}</span><StatusBadge status={calculationStatus ?? editor.glassCalcStatus}/>{glassLineNeedsAttention({ ...editor, lineStatus: 'Active' }).length ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold">Needs Attention</span> : null}</div>
-          <Issues issues={warnings} label="Review warnings"/><Issues blocker issues={blockers} label="Hard blockers"/>
-          {editor.glassCalcStatus === 'Warning' ? <section className="grid gap-3 rounded-xl border border-violet-300 p-3 dark:border-violet-800"><h4 className="font-bold">Manual geometry override</h4><p className="text-sm">Confirm or edit the accepted values below. A reason is required and hard blockers cannot be overridden.</p><div className="grid gap-2 sm:grid-cols-2">{Object.entries(editor.glassCalc ?? {}).filter(([, value]) => typeof value === 'string' && value).map(([key, value]) => <label className="grid gap-1 text-xs font-semibold" key={key}>{key.replace(/([A-Z])/g, ' $1')}<input className={control} onChange={(event) => setAcceptedValues((current) => ({ ...current, [key]: event.target.value }))} value={String(acceptedValues[key] ?? value)}/></label>)}</div><label className="grid gap-1 text-sm font-semibold">Override Reason<textarea className={`${control} min-h-20 py-2`} onChange={(event) => setOverrideReason(event.target.value)} value={overrideReason}/></label><button className={`${button} border-violet-600 bg-violet-600 text-white`} disabled={isOverridePending || !overrideReason.trim()} onClick={applyOverride} type="button">Apply Manual Override</button></section> : null}
-          {editor.glassOverride ? <section className="rounded-xl border border-violet-300 bg-violet-50 p-3 text-sm dark:border-violet-800 dark:bg-violet-950"><div className="flex flex-wrap items-center justify-between gap-2"><StatusBadge status="Manual Override"/><button className={button} disabled={isOverridePending} onClick={removeOverride} type="button">Remove Override</button></div><p className="mt-2"><strong>Reason:</strong> {editor.glassOverride.reason}</p><p><strong>Approved by:</strong> {editor.glassOverride.appliedByDisplayName ?? editor.glassOverride.appliedByUserId} · {new Date(editor.glassOverride.appliedAt).toLocaleString()}</p></section> : null}
-        </section> : null}
-
         <div className="door-production-grid mt-2 grid gap-2 border-t border-slate-200 pt-2 sm:grid-cols-3 2xl:grid-cols-4" aria-label="Door production configuration">
           {!noJamb ? <><label className="grid gap-1 text-sm font-semibold">Jamb Width<select aria-label="Jamb Width" className={control} onChange={(event) => { const rip = event.target.value === 'RIP'; setRipMode(rip); set('ripJamb', rip ? 'Yes' : ''); set('jambWidth', rip ? '' : event.target.value); }} value={ripMode ? 'RIP' : String(editor.jambWidth ?? '')}>{jambWidthChoices(mode).map((value) => <option key={value} value={value}>{value}</option>)}<option value="RIP">RIP jamb</option></select>{ripMode ? <><span className="text-xs font-semibold">Rip to</span><input aria-label="Rip to" className={control} onChange={(event) => set('jambWidth', event.target.value)} placeholder="Completed RIP size" value={String(editor.jambWidth === 'RIP' ? '' : editor.jambWidth ?? '')}/></> : null}</label><label className="grid gap-1 text-sm font-semibold">Jamb Type<select className={control} onChange={(event) => set('jambType', event.target.value)} value={String(editor.jambType ?? 'Primed')}><option>Primed</option><option>Fir</option>{mode === 'Exterior' ? <><option>Smooth Composite</option><option>Textured Composite</option></> : null}</select></label><label className="grid gap-1 text-sm font-semibold">Hinge Type<select className={control} onChange={(event) => set('hingeType', event.target.value)} value={String(editor.hingeType ?? 'REG')}>{hingeTypeOptions(mode).map((value) => <option key={value} value={value}>{value}</option>)}</select></label><label className="grid gap-1 text-sm font-semibold">Hinge Color<select className={control} disabled={!canEdit || !onHingeColorChange} onChange={(event) => onHingeColorChange?.(event.target.value)} value={hingeColor}>{!normalizeHingeColor(hingeColor).ok ? <option disabled value={hingeColor}>Invalid saved value — choose a valid finish</option> : null}{HINGE_COLOR_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></> : null}
           {mode === 'Exterior' ? <><label className="grid gap-1 text-sm font-semibold">Material<select className={control} onChange={(event) => set('material', event.target.value)} value={String(editor.material)}><option value="fiberglass">Fiberglass</option><option value="wood">Wood</option></select></label><label className="grid gap-1 text-sm font-semibold">Sill<input className={control} onChange={(event) => set('sill', event.target.value)} value={String(editor.sill ?? '')}/></label><label className="grid gap-1 text-sm font-semibold">Weatherstrip<input className={control} onChange={(event) => set('weatherstrip', event.target.value)} value={String(editor.weatherstrip ?? '')}/></label></> : null}
-          {!patio ? <label className="grid gap-1 text-sm font-semibold">Custom Slab / RO<select className={control} onChange={(event) => set('customSlab', event.target.value)} value={String(editor.customSlab ?? 'No')}><option value="No">Standard</option>{!noJamb ? <option value="RO">Custom RO / Cut Down</option> : null}<option disabled={editor.material !== 'wood'} value="WoodCustom">Custom Wood Slab</option></select></label> : null}
-          {!patio && editor.customSlab === 'WoodCustom' ? <><DimensionInput error={fieldErrors.customSlabWidth} label="Custom Slab Width" onValue={(value) => setDimension('customSlabWidth', value)} required value={String(editor.customSlabWidth ?? '')}/><DimensionInput error={fieldErrors.customSlabHeight} label="Custom Slab Height" onValue={(value) => setDimension('customSlabHeight', value)} required value={String(editor.customSlabHeight ?? '')}/></> : null}
+          {!noJamb ? <label className="grid gap-1 text-sm font-semibold">Construction<select className={control} onChange={(event) => set('construction', event.target.value)} value={normalizeConstruction(editor.construction)}>{Object.entries(CONSTRUCTIONS).map(([value, option]) => <option key={value} value={value}>{option.label}</option>)}</select></label> : null}
+          {!patio ? <fieldset className="flex flex-wrap items-center gap-2 text-sm"><legend className="font-semibold">Sizing Adjustments</legend>{([['WoodCustom', 'Custom Slab'], ['RO', 'Fit to RO']] as const).map(([value, label]) => {
+            const enabled = value === 'WoodCustom' ? editor.customSlab === 'WoodCustom' || editor.customSlab === 'Yes' : editor.customSlab === 'RO';
+            return <button key={value} role="switch" aria-label={label} aria-checked={enabled} disabled={!enabled && (value === 'RO' ? noJamb : !hasDoubleDoorCore(config) && editor.material !== 'wood')} className={button + (enabled ? ' border-sky-700 bg-sky-700 text-white' : '')} onClick={() => set('customSlab', enabled ? 'No' : value)} type="button">{label} <span className="text-xs font-bold">{enabled ? 'ON' : 'OFF'}</span></button>;
+          })}</fieldset> : null}
+          {customDD ? <>
+            {([['activeWidth', 'Active Slab Width'], ['inactiveWidth', 'Inactive Slab Width'], ['height', 'Slab Height']] as const).map(([field, label]) => <DimensionInput key={field} label={label} required value={String(customSizing?.[field] ?? '')} onValue={(value) => set('doubleDoorSizing', { kind: 'custom-slabs', activeWidth: customSizing?.activeWidth ?? '', inactiveWidth: customSizing?.inactiveWidth ?? '', height: customSizing?.height ?? '', [field]: value })}/>)}
+            {!customDoubleDoorSlabs(customSizing) ? <p className="text-xs text-amber-800" role="status">{CUSTOM_DD_REQUIRED}</p> : null}
+          </> : null}
+          {!patio && !customDD && editor.customSlab === 'WoodCustom' ? <><DimensionInput error={fieldErrors.customSlabWidth} label="Custom Slab Width" onValue={(value) => setDimension('customSlabWidth', value)} required value={String(editor.customSlabWidth ?? '')}/><DimensionInput error={fieldErrors.customSlabHeight} label="Custom Slab Height" onValue={(value) => setDimension('customSlabHeight', value)} required value={String(editor.customSlabHeight ?? '')}/></> : null}
           {config === 'B.P.' ? <label className="grid gap-1 text-sm font-semibold">F.O. Height (only when cutting)<input className={control} onChange={(event) => set('roHeight', event.target.value)} value={String(editor.roHeight ?? '')}/></label> : null}
           <label className="grid gap-1 text-sm font-semibold">Door Thickness<select className={control} onChange={(event) => set('doorThickness', event.target.value)} value={String(editor.doorThickness ?? '')}><option value="">Auto</option><option>1-3/8</option><option>1-3/4</option></select></label>
         {usesCustomRo(editor) ? <div className="contents" aria-label="Custom RO dimensions">
           <DimensionInput error={fieldErrors.roWidth} label="RO Width" onValue={(value) => setDimension('roWidth', value)} value={String(editor.roWidth ?? '')}/>
           <DimensionInput error={fieldErrors.roHeight} label="RO Height" onValue={(value) => setDimension('roHeight', value)} value={String(editor.roHeight ?? '')}/>
         </div> : null}
-          <label className="door-line-notes grid gap-1 text-sm font-semibold sm:col-span-3 2xl:col-span-4">Line Notes<textarea className={`${control} door-line-notes-control h-10 min-h-10 resize-y py-1.5`} onChange={(event) => set('notes', event.target.value)} rows={2} value={String(editor.notes ?? '')}/></label>
         </div>
+        {isGlass ? <GlassUnitBuilder key={editingLineId ?? 'new-door'} embedded line={editor} onInlineChange={(next) => { setEditor(next); setFieldErrors({}); setCalculationStatus(null); clearWorkspaceMessage(); }} onCancel={resetEditor} onUse={(next, detailNeeded) => commitEditor(detailNeeded, next)} showCommitActions={false}/> : null}
+        {isGlass && (glassPresentation.glassCalcStatus === 'Warning' || editor.glassOverride) ? <section className="mt-2 grid gap-1.5 rounded-md border border-sky-200 bg-sky-50/50 p-2 dark:border-sky-900 dark:bg-sky-950/30">
+          {glassPresentation.glassCalcStatus === 'Warning' ? <section className="grid gap-3 rounded-xl border border-violet-300 p-3 dark:border-violet-800"><h4 className="font-bold">Manual geometry override</h4><p className="text-sm">Confirm or edit the accepted values below. A reason is required and hard blockers cannot be overridden.</p><div className="grid gap-2 sm:grid-cols-2">{Object.entries(glassPresentation.glassCalc ?? {}).filter(([, value]) => typeof value === 'string' && value).map(([key, value]) => <label className="grid gap-1 text-xs font-semibold" key={key}>{key.replace(/([A-Z])/g, ' $1')}<input className={control} onChange={(event) => setAcceptedValues((current) => ({ ...current, [key]: event.target.value }))} value={String(acceptedValues[key] ?? value)}/></label>)}</div><label className="grid gap-1 text-sm font-semibold">Override Reason<textarea className={`${control} min-h-20 py-2`} onChange={(event) => setOverrideReason(event.target.value)} value={overrideReason}/></label><button className={`${button} border-violet-600 bg-violet-600 text-white`} disabled={isOverridePending || !overrideReason.trim()} onClick={applyOverride} type="button">Apply Manual Override</button></section> : null}
+          {editor.glassOverride ? <section className="rounded-xl border border-violet-300 bg-violet-50 p-3 text-sm dark:border-violet-800 dark:bg-violet-950"><div className="flex flex-wrap items-center justify-between gap-2"><StatusBadge status="Manual Override"/><button className={button} disabled={isOverridePending} onClick={removeOverride} type="button">Remove Override</button></div><p className="mt-2"><strong>Reason:</strong> {editor.glassOverride.reason}</p><p><strong>Approved by:</strong> {editor.glassOverride.appliedByDisplayName ?? editor.glassOverride.appliedByUserId} · {new Date(editor.glassOverride.appliedAt).toLocaleString()}</p></section> : null}
+        </section> : null}
+
         <CustomRoSummary line={editor}/>
+          <label className="door-line-notes grid gap-1 text-sm font-semibold sm:col-span-3 2xl:col-span-4">Line Notes<textarea className={`${control} door-line-notes-control h-10 min-h-10 resize-y py-1.5`} onChange={(event) => set('notes', event.target.value)} rows={2} value={String(editor.notes ?? '')}/></label>
         <div className="door-input-local-footer mt-2">
           <div className="door-input-preview text-xs"><span className="font-semibold">Preview:</span> {lineTitle(editor)}</div>
-          <div className="door-input-local-actions flex flex-wrap gap-2"><button className={`${button} border-sky-700 bg-sky-700 text-white`} onClick={() => commitEditor()} type="button">{editingLineId !== null ? 'Update Door' : 'Add Door'}</button>{editingLineId !== null ? <button className={button} onClick={resetEditor} type="button">Cancel Edit</button> : null}</div>
+          <div className="door-input-local-actions flex flex-wrap gap-2">{isGlass && glassPresentation.glassCalcStatus === 'Glass Detail Needed' ? <button className={`${button} border-amber-600`} onClick={() => commitEditor(true)} type="button">Leave Glass Detail Needed</button> : null}<button className={`${button} border-sky-700 bg-sky-700 text-white`} onClick={() => commitEditor()} type="button">{editingLineId !== null ? 'Update Door' : 'Add Door'}</button>{editingLineId !== null ? <button className={button} onClick={resetEditor} type="button">Cancel Edit</button> : null}</div>
         </div>
       </>}
       {visibleMessage ? <p aria-live="polite" className={`mt-4 rounded-xl p-3 text-sm ${visibleMessage.error ? 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100' : 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'}`} role="status">{visibleMessage.text}</p> : null}
-      {builderOpen ? <GlassUnitBuilder commitLabel={editingLineId !== null ? 'Save Door Changes' : 'Add Door to Order'} line={structuredClone(patio ? withPatioPreset(editor, null) : editor)} onCancel={() => setBuilderOpen(false)} onUse={(next, explicitDetailNeeded) => { const committed = commitEditor(explicitDetailNeeded, next); if (committed) { setBuilderOpen(false); setCalculationStatus(null); clearWorkspaceMessage(); } return committed; }}/>: null}
     </div>
 
     <aside className="job-lines-pane min-w-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="job-lines-pane">

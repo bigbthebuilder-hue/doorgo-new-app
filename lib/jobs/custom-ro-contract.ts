@@ -1,4 +1,17 @@
 import type { DoorLineInput } from './job-intake-types';
+import { doubleDoorCoreWidth } from './double-door-astragal-contract';
+
+// Shared by plain DD and DD-based glass units. Sidelights occupy the remainder
+// of the header; only the inactive slab may absorb a routine door-core reduction.
+export function resolveCustomRoDoubleDoorWidth(leaves: readonly [number, number], astragal: unknown, allowance: number, roWidth: number | null, sidelightSpan = 0) {
+  const normalHeader = doubleDoorCoreWidth(leaves, astragal, allowance) + sidelightSpan;
+  const targetHeader = customRoHeaderTarget(normalHeader, roWidth);
+  const requiredReduction = Math.max(0, normalHeader - targetHeader);
+  const reviewRequired = requiredReduction > 2;
+  const widthCut = reviewRequired ? 0 : requiredReduction;
+  const resolvedLeaves: readonly [number, number] = [leaves[0], leaves[1] - widthCut];
+  return { targetHeader, requiredReduction, reviewRequired, widthCut, leaves: resolvedLeaves };
+}
 
 export function usesCustomRo(line: Readonly<DoorLineInput>): boolean {
   return (line.mode === 'Interior' || line.mode === 'Exterior')

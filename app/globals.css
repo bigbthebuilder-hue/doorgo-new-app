@@ -784,3 +784,55 @@ body {
 .admin-access-levels label[data-selected=true]{background:var(--app-color-primary);color:white;font-weight:800}.admin-access-levels input{accent-color:var(--app-color-primary)}
 .admin-user-message{padding:.65rem;border:1px solid var(--app-color-border);border-radius:.35rem;margin:.5rem 0}.admin-password-fields{margin:.75rem 0}.admin-user-detail form{margin-top:.75rem}
 @media(max-width:700px){.admin-users-layout{grid-template-columns:1fr}.admin-user-list{max-height:15rem;overflow:auto}.admin-permissions{grid-template-columns:1fr}}
+
+/* Intake glass shares the door editor's page scroll, never a modal viewport. */
+.door-input-pane { overflow-y: auto; }
+.app-shell-main[data-scroll-owner="workspace"] > .app-workspace.job-editor-workspace:has(.door-inline-glass) { overflow-x: hidden; overflow-y: auto; }
+.job-editor-surface:has(.door-inline-glass) { height: auto; min-height: 100%; grid-template-rows: auto; overflow: visible; }
+.job-editor-surface:has(.door-inline-glass) > .mt-3:has(.door-line-workbench) { min-height: max-content; }
+.door-line-workbench:has(.door-inline-glass) { height: auto; align-items: start; }
+.door-input-pane:has(.door-inline-glass) { overflow: visible; }
+.door-inline-glass { margin-top: .5rem; }
+.door-inline-glass > .glass-unit-builder { height: auto; max-height: none; overflow: visible; grid-template-rows: auto auto; }
+.door-inline-glass .glass-unit-builder > header { position: static; padding: .5rem; }
+.door-inline-glass .glass-builder-workspace { overflow: visible !important; grid-template-columns: minmax(0, 1fr); padding: .5rem !important; }
+.door-inline-glass .glass-builder-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.door-inline-glass .glass-builder-fields > * { min-width: 0; grid-row: auto !important; }
+.door-inline-glass .glass-builder-fields > section,
+.door-inline-glass .glass-builder-fields > fieldset,
+.door-inline-glass .glass-builder-fields > div,
+.door-inline-glass .glass-builder-fields > details,
+.door-inline-glass .glass-builder-fields > p { grid-column: 1 / -1 !important; }
+.door-inline-glass .glass-builder-fields > section,
+.door-inline-glass .glass-builder-fields > fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.door-inline-glass .glass-structure-control { max-width: 24rem; margin-inline: auto; width: 100%; }
+@media (max-width: 640px) {
+  .door-inline-glass .glass-builder-fields,
+  .door-inline-glass .glass-builder-fields > section,
+  .door-inline-glass .glass-builder-fields > fieldset { grid-template-columns: minmax(0, 1fr); }
+  .door-input-local-footer { flex-wrap: wrap; }
+}
+
+/* Desktop intake keeps editor and saved lines as independent working panes. */
+@media (min-width: 1024px) {
+  .app-shell-main[data-scroll-owner="workspace"] > .app-workspace.job-editor-workspace:has(.door-inline-glass) { overflow: hidden; }
+  .job-editor-surface:has(.door-inline-glass) { height: 100%; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto auto; overflow: hidden; }
+  .job-editor-surface:has(.door-inline-glass) > .mt-3:has(.door-line-workbench) { grid-row: 3; min-height: 0; }
+  .door-line-workbench:has(.door-inline-glass) { height: 100%; min-height: 0; align-items: stretch; }
+  .door-line-workbench > .door-input-pane,
+  .door-line-workbench > .job-lines-pane { height: 100%; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; }
+  .door-inline-glass .glass-builder-workspace { grid-template-columns: minmax(14rem, .8fr) minmax(0, 1.5fr); align-items: start; gap: .75rem; }
+  .door-inline-glass .glass-builder-fields { margin-top: 0; gap: .4rem; font-size: .8125rem; }
+  .door-inline-glass :is(input:not([type="checkbox"]), select, textarea) { min-height: 2rem !important; border-radius: .375rem; padding-inline: .5rem; font-size: .8125rem; }
+  .door-inline-glass button:not(.glass-structure-action) { min-height: 2rem !important; border-radius: .375rem; padding-inline: .5rem; font-size: .8125rem; }
+  .door-inline-glass .glass-builder-fields > :is(section, fieldset, div, details, p) { gap: .4rem; }
+  .door-inline-glass .glass-builder-fields > :is(fieldset, details, p),
+  .door-inline-glass .glass-builder-fields > div.rounded-xl { padding: .5rem; }
+  .door-inline-glass .glass-builder-fields > label.flex { min-height: 2rem; padding-inline: .5rem; }
+  .door-inline-glass .glass-structure-control { min-height: 0; padding: 3.25rem 2.5rem .75rem; }
+  .door-inline-glass .glass-structure-control .glass-unit-diagram { width: 100%; }
+  .door-inline-glass .glass-structure-control svg { max-height: 17rem; }
+  .door-inline-glass .glass-structure-action--transom { top: .5rem; }
+  .door-inline-glass .glass-unit-builder > header h2 { font-size: 1rem; }
+  .door-inline-glass .glass-unit-builder > header p { font-size: .875rem; }
+}

@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
+/* DoorGo has no approved dark theme; legacy dark utilities must never activate. */
+@custom-variant dark (&:not(*));
+
 :root {
+  color-scheme: only light;
   --background: #ffffff;
   --foreground: #171717;
   --app-shell-nav-width: 4.75rem;
@@ -70,26 +74,6 @@
 .glass-unit-diagram text { fill: currentColor; font-size: 5px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
 .glass-unit-diagram figcaption { margin-top: .5rem; font-size: .75rem; line-height: 1.25rem; }
 
-@media (prefers-color-scheme: dark) {
-  .glass-unit-diagram {
-    color: rgb(226 232 240);
-    --glass-diagram-background: rgb(30 41 59);
-    --glass-diagram-door: rgb(120 53 15);
-    --glass-diagram-glass: rgb(7 89 133);
-    --glass-diagram-panel: rgb(68 64 60);
-    --glass-diagram-bar: rgb(148 163 184);
-    --glass-diagram-stroke: rgb(226 232 240);
-  }
-  .glass-unit-diagram .diagram-background { fill: rgb(30 41 59); }
-  .glass-unit-diagram .diagram-frame { fill: none; }
-  .glass-unit-diagram .diagram-door { fill: rgb(120 53 15); }
-  .glass-unit-diagram .diagram-glass,
-  .glass-unit-diagram .diagram-lite--glass { fill: rgb(7 89 133); }
-  .glass-unit-diagram .diagram-lite--panel { fill: rgb(68 64 60); }
-  .glass-unit-diagram .diagram-divider,
-  .glass-unit-diagram .diagram-transom-divider,
-  .glass-unit-diagram .diagram-mullion { fill: rgb(148 163 184); }
-}
 
 @layer components {
   .app-shell { min-height: 100vh; background: var(--app-color-background); color: var(--app-color-text); }
@@ -388,12 +372,6 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
 
 body {
   background: var(--background);
@@ -635,75 +613,74 @@ body {
 }
 
 /* Light-theme hierarchy: neutral work surfaces frame clearly editable white controls. */
-@media (prefers-color-scheme: light) {
-  .app-shell, .doorgo-entry, .app-auth-page {
-    --app-color-background: #e7edf3;
-    --app-color-surface: #f6f8fb;
-    --app-color-panel: #f0f4f8;
-    --app-color-input: #ffffff;
-    --app-color-readonly: #e9eef4;
-    --app-color-border: #aebdcb;
-    --app-color-divider: #94a3b8;
-    --app-color-hover-border: #718398;
-    --app-color-focus: #1e6bff;
-    --app-color-toolbar: #edf2f7;
-  }
-
-  .app-auth-page { min-height: 100vh; background: var(--app-color-background); color: var(--app-color-text); }
-  .app-workspace-region { background: var(--app-color-background); }
-  .app-workspace-surface { background: var(--app-color-panel); }
-  .app-workspace-panel,
-  .job-editor-surface,
-  .door-input-pane,
-  .job-lines-pane,
-  .glass-unit-builder,
-  .app-auth-panel,
-  .doorgo-entry > div { border-color: var(--app-color-border) !important; background: var(--app-color-surface) !important; }
-  .app-button-secondary { border-color: var(--app-color-border); background: var(--app-color-input); }
-
-  :where(.app-shell, .doorgo-entry, .app-auth-page) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea) {
-    box-sizing: border-box;
-    border-color: var(--app-color-border) !important;
-    background-color: var(--app-color-input) !important;
-  }
-  :where(.app-shell, .doorgo-entry, .app-auth-page) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea):is(:disabled, [readonly]) {
-    border-color: var(--app-color-border) !important;
-    background-color: var(--app-color-readonly) !important;
-    color: var(--app-color-muted);
-  }
-  :where(.app-shell, .doorgo-entry, .app-auth-page) :where(input, select, textarea):focus-visible {
-    border-color: var(--app-color-focus) !important;
-    outline: 2px solid color-mix(in srgb, var(--app-color-focus) 35%, transparent) !important;
-    outline-offset: 1px;
-  }
-
-  .app-page-header,
-  .app-context-bar,
-  .app-context-bottom-bar,
-  .door-input-local-footer { border-color: var(--app-color-divider); }
-  .app-job-context-field,
-  .account-details-grid > div,
-  .calendar-detail-panel dl > div,
-  .calendar-backorder-number,
-  .job-line-card { background: var(--app-color-readonly); }
-  .app-job-context-field:focus-within { background: var(--app-color-input); }
-
-  .calendar-toolbar,
-  .calendar-detail-panel,
-  .calendar-quick-add,
-  .calendar-reopen-panel,
-  .calendar-move-panel,
-  .calendar-layers-menu,
-  .calendar-search-results,
-  .calendar-needs-attention-dropdown { border-color: var(--app-color-border); background: var(--app-color-surface); }
-  .calendar-detail-panel > header,
-  .calendar-quick-add > header,
-  .calendar-needs-attention-toolbar { background: var(--app-color-toolbar); }
-  .calendar-detail-panel dl { gap: .4rem; }
-  .calendar-detail-panel dl > div { border-radius: .25rem; padding: .2rem .3rem; }
+.app-shell, .doorgo-entry, .app-auth-page {
+  --app-color-background: #e7edf3;
+  --app-color-surface: #f6f8fb;
+  --app-color-panel: #f0f4f8;
+  --app-color-input: #ffffff;
+  --app-color-readonly: #e9eef4;
+  --app-color-border: #aebdcb;
+  --app-color-divider: #94a3b8;
+  --app-color-hover-border: #718398;
+  --app-color-focus: #1e6bff;
+  --app-color-toolbar: #edf2f7;
 }
 
-@media (prefers-color-scheme: light) and (hover: hover) and (pointer: fine) {
+.app-auth-page { min-height: 100vh; background: var(--app-color-background); color: var(--app-color-text); }
+.app-workspace-region { background: var(--app-color-background); }
+.app-workspace-surface { background: var(--app-color-panel); }
+.app-workspace-panel,
+.job-editor-surface,
+.door-input-pane,
+.job-lines-pane,
+.glass-unit-builder,
+.app-auth-panel,
+.doorgo-entry > div { border-color: var(--app-color-border) !important; background: var(--app-color-surface) !important; }
+.app-button-secondary { border-color: var(--app-color-border); background: var(--app-color-input); }
+
+:where(.app-shell, .doorgo-entry, .app-auth-page) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea) {
+  box-sizing: border-box;
+  border-color: var(--app-color-border) !important;
+  background-color: var(--app-color-input) !important;
+}
+:where(.app-shell, .doorgo-entry, .app-auth-page) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea):is(:disabled, [readonly]) {
+  border-color: var(--app-color-border) !important;
+  background-color: var(--app-color-readonly) !important;
+  color: var(--app-color-muted);
+}
+:where(.app-shell, .doorgo-entry, .app-auth-page) :where(input, select, textarea):focus-visible {
+  border-color: var(--app-color-focus) !important;
+  outline: 2px solid color-mix(in srgb, var(--app-color-focus) 35%, transparent) !important;
+  outline-offset: 1px;
+}
+
+.app-page-header,
+.app-context-bar,
+.app-context-bottom-bar,
+.door-input-local-footer { border-color: var(--app-color-divider); }
+.app-job-context-field,
+.account-details-grid > div,
+.calendar-detail-panel dl > div,
+.calendar-backorder-number,
+.job-line-card { background: var(--app-color-readonly); }
+.app-job-context-field:focus-within { background: var(--app-color-input); }
+
+.calendar-toolbar,
+.calendar-detail-panel,
+.calendar-quick-add,
+.calendar-reopen-panel,
+.calendar-move-panel,
+.calendar-layers-menu,
+.calendar-search-results,
+.calendar-needs-attention-dropdown { border-color: var(--app-color-border); background: var(--app-color-surface); }
+.calendar-detail-panel > header,
+.calendar-quick-add > header,
+.calendar-needs-attention-toolbar { background: var(--app-color-toolbar); }
+.calendar-detail-panel dl { gap: .4rem; }
+.calendar-detail-panel dl > div { border-radius: .25rem; padding: .2rem .3rem; }
+
+
+@media (hover: hover) and (pointer: fine) {
   :where(.app-shell, .doorgo-entry, .app-auth-page) :where(input:not([type="checkbox"]):not([type="radio"]):not(:disabled):not([readonly]), select:not(:disabled), textarea:not(:disabled):not([readonly])):hover {
     border-color: var(--app-color-hover-border) !important;
   }

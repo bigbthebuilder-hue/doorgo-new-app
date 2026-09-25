@@ -3,9 +3,9 @@ import { doubleDoorCoreWidth } from './double-door-astragal-contract';
 
 // Shared by plain DD and DD-based glass units. Sidelights occupy the remainder
 // of the header; only the inactive slab may absorb a routine door-core reduction.
-export function resolveCustomRoDoubleDoorWidth(leaves: readonly [number, number], astragal: unknown, allowance: number, roWidth: number | null, sidelightSpan = 0) {
+export function resolveCustomRoDoubleDoorWidth(leaves: readonly [number, number], astragal: unknown, allowance: number, roWidth: number | null, sidelightSpan = 0, minimumInstallation = 0.5) {
   const normalHeader = doubleDoorCoreWidth(leaves, astragal, allowance) + sidelightSpan;
-  const targetHeader = customRoHeaderTarget(normalHeader, roWidth);
+  const targetHeader = customRoHeaderTarget(normalHeader, roWidth, minimumInstallation);
   const requiredReduction = Math.max(0, normalHeader - targetHeader);
   const reviewRequired = requiredReduction > 2;
   const widthCut = reviewRequired ? 0 : requiredReduction;
@@ -25,9 +25,10 @@ export function customRoTarget(normalFinishedSize: number, ro: number | null): n
   return ro === null || ro >= normalFinishedSize + 0.25 ? normalFinishedSize : ro - 0.5;
 }
 
-// Width always needs 1/2 inch total installation clearance plus two 3/4 inch jambs.
-export function customRoHeaderTarget(normalHeader: number, roWidth: number | null): number {
-  return roWidth === null ? normalHeader : Math.min(normalHeader, roWidth - 2);
+// Standard width requires 1/2 inch installation clearance. Construction may allow
+// a smaller no-cut minimum; any actual cut still targets the preferred 1/2 inch.
+export function customRoHeaderTarget(normalHeader: number, roWidth: number | null, minimumInstallation = 0.5): number {
+  return roWidth === null || roWidth >= normalHeader + 1.5 + minimumInstallation ? normalHeader : roWidth - 2;
 }
 
 export function resolveCustomRoHeight(slabHeight: number, allowance: number, roHeight: number | null) {

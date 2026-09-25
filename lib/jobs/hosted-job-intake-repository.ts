@@ -43,7 +43,7 @@ function linePayload(input:DoorLineInput,index:number):Record<string,unknown>{
   if(lineId&&!isUuid(lineId))throw new JobIntakeFailure('validation_failed',`Door line ${index+1}: A new door line must have a valid UUID identity.`,{[`lines.${index}.lineId`]:'A new door line must have a valid UUID identity.'});
   const normalized=normalizeDoorLineInput(input);
   if(normalized.ok===false)throw new JobIntakeFailure('validation_failed',`Door line ${index+1}: ${normalized.message}`,Object.fromEntries(Object.entries(normalized.fieldErrors).map(([key,value])=>[`lines.${index}.${key}`,value])));
-  return mapFields({...normalized.value, glassCalc: normalized.value.construction === 'low-profile-quarter-sill' ? { ...(normalized.value.glassCalc ?? {}), construction: normalized.value.construction } : normalized.value.glassCalc, lineId:lineId||undefined,lineIndex:index+1,lineStatus:input.lineStatus==='Archived'||input.lineStatus==='Merged'?input.lineStatus:'Active'},lineFields,true);
+  return mapFields({...normalized.value, glassCalc: normalizeConstruction(normalized.value.construction) !== 'standard' ? { ...(normalized.value.glassCalc ?? {}), construction: normalized.value.construction } : normalized.value.glassCalc, lineId:lineId||undefined,lineIndex:index+1,lineStatus:input.lineStatus==='Archived'||input.lineStatus==='Merged'?input.lineStatus:'Active'},lineFields,true);
 }
 function unavailable(){return new JobIntakeFailure('unavailable','Hosted Job Intake is temporarily unavailable.');}
 function failure(error:RpcError):JobIntakeFailure{

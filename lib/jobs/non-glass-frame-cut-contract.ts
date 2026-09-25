@@ -1,4 +1,4 @@
-import { constructionAllowance, lowProfileLabel } from './construction-contract';
+import { constructionAllowance, lowProfileLabel, isFourSideJamb, FOUR_SIDE_JAMB } from './construction-contract';
 import { PATIO_DOOR_PRESETS, customDoubleDoorSlabs, resolvedDoubleDoorLeaves, validateDoubleDoorSizing } from './double-door-sizing-contract';
 import { usesCustomRo, customRoHeaderTarget, resolveCustomRoHeight, resolveCustomRoDoubleDoorWidth } from './custom-ro-contract';
 import type { DoorLineInput } from './job-intake-types';
@@ -36,6 +36,12 @@ export type NonGlassFrameCutValues = {
   jambLeg: ShopDimension | null;
   headerWidth: ShopDimension | null;
   recommendedRoWidth?: ShopDimension;
+  clearOpeningWidth?: ShopDimension;
+  clearOpeningHeight?: ShopDimension;
+  frameHeight?: ShopDimension;
+  minimumRoWidth?: ShopDimension;
+  recommendedRoHeight?: ShopDimension;
+  minimumRoHeight?: ShopDimension;
   sillOrThresholdWidth: ShopDimension | null;
   frameWidth: ShopDimension | null;
   doubleDoorCoreWidth: ShopDimension | null;
@@ -186,6 +192,8 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
   }
 
   const isDouble = line.config === 'DD';
+  const fourSides = isFourSideJamb(line);
+  const minimumInstallation = fourSides ? FOUR_SIDE_JAMB.minimumInstallation : 0.5;
   const customRo = usesCustomRo(line);
   const leaves = resolvedDoubleDoorLeaves(line.doubleDoorSizing, slab.width);
   const dimensions: { roWidth: number | null; roHeight: number | null } = { roWidth: null, roHeight: null };
@@ -207,12 +215,12 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
   const finalHeight = height.finalSlabHeight;
   const cutDown = height.cutDown;
   const nonAstragalAllowance = interior ? -0.5 : 5 / 16;
-  const singleAllowance = interior ? 7 / 32 : 0.25;
+  const singleAllowance = fourSides ? 2 * FOUR_SIDE_JAMB.slabClearance : interior ? 7 / 32 : 0.25;
   const normalHeader = isDouble
     ? doubleDoorCoreWidth(leaves, normalizeDoubleDoorAstragal(line.doubleDoorAstragal), nonAstragalAllowance)
     : slab.width + singleAllowance;
-  const targetHeader = customRoHeaderTarget(normalHeader, dimensions.roWidth);
-  const ddWidth = isDouble ? resolveCustomRoDoubleDoorWidth(leaves, normalizeDoubleDoorAstragal(line.doubleDoorAstragal), nonAstragalAllowance, dimensions.roWidth) : null;
+  const targetHeader = customRoHeaderTarget(normalHeader, dimensions.roWidth, minimumInstallation);
+  const ddWidth = isDouble ? resolveCustomRoDoubleDoorWidth(leaves, normalizeDoubleDoorAstragal(line.doubleDoorAstragal), nonAstragalAllowance, dimensions.roWidth, 0, minimumInstallation) : null;
   const requiredReduction = ddWidth?.requiredReduction ?? Math.max(0, normalHeader - targetHeader);
   const widthReviewRequired = ddWidth?.reviewRequired ?? false;
   const widthCut = widthReviewRequired ? 0 : requiredReduction;
@@ -236,8 +244,9 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
     finalSlabWidth: dimension(finalWidth), finalSlabHeight: dimension(finalHeight),
     ...(isDouble ? { activeLeafWidth: dimension(leaves[0]), inactiveLeafWidth: dimension(finalLeaves[1]), actualSlabWidth: dimension(leaves[0]), finalSlabWidth: dimension(leaves[0]) } : {}),
     jambLeg: dimension(jambLeg), headerWidth: widthReviewRequired ? null : dimension(header),
-    ...((line.doubleDoorSizing?.kind === 'custom-slabs' || usesAutomaticCustomSlabRoWidth(line)) && !widthReviewRequired ? { recommendedRoWidth: dimension(header + 2) } : {}),
-    sillOrThresholdWidth: interior || widthReviewRequired ? null : dimension(header), frameWidth: widthReviewRequired ? null : dimension(header),
+    ...((fourSides || line.doubleDoorSizing?.kind === 'custom-slabs' || usesAutomaticCustomSlabRoWidth(line)) && !widthReviewRequired ? { recommendedRoWidth: dimension(header + 2) } : {}),
+    sillOrThresholdWidth: interior || widthReviewRequired ? null : dimension(header), frameWidth: widthReviewRequired ? null : dimension(header + (fourSides ? 2 * FOUR_SIDE_JAMB.thickness : 0)),
+    ...(fourSides ? { clearOpeningHeight: dimension(finalHeight + 2 * FOUR_SIDE_JAMB.slabClearance), frameHeight: dimension(jambLeg), recommendedRoHeight: dimension(jambLeg + FOUR_SIDE_JAMB.recommendedInstallation), minimumRoHeight: dimension(jambLeg + FOUR_SIDE_JAMB.minimumInstallation), ...(!widthReviewRequired ? { clearOpeningWidth: dimension(header), minimumRoWidth: dimension(header + 2 * FOUR_SIDE_JAMB.thickness + FOUR_SIDE_JAMB.minimumInstallation) } : {}) } : {}),
     doubleDoorCoreWidth: doubleCore === null || widthReviewRequired ? null : dimension(doubleCore),
     ...(customRo ? { widthCutDown: dimension(widthCut), requiredWidthReduction: dimension(requiredReduction), widthReviewRequired, targetHeaderWidth: dimension(targetHeader) } : {}), cutDown: dimension(cutDown),
     finishedOpeningHeight: null, finishedOpeningWidth: null, dividerWidth: null,
@@ -250,6 +259,7 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
     ? `Cut inactive slab ${dimension(widthCut).display} from ASTRAGAL EDGE ONLY. Active slab and inactive hinge edge remain unchanged.`
     : `Slab width cut: ${dimension(widthCut).display}. VERIFY SIZE AVAILABILITY if choosing a smaller nominal door instead.`));
   const detailLines = [
+    ...(fourSides ? ['Jamb 4 sides', `Clear opening: ${values.clearOpeningWidth?.display ?? 'Review required'} x ${values.clearOpeningHeight?.display}`, `Outside frame: ${values.frameWidth?.display ?? 'Review required'} x ${values.frameHeight?.display}`, `Recommended RO height: ${values.recommendedRoHeight?.display}`, `Minimum no-cut RO: ${values.minimumRoWidth?.display ?? 'Review required'} x ${values.minimumRoHeight?.display}`] : []),
     ...(lowProfileLabel(line) ? [lowProfileLabel(line)!] : []),
     ...(customRo && isDouble ? [`${widthReviewRequired ? 'Widths before special review' : 'Final slabs'}: active ${dimension(finalLeaves[0]).display} x ${dimension(finalHeight).display}; inactive ${dimension(finalLeaves[1]).display} x ${dimension(finalHeight).display}`] : []),
     ...(customRo && !isDouble && (widthCut > 0 || cutDown > 0) ? [`Final slab: ${dimension(finalWidth).display} x ${dimension(finalHeight).display}`] : []),

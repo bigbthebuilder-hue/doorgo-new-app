@@ -20,7 +20,7 @@ import { GlassUnitDiagram } from './GlassUnitDiagram';
 import { importedLineRenderKey } from '@/lib/jobs/legacy-transfer-review-presentation';
 import { changeSizingMode, createNewDoorSession, isSameDoorMode, newDoorFromSession, rememberNewDoor, duplicateDoorLine, replaceDoorLineById } from '@/lib/jobs/door-line-editor-state';
 import { CUSTOM_DD_REQUIRED, customDoubleDoorSlabs, PATIO_DOOR_PRESETS, patioSizingAvailable, withPatioPreset } from '@/lib/jobs/double-door-sizing-contract';
-import { CONSTRUCTIONS, normalizeConstruction } from '@/lib/jobs/construction-contract';
+import { CONSTRUCTIONS, normalizeConstruction, isFourSideJamb } from '@/lib/jobs/construction-contract';
 import { usesCustomRo } from '@/lib/jobs/custom-ro-contract';
 import { calculateNonGlassFrameCut, usesAutomaticCustomSlabRoWidth } from '@/lib/jobs/non-glass-frame-cut-contract';
 import { hasDoubleDoorCore, DEFAULT_DOUBLE_DOOR_ASTRAGAL, DOUBLE_DOOR_ASTRAGALS, type DoubleDoorAstragalType } from '@/lib/jobs/double-door-astragal-contract';
@@ -60,12 +60,12 @@ function lineShopHours(line: DoorLineInput): string {
   return String(calculateJ2AShopHours([{ ...line, lineStatus: 'Active' }]).shopHours ?? '—');
 }
 
-function DimensionInput({ label, required = false, value, error, onValue }: { label: string; required?: boolean; value: string; error?: string; onValue: (value: string) => void }) {
-  return <label className="grid gap-1 text-sm font-semibold">{label}{required ? ' *' : ''}<span className="relative block"><input aria-invalid={Boolean(error)} aria-label={`${label}, inches`} className={`${control} pr-9 font-mono`} inputMode="decimal" onChange={(event) => onValue(event.target.value)} placeholder="54 or 54 1/2" value={value}/><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-base font-bold">&quot;</span></span>{error ? <span className="text-xs text-rose-700 dark:text-rose-300">{error}</span> : <span className="text-xs font-normal text-slate-500">Inches: 54, 54 1/2, 54-1/2, or 54.5</span>}</label>;
+function DimensionInput({ different, label, required = false, value, error, onValue }: { different?: boolean; label: string; required?: boolean; value: string; error?: string; onValue: (value: string) => void }) {
+  return <label className="grid gap-1 text-sm font-semibold">{label}{required ? ' *' : ''}<span className="relative block"><input data-comparison-different={different || undefined} aria-invalid={Boolean(error)} aria-label={`${label}, inches`} className={`${control} pr-9 font-mono`} inputMode="decimal" onChange={(event) => onValue(event.target.value)} placeholder="54 or 54 1/2" value={value}/><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-base font-bold">&quot;</span></span>{error ? <span className="text-xs text-rose-700 dark:text-rose-300">{error}</span> : <span className="text-xs font-normal text-slate-500">Inches: 54, 54 1/2, 54-1/2, or 54.5</span>}</label>;
 }
 
 function CustomRoSummary({ line }: { line: DoorLineInput }) {
-  if (!usesCustomRo(line) && !usesAutomaticCustomSlabRoWidth(line) && line.doubleDoorSizing?.kind !== 'custom-slabs') return null;
+  if (!isFourSideJamb(line) && !usesCustomRo(line) && !usesAutomaticCustomSlabRoWidth(line) && line.doubleDoorSizing?.kind !== 'custom-slabs') return null;
   const result = calculateNonGlassFrameCut(line);
   return <section aria-label={usesCustomRo(line) ? 'Custom RO sizing' : 'Custom slab sizing'} className="mt-1.5 grid gap-1 text-sm leading-snug [&>section]:rounded-md [&>section]:p-2">
     {result.detailLines.length ? <p>{result.detailLines.join(' | ')}</p> : null}

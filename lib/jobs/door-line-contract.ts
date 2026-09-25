@@ -134,7 +134,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const width = text(input.width);
   const height = text(input.height);
   const errors: Record<string, string> = {};
-  if (!validConstruction(input.construction)) errors.construction = 'Choose Standard or Low Profile 1/4" Sill.';
+  if (!validConstruction(input.construction)) errors.construction = 'Choose Standard, Low Profile 1/4" Sill, or Jamb 4 sides.';
   const sizingError = validateDoubleDoorSizing({ ...input, config: config ?? undefined });
   if (sizingError) errors.doubleDoorSizing = sizingError;
   const patio = input.doubleDoorSizing?.kind === 'patio';

@@ -1,6 +1,6 @@
 import { resolveCustomRoDoubleDoorWidth } from './custom-ro-contract';
 import { automaticCustomSlabRoWidth, usesAutomaticCustomSlabRoWidth } from './non-glass-frame-cut-contract';
-import { constructionAllowance, lowProfileLabel } from './construction-contract';
+import { constructionAllowance, lowProfileLabel, isFourSideJamb, FOUR_SIDE_JAMB } from './construction-contract';
 import { resolveCustomRoHeight } from './custom-ro-contract';
 import type { DoorGoAccessLevel } from '../auth/access';
 import { SHOP_DIMENSION_FORMAT_HELP, formatShopDimension, parseDimension, parseStoredShopDimension } from './dimension-contract';
@@ -340,7 +340,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   if (topology.hasTransom) {
     jambLeg = (roH as number) - 0.5;
     finalDoorHeight = slab.height;
-  } else if (lowProfileLabel(input)) {
+  } else if (lowProfileLabel(input) || isFourSideJamb(input)) {
     standardRoHeight = fullHeightJambLeg + 0.5;
     const height = resolveCustomRoHeight(slab.height, deduction, roH);
     jambLeg = height.jambLeg;
@@ -366,7 +366,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
     return sum + (width.ok ? width.inches : 0) + Number(unitTBar) + 0.125;
   }, 0) : panel && panelWidth?.ok ? sides * (panelWidth.inches + Number(unitTBar) + 0.125) : 0;
   const ddWidth = topology.doorCount === 2 && input.customSlab === 'RO' && (!sides || resolvedSidelights.length || panel)
-    ? resolveCustomRoDoubleDoorWidth(leaves, doubleDoorAstragal, 5 / 16, roW, sidelightSpan) : null;
+    ? resolveCustomRoDoubleDoorWidth(leaves, doubleDoorAstragal, 5 / 16, roW, sidelightSpan, isFourSideJamb(input) ? FOUR_SIDE_JAMB.minimumInstallation : 0.5) : null;
   if (ddWidth?.reviewRequired) return blocked([issue('special_dd_width', 'SPECIAL / REVIEW REQUIRED: DD needs an inactive-slab reduction of ' + formatShopDimension(ddWidth.requiredReduction) + ', beyond the normal 2-inch limit. No width cut or header/sill cut is approved.')]);
   if (ddWidth) {
     leaves = ddWidth.leaves;
@@ -385,7 +385,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
     : sides > 0 ? roW - 2
       : topology.doorCount === 2 ? ddCoreHeaderWidth(slab.width, doubleDoorAstragal, leaves)
         : config === 'T/D' ? slab.width + 0.25 : roW - 2);
-  const minimumRoWidth = headerWidth + 2;
+  const minimumRoWidth = headerWidth + (isFourSideJamb(input) ? 2 * FOUR_SIDE_JAMB.thickness + FOUR_SIDE_JAMB.minimumInstallation : 2);
   if (!doubleCore && (topology.doorCount === 2 || config === 'T/D') && roW + 0.001 < minimumRoWidth) blockers.push(issue('ro_too_narrow', `RO width is too narrow. Minimum RO width is ${formatShopDimension(minimumRoWidth)}.`));
   if (hasPanel && roW + 0.001 < minimumRoWidth) blockers.push(issue('panel_ro_too_narrow', `RO width is too narrow for the selected panel width. Minimum RO width is ${formatShopDimension(minimumRoWidth)}.`));
 
@@ -449,7 +449,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
     ...(ddWidth ? { activeLeafWidth: formatShopDimension(leaves[0]), inactiveLeafWidth: formatShopDimension(leaves[1]), widthCutDown: formatShopDimension(ddWidth.widthCut) } : {}),
     ...(input.doubleDoorSizing ? { doubleDoorSizing: structuredClone(input.doubleDoorSizing), activeLeafWidth: formatShopDimension(leaves[0]), inactiveLeafWidth: formatShopDimension(leaves[1]) } : {}),
     slabWidth: formatShopDimension(slab.width), slabHeight: formatShopDimension(slab.height), slabLabel: slab.label,
-    headerWidth: formatShopDimension(headerWidth), minimumRoWidth: formatShopDimension(minimumRoWidth), recommendedRoWidth: formatShopDimension(minimumRoWidth), jambLeg: formatShopDimension(jambLeg),
+    headerWidth: formatShopDimension(headerWidth), minimumRoWidth: formatShopDimension(minimumRoWidth), recommendedRoWidth: formatShopDimension(headerWidth + 2), jambLeg: formatShopDimension(jambLeg),
     finalDoorHeight: formatShopDimension(finalDoorHeight), standardRoHeight: standardRoHeight === null ? '' : formatShopDimension(standardRoHeight), cutDown: formatShopDimension(cutDown),
     sidelightWidth: sidelightWidth === null ? '' : formatShopDimension(sidelightWidth), sidelightHeight: sidelightHeight === null ? '' : formatShopDimension(sidelightHeight),
     panelWidth: parsedPanelWidth === null ? '' : formatShopDimension(parsedPanelWidth), panelHeight: hasPanel ? formatShopDimension(finalDoorHeight + 0.125) : '',
@@ -460,6 +460,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   };
   const visibleWarnings = warnings.filter((entry) => entry.code !== 'door_cut_down');
   const detail = [
+    ...(isFourSideJamb(input) ? ['Jamb 4 sides'] : []),
     ...(lowProfileLabel(input) ? [lowProfileLabel(input)!] : []),
     `Jamb legs: ${formatShopDimension(jambLeg)}     ${topology.hasTransom ? 'Header/Sill/T-bar' : 'Header/Sill'}: ${formatShopDimension(headerWidth)}`,
     ...(cutDown > 0.001 ? [`Door cut to ${formatShopDimension(finalDoorHeight)}`] : []),

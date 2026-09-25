@@ -1,0 +1,32 @@
+import { test, expect } from '@playwright/experimental-ct-react';
+import { InlineGlassHarness } from './InlineGlassHarness';
+
+test('Jamb 4 sides selects, recalculates inline, adds and reopens', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const component = await mount(<InlineGlassHarness/>);
+  const pane = component.locator('#door-input-pane');
+  const construction = pane.getByRole('combobox', { name: 'Construction', exact: true });
+  await construction.selectOption({ label: 'Jamb 4 sides' });
+  await expect(pane.getByText('Outside frame: 37 1/2" x 80 3/4"', { exact: false })).toBeVisible();
+  await pane.getByRole('button', { name: 'Add Door', exact: true }).click();
+  let lines = JSON.parse(await component.getByTestId('saved-lines').textContent() ?? '[]');
+  expect(lines.at(-1).construction).toBe('jamb-four-sides');
+  await component.getByRole('button', { name: 'Edit', exact: true }).last().click();
+  await expect(construction).toHaveValue('jamb-four-sides');
+  await pane.getByRole('button', { name: 'Cancel Edit', exact: true }).click();
+  await component.getByRole('button', { name: 'Edit', exact: true }).first().click();
+  const result = pane.getByLabel('Calculated measurements');
+  await construction.selectOption('standard');
+  await expect(result).toContainText('11 5/8');
+  await construction.selectOption('jamb-four-sides');
+  await expect(result).toContainText('12 1/8');
+  await construction.selectOption('standard');
+  await expect(result).toContainText('11 5/8');
+  await construction.selectOption('jamb-four-sides');
+  await pane.getByRole('button', { name: 'Update Door', exact: true }).click();
+  lines = JSON.parse(await component.getByTestId('saved-lines').textContent() ?? '[]');
+  expect(lines[0].construction).toBe('jamb-four-sides');
+  expect(lines[0].glassCalc.transomHeight).toBe('12 1/8"');
+  await component.getByRole('button', { name: 'Edit', exact: true }).first().click();
+  await expect(construction).toHaveValue('jamb-four-sides');
+});

@@ -1,4 +1,4 @@
-import { lowProfileLabel } from './construction-contract';
+import { lowProfileLabel, isFourSideJamb } from './construction-contract';
 import { PATIO_DOOR_PRESETS } from './double-door-sizing-contract';
 import { GROUP_SPACING, measureWorkOrderGroup, WORK_ORDER_FONT_METRICS, workOrderPrintableHeight } from './work-order-layout';
 import { parseStoredShopDimension } from './dimension-contract';
@@ -306,6 +306,7 @@ export function formatWorkOrderNotesGlass(value: string): string {
 
 function notesGlass(line: NativeDoorLine, status: WorkOrderPresentationStatus): string {
   const values = text(line.notes).split(/\r?\n/).map(text).filter(Boolean);
+  if (isFourSideJamb(line)) values.push('Jamb 4 sides');
   if (status === 'Glass Detail Needed') values.push('GLASS DETAIL NEEDED');
   else if (status === 'Blocked') values.push('RO / GLASS NEEDS REVIEW');
   else if (line.glassUnits.length && !values.some((value) => /glass/i.test(value))) values.push('Glass');
@@ -350,7 +351,7 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
         quantity: String(outputLine.qty), configuration: text(outputLine.config), size: sizeDisplay(outputLine),
         thickness: text(outputLine.doorThickness) || (outputLine.mode === 'Interior' ? '1-3/8' : '1-3/4'),
         doorType: text(outputLine.doorType), drill: prepDisplay(outputLine.prep), hinge: workOrderHingeDisplay({ ...outputLine, hingeColor }),
-        swing: isNoJamb(outputLine) ? '' : text(outputLine.hand), jamb: jambDisplay(outputLine), sill: lowProfileLabel(outputLine) ? 'LowPro' : text(outputLine.sill),
+        swing: isNoJamb(outputLine) ? '' : text(outputLine.hand), jamb: jambDisplay(outputLine), sill: isFourSideJamb(outputLine) ? '' : lowProfileLabel(outputLine) ? 'LowPro' : text(outputLine.sill),
         weatherstrip: text(outputLine.weatherstrip), notesGlass: notesGlass(outputLine, status),
       },
     },

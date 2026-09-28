@@ -6,7 +6,7 @@ import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-gl
 import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate, ResolvedSidelight, ResolvedTBar } from './job-intake-types';
 import { normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
 import { calculatePersistedGlassDiagramLayout, type GlassDiagramLayout } from './glass-diagram-contract';
-import { withDerivedGlassGeometry } from './glass-geometry-contract';
+import { normalizeGlassDomainFields } from './glass-geometry-contract';
 import { isFrameGlassConfiguration } from './glass-unit-composition-contract';
 import { unifiedJobIdentifier } from './unified-job-identifier';
 import { hasDoubleDoorCore, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
@@ -16,7 +16,7 @@ export const FIRST_PAGE_WEIGHT_CAPACITY = 22;
 export const CONTINUATION_PAGE_WEIGHT_CAPACITY = 26;
 
 export type WorkOrderPresentationStatus = 'Complete' | 'Glass Detail Needed' | 'Warning' | 'Blocked' | 'Manual Override';
-export type WorkOrderDetailKind = 'frame' | 'glass' | 'panel' | 'warning' | 'blocker' | 'detail-needed' | 'manual-override';
+export type WorkOrderDetailKind = 'frame' | 'glass' | 'panel' | 'instruction' | 'warning' | 'blocker' | 'detail-needed' | 'manual-override';
 
 export type WorkOrderDetailRow = {
   kind: WorkOrderDetailKind;
@@ -196,6 +196,24 @@ function presentationStatus(line: NativeDoorLine): WorkOrderPresentationStatus {
   return 'Complete';
 }
 
+function productionWarningRows(warnings: readonly Pick<GlassIssue, 'code' | 'message'>[]): WorkOrderDetailRow[] {
+  const instructions: string[] = [];
+  const review: string[] = [];
+  for (const warning of warnings) {
+    if (warning.code === 'door_width_cut') {
+      instructions.push(warning.message.startsWith('Cut inactive slab ')
+        ? warning.message.replace(/^Cut inactive slab (.+?) from /, 'CUT: Remove $1 from inactive slab ')
+        : `CUT: ${warning.message}`);
+    } else if (warning.code === 'door_cut_down') {
+      instructions.push(warning.message.replace(/^Door will be cut down /, 'CUT DOWN: '));
+    } else review.push(warning.message);
+  }
+  return [
+    ...(instructions.length ? [{ kind: 'instruction' as const, lines: [instructions.join(' | ')] }] : []),
+    ...(review.length ? [{ kind: 'warning' as const, lines: [review.join(' | ')] }] : []),
+  ];
+}
+
 function nonGlassDetailRows(result: NonGlassFrameCutResult): WorkOrderDetailRow[] {
   if (result.status === 'Not Applicable') return [];
   if (result.status === 'Incomplete') return [{ kind: 'detail-needed', lines: result.missingFields.map((field) => `Missing ${field}.`) }];
@@ -208,7 +226,7 @@ function nonGlassDetailRows(result: NonGlassFrameCutResult): WorkOrderDetailRow[
     ]
     : result.detailLines.filter((line) => line !== 'Low Profile 1/4" Sill');
   if (productionLines.length) rows.push({ kind: 'frame', lines: [productionLines.join(' | ')] });
-  if (result.warnings.length) rows.push({ kind: 'warning', lines: [result.warnings.map((entry) => entry.message).join(' | ')] });
+  rows.push(...productionWarningRows(result.warnings));
   return rows;
 }
 
@@ -226,18 +244,6 @@ function calculatedGlassProductionLine(line: NativeDoorLine): string {
   if (cutDown && cutDown !== '0"' && text(calc.finalDoorHeight)) parts.push(`Door cut to: ${text(calc.finalDoorHeight)}`);
   if (hasDoubleDoorCore(line.config) && normalizeDoubleDoorAstragal(line.doubleDoorAstragal) === 'wood-ferco-astra-lock') parts.push('Astragal: Wood / Ferco Astra Lock — 1"');
   return parts.join(' | ');
-}
-
-function overrideProductionLine(line: NativeDoorLine): string {
-  const override = line.glassOverride;
-  if (!override) return '';
-  const changes = Object.entries(override.acceptedValues).flatMap(([key, accepted]) => {
-    const calculated = override.calculatedValues[key];
-    if (!text(accepted) || text(accepted) === text(calculated)) return [];
-    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase());
-    return [`${label}: ${text(calculated)} -> ${text(accepted)}`];
-  });
-  return [...changes, `Reason: ${override.reason}`].join(' | ');
 }
 
 function glassDetailRows(line: NativeDoorLine): WorkOrderDetailRow[] {
@@ -282,16 +288,9 @@ function glassDetailRows(line: NativeDoorLine): WorkOrderDetailRow[] {
         : `${unit.position}: ${unit.width} × ${unit.height} ${unit.glassType}`.trim()),
     ] });
   }
-  const warningLines = issues(line.glassWarnings);
-  if (warningLines.length) rows.push({ kind: 'warning', lines: [warningLines.join(' | ')] });
+  rows.push(...productionWarningRows(line.glassWarnings));
   const blockerLines = issues(line.glassBlockers);
   if (blockerLines.length) rows.push({ kind: 'blocker', lines: [blockerLines.join(' | ')] });
-  if (line.glassOverride) rows.push({
-    kind: 'manual-override', lines: [overrideProductionLine(line)],
-    calculatedValues: line.glassOverride.calculatedValues,
-    acceptedValues: line.glassOverride.acceptedValues,
-    overrideReason: line.glassOverride.reason,
-  });
   return rows;
 }
 
@@ -326,11 +325,14 @@ function compactWorkOrderDetails(details: WorkOrderDetailRow[]): WorkOrderDetail
 
 export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string | null): WorkOrderRowGroup {
   const glassConfiguration = isFrameGlassConfiguration(line.config);
-  const outputLine = glassConfiguration ? withDerivedGlassGeometry(line) : line;
+  const currentGlass = glassConfiguration ? normalizeGlassDomainFields(line) : null;
+  // A fresh blocker has no calculated dimensions, but must still replace stale saved approval/status.
+  const outputLine = currentGlass && (currentGlass.glassCalc || currentGlass.glassCalcStatus === 'Blocked' || currentGlass.glassCalcStatus === 'Unsupported')
+    ? { ...line, ...currentGlass } : line;
   const nonGlassResult = glassConfiguration ? null : calculateNonGlassFrameCut(outputLine);
   const status = glassConfiguration
     ? presentationStatus(outputLine)
-    : nonGlassResult?.status === 'Blocked' || nonGlassResult?.status === 'Incomplete'
+    : nonGlassResult?.status === 'Blocked' || nonGlassResult?.status === 'Incomplete' || nonGlassResult?.values?.widthReviewRequired
       ? 'Blocked'
       : nonGlassResult?.warnings.length ? 'Warning' : 'Complete';
   const details = compactWorkOrderDetails(glassConfiguration ? glassDetailRows(outputLine) : nonGlassDetailRows(nonGlassResult!));

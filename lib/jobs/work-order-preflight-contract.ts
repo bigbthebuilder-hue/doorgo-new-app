@@ -12,18 +12,22 @@ export type WorkOrderPreflight = {
   acknowledgementRequired: boolean;
 };
 
+export function workOrderPreflightStatusLabel(status: WorkOrderPreflightIssue['status']): string {
+  return status === 'Manual Override' ? 'Geometry Exception Approved' : status;
+}
+
 export function evaluateWorkOrderPreflight(document: WorkOrderDocument): WorkOrderPreflight {
   const issues: WorkOrderPreflightIssue[] = (document.validationIssues ?? []).map((issue) => ({ lineIndex: issue.lineIndex, status: 'Blocked', message: issue.message }));
   issues.push(...document.rowGroups.flatMap((group): WorkOrderPreflightIssue[] => {
     const status = group.primaryRow.status;
     if (status === 'Complete') return [];
-    const message = group.detailRows.flatMap((row) => row.lines).filter(Boolean).join(' | ') || status;
+    const message = group.detailRows.flatMap((row) => row.lines).filter(Boolean).join(' | ') || workOrderPreflightStatusLabel(status);
     return [{ lineIndex: group.primaryRow.lineIndex, status, message }];
   }));
   return {
     issues,
     blocked: issues.some((issue) => issue.status === 'Blocked'),
-    acknowledgementRequired: issues.some((issue) => issue.status === 'Warning' || issue.status === 'Manual Override' || issue.status === 'Glass Detail Needed'),
+    acknowledgementRequired: !issues.some((issue) => issue.status === 'Blocked') && issues.some((issue) => issue.status === 'Warning' || issue.status === 'Manual Override' || issue.status === 'Glass Detail Needed'),
   };
 }
 

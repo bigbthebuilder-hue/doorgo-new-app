@@ -14,7 +14,7 @@ import { prepareGlassOverrideAction, removeGlassOverrideAction } from '@/lib/job
 import { formatShopDimension, parseShopDimension, parseStoredShopDimension } from '@/lib/jobs/dimension-contract';
 import { canCommitGlassCalculation } from '@/lib/jobs/glass-editor-contract';
 import { HINGE_COLOR_OPTIONS, hingeTypeAfterModeChange, hingeTypeOptions, normalizeHingeColor } from '@/lib/jobs/hinge-contract';
-import type { DoorLineInput, GlassCalculationStatus, GlassGeometryValues, GlassIssue, JobLifecycleStage } from '@/lib/jobs/job-intake-types';
+import type { DoorLineInput, GlassCalculationStatus, GlassIssue, JobLifecycleStage } from '@/lib/jobs/job-intake-types';
 import { GlassUnitBuilder, initialBuilderDraft } from './GlassUnitBuilder';
 import { GlassUnitDiagram } from './GlassUnitDiagram';
 import { importedLineRenderKey } from '@/lib/jobs/legacy-transfer-review-presentation';
@@ -48,7 +48,8 @@ function statusTone(status: unknown): string {
 
 function StatusBadge({ status }: { status: unknown }) {
   if (!status || status === 'Ready' || status === 'Not Needed') return null;
-  return <span aria-label={`Calculation status: ${String(status)}`} className={`rounded-full px-2 py-1 text-xs font-bold ${statusTone(status)}`}>{String(status)}</span>;
+  const label = status === 'Manual Override' ? 'Geometry Exception Approved' : String(status);
+  return <span aria-label={`Calculation status: ${label}`} className={`rounded-full px-2 py-1 text-xs font-bold ${statusTone(status)}`}>{label}</span>;
 }
 
 function Issues({ label, issues, blocker = false }: { label: string; issues: GlassIssue[]; blocker?: boolean }) {
@@ -98,10 +99,11 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   const [message, setMessage] = useState<{ error: boolean; text: string; lifecycleStage: JobLifecycleStage } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [overrideReason, setOverrideReason] = useState('');
-  const [acceptedValues, setAcceptedValues] = useState<GlassGeometryValues>({});
   const [, setCalculationStatus] = useState<GlassCalculationStatus | 'Incomplete' | null>(null);
   const [explicitGlassDetailNeeded, setExplicitGlassDetailNeeded] = useState(false);
   const [isOverridePending, startOverrideTransition] = useTransition();
+  const approvalEditor = useRef(editor);
+  useEffect(() => { approvalEditor.current = editor; }, [editor]);
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const active = lines.filter((line) => (line.lineStatus ?? 'Active') === 'Active');
   const archived = lines.filter((line) => line.lineStatus === 'Archived');
@@ -207,14 +209,14 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     setEditor((current) => {
       const defaults = editingLineId === null ? newDoorFromSession(newDoorSession.current, nextMode) : defaultDoorLine(nextMode);
       return { ...defaults, lineId: current.lineId, lineIndex: current.lineIndex, lineStatus: current.lineStatus, qty: current.qty, notes: current.notes, ...(editingLineId !== null ? { doorType: current.doorType, hingeType: hingeTypeAfterModeChange(nextMode, 'D', current.hingeType) } : {}) };
-    }); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+    }); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
   function chooseStaffConfiguration(value: string) {
     if (value === 'With Glass') {
       const next = retainCompatibleGlassFields(patio ? withPatioPreset(editor, null) : editor, 'SD', 'Glass');
       setEditor(initialBuilderDraft(next));
-      setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+      setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
       return;
     }
     chooseConfig(value);
@@ -233,7 +235,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
       next = { ...next, hand: '', jambWidth: '', jambType: '', hingeType: '', ripJamb: '', customSlab: 'No', customSlabWidth: '', customSlabHeight: '' };
       setRipMode(false);
     }
-    setEditor(nextApplicable ? initialBuilderDraft(next) : next); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+    setEditor(nextApplicable ? initialBuilderDraft(next) : next); setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
   function choosePatio(preset: '5' | '6' | null) {
@@ -242,7 +244,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   }
 
   function resetEditor() {
-    const next = newDoorFromSession(newDoorSession.current); setEditor(next); setEditorBaseline(JSON.stringify(next)); setEditingLineId(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+    const next = newDoorFromSession(newDoorSession.current); setEditor(next); setEditorBaseline(JSON.stringify(next)); setEditingLineId(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
   function commitEditor(detailNeeded = explicitGlassDetailNeeded, submittedEditor: DoorLineInput = editor): boolean {
@@ -269,7 +271,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     else onChange([...lines, saved]);
     showTransientMessage({ error: false, text: editingLineId !== null ? 'Door line updated. Save the job to persist it.' : 'Door line added. Save the job to persist it.' });
     newDoorSession.current = rememberNewDoor(newDoorSession.current, submittedEditor, editingLineId);
-    const nextEditor = newDoorFromSession(newDoorSession.current); setEditor(nextEditor); setEditorBaseline(JSON.stringify(nextEditor)); setEditingLineId(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setAcceptedValues({}); setCalculationStatus(null); setExplicitGlassDetailNeeded(false);
+    const nextEditor = newDoorFromSession(newDoorSession.current); setEditor(nextEditor); setEditorBaseline(JSON.stringify(nextEditor)); setEditingLineId(null); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false);
     return true;
   }
 
@@ -279,7 +281,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     const editable = isGlassConfiguration(line.config) ? initialBuilderDraft(line) : structuredClone(line);
     for (const name of ['roWidth', 'roHeight', 'customSlabWidth', 'customSlabHeight', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight'] as const) editable[name] = storedShopInput(editable[name]);
     setEditor(editable); setEditorBaseline(JSON.stringify(editable)); setEditingLineId(line.lineId); setRipMode(String(line.ripJamb ?? '').toLowerCase() === 'yes'); setCalculationStatus(null);
-    setFieldErrors({}); setOverrideReason(line.glassOverride?.reason ?? ''); setAcceptedValues(line.glassOverride?.acceptedValues ?? line.glassCalc ?? {}); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
+    setFieldErrors({}); setOverrideReason(line.glassOverride?.reason ?? ''); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
     setWorkspacePane('input');
   }
 
@@ -323,21 +325,23 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
 
   function applyOverride() {
     startOverrideTransition(async () => {
-      const result = await prepareGlassOverrideAction({ line: editor, acceptedValues, reason: overrideReason });
+      const result = await prepareGlassOverrideAction({ line: editor, acceptedValues: calculateGlassGeometry({ ...editor, glassOverride: null }).glassCalc ?? {}, reason: overrideReason });
+      if (approvalEditor.current !== editor) return;
       if (!result.ok || !result.approval) { clearMessageTimer(); setMessage({ error: true, text: result.ok ? 'Override approval was not returned.' : result.message, lifecycleStage }); return; }
       const recalculated = calculateGlassGeometry({ ...editor, glassOverride: result.approval });
       setEditor((current) => ({ ...current, glassOverride: result.approval, glassCalcStatus: recalculated.status, glassWorkorderDetail: recalculated.workorderDetail }));
-      showTransientMessage({ error: false, text: 'Manual geometry override applied. Save the job to persist it.' });
+      showTransientMessage({ error: false, text: 'Geometry exception approved. Save the job to persist it.' });
     });
   }
 
   function removeOverride() {
     startOverrideTransition(async () => {
       const result = await removeGlassOverrideAction();
+      if (approvalEditor.current !== editor) return;
       if (!result.ok) { clearMessageTimer(); setMessage({ error: true, text: result.message, lifecycleStage }); return; }
       const recalculated = calculateGlassGeometry({ ...editor, glassOverride: null });
       setEditor((current) => ({ ...current, glassOverride: null, glassCalcStatus: recalculated.status, glassWorkorderDetail: recalculated.workorderDetail }));
-      showTransientMessage({ error: false, text: 'Manual override removed. Save the job to persist it.' });
+      showTransientMessage({ error: false, text: 'Geometry exception approval removed. Save the job to persist it.' });
     });
   }
 
@@ -389,9 +393,19 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
         </div> : null}
         </div>
         {isGlass ? <GlassUnitBuilder key={editingLineId ?? 'new-door'} embedded line={editor} onInlineChange={(next) => { setEditor(next); setFieldErrors({}); setCalculationStatus(null); clearWorkspaceMessage(); }} onCancel={resetEditor} onUse={(next, detailNeeded) => commitEditor(detailNeeded, next)} showCommitActions={false}/> : null}
-        {isGlass && (glassPresentation.glassCalcStatus === 'Warning' || editor.glassOverride) ? <section className="mt-2 grid gap-1.5 rounded-md border border-sky-200 bg-sky-50/50 p-2 dark:border-sky-900 dark:bg-sky-950/30">
-          {glassPresentation.glassCalcStatus === 'Warning' ? <section className="grid gap-3 rounded-xl border border-violet-300 p-3 dark:border-violet-800"><h4 className="font-bold">Manual geometry override</h4><p className="text-sm">Confirm or edit the accepted values below. A reason is required and hard blockers cannot be overridden.</p><div className="grid gap-2 sm:grid-cols-2">{Object.entries(glassPresentation.glassCalc ?? {}).filter(([, value]) => typeof value === 'string' && value).map(([key, value]) => <label className="grid gap-1 text-xs font-semibold" key={key}>{key.replace(/([A-Z])/g, ' $1')}<input className={control} onChange={(event) => setAcceptedValues((current) => ({ ...current, [key]: event.target.value }))} value={String(acceptedValues[key] ?? value)}/></label>)}</div><label className="grid gap-1 text-sm font-semibold">Override Reason<textarea className={`${control} min-h-20 py-2`} onChange={(event) => setOverrideReason(event.target.value)} value={overrideReason}/></label><button className={`${button} border-violet-600 bg-violet-600 text-white`} disabled={isOverridePending || !overrideReason.trim()} onClick={applyOverride} type="button">Apply Manual Override</button></section> : null}
-          {editor.glassOverride ? <section className="rounded-xl border border-violet-300 bg-violet-50 p-3 text-sm dark:border-violet-800 dark:bg-violet-950"><div className="flex flex-wrap items-center justify-between gap-2"><StatusBadge status="Manual Override"/><button className={button} disabled={isOverridePending} onClick={removeOverride} type="button">Remove Override</button></div><p className="mt-2"><strong>Reason:</strong> {editor.glassOverride.reason}</p><p><strong>Approved by:</strong> {editor.glassOverride.appliedByDisplayName ?? editor.glassOverride.appliedByUserId} · {new Date(editor.glassOverride.appliedAt).toLocaleString()}</p></section> : null}
+        {isGlass && (glassPresentation.glassCalcStatus === 'Warning' || glassPresentation.glassOverride) ? <section aria-label="Geometry Exception" className="mt-2 grid gap-2 rounded-md border border-violet-300 bg-violet-50 p-2 text-sm">
+          {glassPresentation.glassOverride ? <>
+            <div className="flex flex-wrap items-center justify-between gap-2"><strong>Geometry Exception Approved</strong><button className={button} disabled={isOverridePending} onClick={removeOverride} type="button">Remove Approval</button></div>
+            <p><strong>Reason:</strong> {glassPresentation.glassOverride.reason}</p>
+            <p><strong>Approved by:</strong> {glassPresentation.glassOverride.appliedByDisplayName ?? glassPresentation.glassOverride.appliedByUserId} | {new Date(glassPresentation.glassOverride.appliedAt).toLocaleString()}</p>
+          </> : <>
+            <h4 className="font-bold">Geometry Exception</h4>
+            <p>Approve DoorGo&apos;s calculated result despite the warning. Approval does not change dimensions.</p>
+            <Issues issues={glassPresentation.glassWarnings ?? []} label="Geometry warning"/>
+            <p className="whitespace-pre-line">{calculateGlassGeometry({ ...editor, glassOverride: null }).workorderDetail}</p>
+            <label className="grid gap-1 font-semibold">Approval Reason<textarea className={control} onChange={(event) => setOverrideReason(event.target.value)} value={overrideReason}/></label>
+            <button className={button} disabled={isOverridePending || !overrideReason.trim()} onClick={applyOverride} type="button">Approve Exception</button>
+          </>}
         </section> : null}
 
         <CustomRoSummary line={editor}/>
@@ -407,7 +421,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     <aside className="job-lines-pane min-w-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900" id="job-lines-pane">
       <div className="flex flex-wrap items-center justify-between gap-1.5"><div><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Lines</p><h2 className="text-base font-semibold" id="door-lines-heading">{active.length} active · {archived.length} archived</h2></div>{canEdit ? <button className={button} onClick={merge} type="button">Merge Equivalent</button> : null}</div>
       <p className="mt-1.5 rounded bg-slate-100 px-2 py-1 text-xs dark:bg-slate-800">Shop Hours: {estimate.shopHours ?? '—'} · {estimate.shopHoursSource ?? 'No estimate'}</p>
-      <div className="mt-2 grid gap-2">{active.length ? active.map((line, index) => { const presentedLine = withDerivedGlassGeometry(line); const attention = glassLineNeedsAttention(presentedLine); return <article className="job-line-card min-w-0 rounded-md border border-slate-200 p-2 dark:border-slate-700" key={importedLineRenderKey(line, index)}><div className="flex flex-wrap items-start justify-between gap-1"><h3 className="line-clamp-2 text-sm font-semibold leading-tight">{lineTitle(line)}</h3><StatusBadge status={presentedLine.glassCalcStatus}/></div><p className="mt-0.5 truncate text-xs text-slate-600 dark:text-slate-300" title={line.notes ?? undefined}>{`Qty ${String(line.qty)} · ${line.sidelightType ?? 'Door'} · ${lineShopHours(line)} shop hrs${line.notes ? ` · ${line.notes}` : ''}`}</p>{attention.length ? <p className="mt-1 text-xs font-bold text-amber-800 dark:text-amber-200">⚠ Needs Attention</p> : null}{isGlassConfiguration(line.config) ? <div className="job-line-glass-summary"><GlassUnitDiagram compact line={presentedLine}/>{presentedLine.glassWorkorderDetail ? <details className="text-xs"><summary className="cursor-pointer font-semibold">Line details</summary><pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-xs">{presentedLine.glassWorkorderDetail}</pre>{presentedLine.glassOverride ? <p className="mt-1"><strong>Override:</strong> {presentedLine.glassOverride.reason}</p> : null}</details> : null}</div> : null}<CustomRoSummary line={line}/>{canEdit ? <div className="job-line-actions mt-1.5 flex flex-wrap gap-1"><button className={button} onClick={() => adjust(line.lineId, 1)} type="button">+ Qty</button><button className={button} onClick={() => adjust(line.lineId, -1)} type="button">− Qty</button><button className={button} onClick={() => edit(line)} type="button">Edit</button><button className={button} onClick={() => duplicate(line)} type="button">Duplicate</button><button className={button} disabled={index === 0} onClick={() => move(line.lineId, -1)} type="button">Move Up</button><button className={button} disabled={index === active.length - 1} onClick={() => move(line.lineId, 1)} type="button">Move Down</button><button className={`${button} border-rose-400 text-rose-800 dark:text-rose-200`} onClick={() => archive(line.lineId)} type="button">Archive / Remove</button></div> : null}</article>; }) : <p className="rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No active door lines.</p>}</div>
+      <div className="mt-2 grid gap-2">{active.length ? active.map((line, index) => { const presentedLine = withDerivedGlassGeometry(line); const attention = glassLineNeedsAttention(presentedLine); return <article className="job-line-card min-w-0 rounded-md border border-slate-200 p-2 dark:border-slate-700" key={importedLineRenderKey(line, index)}><div className="flex flex-wrap items-start justify-between gap-1"><h3 className="line-clamp-2 text-sm font-semibold leading-tight">{lineTitle(line)}</h3><StatusBadge status={presentedLine.glassCalcStatus}/></div><p className="mt-0.5 truncate text-xs text-slate-600 dark:text-slate-300" title={line.notes ?? undefined}>{`Qty ${String(line.qty)} · ${line.sidelightType ?? 'Door'} · ${lineShopHours(line)} shop hrs${line.notes ? ` · ${line.notes}` : ''}`}</p>{attention.length ? <p className="mt-1 text-xs font-bold text-amber-800 dark:text-amber-200">⚠ Needs Attention</p> : null}{isGlassConfiguration(line.config) ? <div className="job-line-glass-summary"><GlassUnitDiagram compact line={presentedLine}/>{presentedLine.glassWorkorderDetail ? <details className="text-xs"><summary className="cursor-pointer font-semibold">Line details</summary><pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-xs">{presentedLine.glassWorkorderDetail}</pre>{presentedLine.glassOverride ? <p className="mt-1"><strong>Geometry Exception:</strong> {presentedLine.glassOverride.reason}</p> : null}</details> : null}</div> : null}<CustomRoSummary line={line}/>{canEdit ? <div className="job-line-actions mt-1.5 flex flex-wrap gap-1"><button className={button} onClick={() => adjust(line.lineId, 1)} type="button">+ Qty</button><button className={button} onClick={() => adjust(line.lineId, -1)} type="button">− Qty</button><button className={button} onClick={() => edit(line)} type="button">Edit</button><button className={button} onClick={() => duplicate(line)} type="button">Duplicate</button><button className={button} disabled={index === 0} onClick={() => move(line.lineId, -1)} type="button">Move Up</button><button className={button} disabled={index === active.length - 1} onClick={() => move(line.lineId, 1)} type="button">Move Down</button><button className={`${button} border-rose-400 text-rose-800 dark:text-rose-200`} onClick={() => archive(line.lineId)} type="button">Archive / Remove</button></div> : null}</article>; }) : <p className="rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No active door lines.</p>}</div>
       <details className="mt-5"><summary className="cursor-pointer font-semibold">Archived Lines ({archived.length})</summary><div className="mt-3 grid gap-3">{archived.length ? archived.map((line, index) => <article className="rounded-xl border border-slate-200 p-3 opacity-80 dark:border-slate-700" key={importedLineRenderKey(line, index)}><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-semibold">{lineTitle(line)}</h3><StatusBadge status={line.glassCalcStatus}/></div><p className="mt-1 text-sm">Qty {String(line.qty)} · Archived</p>{isGlassConfiguration(line.config) ? <GlassUnitDiagram compact line={line}/> : null}{canEdit ? <button className={`${button} mt-3`} onClick={() => restore(line.lineId)} type="button">Restore Line</button> : null}</article>) : <p className="text-sm text-slate-500">No archived lines.</p>}</div></details>
     </aside>
   </section>;

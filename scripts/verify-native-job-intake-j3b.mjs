@@ -76,7 +76,7 @@ assert.ok(lineEditor.includes('nextApplicable ? (previouslyApplicable ? editor.i
 assert.ok(lineEditor.includes('structuredClone(line)'), 'edit and duplicate flows preserve saved line fields');
 const documentContract = await readFile('lib/jobs/work-order-document-contract.ts', 'utf8');
 assert.ok(documentContract.includes('workOrderHingeDisplay({ ...outputLine, hingeColor })'));
-assert.ok(documentContract.includes('withDerivedGlassGeometry(line)'), 'saved work-order output must derive current glass geometry from source inputs');
+assert.ok(documentContract.includes('normalizeGlassDomainFields(line)'), 'saved work-order output must derive current glass geometry from source inputs, including blockers without calculated dimensions');
 assert.equal(/function hingeDisplay/.test(documentContract), false, 'J3A must consume the shared hinge display contract');
 assert.equal(/hingeType|hingeColor/.test(pdf), false, 'PDF renderer must consume final J3A hinge-cell text');
 console.log('Native Job Intake J3B architecture and no-side-effect verifier: PASS');

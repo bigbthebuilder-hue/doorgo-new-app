@@ -5,7 +5,7 @@ export { WORK_ORDER_PDF_COLUMN_WIDTHS, WORK_ORDER_PDF_TEXT_SIZES, WORK_ORDER_PDF
 import type { WorkOrderOutputMode } from './work-order-preview-contract';
 
 export function printedWorkOrderStatusLabel(status: WorkOrderPrimaryRow['status']): string {
-  return status === 'Complete' ? '' : status.toUpperCase();
+  return status === 'Complete' || status === 'Manual Override' ? '' : status.toUpperCase();
 }
 
 function drawText(page: PDFPage, font: PDFFont, value: unknown, x: number, y: number, size = 8, color = rgb(0.08, 0.11, 0.16)) {

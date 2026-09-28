@@ -4,12 +4,12 @@ import { createHash } from 'node:crypto';
 import { decodePDFRawStream, PDFArray, PDFDocument, PDFRawStream, StandardFonts } from 'pdf-lib';
 import { resolveCurrentDoorGoAccess } from '../auth/access';
 import { JobIntakeFailure, type NativeDoorLine, type NativeJobAggregate } from './job-intake-types';
-import { calculateGlassGeometry } from './glass-geometry-contract';
+import { applyManualGeometryOverride, calculateGlassGeometry, normalizeGlassDomainFields } from './glass-geometry-contract';
 import { createWorkOrderRowGroup, generateWorkOrderDocument, paginateWorkOrder, type WorkOrderDocument, type WorkOrderRowGroup } from './work-order-document-contract';
 import { calculateWorkOrderDiagramBounds, measureWorkOrderGroup, normalizeWorkOrderPdfText, printedWorkOrderStatusLabel, renderWorkOrderPdf, WORK_ORDER_PDF_COLUMN_WIDTHS, WORK_ORDER_PDF_TEXT_SIZES, WORK_ORDER_PDF_UNSUPPORTED_CHARACTER_FALLBACK, workOrderPdfHeaders } from './work-order-pdf-contract';
 import { generateRevisionPinnedSavedWorkOrderPdfWithAccess, generateSavedWorkOrderPdfWithAccess } from './work-order-pdf-service-contract';
 import { APPLY_LINE_BEFORE_OUTPUT_MESSAGE, buildWorkOrderPdfUrl, workOrderOutputDecision } from './work-order-preview-contract';
-import { assertWorkOrderPreflight, evaluateWorkOrderPreflight } from './work-order-preflight-contract';
+import { assertWorkOrderPreflight, evaluateWorkOrderPreflight, workOrderPreflightStatusLabel } from './work-order-preflight-contract';
 
 function access(level: 'none' | 'view' | 'use', manager = false, includePermission = true) {
   return resolveCurrentDoorGoAccess({ user: { id: 'user' }, profile: { user_id: 'user', display_name: 'User', active: true, is_manager: manager, company_location: null, must_change_password: false }, permissionRows: includePermission ? [{ permission_key: 'jobs', access_level: level }] : [] });
@@ -49,6 +49,9 @@ function extractedWinAnsiText(bytes: Uint8Array): Promise<string> {
 }
 
 async function main() {
+  assert.equal(workOrderPreflightStatusLabel('Manual Override'), 'Geometry Exception Approved');
+  assert.equal(workOrderPreflightStatusLabel('Warning'), 'Warning');
+  assert.equal(workOrderPreflightStatusLabel('Blocked'), 'Blocked');
   assert.deepEqual(workOrderOutputDecision({ hasSavedJob: true, dirty: false, canEdit: false, hasUnappliedLineChanges: false }), { ok: true, saveRequired: false });
   assert.deepEqual(workOrderOutputDecision({ hasSavedJob: true, dirty: true, canEdit: true, hasUnappliedLineChanges: false }), { ok: true, saveRequired: true });
   assert.deepEqual(workOrderOutputDecision({ hasSavedJob: true, dirty: true, canEdit: false, hasUnappliedLineChanges: false }), { ok: false, message: 'You do not have permission to save pending job changes.' });
@@ -61,6 +64,92 @@ async function main() {
   assert.equal(printedWorkOrderStatusLabel('Warning'), 'WARNING');
 
   const base = generateWorkOrderDocument(aggregate(), generation);
+  const cutSource = line({
+    mode: 'Exterior', config: 'T/DD', material: 'fiberglass', hand: 'LH',
+    customSlab: 'RO', roWidth: '73', roHeight: '95',
+    transomTBarSize: '2.25', transomGlassTypeCode: 'CLEAR',
+  });
+  const cutCalculation = calculateGlassGeometry(cutSource);
+  assert.equal(cutCalculation.status, 'Warning');
+  const approval = applyManualGeometryOverride({
+    line: cutSource, accessLevel: 'use', acceptedValues: { headerWidth: '999999' },
+    reason: 'AUDIT_REASON_ONLY', actorUserId: 'AUDIT_ACTOR_ONLY', actorDisplayName: 'AUDIT_NAME_ONLY', appliedAt: '2001-02-03T04:05:06Z',
+  });
+  const approvedSource = { ...cutSource, glassOverride: approval };
+  const sourceBefore = JSON.stringify(approvedSource);
+  const productionDocument = generateWorkOrderDocument(aggregate({ lines: [approvedSource] }), generation);
+  assert.equal(JSON.stringify(approvedSource), sourceBefore, 'projection preserves stored approval and calculation data');
+  assert.equal(productionDocument.rowGroups[0].primaryRow.status, 'Manual Override', 'office preflight status is preserved');
+  const approvedPreflight = evaluateWorkOrderPreflight(productionDocument).issues[0];
+  assert.doesNotMatch(`${workOrderPreflightStatusLabel(approvedPreflight.status)}: ${approvedPreflight.message}`, /Manual Override/);
+  const emptyDetails = { ...productionDocument, rowGroups: productionDocument.rowGroups.map((group) => ({ ...group, detailRows: [] })) };
+  assert.equal(evaluateWorkOrderPreflight(emptyDetails).issues[0].message, 'Geometry Exception Approved', 'empty details use the office display label too');
+  assert.throws(() => assertWorkOrderPreflight(productionDocument, false), /acknowledged/);
+  assert.doesNotThrow(() => assertWorkOrderPreflight(productionDocument, true));
+  const productionText = (await extractedWinAnsiText(await renderWorkOrderPdf(productionDocument))).replace(/\s+/g, ' ');
+  for (const audit of ['AUDIT_REASON_ONLY', 'AUDIT_ACTOR_ONLY', 'AUDIT_NAME_ONLY', '2001-02-03', '999999', 'Manual Override', 'Geometry Exception Approved', 'acceptedValues', 'calculatedValues']) {
+    assert.equal(productionText.toLowerCase().includes(audit.toLowerCase()), false, `PDF omits ${audit}`);
+  }
+  for (const required of ['Active slab: 35 3/4" x 79"', 'Inactive slab: 34 3/16" x 79"', 'Jamb legs: 94 1/2"', 'Header/Sill/T-bar: 71"', 'Unit T-bar: 2 1/4"', 'Transom: 70 7/8"', '10 7/8" Clear', 'CUT: Remove 1 9/16" from inactive slab ASTRAGAL EDGE ONLY.', 'Active slab and inactive hinge edge remain unchanged.']) {
+    assert.ok(productionText.includes(required), `PDF retains ${required}`);
+  }
+  assert.equal(printedWorkOrderStatusLabel('Manual Override'), '');
+  const unapprovedDocument = generateWorkOrderDocument(aggregate({ lines: [cutSource] }), generation);
+  assert.deepEqual(productionDocument.rowGroups[0].detailRows, unapprovedDocument.rowGroups[0].detailRows, 'approval does not change production geometry or instructions');
+  const blockedSource = { ...approvedSource, roWidth: '70' };
+  const blockedDocument = generateWorkOrderDocument(aggregate({ lines: [{ ...blockedSource, ...normalizeGlassDomainFields(blockedSource) }] }), generation);
+  assert.throws(() => assertWorkOrderPreflight(blockedDocument, true), /blocked/);
+  assert.match(JSON.stringify(blockedDocument.rowGroups[0].detailRows), /SPECIAL \/ REVIEW REQUIRED/);
+  assert.equal(blockedDocument.rowGroups[0].detailRows.some((row) => row.kind === 'instruction'), false, 'hard blockers never become routine cut instructions');
+  const specialDocument = generateWorkOrderDocument(aggregate({ lines: [{ ...cutSource, config: 'DD', roWidth: '70', roHeight: '82' }] }), generation);
+  assert.equal(specialDocument.rowGroups[0].primaryRow.status, 'Blocked', 'structured DD width review prevents production output');
+  assert.throws(() => assertWorkOrderPreflight(specialDocument, true), /blocked/);
+  assert.match(JSON.stringify(specialDocument.rowGroups[0].detailRows), /SPECIAL \/ REVIEW REQUIRED/);
+  assert.match(JSON.stringify(specialDocument.rowGroups[0].detailRows), /No width cut or header\/sill cut is approved/);
+  const specialSource = { ...cutSource, config: 'DD', roWidth: '70', roHeight: '82' };
+  const staleGlassSource = { ...approvedSource, ...normalizeGlassDomainFields(approvedSource), roWidth: '70' };
+  const staleDocument = generateWorkOrderDocument(aggregate({ lines: [staleGlassSource] }), generation);
+  assert.equal(staleDocument.rowGroups[0].primaryRow.status, 'Blocked', 'current glass blocker supersedes a stored approved snapshot');
+  assert.match(JSON.stringify(staleDocument.rowGroups[0].detailRows), /SPECIAL \/ REVIEW REQUIRED/);
+  const mixedLines = [line(), { ...cutSource, lineIndex: 2 }, { ...specialSource, lineIndex: 3 }, { ...approvedSource, lineIndex: 4 }];
+  const mixedDocument = generateWorkOrderDocument(aggregate({ lines: mixedLines }), generation);
+  assert.equal(mixedDocument.rowGroups.length, 4, 'blocked line is not silently omitted');
+  const mixedPreflight = evaluateWorkOrderPreflight(mixedDocument);
+  assert.equal(mixedPreflight.blocked, true);
+  assert.equal(mixedPreflight.acknowledgementRequired, false, 'acknowledgement is unavailable when any line blocks');
+  assert.deepEqual(mixedPreflight.issues.filter((issue) => issue.status === 'Blocked').map((issue) => issue.lineIndex), [3]);
+  for (const lines of [[specialSource], [{ ...blockedSource, ...normalizeGlassDomainFields(blockedSource) }], [staleGlassSource], mixedLines]) {
+    const blockedJob = aggregate({ lines });
+    const repository = { findById: async () => structuredClone(blockedJob) };
+    for (const acknowledged of [false, true]) {
+      for (const mode of ['inline', 'attachment'] as const) {
+        await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('view'), blockedJob.internalJobId, mode, repository, acknowledged), /blocked/, `${mode} must refuse blockers even if acknowledged`);
+      }
+      await assert.rejects(generateRevisionPinnedSavedWorkOrderPdfWithAccess(access('view'), blockedJob.internalJobId, blockedJob.revision, repository, acknowledged), /blocked/, 'Send attachment must refuse blockers');
+    }
+  }
+  for (const [roWidth, expectedCut] of [['74.25', '5/16"'], ['72.875', '1 11/16"'], ['72.5625', '2"']]) {
+    const routineJob = aggregate({ lines: [{ ...specialSource, roWidth }] });
+    const repository = { findById: async () => routineJob };
+    await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('view'), routineJob.internalJobId, 'inline', repository, false), /acknowledged/);
+    const result = await generateSavedWorkOrderPdfWithAccess(access('view'), routineJob.internalJobId, 'inline', repository, true);
+    assert.equal(result.document.rowGroups[0].primaryRow.status, 'Warning');
+    const routineText = (await extractedWinAnsiText(result.bytes)).replace(/\s+/g, ' ');
+    assert.ok(routineText.includes(`CUT: Remove ${expectedCut} from inactive slab ASTRAGAL EDGE ONLY.`));
+  }
+  const approvedJob = aggregate({ lines: [approvedSource] });
+  const approvedPdf = await generateRevisionPinnedSavedWorkOrderPdfWithAccess(access('view'), approvedJob.internalJobId, approvedJob.revision, { findById: async () => approvedJob }, true);
+  assert.equal(approvedPdf.document.rowGroups[0].primaryRow.status, 'Manual Override');
+  assert.doesNotMatch(await extractedWinAnsiText(approvedPdf.bytes), /AUDIT_|MANUAL OVERRIDE|Geometry Exception Approved/);
+  for (const [source, instruction] of [
+    [{ ...specialSource, config: 'D', roWidth: '37.5' }, 'Slab width cut: 1/2"'],
+    [{ ...specialSource, roWidth: '74.25', roHeight: '81' }, 'CUT DOWN:'],
+  ] as const) {
+    const routineJob = aggregate({ lines: [source] });
+    const result = await generateSavedWorkOrderPdfWithAccess(access('view'), routineJob.internalJobId, 'inline', { findById: async () => routineJob }, true);
+    assert.equal(result.document.rowGroups[0].primaryRow.status, 'Warning');
+    assert.ok((await extractedWinAnsiText(result.bytes)).replace(/\s+/g, ' ').includes(instruction));
+  }
   const cleanedGlassDocument = generateWorkOrderDocument(aggregate({ lines: [line({
     mode: 'Exterior', config: 'T/D', notes: null, roWidth: '75', roHeight: '99', glassCalcStatus: 'Complete',
     glassCalc: { transomWidth: `72 7/16"`, transomHeight: `15 1/8"` },
@@ -236,13 +325,13 @@ async function main() {
     detailRows: status === 'Complete' ? base.rowGroups[0].detailRows : [{ kind: status === 'Glass Detail Needed' ? 'detail-needed' : status === 'Manual Override' ? 'manual-override' : status.toLowerCase() as 'warning' | 'blocker', lines: [status], ...(status === 'Manual Override' ? { calculatedValues: { headerWidth: `58"` }, acceptedValues: { headerWidth: `58 1/8"` }, overrideReason: 'Site verified' } : {}) }],
   }));
   assert.ok(measureWorkOrderGroup(groups[2].primaryRow, groups[2].detailRows, measurementFont).detailLayouts.some((detail) => detail.label === 'WARNING: '), 'warning remains in its parent group');
-  assert.ok(measureWorkOrderGroup(groups[4].primaryRow, groups[4].detailRows, measurementFont).detailLayouts.some((detail) => detail.label === 'MANUAL OVERRIDE: '), 'manual override remains in its parent group');
+  assert.equal(measureWorkOrderGroup(groups[4].primaryRow, groups[4].detailRows, measurementFont).detailLayouts.length, 0, 'historical approval audit rows do not print');
   const first = { ...base.pages[0], rowGroups: groups.slice(0, 2), totalPages: 2, footerText: 'Sales Order / Job ID: DG-000123 | Page 1 of 2' };
   const second = { ...base.pages[0], pageNumber: 2, totalPages: 2, kind: 'Continuation' as const, header: null, continuationHeader: { customer: 'Customer', visibleIdentifier: 'DG-000123', label: 'Continued' as const }, rowGroups: groups.slice(2), footerText: 'Sales Order / Job ID: DG-000123 | Page 2 of 2' };
   const multi: WorkOrderDocument = { ...base, rowGroups: groups, pages: [first, second] };
   const preflight = evaluateWorkOrderPreflight(multi);
   assert.equal(preflight.blocked, true);
-  assert.equal(preflight.acknowledgementRequired, true);
+  assert.equal(preflight.acknowledgementRequired, false, 'a blocked job has no acknowledgement bypass');
   assert.match(preflight.issues.find((issue) => issue.status === 'Manual Override')?.message ?? '', /Manual Override/);
   assert.throws(() => assertWorkOrderPreflight(multi, true), /blocked door lines/);
   const loaded = await PDFDocument.load(await renderWorkOrderPdf(multi));

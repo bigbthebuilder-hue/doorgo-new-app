@@ -1,5 +1,13 @@
-export async function prepareGlassOverrideAction() { return { ok: false as const, message: 'Not available in component layout tests.' }; }
-export async function removeGlassOverrideAction() { return { ok: false as const, message: 'Not available in component layout tests.' }; }
+import { applyManualGeometryOverride, removeManualGeometryOverride } from '@/lib/jobs/glass-geometry-contract';
+import type { DoorLineInput, GlassGeometryValues } from '@/lib/jobs/job-intake-types';
+
+export async function prepareGlassOverrideAction(request: { line: DoorLineInput; acceptedValues: GlassGeometryValues; reason: string }) {
+  if (request.reason === 'Slow approval') await new Promise((resolve) => setTimeout(resolve, 400));
+  try {
+    return { ok: true as const, approval: applyManualGeometryOverride({ ...request, accessLevel: 'use', actorUserId: 'fixture', actorDisplayName: 'Fixture Approver', appliedAt: '2026-09-28T12:00:00Z' }) };
+  } catch (error) { return { ok: false as const, message: String(error) }; }
+}
+export async function removeGlassOverrideAction() { return { ok: true as const, approval: removeManualGeometryOverride('use') }; }
 export async function createDraftJobAction() { return { ok: false as const, message: 'Not available in component layout tests.' }; }
 export async function createTransferredJobAction() { return { ok: false as const, message: 'Not available in component layout tests.' }; }
 export async function updateDraftJobAction() { return { ok: false as const, message: 'Not available in component layout tests.' }; }

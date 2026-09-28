@@ -96,9 +96,9 @@ export function measureWorkOrderGroup(row: WorkOrderPrimaryRow, details: readonl
   const primaryLines = primaryCells(row).map((value, index) => wrapText(regular, value, WORK_ORDER_PDF_TEXT_SIZES.primary, Math.max(12, WORK_ORDER_PDF_COLUMN_WIDTHS[index] - 6 - (diagram && index === WORK_ORDER_PDF_COLUMN_WIDTHS.length - 1 ? diagramReservedWidth : 0))));
   const primaryHeight = Math.max(26, Math.max(...primaryLines.map((lines) => lines.length)) * 12 + 10);
   const detailWidth = CONTENT_WIDTH - 38 - diagramReservedWidth;
-  const detailLayouts = details.map((detail): DetailLayout => {
-    const exception = detail.kind === 'warning' || detail.kind === 'blocker' || detail.kind === 'detail-needed' || detail.kind === 'manual-override';
-    const label = detail.kind === 'warning' ? 'WARNING: ' : detail.kind === 'manual-override' ? 'MANUAL OVERRIDE: ' : detail.kind === 'detail-needed' ? 'GLASS DETAIL NEEDED: ' : detail.kind === 'blocker' ? 'BLOCKED: ' : '';
+  const detailLayouts = details.filter((detail) => detail.kind !== 'manual-override').map((detail): DetailLayout => {
+    const exception = detail.kind === 'instruction' || detail.kind === 'warning' || detail.kind === 'blocker' || detail.kind === 'detail-needed';
+    const label = detail.kind === 'warning' ? 'WARNING: ' : detail.kind === 'detail-needed' ? 'GLASS DETAIL NEEDED: ' : detail.kind === 'blocker' ? 'BLOCKED: ' : '';
     let first = true;
     const lines = detailLines(detail).flatMap((line) => {
       const wrapped = wrapText(regular, `${first ? label : ''}${line}`, WORK_ORDER_PDF_TEXT_SIZES.detail, detailWidth);

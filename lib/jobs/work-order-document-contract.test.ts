@@ -288,8 +288,8 @@ async function main() {
   const override = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'SD', glassCalcStatus: 'Manual Override', glassCalc: { headerWidth: `58"` }, glassOverride: { approvedLineId: '11111111-1111-4111-8111-111111111111', calculatedValues: { headerWidth: `58"` }, acceptedValues: { headerWidth: `58 1/8"` }, reason: 'Site verified', appliedByUserId: 'user', appliedByDisplayName: 'User', appliedAt: '2026-07-22T12:00:00.000Z' } }), null);
   assert.equal(override.primaryRow.status, 'Manual Override');
   const overrideRow = override.detailRows.find((row) => row.kind === 'manual-override');
-  assert.equal(overrideRow?.overrideReason, 'Site verified');
-  assert.deepEqual(overrideRow?.acceptedValues, { headerWidth: `58 1/8"` });
+  assert.equal(overrideRow, undefined, 'approval audit stays out of production details');
+  assert.equal(JSON.stringify(override.detailRows).includes('Site verified'), false);
 
   const oneDetailLine = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'SD', glassCalcStatus: 'Warning', glassWarnings: [{ code: 'one', message: 'One.' }], glassCalc: null }), null);
   assert.equal(oneDetailLine.weightedUnits, 3, 'one primary plus the minimum two-unit detail section');

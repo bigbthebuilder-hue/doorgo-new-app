@@ -228,6 +228,11 @@ function overrideApproval(value: unknown): GlassOverrideApproval | null {
   return structuredClone(candidate as GlassOverrideApproval);
 }
 
+function geometrySnapshot(value: unknown): string {
+  return JSON.stringify(value, (_key, entry) => entry && typeof entry === 'object' && !Array.isArray(entry)
+    ? Object.fromEntries(Object.entries(entry).sort(([a], [b]) => a.localeCompare(b))) : entry);
+}
+
 export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResult {
   const config = text(input.config);
   if (!isGlassConfiguration(config)) return { status: 'Unsupported', warnings: [], blockers: [issue('unsupported_configuration', 'This glass configuration is unsupported.')], incompleteDetails: [], workorderDetail: '', glassUnits: [], panelSidelights: [], glassCalc: null, vendorCopyText: '', override: null };
@@ -469,7 +474,9 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
     ...(visibleWarnings.length ? ['WARNINGS', ...visibleWarnings.map((entry) => `- ${entry.message}`)] : []),
   ].join('\n');
   const suppliedOverride = overrideApproval(input.glassOverride);
-  const overrideValid = suppliedOverride && warnings.length > 0;
+  const overrideValid = suppliedOverride && warnings.length > 0
+    && suppliedOverride.approvedLineId === text(input.lineId)
+    && geometrySnapshot(suppliedOverride.calculatedValues) === geometrySnapshot(calc);
   const status: GlassCalculationStatus = nonGeometricIncomplete.length ? 'Glass Detail Needed' : overrideValid ? 'Manual Override' : warnings.length ? 'Warning' : 'Complete';
   const overrideText = overrideValid ? `\nMANUAL OVERRIDE\nReason: ${suppliedOverride.reason}\nCalculated: ${JSON.stringify(suppliedOverride.calculatedValues)}\nAccepted: ${JSON.stringify(suppliedOverride.acceptedValues)}` : '';
   const astragalVendorLine = topology.doorCount === 2 && doubleDoorAstragal === 'wood-ferco-astra-lock' ? 'Astragal: Wood / Ferco Astra Lock — 1"' : '';

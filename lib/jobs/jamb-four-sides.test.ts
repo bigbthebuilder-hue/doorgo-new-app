@@ -94,8 +94,8 @@ async function persistence() {
         const reopened = await reader.findById(created.internalJobId);
         assert.equal(reopened?.lines[0].construction, 'jamb-four-sides');
         const row = createWorkOrderRowGroup(reopened!.lines[0] as NativeDoorLine, null);
-        assert.match(row.primaryRow.cells.notesGlass, /Jamb 4 sides/);
-        assert.equal(row.primaryRow.cells.sill, '');
+        assert.doesNotMatch(JSON.stringify(row), /Jamb 4 sides/);
+        assert.equal(row.primaryRow.cells.sill, 'J-4-S');
         await repository.update({ internalJobId: created.internalJobId, expectedRevision: created.revision, actorUserId: 'test', input: { customer: 'Jamb test' }, lines: [{ ...reopened!.lines[0], construction: 'standard' }] });
         assert.equal((await reader.findById(created.internalJobId))?.lines[0].construction, 'standard');
       }

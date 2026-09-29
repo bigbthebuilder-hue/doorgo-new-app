@@ -7,6 +7,29 @@ export const CONSTRUCTIONS = {
 } as const;
 export type DoorConstruction = keyof typeof CONSTRUCTIONS;
 
+export const SILL_CHOICES = ['STD', 'DARK', 'LOW-PRO', 'NONE', 'J-4-S'] as const;
+export type SillChoice = typeof SILL_CHOICES[number];
+const SILL_CONSTRUCTION: Record<SillChoice, DoorConstruction> = {
+  STD: 'standard', DARK: 'standard', 'LOW-PRO': 'low-profile-quarter-sill',
+  NONE: 'standard', 'J-4-S': 'jamb-four-sides',
+};
+
+// Existing construction is authoritative: legacy free text never selects geometry.
+export function sillChoice(line: Readonly<DoorLineInput>): SillChoice {
+  const construction = normalizeConstruction(line.construction);
+  if (construction === 'low-profile-quarter-sill') return 'LOW-PRO';
+  if (construction === 'jamb-four-sides') return 'J-4-S';
+  const stored = String(line.sill ?? '').trim();
+  return stored === 'DARK' || stored === 'NONE' ? stored : 'STD';
+}
+
+export function withSillChoice(line: DoorLineInput, sill: SillChoice): DoorLineInput {
+  const hand = line.mode === 'Interior' && sill !== 'LOW-PRO'
+    ? line.hand === 'LHOUT' ? 'LH' : line.hand === 'RHOUT' ? 'RH' : line.hand
+    : line.hand;
+  return { ...line, sill, construction: SILL_CONSTRUCTION[sill], hand };
+}
+
 export function normalizeConstruction(value: unknown): DoorConstruction {
   return value === 'low-profile-quarter-sill' || value === 'jamb-four-sides' ? value : 'standard';
 }

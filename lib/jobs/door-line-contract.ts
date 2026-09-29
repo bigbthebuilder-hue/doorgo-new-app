@@ -1,4 +1,4 @@
-import { normalizeConstruction, validConstruction } from './construction-contract';
+import { normalizeConstruction, validConstruction, sillChoice } from './construction-contract';
 import {
   JobIntakeFailure,
   type DoorLineInput,
@@ -109,7 +109,7 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
     customSlab: 'No', customSlabWidth: '', customSlabHeight: '',
     hand: 'LH', prep: mode === 'Exterior' ? 'STD' : 'YES',
     jambWidth: mode === 'Exterior' ? `6-9/16"` : `4-9/16"`,
-    jambType: 'Primed', sill: mode === 'Exterior' ? 'STD' : '',
+    jambType: 'Primed', sill: mode === 'Interior' ? 'NONE' : 'STD',
     weatherstrip: mode === 'Exterior' ? 'WHT' : '',
     hingeType: mode === 'Exterior' ? 'BB' : 'REG',
     notes: '', qty: 1, material: mode === 'Exterior' ? 'fiberglass' : 'wood',
@@ -214,14 +214,16 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   return {
     ok: true,
     value: {
-      construction: normalizeConstruction(input.construction),
+      construction: noJamb ? 'standard' : normalizeConstruction(input.construction),
       mode: mode as DoorLineMode,
       doorType: text(input.doorType), config: config as string, width: width as string, height: height as string,
       customSlab, customSlabWidth: customSlab === 'WoodCustom' ? text(input.customSlabWidth) : null,
       customSlabHeight: customSlab === 'WoodCustom' ? text(input.customSlabHeight) : null,
       hand, prep, glass: null, jambWidth, ripJamb,
       jambType: noJamb ? null : text(input.jambType),
-      sill: mode === 'Interior' ? null : text(input.sill),
+      // Keep legacy standard text until staff explicitly select a replacement.
+      // Presentation uses sillChoice; only construction can select special geometry.
+      sill: noJamb ? null : normalizeConstruction(input.construction) === 'standard' ? text(input.sill) ?? 'STD' : sillChoice(input),
       weatherstrip: mode === 'Interior' ? null : text(input.weatherstrip),
       hingeType: hingeType.ok ? hingeType.value : null, notes: text(input.notes), qty: quantity,
       roWidth: noJamb || patio ? null : text(input.roWidth), roHeight: config === 'PKT' ? null : roHeight,

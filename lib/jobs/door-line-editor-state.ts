@@ -1,4 +1,4 @@
-import { normalizeConstruction } from './construction-contract';
+import { normalizeConstruction, sillChoice } from './construction-contract';
 import type { DoorLineInput, DoorLineMode } from './job-intake-types';
 import { defaultDoorLine, prepAfterHeightChange } from './door-line-contract';
 import { hingeTypeOptions } from './hinge-contract';
@@ -19,11 +19,11 @@ export function changeSizingMode(line: DoorLineInput, mode: 'No' | 'WoodCustom' 
   };
 }
 
-type StickyDoorValues = Pick<DoorLineInput, 'doorType' | 'hingeType' | 'height' | 'construction'>;
+type StickyDoorValues = Pick<DoorLineInput, 'doorType' | 'hingeType' | 'height' | 'construction' | 'sill'>;
 export type NewDoorSession = { mode: DoorLineMode; values: Record<DoorLineMode, StickyDoorValues> };
 
 function stickyValues(line: DoorLineInput): StickyDoorValues {
-  return { doorType: line.doorType, hingeType: line.hingeType, height: line.height, construction: normalizeConstruction(line.construction) };
+  return { doorType: line.doorType, hingeType: line.hingeType, height: line.height, construction: normalizeConstruction(line.construction), sill: sillChoice(line) };
 }
 
 export function createNewDoorSession(): NewDoorSession {
@@ -40,6 +40,10 @@ export function rememberNewDoor(session: NewDoorSession, line: DoorLineInput, ed
   const values = stickyValues(line);
   // PKT/B.P. clear the editor hinge without erasing the remembered framed-door choice.
   if (!hingeTypeOptions(mode).includes(String(values.hingeType ?? ''))) values.hingeType = session.values[mode].hingeType;
+  if (mode === 'Interior' && (line.config === 'PKT' || line.config === 'B.P.')) {
+    values.construction = session.values[mode].construction;
+    values.sill = session.values[mode].sill;
+  }
   return { mode, values: { ...session.values, [mode]: values } };
 }
 

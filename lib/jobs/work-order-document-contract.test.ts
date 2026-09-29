@@ -7,6 +7,7 @@ import { createLocalJobIntakeRepository } from './local-job-intake-repository';
 import { JobIntakeFailure, type NativeDoorLine, type NativeJobAggregate } from './job-intake-types';
 import { generateSavedWorkOrderWithAccess } from './work-order-generation-service-contract';
 import { calculateGlassGeometry } from './glass-geometry-contract';
+import { SILL_CHOICES, withSillChoice } from './construction-contract';
 import {
   createWorkOrderPdfFilename, createWorkOrderRowGroup, formatWorkOrderPoNumbers,
   formatWorkOrderNotesGlass, generateWorkOrderDocument, paginateWorkOrder, protectWorkOrderMeasurements,
@@ -42,6 +43,23 @@ function aggregate(overrides: Partial<NativeJobAggregate> = {}): NativeJobAggreg
 }
 
 const generation = { generatedAt: '2026-07-22T18:30:00.000Z', generatedDate: '2026-07-22' };
+
+for (const mode of ['Interior', 'Exterior'] as const) {
+  for (const code of SILL_CHOICES) {
+    const selected = { ...line({ mode }), ...withSillChoice(line({ mode }), code) };
+    const row = createWorkOrderRowGroup(selected, null);
+    assert.equal(row.primaryRow.cells.sill, mode === 'Interior' && code === 'NONE' ? '' : code);
+    assert.doesNotMatch(JSON.stringify(row), /LowPro|Low Profile 1\/4|Jamb 4 sides/);
+  }
+}
+for (const config of ['PKT', 'B.P.']) {
+  for (const construction of ['low-profile-quarter-sill', 'jamb-four-sides'] as const) {
+    // Exercise old saved rows directly, before normalization can clear stale state.
+    const row = createWorkOrderRowGroup(line({ config, construction, sill: construction === 'jamb-four-sides' ? 'J-4-S' : 'LOW-PRO' }), null);
+    assert.equal(row.primaryRow.cells.sill, '');
+    assert.doesNotMatch(JSON.stringify(row), /LOW-PRO|J-4-S|LowPro|Low Profile|Jamb 4 sides/);
+  }
+}
 
 function activeAccess(level: 'none' | 'view' | 'use', manager = false) {
   return resolveCurrentDoorGoAccess({

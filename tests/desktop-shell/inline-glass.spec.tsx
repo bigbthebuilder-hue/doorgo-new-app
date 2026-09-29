@@ -19,9 +19,9 @@ for (const viewport of [{ width: 1600, height: 900 }, { width: 900, height: 700 
     await expect(result).toContainText('94 1/2');
     await expect(result).toContainText('12 1/4');
     await page.screenshot({ path: testInfo.outputPath('inline-glass-editor.png'), fullPage: true });
-    await pane.getByRole('combobox', { name: 'Construction', exact: true }).selectOption('standard');
+    await pane.getByRole('combobox', { name: 'Sill', exact: true }).selectOption('STD');
     await expect(result).toContainText('11 5/8');
-    await pane.getByRole('combobox', { name: 'Construction', exact: true }).selectOption('low-profile-quarter-sill');
+    await pane.getByRole('combobox', { name: 'Sill', exact: true }).selectOption('LOW-PRO');
     await pane.getByLabel('Door Type', { exact: true }).fill('Updated SKU');
     await pane.getByLabel('RO Height (inches)', { exact: true }).fill('96');
     await pane.getByLabel('Line Notes', { exact: true }).click();

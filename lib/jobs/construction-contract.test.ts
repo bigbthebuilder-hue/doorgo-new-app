@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { constructionAllowance, CONSTRUCTIONS } from './construction-contract';
+import { constructionAllowance, CONSTRUCTIONS, SILL_CHOICES, sillChoice, withSillChoice } from './construction-contract';
 import { defaultDoorLine, normalizeDoorLineInput, doorLineEquivalenceKey } from './door-line-contract';
 import { createNewDoorSession, newDoorFromSession, rememberNewDoor, replaceDoorLineById } from './door-line-editor-state';
 import { calculateNonGlassFrameCut } from './non-glass-frame-cut-contract';
@@ -33,6 +33,48 @@ function output(input: DoorLineInput) {
 }
 
 let session = createNewDoorSession();
+assert.deepEqual(SILL_CHOICES, ['STD', 'DARK', 'LOW-PRO', 'NONE', 'J-4-S']);
+assert.equal(defaultDoorLine('Exterior').sill, 'STD');
+assert.equal(defaultDoorLine('Interior').sill, 'NONE');
+assert.equal(newDoorFromSession(session, 'Exterior').sill, 'STD');
+assert.equal(newDoorFromSession(session, 'Interior').sill, 'NONE');
+for (const mode of ['Interior', 'Exterior'] as const) {
+  const base = defaultDoorLine(mode);
+  for (const code of SILL_CHOICES) {
+    const selected = withSillChoice(base, code);
+    const expected: keyof typeof CONSTRUCTIONS = code === 'LOW-PRO' ? low : code === 'J-4-S' ? 'jamb-four-sides' : 'standard';
+    assert.equal(selected.sill, code);
+    assert.equal(selected.construction, expected);
+    assert.equal(saved(selected).sill, code);
+    assert.equal(sillChoice(selected), code);
+    assert.deepEqual(calculateNonGlassFrameCut(selected), calculateNonGlassFrameCut({ ...base, construction: expected }), `${mode} ${code}: existing geometry unchanged`);
+  }
+}
+for (const hand of ['LHOUT', 'RHOUT'] as const) {
+  const selected = withSillChoice({ ...defaultDoorLine('Interior'), hand }, 'LOW-PRO');
+  assert.equal(saved(selected).hand, hand);
+  for (const code of ['STD', 'DARK', 'NONE', 'J-4-S'] as const) {
+    const changed = withSillChoice(selected, code);
+    assert.equal(changed.hand, hand === 'LHOUT' ? 'LH' : 'RH');
+    assert.equal(saved(changed).hand, changed.hand);
+    assert.equal(withSillChoice({ ...selected, mode: 'Exterior' }, code).hand, hand);
+  }
+}
+for (const legacy of ['Bronze', 'LOW-PRO', 'J-4-S', label]) {
+  const input = { ...exterior, construction: 'standard' as const, sill: legacy };
+  assert.equal(sillChoice(input), 'STD', 'Legacy text alone never chooses special geometry');
+  assert.equal(saved(input).construction, 'standard');
+}
+assert.equal(sillChoice({ ...exterior, construction: low }), 'LOW-PRO');
+assert.equal(sillChoice({ ...exterior, construction: 'jamb-four-sides' }), 'J-4-S');
+for (const config of ['PKT', 'B.P.']) {
+  for (const code of ['LOW-PRO', 'J-4-S'] as const) {
+    const input = { ...withSillChoice(defaultDoorLine('Interior'), code), config, prep: config === 'PKT' ? 'Round Weiser' : 'NO' };
+    const normalized = saved(input);
+    assert.equal(normalized.sill, null);
+    assert.equal(normalized.construction, 'standard');
+  }
+}
 for (const mode of ['Interior', 'Exterior'] as const) {
   assert.equal(defaultDoorLine(mode).construction, 'standard');
   assert.equal(newDoorFromSession(session, mode).construction, 'standard');
@@ -86,7 +128,7 @@ for (const mode of ['Interior', 'Exterior'] as const) {
 }
 assert.equal(frame({ ...exterior, construction: low }).values.jambLeg?.display, '80 5/8"');
 assert.ok(output({ ...exterior, construction: low }).includes('80 5/8'));
-assert.equal(createWorkOrderRowGroup(saved({ ...exterior, construction: low }), null).primaryRow.cells.sill, 'LowPro');
+assert.equal(createWorkOrderRowGroup(saved({ ...exterior, construction: low }), null).primaryRow.cells.sill, 'LOW-PRO');
 assert.ok(!output({ ...exterior, construction: low }).includes('Low Profile'));
 assert.equal(output({ ...exterior, construction: undefined }), output({ ...exterior, construction: 'standard' }));
 for (const preset of ['5', '6'] as const) {
@@ -151,8 +193,9 @@ for (const config of ['T/D', 'T/SD', 'T/SDS', 'T/DD', 'T/SDDS', 'TTT/SDDS']) {
   }
 }
 const ui = readFileSync('components/jobs/DoorLineWorkspace.tsx', 'utf8');
-assert.match(ui, /Construction<select[^]*?set\('construction', event.target.value\)/);
-assert.match(ui, /name === 'construction'\) newDoorSession.current = rememberNewDoor/);
+assert.match(ui, /Sill<select[^]*?set\('sill', event.target.value\)/);
+assert.doesNotMatch(ui, /Construction<select|Sill<input/);
+assert.match(ui, /name === 'sill'\) newDoorSession.current = rememberNewDoor/);
 
 async function persistence() {
   let persisted: Record<string, unknown>[] = [];

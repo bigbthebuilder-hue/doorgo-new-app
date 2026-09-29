@@ -20,9 +20,9 @@ for (const input of [observed, { ...defaultDoorLine('Exterior'), construction: '
   assert.ok(normalized.ok);
   const line: NativeDoorLine = { ...normalized.value, lineId: 'test', lineIndex: 1, lineStatus: 'Active', createdAt: '', updatedAt: '', createdByUserId: '', updatedByUserId: '' };
   const low = createWorkOrderRowGroup(line, null);
-  assert.equal(low.primaryRow.cells.sill, 'LowPro');
+  assert.equal(low.primaryRow.cells.sill, 'LOW-PRO');
   assert.ok(!JSON.stringify(low).includes('Low Profile'), 'Construction wording is not repeated in notes/details');
   assert.equal(createWorkOrderRowGroup({ ...line, construction: 'standard', sill: 'STD' }, null).primaryRow.cells.sill, 'STD');
-  assert.equal(createWorkOrderRowGroup({ ...line, construction: 'standard', sill: 'Bronze' }, null).primaryRow.cells.sill, 'Bronze');
+  assert.equal(createWorkOrderRowGroup({ ...line, construction: 'standard', sill: 'Bronze' }, null).primaryRow.cells.sill, 'STD');
 }
-console.log('Inline glass / LowPro output / observed T/DS audit: PASS');
+console.log('Inline glass / LOW-PRO output / observed T/DS audit: PASS');

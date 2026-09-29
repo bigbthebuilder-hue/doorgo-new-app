@@ -21,14 +21,14 @@ import { GlassUnitDiagram } from './GlassUnitDiagram';
 import { importedLineRenderKey } from '@/lib/jobs/legacy-transfer-review-presentation';
 import { changeSizingMode, createNewDoorSession, isSameDoorMode, newDoorFromSession, rememberNewDoor, duplicateDoorLine, lastActiveDoorBaseline, replaceDoorLineById } from '@/lib/jobs/door-line-editor-state';
 import { CUSTOM_DD_REQUIRED, customDoubleDoorSlabs, PATIO_DOOR_PRESETS, patioSizingAvailable, withPatioPreset } from '@/lib/jobs/double-door-sizing-contract';
-import { CONSTRUCTIONS, normalizeConstruction, isFourSideJamb } from '@/lib/jobs/construction-contract';
+import { SILL_CHOICES, sillChoice, withSillChoice, type SillChoice, normalizeConstruction, isFourSideJamb } from '@/lib/jobs/construction-contract';
 import { usesCustomRo } from '@/lib/jobs/custom-ro-contract';
 import { calculateNonGlassFrameCut, usesAutomaticCustomSlabRoWidth } from '@/lib/jobs/non-glass-frame-cut-contract';
 import { hasDoubleDoorCore, DEFAULT_DOUBLE_DOOR_ASTRAGAL, DOUBLE_DOOR_ASTRAGALS, type DoubleDoorAstragalType } from '@/lib/jobs/double-door-astragal-contract';
 
 const control = 'min-h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm dark:border-slate-600 dark:bg-slate-950';
 const button = 'min-h-9 rounded-md border border-slate-300 px-2 text-sm font-semibold dark:border-slate-600 disabled:cursor-not-allowed disabled:opacity-50';
-const geometryFields = new Set(['construction', 'doubleDoorSizing', 'doubleDoorAstragal', 'config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand', 'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'transomGlass', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight']);
+const geometryFields = new Set(['sill', 'construction', 'doubleDoorSizing', 'doubleDoorAstragal', 'config', 'width', 'height', 'customSlab', 'customSlabWidth', 'customSlabHeight', 'hand', 'roWidth', 'roHeight', 'material', 'sidelightType', 'sidelightGlass', 'transomGlass', 'panelSidelightWidth', 'sidelightMeasurementLeft', 'sidelightMeasurementRight']);
 
 function lineTitle(line: DoorLineInput): string {
   const custom = customDoubleDoorSlabs(line.doubleDoorSizing);
@@ -102,6 +102,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   const comparisonValues = comparisonBaseline;
   const differs = (field: string) => {
     if (!comparisonValues) return false;
+    if (field === 'sill') return sillChoice(editor) !== sillChoice(comparisonValues);
     if (field === 'hingeColor') return hingeColor !== (editingLineId !== null ? editHingeColor : priorHingeColor);
     if (['roWidth', 'roHeight', 'customSlabWidth', 'customSlabHeight'].includes(field)) return storedShopInput(editor[field]) !== storedShopInput(comparisonValues[field]);
     const fallback = ({ jambType: 'Primed', hingeType: 'REG', customSlab: 'No' } as Record<string, string>)[field] ?? '';
@@ -163,10 +164,10 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   }
 
   function set(name: string, value: unknown) {
-    if (name === 'doorType' || name === 'hingeType' || name === 'construction') newDoorSession.current = rememberNewDoor(newDoorSession.current, { ...editor, [name]: value }, editingLineId);
-    if (geometryFields.has(name)) setExplicitGlassDetailNeeded(false);
+    if (name === 'doorType' || name === 'hingeType' || name === 'sill') newDoorSession.current = rememberNewDoor(newDoorSession.current, name === 'sill' ? withSillChoice(editor, value as SillChoice) : { ...editor, [name]: value }, editingLineId);
+    if (geometryFields.has(name) && (name !== 'sill' || geometryChanged(editor, withSillChoice(editor, value as SillChoice)))) setExplicitGlassDetailNeeded(false);
     setEditor((current) => {
-      const next = name === 'customSlab' ? changeSizingMode(current, value as 'No' | 'WoodCustom' | 'RO') : { ...current, [name]: value };
+      const next = name === 'sill' ? withSillChoice(current, value as SillChoice) : name === 'customSlab' ? changeSizingMode(current, value as 'No' | 'WoodCustom' | 'RO') : { ...current, [name]: value };
       return geometryFields.has(name) && geometryChanged(current, next) ? clearCalculated(next) : next;
     });
     setFieldErrors((current) => {
@@ -246,7 +247,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     next.includeDiagramOnWorkOrder = nextApplicable ? (previouslyApplicable ? editor.includeDiagramOnWorkOrder !== false : true) : false;
     next.prep = prepChoices(mode, nextConfig)[0] ?? '';
     if (mode === 'Interior' && (nextConfig === 'PKT' || nextConfig === 'B.P.')) {
-      next = { ...next, hand: '', jambWidth: '', jambType: '', hingeType: '', ripJamb: '', customSlab: 'No', customSlabWidth: '', customSlabHeight: '' };
+      next = { ...next, sill: null, construction: 'standard', hand: '', jambWidth: '', jambType: '', hingeType: '', ripJamb: '', customSlab: 'No', customSlabWidth: '', customSlabHeight: '' };
       setRipMode(false);
     }
     setEditor(nextApplicable ? initialBuilderDraft(next) : next); setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
@@ -394,8 +395,8 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
 
         <div className="door-production-grid mt-2 grid gap-2 border-t border-slate-200 pt-2 sm:grid-cols-3 2xl:grid-cols-4" aria-label="Door production configuration">
           {!noJamb ? <><label className="grid gap-1 text-sm font-semibold">Jamb Width<select aria-label="Jamb Width" className={control} onChange={(event) => { const rip = event.target.value === 'RIP'; setRipMode(rip); set('ripJamb', rip ? 'Yes' : ''); set('jambWidth', rip ? '' : event.target.value); }} data-comparison-different={differs('jambWidth') || undefined} value={ripMode ? 'RIP' : String(editor.jambWidth ?? '')}>{jambWidthChoices(mode).map((value) => <option key={value} value={value}>{value}</option>)}<option value="RIP">RIP jamb</option></select>{ripMode ? <><span className="text-xs font-semibold">Rip to</span><input data-comparison-different={differs('jambWidth') || undefined} aria-label="Rip to" className={control} onChange={(event) => set('jambWidth', event.target.value)} placeholder="Completed RIP size" value={String(editor.jambWidth === 'RIP' ? '' : editor.jambWidth ?? '')}/></> : null}</label><label className="grid gap-1 text-sm font-semibold">Jamb Type<select data-comparison-different={differs('jambType') || undefined} className={control} onChange={(event) => set('jambType', event.target.value)} value={String(editor.jambType ?? 'Primed')}><option>Primed</option><option>Fir</option>{mode === 'Exterior' ? <><option>Smooth Composite</option><option>Textured Composite</option></> : null}</select></label><label className="grid gap-1 text-sm font-semibold">Hinge Type<select data-comparison-different={differs('hingeType') || undefined} className={control} onChange={(event) => set('hingeType', event.target.value)} value={String(editor.hingeType ?? 'REG')}>{hingeTypeOptions(mode).map((value) => <option key={value} value={value}>{value}</option>)}</select></label><label className="grid gap-1 text-sm font-semibold">Hinge Color<select className={control} disabled={!canEdit || !onHingeColorChange} onChange={(event) => onHingeColorChange?.(event.target.value)} data-comparison-different={differs('hingeColor') || undefined} value={hingeColor}>{!normalizeHingeColor(hingeColor).ok ? <option disabled value={hingeColor}>Invalid saved value — choose a valid finish</option> : null}{HINGE_COLOR_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></> : null}
-          {mode === 'Exterior' ? <><label className="grid gap-1 text-sm font-semibold">Material<select data-comparison-different={differs('material') || undefined} className={control} onChange={(event) => set('material', event.target.value)} value={String(editor.material)}><option value="fiberglass">Fiberglass</option><option value="wood">Wood</option></select></label><label className="grid gap-1 text-sm font-semibold">Sill<input data-comparison-different={differs('sill') || undefined} className={control} onChange={(event) => set('sill', event.target.value)} value={String(editor.sill ?? '')}/></label><label className="grid gap-1 text-sm font-semibold">Weatherstrip<input data-comparison-different={differs('weatherstrip') || undefined} className={control} onChange={(event) => set('weatherstrip', event.target.value)} value={String(editor.weatherstrip ?? '')}/></label></> : null}
-          {!noJamb ? <label className="grid gap-1 text-sm font-semibold">Construction<select className={control} onChange={(event) => set('construction', event.target.value)} value={normalizeConstruction(editor.construction)}>{Object.entries(CONSTRUCTIONS).map(([value, option]) => <option key={value} value={value}>{option.label}</option>)}</select></label> : null}
+          {mode === 'Exterior' ? <><label className="grid gap-1 text-sm font-semibold">Material<select data-comparison-different={differs('material') || undefined} className={control} onChange={(event) => set('material', event.target.value)} value={String(editor.material)}><option value="fiberglass">Fiberglass</option><option value="wood">Wood</option></select></label><label className="grid gap-1 text-sm font-semibold">Weatherstrip<input data-comparison-different={differs('weatherstrip') || undefined} className={control} onChange={(event) => set('weatherstrip', event.target.value)} value={String(editor.weatherstrip ?? '')}/></label></> : null}
+          {!noJamb ? <label className="grid gap-1 text-sm font-semibold">Sill<select data-comparison-different={differs('sill') || undefined} className={control} onChange={(event) => set('sill', event.target.value)} value={sillChoice(editor)}>{SILL_CHOICES.map((value) => <option key={value} value={value}>{value}</option>)}</select></label> : null}
           {!patio ? <fieldset className="flex flex-wrap items-center gap-2 text-sm"><legend className="font-semibold">Sizing Adjustments</legend>{([['WoodCustom', 'Custom Slab'], ['RO', 'Fit to RO']] as const).map(([value, label]) => {
             const enabled = value === 'WoodCustom' ? editor.customSlab === 'WoodCustom' || editor.customSlab === 'Yes' : editor.customSlab === 'RO';
             return <button key={value} role="switch" aria-label={label} aria-checked={enabled} data-comparison-different={differs('customSlab') || undefined} disabled={!enabled && (value === 'RO' ? noJamb : !hasDoubleDoorCore(config) && editor.material !== 'wood')} className={button + (enabled ? ' border-sky-700 bg-sky-700 text-white' : '')} onClick={() => set('customSlab', enabled ? 'No' : value)} type="button">{label} <span className="text-xs font-bold">{enabled ? 'ON' : 'OFF'}</span></button>;

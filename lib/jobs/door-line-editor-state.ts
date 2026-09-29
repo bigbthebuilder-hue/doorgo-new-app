@@ -53,6 +53,11 @@ export function isSameDoorMode(line: DoorLineInput, mode: DoorLineMode): boolean
   return line.mode === mode;
 }
 
+// The workspace's loaded lines array is the current job order, including local reorders.
+export function lastActiveDoorBaseline(lines: readonly DoorLineInput[]): DoorLineInput | null {
+  return lines.filter((line) => (line.lineStatus ?? 'Active') === 'Active').at(-1) ?? null;
+}
+
 export function replaceDoorLineById(lines: readonly DoorLineInput[], editingLineId: string, saved: DoorLineInput): DoorLineInput[] {
   if (!editingLineId || saved.lineId !== editingLineId) throw new Error('Door line identity cannot change during an edit.');
   const matches = lines.filter((line) => line.lineId === editingLineId).length;

@@ -149,7 +149,13 @@ export function reconcileGlassDimensionCommit(input: DoorLineInput, edit: GlassC
       const targetTotal = availableSidelightWidth(ro.inches, fixed, specifications);
       const commonWidth = rounded(targetTotal / widths.length);
       const adjusted = widths.map(() => commonWidth);
-      if (adjusted.some((width) => width <= 0)) blockers.push(issue('nonpositive_sidelight_width', 'RO width would produce a zero or negative finished sidelight.'));
+      if (adjusted.some((width) => width <= 0)) {
+        // Preserve the authoritative RO and its invalid derived dimensions, never the
+        // old positive widths. The existing geometry validator then blocks every consumer.
+        const sourcePatch = { roWidth: ro.formatted, sidelightSpecifications: applyWidths(specifications, adjusted) };
+        const calculatedGeometry = calculateGlassGeometry({ ...input, ...sourcePatch });
+        return { sourcePatch, calculatedGeometry, blockers: [issue('nonpositive_sidelight_width', 'RO width would produce a zero or negative finished sidelight.')], warnings: [], informationalNotices: [] };
+      }
       else { specifications = applyWidths(specifications, adjusted); nextRo = ro.inches; notices.push(issue('ro_recalculated_sidelights', 'Sidelight widths were recalculated from the committed RO width.')); }
     }
   } else if (!blockers.length && authority.kind === 'transomWidth') {

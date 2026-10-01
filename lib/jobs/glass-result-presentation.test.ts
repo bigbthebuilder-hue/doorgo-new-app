@@ -20,6 +20,18 @@ const transomRows = glassResultRows(line('T/SDS'), [glass('Left sidelight 1'), g
 assert.equal(transomRows.length, 2);
 assert.equal(transomRows[1].value, `117 7/8" × 35 7/8" — Clear`);
 
+for (const config of ['TTT/SDS', 'TTT/SDDS']) {
+  const sections = ['Left', 'Center', 'Right'].map((position, index) => ({
+    ...transom, position: `${position} transom`, width: `${[18, 36, 18][index]}"`,
+  }));
+  const before = structuredClone(sections);
+  const rows = glassResultRows(line(config), sections, []);
+  assert.deepEqual(rows.map((row) => row.label), ['Left transom', 'Center transom', 'Right transom']);
+  assert.equal(new Set(rows.map((row) => row.key)).size, 3);
+  assert.deepEqual(rows.map((row) => row.value), sections.map((unit) => `${unit.width} × ${unit.height} — Clear`));
+  assert.deepEqual(sections, before, 'presentation leaves ordered dimensions untouched');
+}
+
 const vendor = ['Left sidelight 1:\nMAKEUP', 'Right sidelight 1:\nMAKEUP', 'Transom:\nTRANSOM'].join('\n\n');
 assert.equal(aggregateVendorCopy(line('T/SDS'), [glass('Left sidelight 1'), glass('Right sidelight 1'), transom], vendor), '2 Sidelights (1 left / 1 right):\nMAKEUP\n\nTransom:\nTRANSOM');
 assert.equal(aggregateVendorCopy(line('SDS'), [glass('Left sidelight 1'), glass('Right sidelight 1', 'Satin Etch')], vendor), vendor, 'nonidentical external lines remain unaggregated');

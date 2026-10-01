@@ -4,7 +4,7 @@ import { parseGlassUnitConfiguration } from './glass-unit-composition-contract';
 export type GlassResultRow = { key: string; label: string; value: string };
 
 const sidelight = (position: string) => /sidelight/i.test(position);
-const transom = (position: string) => /^transom$/i.test(position.trim());
+const transom = (position: string) => /^(?:(?:left|center|right) )?transom$/i.test(position.trim());
 const counts = (line: DoorLineInput) => {
   const parsed = parseGlassUnitConfiguration(line.config);
   return parsed.ok ? parsed.value : { leftSidelightCount: 0, rightSidelightCount: 0, hasTransom: false, door: 'D' as const };
@@ -27,7 +27,7 @@ export function glassResultRows(line: DoorLineInput, units: GlassUnit[], panels:
     key: 'sidelights', label: 'Sidelights',
     value: `${countText(topology.leftSidelightCount, topology.rightSidelightCount)} @ ${dimensions(representativePanel)} — Panel${representativePanel.constructionNotes ? ` — ${representativePanel.constructionNotes}` : ''}`,
   });
-  for (const unit of units.filter((candidate) => transom(candidate.position))) rows.push({ key: 'transom', label: 'Transom', value: `${dimensions(unit)} — ${unit.glassType}` });
+  for (const unit of units.filter((candidate) => transom(candidate.position))) rows.push({ key: unit.position.trim().toLowerCase(), label: unit.position, value: `${dimensions(unit)} — ${unit.glassType}` });
   return rows;
 }
 

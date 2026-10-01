@@ -781,23 +781,23 @@ body {
 .door-line-workbench:has(.door-inline-glass) { height: auto; align-items: start; }
 .door-input-pane:has(.door-inline-glass) { overflow: visible; }
 .door-inline-glass { margin-top: .5rem; }
-.door-inline-glass > .glass-unit-builder { height: auto; max-height: none; overflow: visible; grid-template-rows: auto auto; }
-.door-inline-glass .glass-unit-builder > header { position: static; padding: .5rem; }
-.door-inline-glass .glass-builder-workspace { overflow: visible !important; grid-template-columns: minmax(0, 1fr); padding: .5rem !important; }
-.door-inline-glass .glass-builder-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
-.door-inline-glass .glass-builder-fields > * { min-width: 0; grid-row: auto !important; }
-.door-inline-glass .glass-builder-fields > section,
-.door-inline-glass .glass-builder-fields > fieldset,
-.door-inline-glass .glass-builder-fields > div,
-.door-inline-glass .glass-builder-fields > details,
-.door-inline-glass .glass-builder-fields > p { grid-column: 1 / -1 !important; }
-.door-inline-glass .glass-builder-fields > section,
-.door-inline-glass .glass-builder-fields > fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.door-inline-glass .glass-structure-control { max-width: 24rem; margin-inline: auto; width: 100%; }
+.glass-entry-workspace > .glass-unit-builder { height: auto; max-height: none; overflow: visible; grid-template-rows: auto auto; }
+.glass-entry-workspace .glass-unit-builder > header { position: static; padding: .5rem; }
+.glass-entry-workspace .glass-builder-workspace { overflow: visible !important; grid-template-columns: minmax(0, 1fr); padding: .5rem !important; }
+.glass-entry-workspace .glass-builder-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.glass-entry-workspace .glass-builder-fields > * { min-width: 0; grid-row: auto !important; }
+.glass-entry-workspace .glass-builder-fields > section,
+.glass-entry-workspace .glass-builder-fields > fieldset,
+.glass-entry-workspace .glass-builder-fields > div,
+.glass-entry-workspace .glass-builder-fields > details,
+.glass-entry-workspace .glass-builder-fields > p { grid-column: 1 / -1 !important; }
+.glass-entry-workspace .glass-builder-fields > section,
+.glass-entry-workspace .glass-builder-fields > fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.glass-entry-workspace .glass-structure-control { max-width: 24rem; margin-inline: auto; width: 100%; }
 @media (max-width: 640px) {
-  .door-inline-glass .glass-builder-fields,
-  .door-inline-glass .glass-builder-fields > section,
-  .door-inline-glass .glass-builder-fields > fieldset { grid-template-columns: minmax(0, 1fr); }
+  .glass-entry-workspace .glass-builder-fields,
+  .glass-entry-workspace .glass-builder-fields > section,
+  .glass-entry-workspace .glass-builder-fields > fieldset { grid-template-columns: minmax(0, 1fr); }
   .door-input-local-footer { flex-wrap: wrap; }
 }
 
@@ -809,18 +809,60 @@ body {
   .door-line-workbench:has(.door-inline-glass) { height: 100%; min-height: 0; align-items: stretch; }
   .door-line-workbench > .door-input-pane,
   .door-line-workbench > .job-lines-pane { height: 100%; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; }
-  .door-inline-glass .glass-builder-workspace { grid-template-columns: minmax(14rem, .8fr) minmax(0, 1.5fr); align-items: start; gap: .75rem; }
-  .door-inline-glass .glass-builder-fields { margin-top: 0; gap: .4rem; font-size: .8125rem; }
-  .door-inline-glass :is(input:not([type="checkbox"]), select, textarea) { min-height: 2rem !important; border-radius: .375rem; padding-inline: .5rem; font-size: .8125rem; }
-  .door-inline-glass button:not(.glass-structure-action) { min-height: 2rem !important; border-radius: .375rem; padding-inline: .5rem; font-size: .8125rem; }
-  .door-inline-glass .glass-builder-fields > :is(section, fieldset, div, details, p) { gap: .4rem; }
-  .door-inline-glass .glass-builder-fields > :is(fieldset, details, p),
-  .door-inline-glass .glass-builder-fields > div.rounded-xl { padding: .5rem; }
-  .door-inline-glass .glass-builder-fields > label.flex { min-height: 2rem; padding-inline: .5rem; }
-  .door-inline-glass .glass-structure-control { min-height: 0; padding: 3.25rem 2.5rem .75rem; }
-  .door-inline-glass .glass-structure-control .glass-unit-diagram { width: 100%; }
-  .door-inline-glass .glass-structure-control svg { max-height: 17rem; }
-  .door-inline-glass .glass-structure-action--transom { top: .5rem; }
-  .door-inline-glass .glass-unit-builder > header h2 { font-size: 1rem; }
-  .door-inline-glass .glass-unit-builder > header p { font-size: .875rem; }
+  .glass-entry-workspace .glass-builder-workspace { grid-template-columns: minmax(14rem, .8fr) minmax(0, 1.5fr) !important; align-items: start; gap: .75rem; }
+  .glass-entry-workspace label { gap: .1rem; font-size: .8125rem; }
+  .glass-entry-workspace .glass-builder-fields { margin-top: 0; gap: .4rem; font-size: .8125rem; }
+  .glass-entry-workspace :is(input:not([type="checkbox"]), select, textarea) { min-height: 2rem !important; border-radius: .375rem; padding-inline: .5rem; font-size: .8125rem; }
+  .glass-entry-workspace button:not(.glass-structure-action) { min-height: 2rem !important; border-radius: .375rem; padding-inline: .5rem; font-size: .8125rem; }
+  .glass-entry-workspace .glass-builder-fields > :is(section, fieldset, div, details, p) { gap: .4rem; }
+  .glass-entry-workspace .glass-builder-fields > :is(fieldset, details, p),
+  .glass-entry-workspace .glass-builder-fields > div.rounded-md { padding: .5rem; }
+  .glass-entry-workspace .glass-builder-fields > label.flex { min-height: 2rem; padding-inline: .5rem; }
+  .glass-entry-workspace .glass-structure-control { min-height: 0; padding: 3.25rem 2.5rem .75rem; }
+  .glass-entry-workspace .glass-structure-control .glass-unit-diagram { width: 100%; }
+  .glass-entry-workspace .glass-structure-control svg { max-height: 17rem; }
+  .glass-entry-workspace .glass-structure-action--transom { top: .5rem; }
+  .glass-entry-workspace .glass-unit-builder > header h2 { font-size: 1rem; }
+  .glass-entry-workspace .glass-unit-builder > header p { font-size: .875rem; }
+}
+
+/* Shared glass form presentation; outer Intake/Calculator actions retain their own shell. */
+.glass-calculator-editor.glass-entry-workspace { overflow-y: auto; overflow-x: hidden; }
+.glass-entry-workspace .glass-unit-builder { height: auto; max-height: none; }
+.glass-entry-workspace .glass-builder-workspace { align-items: start; }
+.glass-entry-workspace .glass-builder-fields { font-size: .875rem; }
+.glass-entry-workspace .glass-builder-fields > label { grid-column: auto; }
+.glass-entry-workspace .glass-builder-fields > section[aria-label="Shared sidelight specification"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.glass-entry-workspace .glass-builder-fields [aria-label="Calculated measurements"] { padding: .5rem; border-radius: .375rem; background: #f8fafc; }
+.dark .glass-entry-workspace .glass-builder-fields [aria-label="Calculated measurements"] { background: #0f172a; }
+.glass-entry-workspace textarea[data-comparison-different="true"]:not(:focus):not([data-last-edited="true"]) { border-color: #b49ad6; background-color: #f3edfb; color: #493264; box-shadow: inset 3px 0 #b49ad6; }
+@media (max-width: 640px) {
+  .glass-entry-workspace .glass-builder-fields > section[aria-label="Shared sidelight specification"] { grid-template-columns: minmax(0, 1fr); }
+  .glass-entry-workspace .glass-measurements { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Calculator reuses the complete Intake editor without the saved-job pane. */
+.standalone-glass-workspace { overflow-y: auto; overflow-x: hidden; }
+.door-line-workbench[data-calculation-only] { grid-template-columns: minmax(0, 1fr) !important; height: auto; }
+.door-line-workbench[data-calculation-only] > .door-input-pane { display: block !important; height: auto; overflow: visible; }
+@media print {
+  /* Only the existing report participates in standalone calculator pagination. */
+  .standalone-glass-workspace > :not(.glass-calculator-results),
+  .standalone-glass-workspace .door-line-workbench[data-calculation-only] > .door-input-pane {
+    display: none !important;
+  }
+  .app-shell-main:has(> .glass-calculator-workspace),
+  .app-shell-main[data-scroll-owner="workspace"] > .app-workspace.glass-calculator-workspace,
+  .app-shell-main[data-scroll-owner="workspace"] > .app-workspace.glass-calculator-workspace > .standalone-glass-workspace,
+  .standalone-glass-workspace,
+  .standalone-glass-workspace > .glass-calculator-results {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .standalone-glass-workspace .glass-calculator-print { break-inside: avoid; }
 }

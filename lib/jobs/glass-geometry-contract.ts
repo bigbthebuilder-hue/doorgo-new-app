@@ -391,6 +391,9 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
       : topology.doorCount === 2 ? ddCoreHeaderWidth(slab.width, doubleDoorAstragal, leaves)
         : config === 'T/D' ? slab.width + 0.25 : roW - 2);
   const minimumRoWidth = headerWidth + (isFourSideJamb(input) ? 2 * FOUR_SIDE_JAMB.thickness + FOUR_SIDE_JAMB.minimumInstallation : 2);
+  // Structured widths cannot make an RO with no room for sidelights valid.
+  // Reuse the existing allowance calculation, including resolved DD cuts.
+  if (sides && availableSidelightWidthForRo(roW, slab.width, topology.doorCount, Array.from({ length: sides }, () => unitTBar), doubleDoorAstragal, leaves) <= 0) blockers.push(issue('nonpositive_sidelight_width', 'RO width would produce a zero or negative finished sidelight.'));
   if (!doubleCore && (topology.doorCount === 2 || config === 'T/D') && roW + 0.001 < minimumRoWidth) blockers.push(issue('ro_too_narrow', `RO width is too narrow. Minimum RO width is ${formatShopDimension(minimumRoWidth)}.`));
   if (hasPanel && roW + 0.001 < minimumRoWidth) blockers.push(issue('panel_ro_too_narrow', `RO width is too narrow for the selected panel width. Minimum RO width is ${formatShopDimension(minimumRoWidth)}.`));
 
@@ -575,5 +578,6 @@ export function normalizeGlassDomainFields(input: DoorLineInput): Pick<NativeDoo
 export function withDerivedGlassGeometry<T extends DoorLineInput>(input: T): T {
   if (!isGlassConfiguration(input.config)) return input;
   const derived = normalizeGlassDomainFields(input);
-  return derived.glassCalc ? { ...input, ...derived } : input;
+  return derived.glassCalc || derived.glassCalcStatus === 'Blocked' || derived.glassCalcStatus === 'Unsupported'
+    ? { ...input, ...derived } : input;
 }

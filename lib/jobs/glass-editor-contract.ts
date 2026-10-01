@@ -1,12 +1,30 @@
-import { GLASS_CONFIGS, glassConfigurationTopology, isGlassConfiguration, normalizeSidelightType } from './glass-geometry-contract';
+import { GLASS_CONFIGS, glassConfigurationTopology, isGlassConfiguration, normalizeSidelightType, normalizeGlassTypeCode } from './glass-geometry-contract';
 import type { DoorLineInput } from './job-intake-types';
 import type { GlassCalculationStatus } from './job-intake-types';
 import { calculateGlassGeometry } from './glass-geometry-contract';
 import { usesAutomaticCustomSlabRoWidth } from './non-glass-frame-cut-contract';
 import { canonicalSidelightSpecifications, reconcileGlassDimensionCommit, type GlassDimensionAuthority } from './glass-dimension-reconciliation-contract';
+import { parseGlassUnitConfiguration } from './glass-unit-composition-contract';
 
 // Reuse direct-dimension reconciliation after structural changes; never choose a new authority.
 export function reconcileGlassTopology(previous: DoorLineInput, next: DoorLineInput, authority: GlassDimensionAuthority) {
+  // A shared specification belongs to the unit, not to a surviving left/right record.
+  const previousShared = canonicalSidelightSpecifications(previous).find((entry) => entry.glassTypeCode)
+    ?? previous.sidelightSpecifications?.find((entry) => entry.glassTypeCode);
+  const nextShared = canonicalSidelightSpecifications(next).find((entry) => entry.glassTypeCode);
+  const glassTypeCode = previousShared?.glassTypeCode ?? nextShared?.glassTypeCode
+    ?? normalizeGlassTypeCode(next.sidelightGlass ?? next.glass) ?? 'CLEAR';
+  const panel = normalizeSidelightType(next.sidelightType) === 'Panel';
+  const composition = parseGlassUnitConfiguration(next.config);
+  next = {
+    ...next,
+    doubleDoorSizing: composition.ok && composition.value.door === 'DD' ? next.doubleDoorSizing : null,
+    sidelightSpecifications: canonicalSidelightSpecifications(next).map((entry) => ({
+      ...entry,
+      glassTypeCode: panel ? null : glassTypeCode,
+      customGlassDescription: panel ? null : previousShared?.customGlassDescription ?? nextShared?.customGlassDescription ?? entry.customGlassDescription,
+    })),
+  };
   const value = authority.kind === 'roWidth' ? previous.roWidth
     : authority.kind === 'transomWidth' ? calculateGlassGeometry(previous).glassCalc?.transomWidth
     : canonicalSidelightSpecifications(previous).find((entry) => entry.side === authority.side && entry.index === authority.index)?.finishedWidth;

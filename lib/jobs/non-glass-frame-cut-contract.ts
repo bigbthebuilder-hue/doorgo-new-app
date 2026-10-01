@@ -1,4 +1,4 @@
-import { constructionAllowance, lowProfileLabel, isFourSideJamb, FOUR_SIDE_JAMB } from './construction-contract';
+import { constructionAllowance, lowProfileLabel, isFourSideJamb, FOUR_SIDE_JAMB, SIDE_JAMB_THICKNESS } from './construction-contract';
 import { PATIO_DOOR_PRESETS, customDoubleDoorSlabs, resolvedDoubleDoorLeaves, validateDoubleDoorSizing } from './double-door-sizing-contract';
 import { usesCustomRo, customRoHeaderTarget, resolveCustomRoHeight, resolveCustomRoDoubleDoorWidth } from './custom-ro-contract';
 import type { DoorLineInput } from './job-intake-types';
@@ -245,7 +245,7 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
     ...(isDouble ? { activeLeafWidth: dimension(leaves[0]), inactiveLeafWidth: dimension(finalLeaves[1]), actualSlabWidth: dimension(leaves[0]), finalSlabWidth: dimension(leaves[0]) } : {}),
     jambLeg: dimension(jambLeg), headerWidth: widthReviewRequired ? null : dimension(header),
     ...((fourSides || line.doubleDoorSizing?.kind === 'custom-slabs' || usesAutomaticCustomSlabRoWidth(line)) && !widthReviewRequired ? { recommendedRoWidth: dimension(header + 2) } : {}),
-    sillOrThresholdWidth: interior || widthReviewRequired ? null : dimension(header), frameWidth: widthReviewRequired ? null : dimension(header + (fourSides ? 2 * FOUR_SIDE_JAMB.thickness : 0)),
+    sillOrThresholdWidth: interior || widthReviewRequired ? null : dimension(header), frameWidth: widthReviewRequired ? null : dimension(header + 2 * SIDE_JAMB_THICKNESS),
     ...(fourSides ? { clearOpeningHeight: dimension(finalHeight + 2 * FOUR_SIDE_JAMB.slabClearance), frameHeight: dimension(jambLeg), recommendedRoHeight: dimension(jambLeg + FOUR_SIDE_JAMB.recommendedInstallation), minimumRoHeight: dimension(jambLeg + FOUR_SIDE_JAMB.minimumInstallation), ...(!widthReviewRequired ? { clearOpeningWidth: dimension(header), minimumRoWidth: dimension(header + 2 * FOUR_SIDE_JAMB.thickness + FOUR_SIDE_JAMB.minimumInstallation) } : {}) } : {}),
     doubleDoorCoreWidth: doubleCore === null || widthReviewRequired ? null : dimension(doubleCore),
     ...(customRo ? { widthCutDown: dimension(widthCut), requiredWidthReduction: dimension(requiredReduction), widthReviewRequired, targetHeaderWidth: dimension(targetHeader) } : {}), cutDown: dimension(cutDown),

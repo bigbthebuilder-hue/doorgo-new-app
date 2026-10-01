@@ -49,7 +49,23 @@ async function main() {
   assert.equal(exteriorD.values?.jambLeg?.display, `81 1/4"`);
   assert.equal(exteriorD.values?.headerWidth?.display, `36"`);
   assert.equal(exteriorD.values?.sillOrThresholdWidth?.display, `36"`);
-  assert.equal(exteriorD.values?.frameWidth?.display, `36"`);
+  assert.equal(exteriorD.values?.frameWidth?.display, `37 1/2"`);
+  for (const construction of ['low-profile-quarter-sill', 'jamb-four-sides'] as const) {
+    const framed = complete({ mode: 'Exterior', material: 'fiberglass', hand: 'LH', construction });
+    assert.equal(framed.values?.headerWidth?.inches, 36);
+    assert.equal(framed.values?.frameWidth?.inches, 37.5);
+    assert.equal(framed.values?.jambLeg?.inches, construction === 'low-profile-quarter-sill' ? 80.625 : 80.75);
+    assert.equal(framed.values?.finalSlabHeight.inches, 79);
+  }
+  const review = complete({ mode: 'Exterior', material: 'fiberglass', config: 'DD', customSlab: 'RO', roWidth: '60' });
+  assert.equal(review.values?.widthReviewRequired, true);
+  assert.equal(review.values?.frameWidth, null);
+  for (const construction of ['standard', 'low-profile-quarter-sill', 'jamb-four-sides'] as const) {
+    assert.equal(complete({ config: 'B.P.', construction }).values?.frameWidth, null);
+    const pocket = calculateNonGlassFrameCut(line({ config: 'PKT', construction }));
+    assert.equal(pocket.status, 'Not Applicable');
+    assert.equal(pocket.values, null);
+  }
 
   const exteriorDOutswing = complete({ mode: 'Exterior', material: 'fiberglass', hand: 'RHOUT', prep: 'STD', sill: 'STD', weatherstrip: 'WHT', jambWidth: `6-9/16"`, hingeType: 'BB' });
   assert.equal(exteriorDOutswing.values?.jambLeg?.display, `81"`, 'ordinary outswing D remains slab-height based');
@@ -57,6 +73,7 @@ async function main() {
   const exteriorDd = complete({ mode: 'Exterior', config: 'DD', material: 'fiberglass', hand: 'RHOUT', prep: 'STD', sill: 'STD', weatherstrip: 'WHT', jambWidth: `6-9/16"`, hingeType: 'BB' });
   assert.equal(exteriorDd.values?.doubleDoorCoreWidth?.display, `72 9/16"`);
   assert.equal(exteriorDd.values?.headerWidth?.display, `72 9/16"`);
+  assert.equal(exteriorDd.values?.frameWidth?.display, `74 1/16"`);
   assert.equal(exteriorDd.values?.jambLeg?.display, `81"`);
   const exteriorDdFerco = complete({ mode: 'Exterior', config: 'DD', doubleDoorAstragal: 'wood-ferco-astra-lock', material: 'fiberglass', hand: 'RHOUT', prep: 'STD', sill: 'STD', weatherstrip: 'WHT', jambWidth: `6-9/16"`, hingeType: 'BB' });
   assert.equal(exteriorDdFerco.values?.doubleDoorCoreWidth?.display, `72 13/16"`, 'plain DD uses the shared one-inch Ferco astragal width');

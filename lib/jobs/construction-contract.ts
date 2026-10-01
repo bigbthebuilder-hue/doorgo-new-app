@@ -38,7 +38,9 @@ export function validConstruction(value: unknown): boolean {
   return value == null || value === '' || value === 'standard' || value === 'low-profile-quarter-sill' || value === 'jamb-four-sides';
 }
 
-export const FOUR_SIDE_JAMB = { thickness: 0.75, slabClearance: 0.125, recommendedInstallation: 0.5, minimumInstallation: 0.25 } as const;
+// Side jamb thickness shared by standard, LOW-PRO, and four-side frames.
+export const SIDE_JAMB_THICKNESS = 0.75;
+export const FOUR_SIDE_JAMB = { thickness: SIDE_JAMB_THICKNESS, slabClearance: 0.125, recommendedInstallation: 0.5, minimumInstallation: 0.25 } as const;
 
 export function isFourSideJamb(line: Readonly<DoorLineInput>): boolean {
   return normalizeConstruction(line.construction) === 'jamb-four-sides';

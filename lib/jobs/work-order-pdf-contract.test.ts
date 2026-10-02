@@ -49,6 +49,15 @@ function extractedWinAnsiText(bytes: Uint8Array): Promise<string> {
 }
 
 async function main() {
+  const freshSource = line({ mode: 'Exterior', config: 'T/SD', material: 'fiberglass', hand: 'LH', hingeType: 'BB', roWidth: '60', roHeight: '96', sidelightType: 'Glass', sidelightGlass: 'Clear', transomGlass: 'Clear', includeDiagramOnWorkOrder: true });
+  const stale = { ...freshSource, ...normalizeGlassDomainFields(freshSource), roWidth: '' };
+  const incompleteDocument = generateWorkOrderDocument(aggregate({ lines: [stale] }), generation);
+  assert.equal(incompleteDocument.rowGroups[0].primaryRow.status, 'Glass Detail Needed');
+  assert.equal(incompleteDocument.rowGroups[0].diagram, null);
+  const incompleteText = await extractedWinAnsiText(await renderWorkOrderPdf(incompleteDocument));
+  assert.match(incompleteText, /GLASS DETAIL NEEDED/);
+  assert.doesNotMatch(incompleteText, /Jamb legs|Header\/Sill|Left sidelight|Complete/);
+
   assert.equal(workOrderPreflightStatusLabel('Manual Override'), 'Geometry Exception Approved');
   assert.equal(workOrderPreflightStatusLabel('Warning'), 'Warning');
   assert.equal(workOrderPreflightStatusLabel('Blocked'), 'Blocked');
@@ -151,7 +160,7 @@ async function main() {
     assert.ok((await extractedWinAnsiText(result.bytes)).replace(/\s+/g, ' ').includes(instruction));
   }
   const cleanedGlassDocument = generateWorkOrderDocument(aggregate({ lines: [line({
-    mode: 'Exterior', config: 'T/D', notes: null, roWidth: '75', roHeight: '99', glassCalcStatus: 'Complete',
+    mode: 'Exterior', config: 'T/D', notes: null, roWidth: '75', roHeight: '99', transomGlass: 'Clear', glassCalcStatus: 'Complete',
     glassCalc: { transomWidth: `72 7/16"`, transomHeight: `15 1/8"` },
     glassUnits: [{ position: 'Transom', width: `72 7/16"`, height: `15 1/8"`, glassType: 'Clear', termCode: 'CLR', qty: 1 }],
   })] }), generation);
@@ -300,8 +309,10 @@ async function main() {
   base.columns.forEach((heading, index) => assert.ok(measurementBold.widthOfTextAtSize(heading, WORK_ORDER_PDF_TEXT_SIZES.tableHeader) <= WORK_ORDER_PDF_COLUMN_WIDTHS[index] - 6, `${heading} remains on one line`));
   assert.equal(base.rowGroups[0].detailRows.flatMap((row) => row.lines).some((value) => /FRAME\/CUT|F\.O\.\/CUT|^GLASS:/i.test(value)), false, 'production detail has no category prefixes');
 
-  const diagramGroup = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'T/SDS', includeDiagramOnWorkOrder: true, hand: 'LH', jambWidth: `6-9/16"`, jambType: 'Primed', hingeType: 'BB', glassCalcStatus: 'Complete', glassCalc: { headerWidth: `75"`, slabWidth: `36"`, finalDoorHeight: `80"`, divider: `2 1/4"`, sidelightWidth: `14"`, sidelightHeight: `80"`, transomWidth: `75"`, transomHeight: `16"`, sidelightType: 'Glass' } }), 'L1');
+  const diagramGroup = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'T/SDS', roWidth: '77', roHeight: '99', sidelightType: 'Glass', sidelightGlass: 'Clear', transomGlass: 'Clear', includeDiagramOnWorkOrder: true, hand: 'LH', jambWidth: `6-9/16"`, jambType: 'Primed', hingeType: 'BB', glassCalcStatus: 'Complete', glassCalc: { headerWidth: `75"`, slabWidth: `36"`, finalDoorHeight: `80"`, divider: `2 1/4"`, sidelightWidth: `14"`, sidelightHeight: `80"`, transomWidth: `75"`, transomHeight: `16"`, sidelightType: 'Glass' } }), 'L1');
   assert.ok(diagramGroup.diagram);
+  // Keep this layout-only fixture short; real fresh production rows can wrap beside a diagram.
+  diagramGroup.detailRows = [{ kind: 'frame', lines: ['Jamb legs: 81 inches'] }];
   const diagramLayout = measureWorkOrderGroup(diagramGroup.primaryRow, diagramGroup.detailRows, measurementFont, diagramGroup.diagram);
   const diagramlessLayout = measureWorkOrderGroup(diagramGroup.primaryRow, diagramGroup.detailRows, measurementFont, null);
   assert.equal(diagramLayout.detailHeight, diagramlessLayout.detailHeight, 'diagram reuses existing group height instead of creating a diagram row');
@@ -364,10 +375,10 @@ async function main() {
   await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('none', false, false), 'id', 'inline', repository), JobIntakeFailure);
   assert.equal(reads, 2, 'unauthorized generation does not read the repository');
 
-  const warningRepository = { findById: async () => aggregate({ lines: [line({ mode: 'Exterior', config: 'SD', glassCalcStatus: 'Warning', glassWarnings: [{ code: 'review', message: 'Review opening.' }], glassCalc: { headerWidth: `58"` } })] }) };
+  const warningRepository = { findById: async () => aggregate({ lines: [line({ mode: 'Exterior', config: 'SD', roWidth: '60', roHeight: '84', sidelightType: 'Glass', sidelightGlass: 'Clear', glassCalcStatus: 'Warning', glassWarnings: [{ code: 'review', message: 'Review opening.' }], glassCalc: { headerWidth: `58"` } })] }) };
   await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('view'), 'id', 'inline', warningRepository), /acknowledged/);
   assert.ok((await generateSavedWorkOrderPdfWithAccess(access('view'), 'id', 'inline', warningRepository, true)).bytes.length > 500);
-  const blockedRepository = { findById: async () => aggregate({ lines: [line({ mode: 'Exterior', config: 'SD', glassCalcStatus: 'Blocked', glassBlockers: [{ code: 'blocked', message: 'Impossible geometry.' }] })] }) };
+  const blockedRepository = { findById: async () => aggregate({ lines: [line({ mode: 'Exterior', config: 'SD', roWidth: '12', sidelightType: 'Glass', sidelightGlass: 'Clear', glassCalcStatus: 'Blocked', glassBlockers: [{ code: 'blocked', message: 'Impossible geometry.' }] })] }) };
   await assert.rejects(generateSavedWorkOrderPdfWithAccess(access('use'), 'id', 'inline', blockedRepository, true), /blocked door lines/);
 
   const invalidColorAggregate = aggregate({ hingeColor: 'Long arbitrary black hinge description' });

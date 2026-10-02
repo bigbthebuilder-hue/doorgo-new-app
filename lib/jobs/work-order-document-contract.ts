@@ -6,7 +6,7 @@ import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-gl
 import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate, ResolvedSidelight, ResolvedTBar } from './job-intake-types';
 import { normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
 import { calculatePersistedGlassDiagramLayout, type GlassDiagramLayout } from './glass-diagram-contract';
-import { normalizeGlassDomainFields } from './glass-geometry-contract';
+import { withDerivedGlassGeometry } from './glass-geometry-contract';
 import { isFrameGlassConfiguration } from './glass-unit-composition-contract';
 import { unifiedJobIdentifier } from './unified-job-identifier';
 import { hasDoubleDoorCore, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
@@ -324,10 +324,7 @@ function compactWorkOrderDetails(details: WorkOrderDetailRow[]): WorkOrderDetail
 
 export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string | null): WorkOrderRowGroup {
   const glassConfiguration = isFrameGlassConfiguration(line.config);
-  const currentGlass = glassConfiguration ? normalizeGlassDomainFields(line) : null;
-  // A fresh blocker has no calculated dimensions, but must still replace stale saved approval/status.
-  const outputLine = currentGlass && (currentGlass.glassCalc || currentGlass.glassCalcStatus === 'Blocked' || currentGlass.glassCalcStatus === 'Unsupported')
-    ? { ...line, ...currentGlass } : line;
+  const outputLine = withDerivedGlassGeometry(line);
   const nonGlassResult = glassConfiguration ? null : calculateNonGlassFrameCut(outputLine);
   const status = glassConfiguration
     ? presentationStatus(outputLine)

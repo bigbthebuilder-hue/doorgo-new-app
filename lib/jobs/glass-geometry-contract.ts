@@ -577,7 +577,13 @@ export function normalizeGlassDomainFields(input: DoorLineInput): Pick<NativeDoo
 
 export function withDerivedGlassGeometry<T extends DoorLineInput>(input: T): T {
   if (!isGlassConfiguration(input.config)) return input;
-  const derived = normalizeGlassDomainFields(input);
-  return derived.glassCalc || derived.glassCalcStatus === 'Blocked' || derived.glassCalcStatus === 'Unsupported'
-    ? { ...input, ...derived } : input;
+  // Presentation uses actual fresh geometry, not persistence metadata or cached results.
+  const result = calculateGlassGeometry(input);
+  return {
+    ...input,
+    glassCalcStatus: result.status, glassCalc: result.glassCalc,
+    glassUnits: result.glassUnits, panelSidelights: result.panelSidelights,
+    glassWorkorderDetail: result.workorderDetail || null, vendorCopyText: result.vendorCopyText || null,
+    glassWarnings: result.warnings, glassBlockers: result.blockers, glassOverride: result.override,
+  };
 }

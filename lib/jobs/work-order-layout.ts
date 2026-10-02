@@ -13,7 +13,7 @@ export const PAGE_WIDTH = 792;
 export const PAGE_HEIGHT = 612;
 export const MARGIN = 24;
 export const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-export const WORK_ORDER_PDF_COLUMN_WIDTHS = [28, 64, 76, 38, 64, 58, 55, 48, 61, 48, 36, 168] as const;
+export const WORK_ORDER_PDF_COLUMN_WIDTHS = [28, 48, 80, 38, 69, 58, 55, 48, 61, 53, 38, 168] as const;
 export const FOOTER_CLEARANCE = 34;
 export const WORK_ORDER_PDF_TEXT_SIZES = { headerLabel: 8.5, headerValue: 10, tableHeader: 9, primary: 10.5, detail: 10 } as const;
 export const DIAGRAM_MAX_WIDTH = 110;
@@ -64,7 +64,14 @@ export function wrapText(font: WorkOrderFontMetrics, value: string, size: number
     if (font.widthOfTextAtSize(pending, size) <= maxWidth) { current = pending; continue; }
     if (current) lines.push(current);
     current = '';
-    current = word;
+    // Only split a token when it cannot fit by itself; never discard required text.
+    for (const character of Array.from(word)) {
+      if (current && font.widthOfTextAtSize(current + character, size) > maxWidth) {
+        lines.push(current);
+        current = '';
+      }
+      current += character;
+    }
   }
   if (current) lines.push(current);
   return lines;

@@ -225,7 +225,9 @@ function nonGlassDetailRows(result: NonGlassFrameCutResult): WorkOrderDetailRow[
       ...(result.values && result.values.cutDown.inches > 0 ? [`Door cut to: ${result.values.finalSlabHeight.display}`] : []),
     ]
     : result.detailLines.filter((line) => line !== 'Low Profile 1/4" Sill' && line !== 'Jamb 4 sides');
-  if (productionLines.length) rows.push({ kind: 'frame', lines: [productionLines.join(' | ')] });
+  const finalSlabShown = productionLines.some((line) => line.startsWith('Final slab:'));
+  const uniqueProductionLines = finalSlabShown ? productionLines.filter((line) => !line.startsWith('Door cut to')) : productionLines;
+  if (uniqueProductionLines.length) rows.push({ kind: 'frame', lines: [uniqueProductionLines.join(' | ')] });
   rows.push(...productionWarningRows(result.warnings));
   return rows;
 }
@@ -239,7 +241,7 @@ function calculatedGlassProductionLine(line: NativeDoorLine): string {
   const sidelights = Array.isArray(calc.resolvedSidelights) ? calc.resolvedSidelights as ResolvedSidelight[] : [];
   const transomTBar = calc.transomTBar as ResolvedTBar | undefined;
   const unitTBar = transomTBar?.resolvedSize ?? sidelights[0]?.tBar.resolvedSize;
-  if (unitTBar) parts.push(`Unit T-bar: ${canonicalStoredDimension(unitTBar)}`);
+  if (unitTBar) parts.push(`T-bar: ${canonicalStoredDimension(unitTBar)}`);
   const cutDown = canonicalStoredDimension(calc.cutDown);
   if (cutDown && cutDown !== '0"' && text(calc.finalDoorHeight)) parts.push(`Door cut to: ${text(calc.finalDoorHeight)}`);
   if (hasDoubleDoorCore(line.config) && normalizeDoubleDoorAstragal(line.doubleDoorAstragal) === 'wood-ferco-astra-lock') parts.push('Astragal: Wood / Ferco Astra Lock — 1"');

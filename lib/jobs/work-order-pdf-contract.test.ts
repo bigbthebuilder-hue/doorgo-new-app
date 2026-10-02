@@ -99,7 +99,7 @@ async function main() {
   for (const audit of ['AUDIT_REASON_ONLY', 'AUDIT_ACTOR_ONLY', 'AUDIT_NAME_ONLY', '2001-02-03', '999999', 'Manual Override', 'Geometry Exception Approved', 'acceptedValues', 'calculatedValues']) {
     assert.equal(productionText.toLowerCase().includes(audit.toLowerCase()), false, `PDF omits ${audit}`);
   }
-  for (const required of ['Active slab: 35 3/4" x 79"', 'Inactive slab: 34 3/16" x 79"', 'Jamb legs: 94 1/2"', 'Header/Sill/T-bar: 71"', 'Unit T-bar: 2 1/4"', 'Transom: 70 7/8"', '10 7/8" Clear', 'CUT: Remove 1 9/16" from inactive slab ASTRAGAL EDGE ONLY.', 'Active slab and inactive hinge edge remain unchanged.']) {
+  for (const required of ['Active slab: 35 3/4" x 79"', 'Inactive slab: 34 3/16" x 79"', 'Jamb legs: 94 1/2"', 'Header/Sill/T-bar: 71"', 'T-bar: 2 1/4"', 'Transom: 70 7/8"', '10 7/8" Clear', 'CUT: Remove 1 9/16" from inactive slab ASTRAGAL EDGE ONLY.', 'Active slab and inactive hinge edge remain unchanged.']) {
     assert.ok(productionText.includes(required), `PDF retains ${required}`);
   }
   assert.equal(printedWorkOrderStatusLabel('Manual Override'), '');
@@ -164,6 +164,7 @@ async function main() {
     glassCalc: { transomWidth: `72 7/16"`, transomHeight: `15 1/8"` },
     glassUnits: [{ position: 'Transom', width: `72 7/16"`, height: `15 1/8"`, glassType: 'Clear', termCode: 'CLR', qty: 1 }],
   })] }), generation);
+  assert.doesNotMatch(JSON.stringify(cleanedGlassDocument), /Unit T-bar/);
   assert.equal(cleanedGlassDocument.rowGroups[0].primaryRow.cells.notesGlass, 'RO 75" × 99"', 'preview document model omits the generic Glass marker');
   assert.ok((await renderWorkOrderPdf(cleanedGlassDocument)).length > 500, 'PDF consumes the same cleaned projected document model');
   const acceptedTransomSource = line({
@@ -201,7 +202,7 @@ async function main() {
   assert.equal(tttSend.document.internalCorrelation.sourceAggregateRevision, tttAggregate.revision);
   assert.equal((await PDFDocument.load(tttBytes)).getPageCount(), 1, 'representative TTT/SDDS output is a valid PDF');
   const tttPdfText = await extractedWinAnsiText(tttBytes);
-  assert.ok(tttPdfText.includes(`142\u00a013/16"`), 'rendered PDF contains the atomic fractional RO measurement');
+  assert.ok(tttPdfText.replaceAll('\n', '').includes(`142\u00a013/16"`), 'rendered PDF preserves the fractional RO measurement across necessary cell wrapping');
   assert.ok(tttPdfText.includes(`2\u00a01/4"`), 'rendered PDF contains the normalized configured 2-1/4 inch T-bar size');
   for (const product of ['Left transom', 'Center transom', 'Right transom']) assert.ok(tttPdfText.includes(product), `rendered PDF contains ${product}`);
   const fercoSource = { ...tttSource, roWidth: '143.0625', doubleDoorAstragal: 'wood-ferco-astra-lock' as const };
@@ -298,9 +299,22 @@ async function main() {
   const safeWordLayout = measureWorkOrderGroup(safeWordRow, [], measurementFont);
   assert.deepEqual(safeWordLayout.primaryLines[4], ['Custom', 'Fiberglass'], 'Door Type wraps only between words');
   assert.equal(safeWordLayout.primaryLines.flat().some((value) => value === 'Fiberg' || value === 'lass'), false, 'normal words are never split mid-word');
+  const cutSingle = createWorkOrderRowGroup(line({ config: 'D', mode: 'Interior', customSlab: 'RO', roWidth: '32', roHeight: '60', hand: 'LH' }), null);
+  const cutText = JSON.stringify(cutSingle.detailRows).replaceAll('\u00a0', ' ');
+  assert.match(cutText, /Final slab:/);
+  assert.match(cutText, /CUT DOWN:/);
+  assert.doesNotMatch(cutText, /Door cut to/);
+  const realistic = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'D', doorType: 'CraftsmanThreePanel', construction: 'low-profile-quarter-sill', sill: 'LOW-PRO', weatherstrip: 'Bronze', customSlab: 'WoodCustom', customSlabWidth: '35 13/16', customSlabHeight: '95 1/4', material: 'wood', hand: 'LH', hingeType: 'BB' }), null);
+  const realisticLayout = measureWorkOrderGroup(realistic.primaryRow, realistic.detailRows, measurementFont);
+  for (const index of [1, 2, 4, 9, 10]) {
+    for (const text of realisticLayout.primaryLines[index]) assert.ok(measurementFont.widthOfTextAtSize(text, WORK_ORDER_PDF_TEXT_SIZES.primary) <= WORK_ORDER_PDF_COLUMN_WIDTHS[index] - 6, 'cell text stays inside its allocated width');
+  }
+  assert.equal(realisticLayout.primaryLines[4].join(''), 'CraftsmanThreePanel');
+  assert.equal(realisticLayout.primaryLines[9].join(''), 'LOW-PRO');
+
   const crowdedRow = createWorkOrderRowGroup(line({ config: 'TTT/SDDS', customSlab: 'WoodCustom', customSlabWidth: `142 13/16"`, customSlabHeight: `112"` }), null);
   const crowdedLayout = measureWorkOrderGroup(crowdedRow.primaryRow, [], measurementFont);
-  assert.deepEqual(crowdedLayout.primaryLines[1], ['TTT/SDDS'], 'long configuration remains inside its widened Config column');
+  assert.equal(crowdedLayout.primaryLines[1].join(''), 'TTT/SDDS', 'configuration wraps without losing text');
   assert.equal(measurementFont.widthOfTextAtSize(crowdedLayout.primaryLines[1][0], WORK_ORDER_PDF_TEXT_SIZES.primary) <= WORK_ORDER_PDF_COLUMN_WIDTHS[1] - 6, true, 'TTT/SDDS does not collide with Size output');
   assert.deepEqual(crowdedLayout.primaryLines[2], [`142\u00a013/16"`, `× 112"`], 'compound dimensions wrap only at the multiplication boundary');
   assert.equal(crowdedLayout.primaryLines[2].includes('142'), false, '142 13/16 inch remains one visual token');

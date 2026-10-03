@@ -1,3 +1,4 @@
+import { statusLabel } from './status-presentation';
 import type { WorkOrderDocument, WorkOrderPresentationStatus } from './work-order-document-contract';
 
 export type WorkOrderPreflightIssue = {
@@ -13,7 +14,7 @@ export type WorkOrderPreflight = {
 };
 
 export function workOrderPreflightStatusLabel(status: WorkOrderPreflightIssue['status']): string {
-  return status === 'Manual Override' ? 'Geometry Exception Approved' : status;
+  return statusLabel(status);
 }
 
 export function evaluateWorkOrderPreflight(document: WorkOrderDocument): WorkOrderPreflight {
@@ -34,6 +35,6 @@ export function evaluateWorkOrderPreflight(document: WorkOrderDocument): WorkOrd
 export function assertWorkOrderPreflight(document: WorkOrderDocument, acknowledged: boolean): WorkOrderPreflight {
   const preflight = evaluateWorkOrderPreflight(document);
   if (preflight.blocked) throw new Error('This work order contains blocked door lines and cannot be generated.');
-  if (preflight.acknowledgementRequired && !acknowledged) throw new Error('Work-order warnings must be acknowledged before generation.');
+  if (preflight.acknowledgementRequired && !acknowledged) throw new Error('Work-order review items must be acknowledged before generation.');
   return preflight;
 }

@@ -1,3 +1,4 @@
+import { statusLabel } from './status-presentation';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import type { WorkOrderDocument, WorkOrderPage, WorkOrderPrimaryRow, WorkOrderRowGroup } from './work-order-document-contract';
 import { PAGE_WIDTH, PAGE_HEIGHT, MARGIN, CONTENT_WIDTH, WORK_ORDER_PDF_COLUMN_WIDTHS, FOOTER_CLEARANCE, WORK_ORDER_PDF_TEXT_SIZES, DIAGRAM_MAX_WIDTH, DIAGRAM_MAX_HEIGHT, GROUP_SPACING, TABLE_HEADER_HEIGHT, FIRST_HEADER_BOTTOM, CONTINUATION_HEADER_BOTTOM, normalizeWorkOrderPdfText, wrapText, measureWorkOrderGroup } from './work-order-layout';
@@ -5,7 +6,7 @@ export { WORK_ORDER_PDF_COLUMN_WIDTHS, WORK_ORDER_PDF_TEXT_SIZES, WORK_ORDER_PDF
 import type { WorkOrderOutputMode } from './work-order-preview-contract';
 
 export function printedWorkOrderStatusLabel(status: WorkOrderPrimaryRow['status']): string {
-  return status === 'Complete' || status === 'Manual Override' ? '' : status.toUpperCase();
+  return status === 'Complete' || status === 'Manual Override' ? '' : statusLabel(status).toUpperCase();
 }
 
 function drawText(page: PDFPage, font: PDFFont, value: unknown, x: number, y: number, size = 8, color = rgb(0.08, 0.11, 0.16)) {

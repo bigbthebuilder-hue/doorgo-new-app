@@ -1,5 +1,6 @@
 'use client';
 
+import { statusLabel } from '@/lib/jobs/status-presentation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
@@ -63,11 +64,11 @@ export function StandaloneGlassCalculator() {
   </div>;
 
   return <div className="standalone-glass-workspace min-w-0">
-    {actionsTarget ? createPortal(actions, actionsTarget) : <ContextBottomBar actions={actions} label="Glass Calculator actions" status={<span>{reportStatus}</span>}/>}
+    {actionsTarget ? createPortal(actions, actionsTarget) : <ContextBottomBar actions={actions} label="Glass Calculator actions" status={<span>{statusLabel(reportStatus)}</span>}/>}
     <DoorLineWorkspace key={editorKey} calculationOnly canEdit lifecycleStage="Draft" lines={noLines} onChange={ignoreLines} onDraftChange={setLine} hingeColor={hingeColor} onHingeColorChange={setHingeColor}/>
     <div className="glass-calculator-results">
       <section className="glass-calculator-print" aria-label={reportTitle + ' printout'}>
-        <header><Image alt="DoorGo" height={48} src="/brand/doorgo-mark.svg" width={48}/><div><strong>DoorGo</strong><h1>{reportTitle}</h1></div><p className="ml-auto font-semibold">{reportStatus}</p></header>
+        <header><Image alt="DoorGo" height={48} src="/brand/doorgo-mark.svg" width={48}/><div><strong>DoorGo</strong><h1>{reportTitle}</h1></div><p className="ml-auto font-semibold">{statusLabel(reportStatus)}</p></header>
         <h2>Configuration</h2>
         {hasGlass && printable ? <GlassUnitDiagram line={{ ...line, glassCalc: result.glassCalc }}/> : null}
         <dl aria-label={reportTitle + ' inputs'}><div><dt>Door mode</dt><dd>{line.mode}</dd></div><div><dt>Jamb Width</dt><dd>{line.jambWidth || 'Not applicable'}</dd></div><div><dt>Configuration</dt><dd>{line.config}</dd></div><div><dt>Swing</dt><dd>{line.hand ?? 'Not selected'}</dd></div><div><dt>Material</dt><dd>{line.material}</dd></div><div><dt>Sill</dt><dd>{sillChoice(line)}</dd></div><div><dt>Sizing</dt><dd>{line.doubleDoorSizing?.kind === 'patio' ? 'Patio Door Replacement / ' + line.doubleDoorSizing.preset + "'" : line.customSlab === 'RO' ? 'Fit to RO' : line.customSlab === 'WoodCustom' || line.customSlab === 'Yes' ? 'Custom Slab' : 'Standard'}</dd></div><div><dt>Slab size</dt><dd>{String(line.width ?? '—')} × {String(line.height ?? '—')}</dd></div>{hasGlass || line.roWidth ? <div><dt>RO Width</dt><dd>{String(result.glassCalc?.roWidth || line.roWidth || 'Not entered')}</dd></div> : null}{line.roHeight ? <div><dt>RO Height</dt><dd>{String(line.roHeight)}</dd></div> : null}{hasGlass ? <div><dt>Structure</dt><dd>{line.sidelightType ?? 'Door only'}</dd></div> : null}{selectedAstragal ? <div><dt>Astragal</dt><dd>{selectedAstragal}</dd></div> : null}{hasGlass ? <div><dt>T-bar</dt><dd>{selectedTBar ?? 'Not applicable'}</dd></div> : null}</dl>
@@ -79,7 +80,7 @@ export function StandaloneGlassCalculator() {
             const value = doorValues[key];
             return value && typeof value === 'object' && 'display' in value ? <div key={key}><dt>{label}</dt><dd>{value.display}</dd></div> : null;
           })}
-        </dl> : hasGlass && printable && result.glassCalc ? <dl><div><dt>Actual slab</dt><dd>{String(result.glassCalc.slabWidth)} &times; {String(result.glassCalc.slabHeight)}</dd></div>{result.glassCalc.activeLeafWidth ? <div><dt>Active / inactive slab widths</dt><dd>{String(result.glassCalc.activeLeafWidth)} / {String(result.glassCalc.inactiveLeafWidth)}</dd></div> : null}<div><dt>Jamb legs</dt><dd>{String(result.glassCalc.jambLeg)}</dd></div><div><dt>Header / sill / T-bar</dt><dd>{String(result.glassCalc.headerWidth)} / {String(result.glassCalc.divider)}</dd></div>{resultRows.map((row) => <div key={`print:${row.key}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl> : <p>Calculation is incomplete.</p>}
+        </dl> : hasGlass && printable && result.glassCalc ? <dl><div><dt>Actual slab</dt><dd>{String(result.glassCalc.slabWidth)} &times; {String(result.glassCalc.slabHeight)}</dd></div>{result.glassCalc.activeLeafWidth ? <div><dt>Active / inactive slab widths</dt><dd>{String(result.glassCalc.activeLeafWidth)} / {String(result.glassCalc.inactiveLeafWidth)}</dd></div> : null}<div><dt>Jamb legs</dt><dd>{String(result.glassCalc.jambLeg)}</dd></div><div><dt>Header / sill / T-bar</dt><dd>{String(result.glassCalc.headerWidth)} / {String(result.glassCalc.divider)}</dd></div>{resultRows.map((row) => <div key={`print:${row.key}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl> : reportIssues.length ? null : <p>{statusLabel(reportStatus)}</p>}
         {reportIssues.length ? <><h2>Warnings and status</h2>{reportIssues.map((issue, index) => <p key={`print:${issue.code}:${issue.message}:${index}`}>{issue.message}</p>)}</> : null}
       </section>
     </div>

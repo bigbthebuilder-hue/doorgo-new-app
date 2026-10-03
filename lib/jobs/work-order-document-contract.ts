@@ -1,3 +1,4 @@
+import { missingDoorFieldMessage } from './status-presentation';
 import { sillChoice } from './construction-contract';
 import { PATIO_DOOR_PRESETS } from './double-door-sizing-contract';
 import { GROUP_SPACING, measureWorkOrderGroup, WORK_ORDER_FONT_METRICS, workOrderPrintableHeight } from './work-order-layout';
@@ -6,7 +7,7 @@ import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-gl
 import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate, ResolvedSidelight, ResolvedTBar } from './job-intake-types';
 import { normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
 import { calculatePersistedGlassDiagramLayout, type GlassDiagramLayout } from './glass-diagram-contract';
-import { withDerivedGlassGeometry } from './glass-geometry-contract';
+import { calculateGlassGeometry, withDerivedGlassGeometry } from './glass-geometry-contract';
 import { isFrameGlassConfiguration } from './glass-unit-composition-contract';
 import { unifiedJobIdentifier } from './unified-job-identifier';
 import { hasDoubleDoorCore, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
@@ -216,7 +217,7 @@ function productionWarningRows(warnings: readonly Pick<GlassIssue, 'code' | 'mes
 
 function nonGlassDetailRows(result: NonGlassFrameCutResult): WorkOrderDetailRow[] {
   if (result.status === 'Not Applicable') return [];
-  if (result.status === 'Incomplete') return [{ kind: 'detail-needed', lines: result.missingFields.map((field) => `Missing ${field}.`) }];
+  if (result.status === 'Incomplete') return [{ kind: 'blocker', lines: result.missingFields.map(missingDoorFieldMessage) }];
   if (result.status === 'Blocked') return [{ kind: 'blocker', lines: result.blockers.map((entry) => entry.message) }];
   const rows: WorkOrderDetailRow[] = [];
   const productionLines = result.configuration === 'B.P.'
@@ -252,9 +253,9 @@ function glassDetailRows(line: NativeDoorLine): WorkOrderDetailRow[] {
   const status = presentationStatus(line);
   const rows: WorkOrderDetailRow[] = [];
   if (status === 'Glass Detail Needed') {
-    const known: string[] = [];
-    if (line.roWidth || line.roHeight) known.push(`RO: ${[canonicalStoredDimension(line.roWidth), canonicalStoredDimension(line.roHeight)].filter(Boolean).join(' x ')}`);
-    rows.push({ kind: 'detail-needed', lines: [known.join(' | ')] });
+    // Use the same current reasons as the editor; entered dimensions are not missing details.
+    const reasons = calculateGlassGeometry(line).incompleteDetails.map((issue) => issue.message.trim()).filter(Boolean);
+    rows.push({ kind: 'detail-needed', lines: reasons.length ? [...new Set(reasons)] : ['Details Needed'] });
   } else if (status !== 'Blocked' && line.glassCalc) {
     const production = calculatedGlassProductionLine(line);
     if (production) rows.push({ kind: 'frame', lines: [production] });
@@ -305,10 +306,10 @@ export function formatWorkOrderNotesGlass(value: string): string {
     .join(' | ');
 }
 
-function notesGlass(line: NativeDoorLine, status: WorkOrderPresentationStatus): string {
+function notesGlass(line: NativeDoorLine, status: WorkOrderPresentationStatus, reasons: string[]): string {
   const values = text(line.notes).split(/\r?\n/).map(text).filter(Boolean);
-  if (status === 'Glass Detail Needed') values.push('GLASS DETAIL NEEDED');
-  else if (status === 'Blocked') values.push('RO / GLASS NEEDS REVIEW');
+  if (status === 'Glass Detail Needed') values.push('DETAILS NEEDED');
+  else if (status === 'Blocked') values.push('BLOCKED: ' + reasons.join(' | '));
   else if (line.glassUnits.length && !values.some((value) => /glass/i.test(value))) values.push('Glass');
   if (line.roWidth && line.roHeight && line.config !== 'PKT' && line.config !== 'B.P.') values.push(`RO ${canonicalStoredDimension(line.roWidth)} × ${canonicalStoredDimension(line.roHeight)}`);
   return formatWorkOrderNotesGlass([...new Map(values.map((value) => [value.toLowerCase(), value])).values()].join(' | '));
@@ -352,7 +353,7 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
         thickness: text(outputLine.doorThickness) || (outputLine.mode === 'Interior' ? '1-3/8' : '1-3/4'),
         doorType: text(outputLine.doorType), drill: prepDisplay(outputLine.prep), hinge: workOrderHingeDisplay({ ...outputLine, hingeColor }),
         swing: isNoJamb(outputLine) ? '' : text(outputLine.hand), jamb: jambDisplay(outputLine), sill: isNoJamb(outputLine) || (outputLine.mode === 'Interior' && sillChoice(outputLine) === 'NONE') ? '' : sillChoice(outputLine),
-        weatherstrip: text(outputLine.weatherstrip), notesGlass: notesGlass(outputLine, status),
+        weatherstrip: text(outputLine.weatherstrip), notesGlass: notesGlass(outputLine, status, details.filter((row) => row.kind === 'blocker' || row.kind === 'warning').flatMap((row) => row.lines)),
       },
     },
     detailRows: details,

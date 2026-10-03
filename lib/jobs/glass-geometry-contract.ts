@@ -208,7 +208,7 @@ export function generateVendorCopy(units: GlassUnit[]): string {
 function incomplete(blockers: GlassIssue[]): GlassGeometryResult {
   return {
     status: 'Glass Detail Needed', warnings: [], blockers: [], incompleteDetails: blockers,
-    workorderDetail: 'GLASS DETAIL NEEDED\nRequired glass measurements or selections are incomplete.',
+    workorderDetail: 'DETAILS NEEDED\nRequired measurements or selections are incomplete.',
     glassUnits: [], panelSidelights: [], glassCalc: null, vendorCopyText: '', override: null,
   };
 }
@@ -235,7 +235,7 @@ function geometrySnapshot(value: unknown): string {
 
 export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResult {
   const config = text(input.config);
-  if (!isGlassConfiguration(config)) return { status: 'Unsupported', warnings: [], blockers: [issue('unsupported_configuration', 'This glass configuration is unsupported.')], incompleteDetails: [], workorderDetail: '', glassUnits: [], panelSidelights: [], glassCalc: null, vendorCopyText: '', override: null };
+  if (!isGlassConfiguration(config)) return { status: 'Unsupported', warnings: [], blockers: [issue('unsupported_configuration', 'Unsupported Configuration.')], incompleteDetails: [], workorderDetail: '', glassUnits: [], panelSidelights: [], glassCalc: null, vendorCopyText: '', override: null };
   const parsedComposition = parseGlassUnitConfiguration(config);
   if ('message' in parsedComposition) return blocked([issue('unsupported_configuration', parsedComposition.message)]);
   const composition = parsedComposition.value;
@@ -251,9 +251,9 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   if (topology.hasTransom && roHeight.ok === false && roHeight.missing) missing.push(issue('ro_height_required', 'Rough-opening height is required for a transom.'));
   const sidelightType = topology.sidelightPositions.length ? normalizeSidelightType(input.sidelightType) : null;
   const suppliedSpecifications = Array.isArray(input.sidelightSpecifications) ? input.sidelightSpecifications : [];
-  if (topology.sidelightPositions.length && !suppliedSpecifications.length && !sidelightType && !text(input.sidelightType)) missing.push(issue('sidelight_type_required', 'Choose Glass or Panel for each sidelight position.'));
-  if (sidelightType === 'Glass' && !suppliedSpecifications.length && !text(input.sidelightGlass ?? input.glass)) missing.push(issue('sidelight_glass_required', 'Choose the sidelight glass.'));
-  if (topology.hasTransom && !text(input.transomGlassTypeCode ?? input.transomGlass ?? input.glass)) missing.push(issue('transom_glass_required', 'Choose the transom glass.'));
+  if (topology.sidelightPositions.length && !suppliedSpecifications.length && !sidelightType && !text(input.sidelightType)) missing.push(issue('sidelight_type_required', 'Choose Glass or Panel in Sidelight Type.'));
+  if (sidelightType === 'Glass' && !suppliedSpecifications.length && !text(input.sidelightGlass ?? input.glass)) missing.push(issue('sidelight_glass_required', 'Choose a Glass Type for the sidelights.'));
+  if (topology.hasTransom && !text(input.transomGlassTypeCode ?? input.transomGlass ?? input.glass)) missing.push(issue('transom_glass_required', 'Choose a Transom Glass Type.'));
   const panelWidth = sidelightType === 'Panel' ? numericDimension(input.panelSidelightWidth) : null;
   if (!suppliedSpecifications.length && panelWidth?.ok === false && panelWidth.missing) {
     const position = topology.sidelightPositions.length > 1 ? 'shared' : topology.sidelightPositions[0];
@@ -266,9 +266,9 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   if (roWidth.ok === false) invalid.push(issue('invalid_ro_width', roWidth.message));
   if (topology.hasTransom && roHeight.ok === false) invalid.push(issue('invalid_ro_height', roHeight.message));
   if (!suppliedSpecifications.length && panelWidth?.ok === false) invalid.push(issue('invalid_panel_width', panelWidth.message));
-  if (sidelightType === 'Glass' && text(input.sidelightGlass ?? input.glass) && !normalizeGlassTypeCode(input.sidelightGlass ?? input.glass)) invalid.push(issue('unknown_glass_code', 'Unknown glass codes must not resolve to Clear.'));
+  if (sidelightType === 'Glass' && text(input.sidelightGlass ?? input.glass) && !normalizeGlassTypeCode(input.sidelightGlass ?? input.glass)) invalid.push(issue('unknown_glass_code', 'Choose a valid Glass Type or select Custom.'));
   const transomCode = normalizeGlassTypeCode(input.transomGlassTypeCode ?? input.transomGlass ?? input.glass);
-  if (topology.hasTransom && text(input.transomGlassTypeCode ?? input.transomGlass ?? input.glass) && !transomCode) invalid.push(issue('unknown_transom_glass_code', 'Unknown transom glass codes must not resolve to Clear.'));
+  if (topology.hasTransom && text(input.transomGlassTypeCode ?? input.transomGlass ?? input.glass) && !transomCode) invalid.push(issue('unknown_transom_glass_code', 'Choose a valid Transom Glass Type or select Custom.'));
   if (topology.hasTransom && transomCode === 'CUSTOM' && !text(input.transomCustomGlassDescription)) nonGeometricIncomplete.push(issue('custom_transom_glass_description_required', 'Enter a description for Custom transom glass.'));
   if (input.transomTBarSize !== null && input.transomTBarSize !== undefined && !normalizeTBarSize(input.transomTBarSize)) invalid.push(issue('invalid_transom_t_bar', 'Transom T-bar must be 1.5 or 2.25.'));
   const positionSpecifications = sideComponents.map((component) => suppliedSpecifications.find((entry) => entry?.side === component.side && entry?.index === component.index) ?? null);
@@ -286,16 +286,16 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   const unitTBar = normalizeTBarSize(input.transomTBarSize)
     ?? structuredSpecifications.map((entry) => normalizeTBarSize(entry?.tBarSize)).find(Boolean)
     ?? (topology.hasTransom ? automaticTransomTBar(topology.doorCount) : automaticSidelightTBar(sidelightType ?? 'Glass'));
-  if (hasStructuredSpecifications && (structuredSpecifications.some((entry) => !entry) || suppliedSpecifications.length !== sideComponents.length)) invalid.push(issue('invalid_sidelight_specifications', 'Structured sidelights must identify every configured sidelight exactly once.'));
+  if (hasStructuredSpecifications && (structuredSpecifications.some((entry) => !entry) || suppliedSpecifications.length !== sideComponents.length)) invalid.push(issue('invalid_sidelight_specifications', 'Sidelight specifications do not match the configuration. Review Glass Configuration.'));
   for (const entry of structuredSpecifications) {
     if (!entry) continue;
     const entryType = sidelightSpecificationType(entry, sidelightType);
-    if (!entryType) invalid.push(issue('sidelight_type_required', `Choose Glass or Panel for the ${entry.side} sidelight ${entry.index}.`));
+    if (!entryType) invalid.push(issue('sidelight_type_required', 'Choose Glass or Panel in Sidelight Type.'));
     if (entry.panelSizeMode && entry.glassTypeCode) invalid.push(issue('conflicting_sidelight_state', `The ${entry.side} sidelight ${entry.index} cannot be both Glass and Panel.`));
     if (entry.tBarSize !== null && entry.tBarSize !== undefined && !normalizeTBarSize(entry.tBarSize)) invalid.push(issue('invalid_t_bar', 'T-bar must be 1.5 or 2.25.'));
-    if (entryType === 'Glass' && !entry.glassTypeCode) invalid.push(issue('sidelight_glass_required', `Choose glass for the ${entry.side} sidelight ${entry.index}.`));
-    if (entryType === 'Glass' && entry.glassTypeCode && !normalizeGlassTypeCode(entry.glassTypeCode)) invalid.push(issue('unknown_glass_code', 'Unknown glass codes must be corrected or explicitly selected as Custom.'));
-    if (entryType === 'Glass' && normalizeGlassTypeCode(entry.glassTypeCode) === 'CUSTOM' && !text(entry.customGlassDescription)) nonGeometricIncomplete.push(issue('custom_glass_description_required', `Enter a Custom glass description for the ${entry.side} sidelight ${entry.index}.`));
+    if (entryType === 'Glass' && !entry.glassTypeCode) invalid.push(issue('sidelight_glass_required', 'Choose a Glass Type for the sidelights.'));
+    if (entryType === 'Glass' && entry.glassTypeCode && !normalizeGlassTypeCode(entry.glassTypeCode)) invalid.push(issue('unknown_glass_code', 'Choose a valid Glass Type or select Custom.'));
+    if (entryType === 'Glass' && normalizeGlassTypeCode(entry.glassTypeCode) === 'CUSTOM' && !text(entry.customGlassDescription)) nonGeometricIncomplete.push(issue('custom_glass_description_required', 'Enter a Custom Glass Description for the sidelights.'));
     if (entry.panelSizeMode && entry.panelSizeMode !== 'standard' && entry.panelSizeMode !== 'custom') invalid.push(issue('invalid_panel_size_mode', 'Panel size mode must be standard or custom.'));
     const width = numericDimension(entry.finishedWidth);
     if (!width.ok) invalid.push(issue('invalid_sidelight_width', 'message' in width ? width.message : 'Enter a valid sidelight width.'));

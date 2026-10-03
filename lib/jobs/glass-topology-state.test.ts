@@ -77,7 +77,7 @@ for (const patch of [{ roWidth: '' }, { roHeight: '' }, { sidelightGlass: null, 
   assert.deepEqual(current.glassBlockers, []);
   assert.equal(current.vendorCopyText, null);
   assert.equal(current.glassOverride, null);
-  assert.match(current.glassWorkorderDetail!, /GLASS DETAIL NEEDED/);
+  assert.match(current.glassWorkorderDetail!, /DETAILS NEEDED/);
   assert.deepEqual(stale, before, 'presentation must not mutate stored inputs or audit history');
   const group = createWorkOrderRowGroup({ ...stale, lineIndex: 1 } as NativeDoorLine, null);
   assert.equal(group.primaryRow.status, 'Glass Detail Needed');

@@ -134,7 +134,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const width = text(input.width);
   const height = text(input.height);
   const errors: Record<string, string> = {};
-  if (!validConstruction(input.construction)) errors.construction = 'Choose Standard, Low Profile 1/4" Sill, or Jamb 4 sides.';
+  if (!validConstruction(input.construction)) errors.construction = 'Choose a Sill: STD, DARK, LOW-PRO, NONE, or J-4-S.';
   const sizingError = validateDoubleDoorSizing({ ...input, config: config ?? undefined });
   if (sizingError) errors.doubleDoorSizing = sizingError;
   const patio = input.doubleDoorSizing?.kind === 'patio';
@@ -146,8 +146,8 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   if (!config) errors.config = 'Choose a configuration.';
   else if (!supported) errors.config = 'That configuration is not available for the selected mode.';
   const allowedWidths = mode === 'Interior' ? INTERIOR_WIDTHS : EXTERIOR_WIDTHS;
-  if (!width || !(allowedWidths as readonly string[]).includes(width)) errors.width = 'Choose a deployed width for this mode.';
-  if (!height || !(DOOR_HEIGHTS as readonly string[]).includes(height)) errors.height = 'Choose a deployed height.';
+  if (!width || !(allowedWidths as readonly string[]).includes(width)) errors.width = 'Choose an available slab width for this mode.';
+  if (!height || !(DOOR_HEIGHTS as readonly string[]).includes(height)) errors.height = 'Choose an available slab height.';
 
   const quantity = Number(input.qty);
   if (!Number.isInteger(quantity) || quantity <= 0) errors.qty = 'Quantity must be a positive whole number.';
@@ -160,23 +160,23 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   if (patio) customSlab = 'No';
   if (customSlab === 'Yes') customSlab = 'WoodCustom';
   if (noJamb) customSlab = 'No';
-  if (!['No', 'RO', 'WoodCustom'].includes(customSlab)) errors.customSlab = 'Choose Standard, Custom RO / Cut Down, or Custom Wood Slab.';
+  if (!['No', 'RO', 'WoodCustom'].includes(customSlab)) errors.customSlab = 'Choose Standard sizing, Custom Slab, or Fit to RO.';
   if (customSlab === 'WoodCustom' && !hasDoubleDoorCore(config)) {
     if (material !== 'wood') errors.customSlab = 'Custom slab dimensions are available for Wood only.';
-    if (!parseStoredShopDimension(input.customSlabWidth).ok) errors.customSlabWidth = `Enter a valid custom slab width. ${SHOP_DIMENSION_FORMAT_HELP}`;
-    if (!parseStoredShopDimension(input.customSlabHeight).ok) errors.customSlabHeight = `Enter a valid custom slab height. ${SHOP_DIMENSION_FORMAT_HELP}`;
+    if (!parseStoredShopDimension(input.customSlabWidth).ok) errors.customSlabWidth = text(input.customSlabWidth) ? `Enter a valid custom slab width. ${SHOP_DIMENSION_FORMAT_HELP}` : 'Custom slab width is required.';
+    if (!parseStoredShopDimension(input.customSlabHeight).ok) errors.customSlabHeight = text(input.customSlabHeight) ? `Enter a valid custom slab height. ${SHOP_DIMENSION_FORMAT_HELP}` : 'Custom slab height is required.';
   }
 
   const allowedPreps = mode && config ? prepChoices(mode, config) : [];
   let prep = text(input.prep);
   if (prep === 'Round') prep = 'Round Weiser';
   if (!patio && mode && config && height) prep = prepAfterHeightChange(mode, config, prep, height);
-  if (!prep || !allowedPreps.includes(prep)) errors.prep = 'Choose a deployed prep option.';
+  if (!prep || !allowedPreps.includes(prep)) errors.prep = 'Choose an available prep option.';
 
   const hand = noJamb ? null : text(input.hand);
   const handOptions = mode === 'Exterior' ? ['LH', 'RH', 'LHOUT', 'RHOUT']
     : [...(config === 'DD' ? [null] : []), 'LH', 'RH', ...(normalizeConstruction(input.construction) === 'low-profile-quarter-sill' ? ['LHOUT', 'RHOUT'] : [])];
-  if (!noJamb && !handOptions.includes(hand)) errors.hand = 'Choose a deployed handing option.';
+  if (!noJamb && !handOptions.includes(hand)) errors.hand = 'Choose an available swing.';
 
   const jambWidth = noJamb ? null : text(input.jambWidth);
   const ripJamb = noJamb ? null : (String(input.ripJamb ?? '').trim().toLowerCase() === 'yes' ? 'Yes' : null);

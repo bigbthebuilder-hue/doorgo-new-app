@@ -105,7 +105,7 @@ export function measureWorkOrderGroup(row: WorkOrderPrimaryRow, details: readonl
   const detailWidth = CONTENT_WIDTH - 38 - diagramReservedWidth;
   const detailLayouts = details.filter((detail) => detail.kind !== 'manual-override').map((detail): DetailLayout => {
     const exception = detail.kind === 'instruction' || detail.kind === 'warning' || detail.kind === 'blocker' || detail.kind === 'detail-needed';
-    const label = detail.kind === 'warning' ? 'WARNING: ' : detail.kind === 'detail-needed' ? 'GLASS DETAIL NEEDED: ' : detail.kind === 'blocker' ? 'BLOCKED: ' : '';
+    const label = detail.kind === 'warning' ? 'WARNING: ' : detail.kind === 'detail-needed' ? 'DETAILS NEEDED: ' : detail.kind === 'blocker' ? 'BLOCKED: ' : '';
     let first = true;
     const lines = detailLines(detail).flatMap((line) => {
       const wrapped = wrapText(regular, `${first ? label : ''}${line}`, WORK_ORDER_PDF_TEXT_SIZES.detail, detailWidth);

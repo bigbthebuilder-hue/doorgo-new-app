@@ -55,8 +55,24 @@ async function main() {
   assert.equal(incompleteDocument.rowGroups[0].primaryRow.status, 'Glass Detail Needed');
   assert.equal(incompleteDocument.rowGroups[0].diagram, null);
   const incompleteText = await extractedWinAnsiText(await renderWorkOrderPdf(incompleteDocument));
-  assert.match(incompleteText, /GLASS DETAIL NEEDED/);
+  assert.match(incompleteText, /DETAILS NEEDED/);
   assert.doesNotMatch(incompleteText, /Jamb legs|Header\/Sill|Left sidelight|Complete/);
+
+  const missingTransomHeight = generateWorkOrderDocument(aggregate({ lines: [{ ...freshSource, roWidth: '85', roHeight: null }] }), generation);
+  const expectedReason = 'Rough-opening height is required for a transom.';
+  const missingHeightRow = missingTransomHeight.rowGroups[0];
+  assert.equal(missingHeightRow.primaryRow.status, 'Glass Detail Needed');
+  assert.deepEqual(missingHeightRow.detailRows.find((row) => row.kind === 'detail-needed')?.lines, [expectedReason]);
+  const missingHeightPreflight = evaluateWorkOrderPreflight(missingTransomHeight);
+  assert.equal(missingHeightPreflight.issues[0].message, expectedReason);
+  assert.equal(missingHeightPreflight.acknowledgementRequired, true);
+  assert.equal(missingHeightPreflight.blocked, false);
+  assert.throws(() => assertWorkOrderPreflight(missingTransomHeight, false), /acknowledged/);
+  assert.doesNotThrow(() => assertWorkOrderPreflight(missingTransomHeight, true));
+  const missingHeightText = (await extractedWinAnsiText(await renderWorkOrderPdf(missingTransomHeight))).replace(/\s+/g, ' ');
+  assert.match(missingHeightText, /DETAILS NEEDED/);
+  assert.ok(missingHeightText.includes(expectedReason));
+  assert.doesNotMatch(missingHeightText, /RO: 85/);
 
   assert.equal(workOrderPreflightStatusLabel('Manual Override'), 'Geometry Exception Approved');
   assert.equal(workOrderPreflightStatusLabel('Warning'), 'Warning');

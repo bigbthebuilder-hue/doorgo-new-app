@@ -1,3 +1,4 @@
+import { hasCustomSlabAxis } from './slab-sizing-contract';
 import type { DoorLineInput, DoubleDoorSizing } from './job-intake-types';
 import { hasDoubleDoorCore } from './double-door-astragal-contract';
 import { parseStoredShopDimension } from './dimension-contract';
@@ -24,7 +25,7 @@ export function patioSizingAvailable(line: Pick<DoorLineInput, 'mode' | 'config'
 
 export function validateDoubleDoorSizing(line: Pick<DoorLineInput, 'mode' | 'config' | 'doubleDoorSizing' | 'customSlab'>): string | null {
   const sizing = line.doubleDoorSizing;
-  if (hasDoubleDoorCore(line.config) && ['WoodCustom', 'Yes'].includes(String(line.customSlab)) && sizing?.kind !== 'custom-slabs') return CUSTOM_DD_REQUIRED;
+  if (hasDoubleDoorCore(line.config) && hasCustomSlabAxis(line) && sizing?.kind !== 'custom-slabs') return CUSTOM_DD_REQUIRED;
   if (sizing == null) return null;
   if (!hasDoubleDoorCore(line.config)) return 'Explicit leaf sizing requires a DD configuration.';
   if (sizing.kind === 'custom-slabs') return customDoubleDoorSlabs(sizing) ? null : CUSTOM_DD_REQUIRED;

@@ -1,3 +1,4 @@
+import { customSlabAxis, hasCustomSlabAxis } from './slab-sizing-contract';
 import { resolveCustomRoDoubleDoorWidth } from './custom-ro-contract';
 import { automaticCustomSlabRoWidth, usesAutomaticCustomSlabRoWidth } from './non-glass-frame-cut-contract';
 import { constructionAllowance, lowProfileLabel, isFourSideJamb, FOUR_SIDE_JAMB } from './construction-contract';
@@ -111,11 +112,16 @@ export function slabFor(input: DoorLineInput): { ok: true; width: number; height
   if (sizingError) return { ok: false, message: sizingError };
   const customDD = customDoubleDoorSlabs(input.doubleDoorSizing);
   if (customDD) return { ok: true, width: customDD.activeWidth, height: customDD.height, label: `Custom DD ${formatShopDimension(customDD.activeWidth)} / ${formatShopDimension(customDD.inactiveWidth)} x ${formatShopDimension(customDD.height)}` };
-  if (input.customSlab === 'WoodCustom' || input.customSlab === 'Yes') {
-    const width = numericDimension(input.customSlabWidth);
-    const height = numericDimension(input.customSlabHeight);
-    if (!width.ok || !height.ok) return { ok: false, message: `Enter valid Custom Slab width and height. ${SHOP_DIMENSION_FORMAT_HELP}` };
-    return { ok: true, width: width.inches, height: height.inches, label: `Custom Wood ${width.formatted} x ${height.formatted}` };
+  if (hasCustomSlabAxis(input)) {
+    const width = customSlabAxis(input, 'width') ? numericDimension(input.customSlabWidth) : parseDimension(input.width);
+    const height = customSlabAxis(input, 'height') ? numericDimension(input.customSlabHeight) : parseDimension(input.height);
+    if (!width.ok) return { ok: false, message: 'Enter a valid actual slab width.' };
+    if (!height.ok) return { ok: false, message: 'Enter a valid actual slab height.' };
+    const standard = slabFor({ ...input, customSlab: 'No' });
+    if (!standard.ok && (!customSlabAxis(input, 'width') || !customSlabAxis(input, 'height'))) return standard;
+    const resolvedWidth = customSlabAxis(input, 'width') ? width.inches : standard.ok ? standard.width : width.inches;
+    const resolvedHeight = customSlabAxis(input, 'height') ? height.inches : standard.ok ? standard.height : height.inches;
+    return { ok: true, width: resolvedWidth, height: resolvedHeight, label: `Custom Wood ${formatShopDimension(resolvedWidth)} x ${formatShopDimension(resolvedHeight)}` };
   }
   const width = parseDimension(input.width);
   const height = parseDimension(input.height);

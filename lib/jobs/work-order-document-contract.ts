@@ -1,3 +1,4 @@
+import { customSlabAxis, hasCustomSlabAxis } from './slab-sizing-contract';
 import { missingDoorFieldMessage } from './status-presentation';
 import { sillChoice } from './construction-contract';
 import { PATIO_DOOR_PRESETS } from './double-door-sizing-contract';
@@ -178,8 +179,10 @@ function sizeDisplay(line: NativeDoorLine): string {
     const preset = PATIO_DOOR_PRESETS[line.doubleDoorSizing.preset];
     if (preset) return `2 @ ${canonicalStoredDimension(preset.activeWidth)} x ${canonicalStoredDimension(preset.height)}`;
   }
-  if ((line.customSlab === 'WoodCustom' || line.customSlab === 'Yes') && line.customSlabWidth && line.customSlabHeight) {
-    return `${canonicalStoredDimension(line.customSlabWidth)} × ${canonicalStoredDimension(line.customSlabHeight)}`;
+  if (hasCustomSlabAxis(line)) {
+    const width = customSlabAxis(line, 'width') ? canonicalStoredDimension(line.customSlabWidth) || 'Not entered' : text(line.width);
+    const height = customSlabAxis(line, 'height') ? canonicalStoredDimension(line.customSlabHeight) || 'Not entered' : text(line.height);
+    return width + ' × ' + height;
   }
   if (text(line.height) === `6'8"`) return text(line.width);
   return `${text(line.width)} × ${text(line.height)}`;
@@ -215,7 +218,7 @@ function productionWarningRows(warnings: readonly Pick<GlassIssue, 'code' | 'mes
   ];
 }
 
-function nonGlassDetailRows(result: NonGlassFrameCutResult): WorkOrderDetailRow[] {
+function nonGlassDetailRows(result: NonGlassFrameCutResult, line: NativeDoorLine): WorkOrderDetailRow[] {
   if (result.status === 'Not Applicable') return [];
   if (result.status === 'Incomplete') return [{ kind: 'blocker', lines: result.missingFields.map(missingDoorFieldMessage) }];
   if (result.status === 'Blocked') return [{ kind: 'blocker', lines: result.blockers.map((entry) => entry.message) }];
@@ -226,8 +229,10 @@ function nonGlassDetailRows(result: NonGlassFrameCutResult): WorkOrderDetailRow[
       ...(result.values && result.values.cutDown.inches > 0 ? [`Door cut to: ${result.values.finalSlabHeight.display}`] : []),
     ]
     : result.detailLines.filter((line) => line !== 'Low Profile 1/4" Sill' && line !== 'Jamb 4 sides');
-  const finalSlabShown = productionLines.some((line) => line.startsWith('Final slab:'));
-  const uniqueProductionLines = finalSlabShown ? productionLines.filter((line) => !line.startsWith('Door cut to')) : productionLines;
+  const suppressRecommendedWidth = line.config === 'D' && !customSlabAxis(line, 'width') && line.customSlab !== 'RO' && !line.roWidth && !result.warnings.length && !result.blockers.length;
+  const visibleProductionLines = suppressRecommendedWidth ? productionLines.filter((entry) => !entry.startsWith('Recommended RO width:')) : productionLines;
+  const finalSlabShown = visibleProductionLines.some((line) => line.startsWith('Final slab:'));
+  const uniqueProductionLines = finalSlabShown ? visibleProductionLines.filter((line) => !line.startsWith('Door cut to')) : visibleProductionLines;
   if (uniqueProductionLines.length) rows.push({ kind: 'frame', lines: [uniqueProductionLines.join(' | ')] });
   rows.push(...productionWarningRows(result.warnings));
   return rows;
@@ -334,7 +339,7 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
     : nonGlassResult?.status === 'Blocked' || nonGlassResult?.status === 'Incomplete' || nonGlassResult?.values?.widthReviewRequired
       ? 'Blocked'
       : nonGlassResult?.warnings.length ? 'Warning' : 'Complete';
-  const details = compactWorkOrderDetails(glassConfiguration ? glassDetailRows(outputLine) : nonGlassDetailRows(nonGlassResult!));
+  const details = compactWorkOrderDetails(glassConfiguration ? glassDetailRows(outputLine) : nonGlassDetailRows(nonGlassResult!, outputLine));
   if (!glassConfiguration && hasDoubleDoorCore(outputLine.config) && normalizeDoubleDoorAstragal(outputLine.doubleDoorAstragal) === 'wood-ferco-astra-lock') {
     const frame = details.find((row) => row.kind === 'frame');
     if (frame) frame.lines = [...frame.lines, 'Astragal: Wood / Ferco Astra Lock — 1"'];

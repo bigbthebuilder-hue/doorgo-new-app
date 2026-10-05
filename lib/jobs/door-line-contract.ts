@@ -1,3 +1,4 @@
+import { customSlabAxis, hasCustomSlabAxis, SLAB_SIZING_MODES } from './slab-sizing-contract';
 import { normalizeConstruction, validConstruction, sillChoice } from './construction-contract';
 import {
   JobIntakeFailure,
@@ -122,7 +123,8 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
     panelSidelightWidth: '', panelSidelights: [], sidelightSpecifications: [],
     transomTBarSize: null, transomGlassTypeCode: null, transomCustomGlassDescription: null,
     construction: 'standard', doubleDoorAstragal: null, doubleDoorSizing: null,
-    includeDiagramOnWorkOrder: false,
+    // No preference until glass is initialized; saved explicit false remains meaningful.
+    includeDiagramOnWorkOrder: undefined,
   };
 }
 
@@ -158,13 +160,14 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
 
   let customSlab = text(input.customSlab) ?? 'No';
   if (patio) customSlab = 'No';
+  if (['CustomWidth', 'CustomHeight'].includes(customSlab) && hasDoubleDoorCore(config)) errors.customSlab = 'Use Custom DD active width, inactive width, and shared height.';
   if (customSlab === 'Yes') customSlab = 'WoodCustom';
   if (noJamb) customSlab = 'No';
-  if (!['No', 'RO', 'WoodCustom'].includes(customSlab)) errors.customSlab = 'Choose Standard sizing, Custom Slab, or Fit to RO.';
-  if (customSlab === 'WoodCustom' && !hasDoubleDoorCore(config)) {
+  if (!(SLAB_SIZING_MODES as readonly string[]).includes(customSlab)) errors.customSlab = 'Choose Standard sizing, Custom Slab, or Fit to RO.';
+  if (hasCustomSlabAxis({ customSlab }) && !hasDoubleDoorCore(config)) {
     if (material !== 'wood') errors.customSlab = 'Custom slab dimensions are available for Wood only.';
-    if (!parseStoredShopDimension(input.customSlabWidth).ok) errors.customSlabWidth = text(input.customSlabWidth) ? `Enter a valid custom slab width. ${SHOP_DIMENSION_FORMAT_HELP}` : 'Custom slab width is required.';
-    if (!parseStoredShopDimension(input.customSlabHeight).ok) errors.customSlabHeight = text(input.customSlabHeight) ? `Enter a valid custom slab height. ${SHOP_DIMENSION_FORMAT_HELP}` : 'Custom slab height is required.';
+    if (customSlabAxis({ customSlab }, 'width') && !parseStoredShopDimension(input.customSlabWidth).ok) errors.customSlabWidth = text(input.customSlabWidth) ? `Enter a valid actual slab width. ${SHOP_DIMENSION_FORMAT_HELP}` : 'Actual slab width is required.';
+    if (customSlabAxis({ customSlab }, 'height') && !parseStoredShopDimension(input.customSlabHeight).ok) errors.customSlabHeight = text(input.customSlabHeight) ? `Enter a valid actual slab height. ${SHOP_DIMENSION_FORMAT_HELP}` : 'Actual slab height is required.';
   }
 
   const allowedPreps = mode && config ? prepChoices(mode, config) : [];
@@ -217,8 +220,8 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       construction: noJamb ? 'standard' : normalizeConstruction(input.construction),
       mode: mode as DoorLineMode,
       doorType: text(input.doorType), config: config as string, width: width as string, height: height as string,
-      customSlab, customSlabWidth: customSlab === 'WoodCustom' ? text(input.customSlabWidth) : null,
-      customSlabHeight: customSlab === 'WoodCustom' ? text(input.customSlabHeight) : null,
+      customSlab, customSlabWidth: customSlabAxis({ customSlab }, 'width') ? text(input.customSlabWidth) : null,
+      customSlabHeight: customSlabAxis({ customSlab }, 'height') ? text(input.customSlabHeight) : null,
       hand, prep, glass: null, jambWidth, ripJamb,
       jambType: noJamb ? null : text(input.jambType),
       // Keep legacy standard text until staff explicitly select a replacement.

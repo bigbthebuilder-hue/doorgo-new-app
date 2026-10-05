@@ -12,7 +12,7 @@ import {
 } from '@/lib/jobs/glass-unit-composition-contract';
 import { calculateGlassCompositionSchematic } from '@/lib/jobs/glass-diagram-contract';
 import { nextGlassBuilderDraft, reconcileGlassTopology } from '@/lib/jobs/glass-editor-contract';
-import { automaticSidelightTBar, automaticTransomTBar, calculateGlassGeometry, normalizeGlassTypeCode, normalizeSidelightType, normalizeTBarSize, numericDimension } from '@/lib/jobs/glass-geometry-contract';
+import { isGlassConfiguration, automaticSidelightTBar, automaticTransomTBar, calculateGlassGeometry, normalizeGlassTypeCode, normalizeSidelightType, normalizeTBarSize, numericDimension } from '@/lib/jobs/glass-geometry-contract';
 import { canonicalSidelightSpecifications, reconcileGlassDimensionCommit, type GlassDimensionAuthority } from '@/lib/jobs/glass-dimension-reconciliation-contract';
 import { aggregateVendorCopy, glassResultRows } from '@/lib/jobs/glass-result-presentation';
 import type { DoorLineInput, GlassTypeCode, SidelightSpecification, SidelightType } from '@/lib/jobs/job-intake-types';
@@ -44,15 +44,15 @@ function initialComposition(line: DoorLineInput): GlassUnitComposition {
 export function initialBuilderDraft(line: DoorLineInput): DoorLineInput {
   const composition = initialComposition(line);
   const withConfig = { ...structuredClone(line), config: resolveGlassUnitConfiguration(composition) };
-  const doorCount = composition.door === 'DD' ? 2 : 1;
   const savedSpecificationTBar = Array.isArray(withConfig.sidelightSpecifications)
     ? withConfig.sidelightSpecifications.map((entry) => normalizeTBarSize(entry.tBarSize)).find(Boolean) ?? null
     : null;
   const unitTBar = normalizeTBarSize(withConfig.transomTBarSize)
-    ?? (composition.hasTransom ? automaticTransomTBar(doorCount) : savedSpecificationTBar ?? automaticSidelightTBar(normalizeSidelightType(withConfig.sidelightType) ?? 'Glass'));
+    ?? savedSpecificationTBar ?? '2.25';
   const sidelightSpecifications = canonicalSidelightSpecifications(withConfig).map((entry) => ({ ...entry, tBarSize: unitTBar, glassTypeCode: normalizeSidelightType(withConfig.sidelightType) === 'Panel' ? null : withConfig.sidelightSpecifications?.find((saved) => saved.side === entry.side && saved.index === entry.index)?.glassTypeCode ?? entry.glassTypeCode ?? 'CLEAR' as const }));
   const initialized = {
     ...withConfig,
+    includeDiagramOnWorkOrder: isGlassConfiguration(withConfig.config) && withConfig.includeDiagramOnWorkOrder !== false,
     sidelightSpecifications,
     transomTBarSize: composition.hasTransom ? unitTBar : null,
     transomGlassTypeCode: composition.hasTransom ? normalizeGlassTypeCode(withConfig.transomGlassTypeCode ?? withConfig.transomGlass) : null,
@@ -184,7 +184,7 @@ export function GlassUnitBuilder({ line, comparisonBaseline = null, onCancel, on
       config,
       );
       const unitTBar = normalizeTBarSize(retained.transomTBarSize)
-        ?? (next.hasTransom ? automaticTransomTBar(next.door === 'DD' ? 2 : 1) : normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? automaticSidelightTBar(normalizeSidelightType(retained.sidelightType) ?? 'Glass'));
+        ?? normalizeTBarSize(retained.sidelightSpecifications?.[0]?.tBarSize) ?? '2.25';
       const nextDraft = {
         ...retained,
         ...(previousComposition.hasTransom && !next.hasTransom ? { transomGlass: null, roHeight: null } : {}),

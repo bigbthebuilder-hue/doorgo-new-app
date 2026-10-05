@@ -17,7 +17,7 @@ const base = { ...defaultDoorLine('Exterior'), lineId: 'status', lineIndex: 1 };
 const missing = { ...base, material: 'wood', customSlab: 'WoodCustom', customSlabWidth: '', customSlabHeight: '79' };
 const missingRow = createWorkOrderRowGroup(missing as NativeDoorLine, null);
 assert.equal(missingRow.primaryRow.status, 'Blocked');
-assert.match(missingRow.primaryRow.cells.notesGlass, /BLOCKED: Custom slab width is required./);
+assert.match(missingRow.primaryRow.cells.notesGlass, /BLOCKED: Actual slab width is required./);
 assert.doesNotMatch(JSON.stringify(missingRow), /RO \/ GLASS NEEDS REVIEW|customSlabWidth|GLASS DETAIL NEEDED/);
 const layout = measureWorkOrderGroup(missingRow.primaryRow, missingRow.detailRows, WORK_ORDER_FONT_METRICS);
 assert.equal(layout.detailLayouts[0].label, 'BLOCKED: ');
@@ -28,7 +28,7 @@ assert.equal(invalid.fieldErrors.customSlab, 'Choose Standard sizing, Custom Sla
 assert.equal(invalid.fieldErrors.construction, 'Choose a Sill: STD, DARK, LOW-PRO, NONE, or J-4-S.');
 const missingValidation = normalizeDoorLineInput(missing);
 assert.ok(!missingValidation.ok);
-assert.equal(missingValidation.fieldErrors.customSlabWidth, 'Custom slab width is required.');
+assert.equal(missingValidation.fieldErrors.customSlabWidth, 'Actual slab width is required.');
 const glass = { ...base, config: 'SD', roWidth: '60', sidelightType: 'Glass', sidelightGlass: 'Clear' } satisfies DoorLineInput;
 const structured = calculateGlassGeometry({ ...glass, sidelightSpecifications: [{ side: 'left', index: 1, finishedWidth: '20', tBarSize: '2.25', glassTypeCode: null, customGlassDescription: null, panelSizeMode: null, panelConstructionNotes: null }] });
 assert.equal(structured.status, 'Blocked');

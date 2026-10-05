@@ -88,10 +88,12 @@ for (const scenario of ['D', 'DD', 'Interior D', 'Patio DD', 'Custom D', 'Custom
     if (scenario === 'Patio DD') await pane.getByRole('combobox', { name: 'DD Sizing', exact: true }).selectOption('5');
     if (scenario.startsWith('Custom')) {
       if (scenario === 'Custom D') await pane.getByRole('combobox', { name: 'Material', exact: true }).selectOption('wood');
-      await pane.getByRole('switch', { name: 'Custom Slab', exact: true }).click();
+      if (scenario === 'Custom DD') await pane.getByRole('switch', { name: 'Custom Slab', exact: true }).click();
       if (scenario === 'Custom D') {
-        await pane.getByLabel('Custom Slab Width, inches', { exact: true }).fill('35');
-        await pane.getByLabel('Custom Slab Height, inches', { exact: true }).fill('79');
+        await pane.getByRole('combobox', { name: 'Width', exact: true }).selectOption('Custom');
+        await pane.getByRole('combobox', { name: 'Height', exact: true }).selectOption('Custom');
+        await pane.getByLabel('Actual slab width, inches', { exact: true }).fill('35');
+        await pane.getByLabel('Actual slab height, inches', { exact: true }).fill('79');
       } else {
         await pane.getByLabel('Active Slab Width, inches', { exact: true }).fill('35');
         await pane.getByLabel('Inactive Slab Width, inches', { exact: true }).fill('33');
@@ -146,14 +148,15 @@ test('incomplete custom slabs and DD reductions remain non-printable', async ({ 
   const report = component.locator('.glass-calculator-print');
   const print = component.getByRole('button', { name: 'Print', exact: true });
   await pane.getByRole('combobox', { name: 'Material', exact: true }).selectOption('wood');
-  await pane.getByRole('switch', { name: 'Custom Slab', exact: true }).click();
+  await pane.getByRole('combobox', { name: 'Width', exact: true }).selectOption('Custom');
+  await pane.getByRole('combobox', { name: 'Height', exact: true }).selectOption('Custom');
   await expect(print).toBeVisible();
   await expect(print).toBeDisabled();
   await expect(component.getByRole('button', { name: 'Reset', exact: true })).toBeVisible();
   await expect(component.getByRole('button', { name: 'Reset', exact: true })).toBeEnabled();
   await expect(report).toContainText('Incomplete');
-  await pane.getByLabel('Custom Slab Width, inches', { exact: true }).fill('-1');
-  await pane.getByLabel('Custom Slab Height, inches', { exact: true }).fill('79');
+  await pane.getByLabel('Actual slab width, inches', { exact: true }).fill('-1');
+  await pane.getByLabel('Actual slab height, inches', { exact: true }).fill('79');
   await expect(print).toBeVisible();
   await expect(print).toBeDisabled();
   await expect(component.getByRole('button', { name: 'Reset', exact: true })).toBeVisible();

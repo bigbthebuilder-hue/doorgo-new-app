@@ -13,7 +13,7 @@ export function hasVisibleStatus(status: unknown): boolean {
 export function missingDoorFieldMessage(field: string): string {
   const labels: Record<string, string> = {
     mode: 'Door mode', config: 'Configuration', width: 'Slab width', height: 'Slab height',
-    customSlabWidth: 'Custom slab width', customSlabHeight: 'Custom slab height',
+    customSlabWidth: 'Actual slab width', customSlabHeight: 'Actual slab height',
   };
   return labels[field] ? labels[field] + ' is required.' : 'Required door information is missing.';
 }

@@ -1,3 +1,4 @@
+import { customSlabAxis, slabAxisInput } from './slab-sizing-contract';
 import { constructionAllowance, lowProfileLabel, isFourSideJamb, FOUR_SIDE_JAMB, SIDE_JAMB_THICKNESS } from './construction-contract';
 import { PATIO_DOOR_PRESETS, customDoubleDoorSlabs, resolvedDoubleDoorLeaves, validateDoubleDoorSizing } from './double-door-sizing-contract';
 import { usesCustomRo, customRoHeaderTarget, resolveCustomRoHeight, resolveCustomRoDoubleDoorWidth } from './custom-ro-contract';
@@ -8,7 +9,7 @@ import { parseGlassUnitConfiguration, totalSidelightCount } from './glass-unit-c
 
 export function usesAutomaticCustomSlabRoWidth(line: Readonly<DoorLineInput>): boolean {
   const parsed = parseGlassUnitConfiguration(line.config);
-  return (line.customSlab === 'WoodCustom' || line.customSlab === 'Yes')
+  return customSlabAxis(line, 'width')
     && parsed.ok && totalSidelightCount(parsed.value) === 0;
 }
 
@@ -98,20 +99,22 @@ function actualSlab(line: Readonly<DoorLineInput>):
     const preset = PATIO_DOOR_PRESETS[line.doubleDoorSizing.preset];
     return { ok: true, width: preset.activeWidth, height: preset.height };
   }
-  const custom = line.customSlab === 'WoodCustom' || line.customSlab === 'Yes';
+  const custom = customSlabAxis(line, 'width') || customSlabAxis(line, 'height');
   if (custom) {
     const missing = [
-      ...(!String(line.customSlabWidth ?? '').trim() ? ['customSlabWidth'] : []),
-      ...(!String(line.customSlabHeight ?? '').trim() ? ['customSlabHeight'] : []),
+      ...(!String(slabAxisInput(line, 'width') ?? '').trim() ? [customSlabAxis(line, 'width') ? 'customSlabWidth' : 'width'] : []),
+      ...(!String(slabAxisInput(line, 'height') ?? '').trim() ? [customSlabAxis(line, 'height') ? 'customSlabHeight' : 'height'] : []),
     ];
     if (missing.length) return { ok: false, missing, blockers: [] };
-    const width = parseStoredShopDimension(line.customSlabWidth);
-    const height = parseStoredShopDimension(line.customSlabHeight);
+    const width = customSlabAxis(line, 'width') ? parseStoredShopDimension(line.customSlabWidth) : parseDimension(line.width);
+    const height = customSlabAxis(line, 'height') ? parseStoredShopDimension(line.customSlabHeight) : parseDimension(line.height);
     const blockers: NonGlassFrameCutIssue[] = [];
-    if (!width.ok) blockers.push(issue('invalid_custom_slab_width', 'customSlabWidth', 'Custom slab width is invalid.'));
-    if (!height.ok) blockers.push(issue('invalid_custom_slab_height', 'customSlabHeight', 'Custom slab height is invalid.'));
+    if (!width.ok) blockers.push(issue('invalid_custom_slab_width', 'customSlabWidth', 'Actual slab width is invalid.'));
+    if (!height.ok) blockers.push(issue('invalid_custom_slab_height', 'customSlabHeight', 'Actual slab height is invalid.'));
     if (blockers.length || !width.ok || !height.ok) return { ok: false, missing: [], blockers };
-    return { ok: true, width: width.inches, height: height.inches };
+    const standard = actualSlab({ ...line, customSlab: 'No' });
+    if (!standard.ok && (!customSlabAxis(line, 'width') || !customSlabAxis(line, 'height'))) return standard;
+    return { ok: true, width: customSlabAxis(line, 'width') ? width.inches : standard.ok ? standard.width : width.inches, height: customSlabAxis(line, 'height') ? height.inches : standard.ok ? standard.height : height.inches };
   }
 
   const missing = [

@@ -1,5 +1,6 @@
 'use client';
 
+import { customSlabAxis, hasCustomSlabAxis, selectSlabAxis, type SlabAxis } from '@/lib/jobs/slab-sizing-contract';
 import { statusLabel, hasVisibleStatus } from '@/lib/jobs/status-presentation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useEditedField } from './useEditedField';
@@ -45,8 +46,8 @@ function lineTitle(line: DoorLineInput): string {
 function savedLineTitle(line: DoorLineInput): string {
   const noJamb = line.config === 'PKT' || line.config === 'B.P.';
   const display = noJamb ? { ...line, hand: null, jambWidth: null } : line;
-  if (!line.doubleDoorSizing && (line.customSlab === 'WoodCustom' || line.customSlab === 'Yes')) {
-    return lineTitle({ ...display, width: line.customSlabWidth || 'Not entered', height: line.customSlabHeight || 'Not entered' });
+  if (!line.doubleDoorSizing && hasCustomSlabAxis(line)) {
+    return lineTitle({ ...display, width: customSlabAxis(line, 'width') ? line.customSlabWidth || 'Not entered' : line.width, height: customSlabAxis(line, 'height') ? line.customSlabHeight || 'Not entered' : line.height });
   }
   return lineTitle(display);
 }
@@ -154,7 +155,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   const isGlass = mode === 'Exterior' && isGlassConfiguration(config);
   const staffConfiguration = isGlass ? 'With Glass' : config;
   const patio = editor.doubleDoorSizing?.kind === 'patio' ? editor.doubleDoorSizing.preset : null;
-  const customDD = hasDoubleDoorCore(config) && (editor.customSlab === 'WoodCustom' || editor.customSlab === 'Yes');
+  const customDD = hasDoubleDoorCore(config) && hasCustomSlabAxis(editor);
   const customSizing = editor.doubleDoorSizing?.kind === 'custom-slabs' ? editor.doubleDoorSizing : null;
   const noJamb = mode === 'Interior' && (config === 'PKT' || config === 'B.P.');
   const widths = mode === 'Interior' ? INTERIOR_WIDTHS : EXTERIOR_WIDTHS;
@@ -194,6 +195,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     if (geometryFields.has(name) && (name !== 'sill' || geometryChanged(editor, withSillChoice(editor, value as SillChoice)))) setExplicitGlassDetailNeeded(false);
     setEditor((current) => {
       const next = name === 'sill' ? withSillChoice(current, value as SillChoice) : name === 'customSlab' ? changeSizingMode(current, value as 'No' | 'WoodCustom' | 'RO') : { ...current, [name]: value };
+      if (name === 'doubleDoorSizing' && next.doubleDoorSizing?.kind === 'custom-slabs') next.customSlab = 'WoodCustom';
       return geometryFields.has(name) && geometryChanged(current, next) ? clearCalculated(next) : next;
     });
     setFieldErrors((current) => {
@@ -204,6 +206,13 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     });
     setCalculationStatus(null);
     clearWorkspaceMessage();
+  }
+
+  function setSizeAxis(axis: SlabAxis, value: string) {
+    if (hasDoubleDoorCore(config) || noJamb) { if (axis === 'height') setHeight(value); else set('width', value); return; }
+    setEditor((current) => clearCalculated(selectSlabAxis(current, axis, value)));
+    if (axis === 'height' && value !== 'Custom') setHeight(value);
+    setFieldErrors({}); setExplicitGlassDetailNeeded(false); setCalculationStatus(null); clearWorkspaceMessage();
   }
 
   function setDimension(name: string, value: string) {
@@ -256,6 +265,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
   function chooseStaffConfiguration(value: string) {
     if (value === 'With Glass') {
       const next = retainCompatibleGlassFields(patio ? withPatioPreset(editor, null) : editor, 'SD', 'Glass');
+      if (!isGlassConfiguration(editor.config)) next.includeDiagramOnWorkOrder = true;
       setEditor(initialBuilderDraft(next));
       setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
       return;
@@ -410,8 +420,10 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
             : <label className="grid gap-1 text-sm font-semibold">Configuration<select className={control} onChange={(event) => chooseConfig(event.target.value)} data-comparison-different={differs('config') || undefined} value={config}>{J2A_CONFIGS[mode].map((value) => <option key={value}>{value}</option>)}</select></label>}
           {patioSizingAvailable(editor) ? <label className="grid gap-1 text-sm font-semibold">DD Sizing<select className={control} onChange={(event) => choosePatio(event.target.value === "standard" ? null : event.target.value as "5" | "6")} value={patio ?? "standard"}><option value="standard">Standard DD</option><option value="5">Patio Door Replacement / 5&apos;</option><option value="6">Patio Door Replacement / 6&apos;</option></select></label> : null}
           {patio ? <p className="text-sm">Factory slabs: 2 @ {formatShopDimension(PATIO_DOOR_PRESETS[patio].activeWidth)} x {formatShopDimension(PATIO_DOOR_PRESETS[patio].height)}. Reference opening: {PATIO_DOOR_PRESETS[patio].referenceWidth}&quot; x 80&quot;.</p> : <>
-          <label className="grid gap-1 text-sm font-semibold">Width<select data-comparison-different={differs('width') || undefined} className={control} onChange={(event) => set('width', event.target.value)} value={String(editor.width)}>{widths.map((value) => <option key={value}>{value}</option>)}</select></label>
-          <label className="grid gap-1 text-sm font-semibold">Height<select data-comparison-different={differs('height') || undefined} className={control} onChange={(event) => setHeight(event.target.value)} value={String(editor.height)}>{DOOR_HEIGHTS.map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label className="grid gap-1 text-sm font-semibold">Width<select data-comparison-different={differs('width') || (comparisonValues !== null && customSlabAxis(editor, 'width') !== customSlabAxis(comparisonValues, 'width')) || undefined} className={control} onChange={(event) => setSizeAxis('width', event.target.value)} value={!hasDoubleDoorCore(config) && customSlabAxis(editor, 'width') ? 'Custom' : String(editor.width)}>{widths.map((value) => <option key={value}>{value}</option>)}{!noJamb && !hasDoubleDoorCore(config) && editor.material === 'wood' ? <option value="Custom">Custom&#8230;</option> : null}</select></label>
+          <label className="grid gap-1 text-sm font-semibold">Height<select data-comparison-different={differs('height') || (comparisonValues !== null && customSlabAxis(editor, 'height') !== customSlabAxis(comparisonValues, 'height')) || undefined} className={control} onChange={(event) => setSizeAxis('height', event.target.value)} value={!hasDoubleDoorCore(config) && customSlabAxis(editor, 'height') ? 'Custom' : String(editor.height)}>{DOOR_HEIGHTS.map((value) => <option key={value}>{value}</option>)}{!noJamb && !hasDoubleDoorCore(config) && editor.material === 'wood' ? <option value="Custom">Custom&#8230;</option> : null}</select></label>
+          {!hasDoubleDoorCore(config) && customSlabAxis(editor, 'width') ? <DimensionInput different={differs('customSlabWidth')} error={fieldErrors.customSlabWidth} label="Actual slab width" onValue={(value) => setDimension('customSlabWidth', value)} required value={String(editor.customSlabWidth ?? '')}/> : null}
+          {!hasDoubleDoorCore(config) && customSlabAxis(editor, 'height') ? <DimensionInput different={differs('customSlabHeight')} error={fieldErrors.customSlabHeight} label="Actual slab height" onValue={(value) => setDimension('customSlabHeight', value)} required value={String(editor.customSlabHeight ?? '')}/> : null}
           </>}
           {!noJamb ? <label className="grid gap-1 text-sm font-semibold">Swing<select data-comparison-different={differs('hand') || undefined} className={control} onChange={(event) => setSwing(event.target.value)} value={String(editor.hand ?? '')}>{mode === 'Interior' && config === 'DD' ? <option value="">No handing</option> : null}<option>LH</option><option>RH</option>{mode === 'Exterior' || normalizeConstruction(editor.construction) === 'low-profile-quarter-sill' ? <><option>LHOUT</option><option>RHOUT</option></> : null}</select></label> : null}
           {mode === 'Exterior' && config === 'DD' ? <label className="grid gap-1 text-sm font-semibold">Astragal<select className={control} onChange={(event) => set('doubleDoorAstragal', event.target.value as DoubleDoorAstragalType)} value={String(editor.doubleDoorAstragal ?? DEFAULT_DOUBLE_DOOR_ASTRAGAL)}>{Object.entries(DOUBLE_DOOR_ASTRAGALS).map(([value, option]) => <option key={value} value={value}>{option.label}</option>)}</select></label> : null}
@@ -423,15 +435,14 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
           {!noJamb ? <><label className="grid gap-1 text-sm font-semibold">Jamb Width<select aria-label="Jamb Width" className={control} onChange={(event) => { const rip = event.target.value === 'RIP'; setRipMode(rip); set('ripJamb', rip ? 'Yes' : ''); set('jambWidth', rip ? '' : event.target.value); }} data-comparison-different={differs('jambWidth') || undefined} value={ripMode ? 'RIP' : String(editor.jambWidth ?? '')}>{jambWidthChoices(mode).map((value) => <option key={value} value={value}>{value}</option>)}<option value="RIP">RIP jamb</option></select>{ripMode ? <><span className="text-xs font-semibold">Rip to</span><input data-comparison-different={differs('jambWidth') || undefined} aria-label="Rip to" className={control} onChange={(event) => set('jambWidth', event.target.value)} placeholder="Completed RIP size" value={String(editor.jambWidth === 'RIP' ? '' : editor.jambWidth ?? '')}/></> : null}</label><label className="grid gap-1 text-sm font-semibold">Jamb Type<select data-comparison-different={differs('jambType') || undefined} className={control} onChange={(event) => set('jambType', event.target.value)} value={String(editor.jambType ?? 'Primed')}><option>Primed</option><option>Fir</option>{mode === 'Exterior' ? <><option>Smooth Composite</option><option>Textured Composite</option></> : null}</select></label><label className="grid gap-1 text-sm font-semibold">Hinge Type<select data-comparison-different={differs('hingeType') || undefined} className={control} onChange={(event) => set('hingeType', event.target.value)} value={String(editor.hingeType ?? 'REG')}>{hingeTypeOptions(mode).map((value) => <option key={value} value={value}>{value}</option>)}</select></label><label className="grid gap-1 text-sm font-semibold">Hinge Color<select className={control} disabled={!canEdit || !onHingeColorChange} onChange={(event) => onHingeColorChange?.(event.target.value)} data-comparison-different={differs('hingeColor') || undefined} value={hingeColor}>{!normalizeHingeColor(hingeColor).ok ? <option disabled value={hingeColor}>Invalid saved value — choose a valid finish</option> : null}{HINGE_COLOR_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></> : null}
           {mode === 'Exterior' ? <><label className="grid gap-1 text-sm font-semibold">Material<select data-comparison-different={differs('material') || undefined} className={control} onChange={(event) => set('material', event.target.value)} value={String(editor.material)}><option value="fiberglass">Fiberglass</option><option value="wood">Wood</option></select></label><label className="grid gap-1 text-sm font-semibold">Weatherstrip<input data-comparison-different={differs('weatherstrip') || undefined} className={control} onChange={(event) => set('weatherstrip', event.target.value)} value={String(editor.weatherstrip ?? '')}/></label></> : null}
           {!noJamb ? <label className="grid gap-1 text-sm font-semibold">Sill<select data-comparison-different={differs('sill') || undefined} className={control} onChange={(event) => set('sill', event.target.value)} value={sillChoice(editor)}>{SILL_CHOICES.map((value) => <option key={value} value={value}>{value}</option>)}</select></label> : null}
-          {!patio ? <fieldset className="flex flex-wrap items-center gap-2 text-sm"><legend className="font-semibold">Sizing Adjustments</legend>{([['WoodCustom', 'Custom Slab'], ['RO', 'Fit to RO']] as const).map(([value, label]) => {
-            const enabled = value === 'WoodCustom' ? editor.customSlab === 'WoodCustom' || editor.customSlab === 'Yes' : editor.customSlab === 'RO';
+          {!patio ? <fieldset className="flex flex-wrap items-center gap-2 text-sm"><legend className="font-semibold">Sizing Adjustments</legend>{([['WoodCustom', 'Custom Slab'], ['RO', 'Fit to RO']] as const).filter(([value]) => value !== 'WoodCustom' || hasDoubleDoorCore(config)).map(([value, label]) => {
+            const enabled = value === 'WoodCustom' ? hasCustomSlabAxis(editor) : editor.customSlab === 'RO';
             return <button key={value} role="switch" aria-label={label} aria-checked={enabled} data-comparison-different={differs('customSlab') || undefined} disabled={!enabled && (value === 'RO' ? noJamb : !hasDoubleDoorCore(config) && editor.material !== 'wood')} className={button + (enabled ? ' border-sky-700 bg-sky-700 text-white' : '')} onClick={() => set('customSlab', enabled ? 'No' : value)} type="button">{label} <span className="text-xs font-bold">{enabled ? 'ON' : 'OFF'}</span></button>;
           })}</fieldset> : null}
           {customDD ? <>
             {([['activeWidth', 'Active Slab Width'], ['inactiveWidth', 'Inactive Slab Width'], ['height', 'Slab Height']] as const).map(([field, label]) => <DimensionInput key={field} label={label} required value={String(customSizing?.[field] ?? '')} onValue={(value) => set('doubleDoorSizing', { kind: 'custom-slabs', activeWidth: customSizing?.activeWidth ?? '', inactiveWidth: customSizing?.inactiveWidth ?? '', height: customSizing?.height ?? '', [field]: value })}/>)}
             {!customDoubleDoorSlabs(customSizing) ? <p className="text-xs text-amber-800" role="status">{CUSTOM_DD_REQUIRED}</p> : null}
           </> : null}
-          {!patio && !customDD && editor.customSlab === 'WoodCustom' ? <><DimensionInput different={differs('customSlabWidth')} error={fieldErrors.customSlabWidth} label="Custom Slab Width" onValue={(value) => setDimension('customSlabWidth', value)} required value={String(editor.customSlabWidth ?? '')}/><DimensionInput different={differs('customSlabHeight')} error={fieldErrors.customSlabHeight} label="Custom Slab Height" onValue={(value) => setDimension('customSlabHeight', value)} required value={String(editor.customSlabHeight ?? '')}/></> : null}
           {config === 'B.P.' ? <label className="grid gap-1 text-sm font-semibold">F.O. Height (only when cutting)<input data-comparison-different={differs('roHeight') || undefined} className={control} onChange={(event) => set('roHeight', event.target.value)} value={String(editor.roHeight ?? '')}/></label> : null}
           <label className="grid gap-1 text-sm font-semibold">Door Thickness<select data-comparison-different={differs('doorThickness') || undefined} className={control} onChange={(event) => set('doorThickness', event.target.value)} value={String(editor.doorThickness ?? '')}><option value="">Auto</option><option>1-3/8</option><option>1-3/4</option></select></label>
         {usesCustomRo(editor) ? <div className="contents" aria-label="Custom RO dimensions">

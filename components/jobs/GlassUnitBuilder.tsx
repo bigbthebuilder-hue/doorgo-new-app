@@ -13,7 +13,7 @@ import {
 import { calculateGlassCompositionSchematic } from '@/lib/jobs/glass-diagram-contract';
 import { nextGlassBuilderDraft, reconcileGlassTopology } from '@/lib/jobs/glass-editor-contract';
 import { isGlassConfiguration, automaticSidelightTBar, automaticTransomTBar, calculateGlassGeometry, normalizeGlassTypeCode, normalizeSidelightType, normalizeTBarSize, numericDimension } from '@/lib/jobs/glass-geometry-contract';
-import { canonicalSidelightSpecifications, reconcileGlassDimensionCommit, type GlassDimensionAuthority } from '@/lib/jobs/glass-dimension-reconciliation-contract';
+import { canonicalSidelightSpecifications, reconcileGlassDimensionCommit, reconcileGlassDoorSetupChange, type GlassDimensionAuthority } from '@/lib/jobs/glass-dimension-reconciliation-contract';
 import { aggregateVendorCopy, glassResultRows } from '@/lib/jobs/glass-result-presentation';
 import type { DoorLineInput, GlassTypeCode, SidelightSpecification, SidelightType } from '@/lib/jobs/job-intake-types';
 import { GlassUnitDiagram } from './GlassUnitDiagram';
@@ -272,12 +272,9 @@ export function GlassUnitBuilder({ line, comparisonBaseline = null, onCancel, on
   function setAstragal(value: DoubleDoorAstragalType) {
     setDraft((current) => {
       const next = nextGlassBuilderDraft(current, 'doubleDoorAstragal', value);
-      const first = canonicalSidelightSpecifications(next)[0];
-      if (!first?.finishedWidth) return next;
-      const reconciled = reconcileGlassDimensionCommit(next, { kind: 'sidelightWidth', side: first.side, index: first.index, value: first.finishedWidth });
-      if (reconciled.blockers.length) { setMessage(reconciled.blockers[0].message); return next; }
-      setMessage('');
-      return { ...next, ...reconciled.sourcePatch };
+      const reconciled = reconcileGlassDoorSetupChange(current, next);
+      setMessage(calculateGlassGeometry(reconciled).blockers[0]?.message ?? '');
+      return reconciled;
     });
   }
 

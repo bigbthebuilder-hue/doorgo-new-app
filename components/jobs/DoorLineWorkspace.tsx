@@ -17,6 +17,7 @@ import {
 import { prepareGlassOverrideAction, removeGlassOverrideAction } from '@/lib/jobs/job-intake-actions';
 import { formatShopDimension, parseShopDimension, parseStoredShopDimension } from '@/lib/jobs/dimension-contract';
 import { canCommitGlassCalculation } from '@/lib/jobs/glass-editor-contract';
+import { reconcileGlassDoorSetupChange } from '@/lib/jobs/glass-dimension-reconciliation-contract';
 import { HINGE_COLOR_OPTIONS, hingeTypeAfterModeChange, hingeTypeOptions, normalizeHingeColor } from '@/lib/jobs/hinge-contract';
 import type { DoorLineInput, GlassCalculationStatus, GlassIssue, JobLifecycleStage } from '@/lib/jobs/job-intake-types';
 import { GlassUnitBuilder, initialBuilderDraft } from './GlassUnitBuilder';
@@ -196,7 +197,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     setEditor((current) => {
       const next = name === 'sill' ? withSillChoice(current, value as SillChoice) : name === 'customSlab' ? changeSizingMode(current, value as 'No' | 'WoodCustom' | 'RO') : { ...current, [name]: value };
       if (name === 'doubleDoorSizing' && next.doubleDoorSizing?.kind === 'custom-slabs') next.customSlab = 'WoodCustom';
-      return geometryFields.has(name) && geometryChanged(current, next) ? clearCalculated(next) : next;
+      return geometryFields.has(name) && geometryChanged(current, next) ? clearCalculated(reconcileGlassDoorSetupChange(current, next)) : next;
     });
     setFieldErrors((current) => {
       const next = { ...current };
@@ -210,7 +211,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
 
   function setSizeAxis(axis: SlabAxis, value: string) {
     if (hasDoubleDoorCore(config) || noJamb) { if (axis === 'height') setHeight(value); else set('width', value); return; }
-    setEditor((current) => clearCalculated(selectSlabAxis(current, axis, value)));
+    setEditor((current) => clearCalculated(reconcileGlassDoorSetupChange(current, selectSlabAxis(current, axis, value))));
     if (axis === 'height' && value !== 'Custom') setHeight(value);
     setFieldErrors({}); setExplicitGlassDetailNeeded(false); setCalculationStatus(null); clearWorkspaceMessage();
   }
@@ -228,11 +229,11 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
 
   function setHeight(value: string) {
     newDoorSession.current = rememberNewDoor(newDoorSession.current, { ...editor, height: value }, editingLineId);
-    setEditor((current) => clearCalculated({
+    setEditor((current) => clearCalculated(reconcileGlassDoorSetupChange(current, {
       ...current,
       height: value,
       prep: prepAfterHeightChange(current.mode === 'Interior' ? 'Interior' : 'Exterior', String(current.config), current.prep, value),
-    }));
+    })));
     setExplicitGlassDetailNeeded(false);
     setCalculationStatus(null);
     clearWorkspaceMessage();

@@ -79,6 +79,21 @@ function fixedHeaderWidth(input: DoorLineInput): { width: number; slabWidth: num
   return { width: glassDoorCoreHeaderWidth(slab.width, doorCount, input.doubleDoorAstragal, leaves), slabWidth: slab.width, doorCount, astragal: input.doubleDoorAstragal, leaves };
 }
 
+// Direct dimension commits synchronize the pair. A later door-core change uses
+// the current RO, regardless of which dimension the user originally entered.
+export function reconcileGlassDoorSetupChange(previous: DoorLineInput, next: DoorLineInput): DoorLineInput {
+  if (!isGlassConfiguration(next.config) || !orderedPositions(next).length || !numericDimension(next.roWidth).ok) return next;
+  const before = fixedHeaderWidth(previous);
+  const after = fixedHeaderWidth(next);
+  // Incomplete slab inputs already prevent authoritative geometry. Reconcile as
+  // soon as the core becomes calculable; valid height-only changes leave it alone.
+  if (!after || before?.width === after.width) return next;
+  const result = reconcileGlassDimensionCommit(next, { kind: 'roWidth', value: next.roWidth });
+  // Include invalid derived widths too, so existing validation blocks impossible
+  // combinations instead of allowing the previous positive widths to survive.
+  return { ...next, ...result.sourcePatch, roWidth: next.roWidth };
+}
+
 function availableSidelightWidth(roWidth: number, fixed: { slabWidth: number; doorCount: 1 | 2; astragal: unknown; leaves: readonly number[] }, specifications: SidelightSpecification[]): number {
   return availableSidelightWidthForRo(roWidth, fixed.slabWidth, fixed.doorCount, specifications.map((entry) => entry.tBarSize as GlassTBarSize), fixed.astragal, fixed.leaves);
 }

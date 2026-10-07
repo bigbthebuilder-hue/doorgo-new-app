@@ -28,7 +28,8 @@ assert.match(workspace,/card\.recordKind==='calendar_item'\?await deleteCalendar
 assert.match(calendarActions,/backorder_delete_required:'Use Delete Backorder/);
 assert.match(calendarActions,/completed_item:'Reopen this Calendar item before deleting it\.'/);
 assert.match(productionActions,/export async function deleteCalendarProductionBooking/);
-assert.match(productionActions,/getPermissionAccess\(access,'production'\)!=='use'/);
+assert.match(productionActions,/canMutateCalendar\(access\)/);
+assert.doesNotMatch(productionActions,/getPermissionAccess\(access,'production'\)/);
 assert.match(normalize,/updatedAt: row\.updated_at/);
 
 console.log('Unified active Calendar delete lifecycle verification passed');

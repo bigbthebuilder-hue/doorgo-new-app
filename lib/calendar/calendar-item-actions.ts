@@ -1,5 +1,6 @@
 'use server';
 
+import { canMutateCalendar } from './permissions';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { getPermissionAccess } from '@/lib/auth/access';
 import { createAuthenticatedSupabaseServerClient } from '@/lib/supabase/server';
@@ -20,14 +21,14 @@ export type CalendarNoteEditInput={commandId:string;itemId:string;expectedRevisi
 export type CalendarNoteConvertInput={commandId:string;itemId:string;expectedRevision:number;destination:'production'|'delivery'|'customer_pickup'|'staff_away';scheduledDate:string|null;linkedInternalJobId:string|null;name:string;salesOrder:string;salesperson:string;shopHours:number|null;timing:string;staffId:string|null;endDate:string|null;awayMode:'full_day'|'partial';partialDragHours:number|null;reason:string};
 export type CalendarSearchTarget={bookingId:string;productionDate:string;customer:string;jobId:string|null;calendarItemType:'production'|'delivery'|'customer_pickup'|'note'};
 
-const failure=(error:unknown):{ok:false;message:string;code:string}=>{const raw=error&&typeof error==='object'&&'message'in error?String(error.message):'';const code=raw.startsWith('calendar_item.')?raw.slice(14):'unavailable';
-  const messages:Record<string,string>={permission_required:'Calendar use permission is required.',production_permission_required:'Production use permission is required.',production_already_scheduled:'This job already has a current Production booking.',jobs_permission_required:'Jobs use permission is required to link this item.',name_required:'Name is required.',salesperson_required:'Salesperson is required for Production.',job_not_found:'The selected DoorGo job is unavailable.',not_found:'This Calendar item is no longer available.',stale_item:'This item changed after Calendar loaded. Reopen its details and try again.',completed_item:'Reopen this Calendar item before deleting it.',backorder_delete_required:'Use Delete Backorder so its Sales Order is released safely.',fulfillment_portion_missing:'This fulfillment item has lost its authoritative order link.',fulfillment_mismatch:'This Job has a different fulfillment type.',duplicate_fulfillment:'This order already has an active fulfillment appointment.',closed_date_override_required:'Confirm scheduling on this closed date.',stale_order:'Calendar ordering changed elsewhere. Try again.',invalid_order:'The requested Calendar order is invalid.',invalid_request:'The Calendar request is invalid.'};
+const failure=(error:unknown):{ok:false;message:string;code:string}=>{const raw=error&&typeof error==='object'&&'message'in error?String(error.message):'';const code=raw.startsWith('calendar_item.')?raw.slice(14):raw.startsWith('calendar_edit.')?raw.slice(14):'unavailable';
+  const messages:Record<string,string>={stale_job:'The linked Job changed. Reopen Edit and try again.',completed:'Reopen this item before editing it.',completed_or_locked:'This item is completed or locked. Reopen it or resolve the lock before editing.',closed_acknowledgement_required:'Confirm scheduling on this closed date.',order_identity_read_only:'This established order identity cannot be changed here.',permission_required:'Calendar use permission is required.',production_permission_required:'Production use permission is required.',production_already_scheduled:'This job already has a current Production booking.',jobs_permission_required:'Jobs use permission is required to link this item.',name_required:'Name is required.',salesperson_required:'Salesperson is required for Production.',job_not_found:'The selected DoorGo job is unavailable.',not_found:'This Calendar item is no longer available.',stale_item:'This item changed after Calendar loaded. Reopen its details and try again.',completed_item:'Reopen this Calendar item before deleting it.',backorder_delete_required:'Use Delete Backorder so its Sales Order is released safely.',fulfillment_portion_missing:'This fulfillment item has lost its authoritative order link.',fulfillment_mismatch:'This Job has a different fulfillment type.',duplicate_fulfillment:'This order already has an active fulfillment appointment.',closed_date_override_required:'Confirm scheduling on this closed date.',stale_order:'Calendar ordering changed elsewhere. Try again.',invalid_order:'The requested Calendar order is invalid.',invalid_request:'The Calendar request is invalid.'};
   return {ok:false,code,message:messages[code]??'Calendar could not save this change. Please try again.'};};
-async function calendarUse(){const access=await getCurrentDoorGoAccess();return getPermissionAccess(access,'calendar')==='use';}
+async function calendarUse(){const access=await getCurrentDoorGoAccess();return canMutateCalendar(access);}
 async function rpc(name:string,args:Record<string,unknown>):Promise<CalendarMutationResult>{if(!await calendarUse())return failure({message:'calendar_item.permission_required'});const result=await (await createAuthenticatedSupabaseServerClient()).rpc(name,args);if(result.error)return failure(result.error);return {ok:true,data:(result.data??{}) as Record<string,unknown>};}
 
 export async function searchCalendarLinkableJobs(input:{query:string;itemType:CalendarLinkItemType}):Promise<{ok:true;options:CalendarJobOption[]}|{ok:false;message:string}>{
-  const query=input.query.trim();if(!query)return {ok:true,options:[]};const access=await getCurrentDoorGoAccess();if(getPermissionAccess(access,'jobs')==='none')return {ok:false,message:'Jobs view permission is required.'};
+  const query=input.query.trim();if(!query)return {ok:true,options:[]};const access=await getCurrentDoorGoAccess();if(!canMutateCalendar(access)&&getPermissionAccess(access,'jobs')==='none')return {ok:false,message:'Jobs view permission is required.'};
   try{const result=await (await createAuthenticatedSupabaseServerClient()).rpc('search_calendar_linkable_jobs',{p_query:query,p_item_type:input.itemType,p_limit:20});
     if(result.error)throw result.error;const rows=Array.isArray(result.data)?result.data:[];
     return {ok:true,options:rows.map((row)=>{const value=row as Record<string,unknown>;return {internalJobId:String(value.internal_job_id),customer:String(value.customer??''),salesOrder:String(value.biztrack_sales_order??value.visible_identifier??''),doorGoReference:typeof value.door_go_reference==='string'?value.door_go_reference:null,salesperson:typeof value.salesperson==='string'?value.salesperson:null,fulfillmentPlan:typeof value.fulfillment_plan==='string'?value.fulfillment_plan:null,revision:Number(value.revision)};})};
@@ -54,7 +55,7 @@ export async function searchScheduledCalendar(input:{query:string}):Promise<{ok:
 }
 
 export async function createCalendarItem(input:CalendarCreateInput):Promise<CalendarCreateResult>{
-  const access=await getCurrentDoorGoAccess();if(getPermissionAccess(access,'calendar')!=='use')return failure({message:'calendar_item.permission_required'});
+  const access=await getCurrentDoorGoAccess();if(!canMutateCalendar(access))return failure({message:'calendar_item.permission_required'});
   let authoritativeJob=null;
   if(input.linkedInternalJobId){try{const repository=createJobIntakeRepository();authoritativeJob=await repository.findById(input.linkedInternalJobId);if(!authoritativeJob)return failure({message:'calendar_item.job_not_found'});
     if(!calendarJobEligible(authoritativeJob.fulfillmentPlan,input.itemType))return {ok:false,code:'fulfillment_mismatch',message:`This Job is already marked ${authoritativeJob.fulfillmentPlan} and cannot be linked to this appointment type.`};
@@ -89,3 +90,14 @@ export async function updateCalendarNote(input:CalendarNoteEditInput):Promise<Ca
 }
 
 export async function convertCalendarNote(input:CalendarNoteConvertInput):Promise<CalendarMutationResult>{return rpc('convert_calendar_note',{p_command_id:input.commandId,p_item_id:input.itemId,p_expected_revision:input.expectedRevision,p_destination:input.destination,p_scheduled_date:input.scheduledDate,p_linked_internal_job_id:input.linkedInternalJobId,p_name:input.name,p_sales_order:input.salesOrder,p_salesperson:input.salesperson,p_shop_hours:input.shopHours,p_timing:input.timing,p_staff_id:input.staffId,p_end_date:input.endDate,p_away_mode:input.awayMode,p_partial_drag_hours:input.partialDragHours,p_reason:input.reason});}
+
+export type CalendarEditSnapshot = { key:string; kind:'production'|'delivery'|'customer_pickup'; revision?:number; dayOrder?:number; updatedAt?:string; linkedJobId?:string; jobRevision?:number; name:string; salesOrder:string|null; salesperson:string|null; shopHours?:number|null; date:string|null; timing?:string|null; fulfillmentNote?:string|null; identityReadOnly:boolean; completed:boolean };
+export type CalendarEditValues = Pick<CalendarEditSnapshot,'name'|'salesOrder'|'salesperson'|'shopHours'|'date'|'timing'|'fulfillmentNote'>;
+export async function loadCalendarEdit(key:string) {
+  const result=await rpc('calendar_item_edit_snapshot',{p_key:key});
+  return result.ok ? {ok:true as const,snapshot:result.data as CalendarEditSnapshot} : result;
+}
+export async function saveCalendarEdit(expected:CalendarEditSnapshot,values:CalendarEditValues,closedAcknowledged:boolean) {
+  const result=await rpc('save_calendar_item_edit',{p_command_id:crypto.randomUUID(),p_expected:expected,p_values:values,p_closed_acknowledged:closedAcknowledged});
+  return result.ok ? {ok:true as const,snapshot:result.data as CalendarEditSnapshot} : result;
+}

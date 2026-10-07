@@ -1,4 +1,5 @@
 import { createTrustedReadOnlySupabaseClient } from '@/lib/supabase/trusted-read-server';
+import { createAuthenticatedSupabaseServerClient } from '@/lib/supabase/server';
 import { createJobIntakeRepository } from '@/lib/jobs/job-intake-repository';
 import {
   loadConfirmedCheckpointsInRange,
@@ -166,6 +167,9 @@ export async function loadProductionBoardReadOnly(params: {
     today: params.today,
     exceptionalVisibleDates:capacityExceptionPayload.exceptionalDates,
   });
+  // Linked fulfillment notes are Job-owned. Load once per Calendar window, never per card.
+  const noteJobIds=[...new Set(itemRows.filter(row=>row.item_type!=='note'&&row.linked_internal_job_id).map(row=>row.linked_internal_job_id!))];
+  if(noteJobIds.length){const authenticatedSupabase=await createAuthenticatedSupabaseServerClient();const notes=await authenticatedSupabase.rpc('calendar_linked_fulfillment_notes',{p_internal_job_ids:noteJobIds});if(notes.error)throw new Error('Could not load linked fulfillment notes.');const noteRows=(notes.data??[]) as Array<{internal_job_id:string;notes:string|null}>;const byJob=new Map<string,string|null>(noteRows.map((row)=>[row.internal_job_id,row.notes]));for(const row of itemRows){if(row.item_type!=='note'&&row.linked_internal_job_id)row.fulfillment_note=byJob.get(row.linked_internal_job_id)??null;}}
   const withItems=mergeCalendarItems(productionBoard,itemRows.map((row)=>{const native=row.linked_internal_job_id?nativeLinks.byInternalJobId.get(row.linked_internal_job_id):undefined;const job=native?{internalJobId:native.internalJobId,customer:native.customer,salesOrder:native.salesOrder,salesperson:row.salesperson}:undefined;return calendarItemCard(row,job,{included:row.sales_order?[row.sales_order]:[],available:[]});}));
   return mergeCapacityExceptions(mergeStaffAway(withItems,staffAwayPayload),capacityExceptionPayload);
 }

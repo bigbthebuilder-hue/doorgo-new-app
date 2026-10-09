@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const sql=fs.readFileSync('supabase/migrations/20261009153600_staff_away_capacity_drag_max.sql','utf8');
+const authority=fs.readFileSync('supabase/migrations/20260825040000_add_staff_away_operations.sql','utf8');
+assert.match(authority,/dg_staff_away_full_day_impact\(p_staff_id uuid,p_date date\)\s+RETURNS numeric/);
+assert.match(authority,/v_max_impact:=public.dg_staff_away_full_day_impact\(p_staff_id,p_start_date\)/);
+assert.match(authority,/p_partial_drag_hours>v_max_impact THEN RAISE EXCEPTION USING MESSAGE='staff_away.partial_drag_excessive'/);
+assert.match(authority,/p_start_date<>p_end_date OR NOT public.dg_staff_away_is_working_day/);
+assert.match(sql,/RETURNS numeric LANGUAGE plpgsql SECURITY DEFINER SET search_path='' STABLE/);
+assert.match(sql,/dg_staff_away_scope\(true\)/);
+assert.match(sql,/s.staff_id=p_staff_id AND s.company_location=v_location/);
+assert.match(sql,/dg_staff_away_is_working_day\(v_location,p_date\)/);
+assert.match(sql,/RETURN public.dg_staff_away_full_day_impact\(p_staff_id,p_date\);/);
+assert.equal((sql.match(/CREATE FUNCTION/g)||[]).length,1);
+assert.equal((sql.match(/GRANT EXECUTE/g)||[]).length,1);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public.calendar_staff_away_capacity_drag_max\(uuid,date\) TO authenticated/);
+assert.match(sql,/REVOKE ALL[\s\S]*FROM PUBLIC,anon,authenticated,service_role/);
+assert.doesNotMatch(sql,/CREATE TABLE|CREATE POLICY|INSERT INTO|UPDATE public|DELETE FROM|dg_staff_capacity_versions|dg_staff_capacity_weekdays/);
+assert.doesNotMatch(sql,/GRANT[^;]*dg_staff_away_full_day_impact/);
+console.log('Staff Away maximum RPC: exact validation helper, single-date semantics, company scope and restricted grants PASS. No capacity/save formula changed.');

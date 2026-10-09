@@ -25,3 +25,12 @@ export async function loadNextBackorderSalesOrder() { return { ok: true, salesOr
 
 export async function loadCalendarEdit(key:string) { return {ok:true,snapshot:{key,kind:key.startsWith('item:')?key.slice(5):'production',linkedJobId:document.querySelector('[data-calendar-test-linked="true"]')?'11111111-1111-4111-8111-111111111111':null,jobRevision:1,revision:1,name:'Permission Test',salesOrder:'',salesperson:'Staff',shopHours:2,date:'2026-10-06',updatedAt:'2026-10-06T10:00:00Z',identityReadOnly:false,completed:false}}; }
 export async function saveCalendarEdit(expected:Record<string,unknown>,values:Record<string,unknown>) { document.dispatchEvent(new CustomEvent('calendar-edit-save',{detail:{expected,values}})); return {ok:true,snapshot:{...expected,...values}}; }
+
+// Deterministic RPC fixture values, not a capacity calculation.
+export async function loadStaffAwayCapacityDragMax(staffId:string,date:string) {
+ const delay=Number(document.documentElement.getAttribute('data-maximum-delay')??'0');
+ const unavailable=document.documentElement.hasAttribute('data-maximum-unavailable');
+ const maximum=staffId==='staff-2'?1:date==='2026-10-07'?3:5;
+ await new Promise(resolve=>setTimeout(resolve,delay));
+ return unavailable?{ok:false,message:'Maximum unavailable.'}:{ok:true,maximum};
+}

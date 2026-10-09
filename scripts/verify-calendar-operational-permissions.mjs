@@ -43,6 +43,7 @@ require.extensions['.ts'] = (module, file) => module._compile(ts.transpileModule
 let access;
 const calls = [];
 let responseError = null;
+let staffAwayMaximum = 5;
 const id = '11111111-1111-4111-8111-111111111111';
 const timestamp = '2026-10-06T20:00:00Z';
 const card = { bookingId: 'booking-1', productionDate: '2026-10-07', completedAt: null };
@@ -55,6 +56,7 @@ const rpc = async (name, args) => {
     data = [{ event_id: id, booking_id: 'booking-1', production_date: '2026-10-07', previous_completed_at: reopen ? timestamp : null, resulting_completed_at: reopen ? null : timestamp, occurred_at: timestamp, action_type: reopen ? 'reopened' : 'completed', status: reopen ? 'reopened' : 'completed' }];
   } else if (name === 'calendar_place_production_booking') data = [{ move_id: id, booking_id: 'booking-1', previous_production_date: '2026-10-07', new_production_date: '2026-10-08', previous_day_order: 1024, new_day_order: 2048, shop_hours: 2, moved_at: timestamp, action_type: 'reschedule', destination_was_closed: false, status: 'moved' }];
   else if (name === 'calendar_reorder_production_day') data = [{ booking_id: 'booking-1', day_order: 1024, updated_at: timestamp }];
+  if(name==='calendar_staff_away_capacity_drag_max')data=staffAwayMaximum;
   return { data, error: null };
 };
 Module._load = function (name, parent, main) {
@@ -74,6 +76,7 @@ const fulfill = require('../lib/calendar/fulfillment-actions.ts');
 const base = { commandId: id, bookingId: 'booking-1', expectedProductionDate: '2026-10-07' };
 const item = { commandId: id, itemId: id, expectedRevision: 1 };
 const operations = [
+  () => away.loadStaffAwayCapacityDragMax(id,'2026-10-07'),
   () => items.searchCalendarLinkableJobs({query:'Customer',itemType:'note'}),
   () => items.loadCalendarEdit('booking-1'),
   () => items.saveCalendarEdit({key:'booking-1'},{name:'Test',date:'2026-10-08'},false),
@@ -122,5 +125,14 @@ assert.equal(manualMove({ ...unknownHours, locked: true }, false), 'This booking
 assert.ok(manualMove({ ...unknownHours, shopHours: -1 }, false));
 assert.ok(manualMove(unknownHours, true));
 assert.equal(manualMove({ ...unknownHours, completedAt: null }, false), null);
+for(const maximum of [0,1,5,'1.25']){
+ staffAwayMaximum=maximum;
+ assert.deepEqual(await away.loadStaffAwayCapacityDragMax(id,'2026-10-07'),{ok:true,maximum:Number(maximum)});
+ assert.deepEqual(calls.at(-1),{name:'calendar_staff_away_capacity_drag_max',args:{p_staff_id:id,p_date:'2026-10-07'}});
+}
+for(const maximum of [null,'',-1,'not a number',{},Infinity]){staffAwayMaximum=maximum;assert.equal((await away.loadStaffAwayCapacityDragMax(id,'2026-10-07')).ok,false);}
+responseError='staff_away.partial_drag_excessive';
+assert.equal((await away.saveStaffAway({commandId:id,periodId:null,expectedRevision:null,staffId:id,startDate:'2026-10-07',endDate:'2026-10-07',mode:'partial',partialDragHours:6,reason:''})).code,'partial_drag_excessive');
+responseError=null;
 Module._load = originalLoad;
 console.log('Calendar permissions: SQL preservation, planning isolation, server view/use matrix, mixed ordering, lifecycle, Staff Away and conversions PASS (mocked RPCs; no database writes).');

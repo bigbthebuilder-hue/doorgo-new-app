@@ -9,7 +9,7 @@ export function DoorLineWorkspaceHarness({ initialLines }: { initialLines?: Door
     jambWidth: '4-9/16', jambType: 'Primed', hingeType: 'REG', material: 'fiberglass',
     sill: 'Bronze', weatherstrip: 'Bronze', customSlab: 'No', doorThickness: '1-3/4',
   })));
-  return <div className="app-workspace app-workspace-fluid"><DoorLineWorkspace canEdit lifecycleStage="Draft" lines={lines} onChange={setLines}/></div>;
+  return <div className="app-workspace app-workspace-fluid"><DoorLineWorkspace canEdit lifecycleStage="Draft" lines={lines} onChange={setLines}/><output hidden data-testid="saved-lines">{JSON.stringify(lines)}</output></div>;
 }
 
 export function FlexibleShopHoursHarness() {

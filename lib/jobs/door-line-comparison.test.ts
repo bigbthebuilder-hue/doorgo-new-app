@@ -28,7 +28,9 @@ assert.equal(lastActiveDoorBaseline([{ lineId: 'archived', lineStatus: 'Archived
 const workspace = readFileSync('components/jobs/DoorLineWorkspace.tsx', 'utf8');
 assert.match(workspace, /const priorDoor = lastActiveDoorBaseline\(lines\)/);
 assert.match(workspace, /editingLineId !== null \? JSON\.parse\(editorBaseline\) : priorDoor/);
-for (const field of ['height', 'hand', 'jambType']) {
+for (const field of ['hand', 'jambType']) {
   assert.ok(workspace.includes(`data-comparison-different={differs('${field}') || undefined}`));
 }
 console.log('Door line comparison baseline: PASS');
+
+assert.ok(workspace.includes("data-comparison-different={differs('height') || (comparisonValues !== null && customSlabAxis(editor, 'height') !== customSlabAxis(comparisonValues, 'height')) || undefined}"), 'Height comparison includes nominal and custom-axis differences');

@@ -35,7 +35,7 @@ export function createNewDoorSession(): NewDoorSession {
 
 // Only new-door events may write session memory; saved-line edits are isolated.
 export function rememberNewDoor(session: NewDoorSession, line: DoorLineInput, editingLineId: string | null): NewDoorSession {
-  if (editingLineId !== null) return session;
+  if (editingLineId !== null || (line.mode !== 'Interior' && line.mode !== 'Exterior')) return session;
   const mode = line.mode === 'Interior' ? 'Interior' : 'Exterior';
   const values = stickyValues(line);
   // PKT/B.P. clear the editor hinge without erasing the remembered framed-door choice.
@@ -60,6 +60,14 @@ export function isSameDoorMode(line: DoorLineInput, mode: DoorLineMode): boolean
 // The workspace's loaded lines array is the current job order, including local reorders.
 export function lastActiveDoorBaseline(lines: readonly DoorLineInput[]): DoorLineInput | null {
   return lines.filter((line) => (line.lineStatus ?? 'Active') === 'Active').at(-1) ?? null;
+}
+
+// Intake designation comes from active job lines, never from session mode.
+export function newIntakeDoor(session: NewDoorSession, lines: readonly DoorLineInput[]): DoorLineInput {
+  const mode = lastActiveDoorBaseline(lines)?.mode;
+  return mode === 'Exterior' || mode === 'Interior'
+    ? newDoorFromSession(session, mode)
+    : { qty: 1, notes: '' };
 }
 
 export function replaceDoorLineById(lines: readonly DoorLineInput[], editingLineId: string, saved: DoorLineInput): DoorLineInput[] {

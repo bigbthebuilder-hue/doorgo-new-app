@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { defaultDoorLine } from './door-line-contract';
-import { createNewDoorSession, isSameDoorMode, newDoorFromSession, rememberNewDoor, replaceDoorLineById } from './door-line-editor-state';
+import { createNewDoorSession, newIntakeDoor, isSameDoorMode, newDoorFromSession, rememberNewDoor, replaceDoorLineById } from './door-line-editor-state';
 
 let session = createNewDoorSession();
 assert.equal(newDoorFromSession(session, 'Interior').hingeType, 'REG');
@@ -55,8 +55,13 @@ for (const height of [`7'0"`, `8'0"`]) {
 // Guard actual handler wiring as well as the pure state transitions above.
 const source = readFileSync('components/jobs/DoorLineWorkspace.tsx', 'utf8');
 assert.match(source, /if \(isSameDoorMode\(editor, nextMode\)\) return;\s*if \(!confirmsGlassDiscard\(\)\) return;/);
-assert.match(source, /function resetEditor\(\) \{\s*const next = newDoorFromSession\(newDoorSession.current\)/);
-assert.match(source, /rememberNewDoor\(newDoorSession.current, submittedEditor, editingLineId\);\s*const nextEditor = newDoorFromSession\(newDoorSession.current\)/);
-assert.match(source, /onChange\(replaceDoorLineById\(lines, editingLineId, saved\)\)/);
-assert.match(source, /function edit\(line: DoorLineInput\) \{[^]*?rememberNewDoor\(newDoorSession.current, editor, editingLineId\);/);
+assert.match(source, /newIntakeDoor\(newDoorSession, lines\)/);
+assert.match(source, /newIntakeDoor\(nextSession, nextLines\)/);
+assert.match(source, /replaceDoorLineById\(lines, editingLineId, saved\)/);
+const blank = newIntakeDoor(session, []);
+assert.deepEqual(blank, { qty: 1, notes: '' });
+assert.equal(rememberNewDoor(session, blank, null), session);
+assert.deepEqual(newIntakeDoor(session, [{ ...interior, lineStatus: 'Archived' }]), blank);
+assert.deepEqual(newIntakeDoor(session, [exterior, interior]), newDoorFromSession(session, 'Interior'));
+assert.deepEqual(newIntakeDoor(session, [interior, exterior, { ...interior, lineStatus: 'Archived' }]), newDoorFromSession(session, 'Exterior'));
 console.log('Door line lifecycle: PASS');

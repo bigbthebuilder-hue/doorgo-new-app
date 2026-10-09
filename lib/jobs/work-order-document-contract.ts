@@ -12,6 +12,7 @@ import { calculateGlassGeometry, withDerivedGlassGeometry } from './glass-geomet
 import { isFrameGlassConfiguration } from './glass-unit-composition-contract';
 import { unifiedJobIdentifier } from './unified-job-identifier';
 import { hasDoubleDoorCore, normalizeDoubleDoorAstragal } from './double-door-astragal-contract';
+import { showsMagCatch } from './interior-dd-presentation';
 
 export const WORK_ORDER_COLUMNS = ['Qty', 'Config', 'Size', 'Thick', 'Door Type', 'Drill', 'Hinge', 'Swing', 'Jamb', 'Sill', 'W/S', 'Notes/Glass'] as const;
 export const FIRST_PAGE_WEIGHT_CAPACITY = 22;
@@ -340,7 +341,11 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
       ? 'Blocked'
       : nonGlassResult?.warnings.length ? 'Warning' : 'Complete';
   const details = compactWorkOrderDetails(glassConfiguration ? glassDetailRows(outputLine) : nonGlassDetailRows(nonGlassResult!, outputLine));
-  if (!glassConfiguration && hasDoubleDoorCore(outputLine.config) && normalizeDoubleDoorAstragal(outputLine.doubleDoorAstragal) === 'wood-ferco-astra-lock') {
+  if (showsMagCatch(outputLine)) {
+    const frame = details.find((row) => row.kind === 'frame');
+    if (frame) frame.lines = [...frame.lines, 'Mag Catch'];
+    else details.unshift({ kind: 'frame', lines: ['Mag Catch'] });
+  } else if (!glassConfiguration && hasDoubleDoorCore(outputLine.config) && normalizeDoubleDoorAstragal(outputLine.doubleDoorAstragal) === 'wood-ferco-astra-lock') {
     const frame = details.find((row) => row.kind === 'frame');
     if (frame) frame.lines = [...frame.lines, 'Astragal: Wood / Ferco Astra Lock — 1"'];
     else details.unshift({ kind: 'frame', lines: ['Astragal: Wood / Ferco Astra Lock — 1"'] });

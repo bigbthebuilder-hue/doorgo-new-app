@@ -2,6 +2,36 @@ import { expect, test } from '@playwright/experimental-ct-react';
 import { DoorLineWorkspaceHarness } from './DoorLineWorkspaceHarness';
 import { defaultDoorLine } from '@/lib/jobs/door-line-contract';
 
+test('Exterior astragal and Interior single-door saved wording remain unchanged', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await mount(<DoorLineWorkspaceHarness initialLines={[
+    { ...defaultDoorLine('Exterior'), lineId: 'metal', config: 'DD', doubleDoorAstragal: 'standard-metal-ds347' },
+    { ...defaultDoorLine('Exterior'), lineId: 'ferco', config: 'DD', doubleDoorAstragal: 'wood-ferco-astra-lock' },
+    { ...defaultDoorLine('Interior'), lineId: 'single', config: 'D' },
+  ]}/>);
+  const cards = page.locator('.job-line-card');
+  await expect(cards.nth(0)).toContainText('Astragal: Standard Metal');
+  await expect(cards.nth(1)).toContainText('Astragal: Wood + Ferco Astra Lock');
+  await expect(cards.nth(2)).not.toContainText(/Astragal|Mag Catch/);
+  for (const card of await cards.all()) await expect(card).not.toContainText('Mag Catch');
+});
+
+for (const doubleDoorAstragal of [null, 'standard-metal-ds347', 'wood-ferco-astra-lock'] as const) {
+  test(`Interior DD saved card Mag Catch with internal ${doubleDoorAstragal}`, async ({ mount, page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await mount(<DoorLineWorkspaceHarness initialLines={[{ ...defaultDoorLine('Interior'), lineId: 'interior-dd', doorType: 'Molded', config: 'DD', doubleDoorAstragal }]}/>);
+    const card = page.locator('.job-line-card');
+    await expect(card).toContainText('Mag Catch');
+    expect((await card.innerText()).match(/Mag Catch/g)).toHaveLength(1);
+    await expect(card).not.toContainText(/astragal|ferco|DS347|standard metal/i);
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByRole('button', { name: 'Update Door', exact: true }).click();
+    await expect(card).toContainText('Mag Catch');
+    expect((await card.innerText()).match(/Mag Catch/g)).toHaveLength(1);
+    await expect(card).not.toContainText(/astragal|ferco|DS347|standard metal/i);
+  });
+}
+
 for (const mode of ['Exterior', 'Interior'] as const) test(`first door explicitly chooses ${mode}`, async ({ mount, page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await mount(<DoorLineWorkspaceHarness initialLines={[]}/>);

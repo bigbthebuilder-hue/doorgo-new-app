@@ -1,5 +1,6 @@
 'use client';
 
+import { showsMagCatch } from '@/lib/jobs/interior-dd-presentation';
 import { customSlabAxis, hasCustomSlabAxis, selectSlabAxis, type SlabAxis } from '@/lib/jobs/slab-sizing-contract';
 import { statusLabel, hasVisibleStatus } from '@/lib/jobs/status-presentation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
@@ -59,7 +60,7 @@ function savedLineSelections(line: DoorLineInput): string {
   return [
     line.mode === 'Exterior' && line.material ? 'Material: ' + (line.material === 'fiberglass' ? 'Fiberglass' : line.material === 'wood' ? 'Wood' : line.material) : '',
     !noJamb ? 'Sill: ' + sillChoice(line) : '',
-    hasDoubleDoorCore(line.config) ? 'Astragal: ' + DOUBLE_DOOR_ASTRAGALS[normalizeDoubleDoorAstragal(line.doubleDoorAstragal)].label : '',
+    showsMagCatch(line) ? 'Mag Catch' : hasDoubleDoorCore(line.config) ? 'Astragal: ' + DOUBLE_DOOR_ASTRAGALS[normalizeDoubleDoorAstragal(line.doubleDoorAstragal)].label : '',
     topology && topology.sidelightPositions.length > 0 && line.sidelightType ? 'Sidelight Type: ' + line.sidelightType : '',
   ].filter(Boolean).join(' | ');
 }

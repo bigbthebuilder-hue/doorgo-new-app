@@ -49,6 +49,13 @@ function extractedWinAnsiText(bytes: Uint8Array): Promise<string> {
 }
 
 async function main() {
+  for (const doubleDoorAstragal of [null, 'standard-metal-ds347', 'wood-ferco-astra-lock'] as const) {
+    const interior = line({ config: 'DD', width: `2'6"`, hand: 'LH', jambWidth: '4-9/16', doubleDoorAstragal });
+    const pdf = await renderWorkOrderPdf(generateWorkOrderDocument(aggregate({ lines: [interior] }), generation));
+    const printed = (await extractedWinAnsiText(pdf)).replace(/\s+/g, ' ');
+    assert.equal(printed.match(/Mag Catch/g)?.length, 1, 'Interior DD prints one shop instruction');
+    assert.doesNotMatch(printed, /astragal|ferco|DS347|standard metal/i);
+  }
   const freshSource = line({ mode: 'Exterior', config: 'T/SD', material: 'fiberglass', hand: 'LH', hingeType: 'BB', roWidth: '60', roHeight: '96', sidelightType: 'Glass', sidelightGlass: 'Clear', transomGlass: 'Clear', includeDiagramOnWorkOrder: true });
   const stale = { ...freshSource, ...normalizeGlassDomainFields(freshSource), roWidth: '' };
   const incompleteDocument = generateWorkOrderDocument(aggregate({ lines: [stale] }), generation);

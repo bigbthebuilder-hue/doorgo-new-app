@@ -1,6 +1,102 @@
 import { expect, test } from '@playwright/experimental-ct-react';
 import { CalendarPermissionsHarness, ExistingCalendarEditHarness } from './CalendarPermissionsHarness';
 
+for (const scenario of [
+  {name:'opaque title',customer:null,title:"2.25 Hamilton Bro's 1254815",hours:2.25,so:'1254815',expected:"2.25 Hamilton Bro's 1254815"},
+  {name:'structured',customer:"Hamilton Bro's",title:'Opaque old title',hours:2.25,so:'1254815',expected:"2.25 · Hamilton Bro's · 1254815"},
+  {name:'numeric customer',customer:'5 Star Construction',title:'Old title',hours:5,so:'1108850',expected:'5 · 5 Star Construction · 1108850'},
+  {name:'missing hours',customer:"Hamilton Bro's",title:'Old title',hours:null,so:'1254815',expected:"Hamilton Bro's · 1254815"},
+  {name:'missing SO',customer:"Hamilton Bro's",title:'Old title',hours:2.25,so:null,expected:"2.25 · Hamilton Bro's"},
+]) test(`Production identity remains intact: ${scenario.name}`,async({mount,page})=>{
+  await page.setViewportSize({width:1600,height:1000});
+  const component=await mount(<CalendarPermissionsHarness identityFields={{customer:scenario.customer,title:scenario.title,shopHours:scenario.hours,shopHoursKnown:scenario.hours!==null,nativeSalesOrder:scenario.so,jobId:scenario.so}}/>);
+  const card=component.locator('[data-booking-id="production-test"]').first();
+  await expect(card.locator('.calendar-production-card-text')).toHaveText(scenario.expected);
+  await card.click();
+  await expect(card.locator('.calendar-expanded-info strong')).toHaveText(scenario.expected);
+  await card.getByRole('button',{name:'Complete',exact:true}).click();
+  await expect(card).toHaveAttribute('data-completed','true');
+  await expect(card.locator('.calendar-expanded-info strong')).toHaveText(scenario.expected);
+});
+
+test('move activity clears then delete uses its own label; missing SO stays clean', async ({ mount, page }) => {
+  await page.setViewportSize({width:1600,height:1000});
+  const component=await mount(<CalendarPermissionsHarness/>);
+  let card=component.locator('[data-booking-id="production-test"]').first();
+  await expect(card).toContainText('2 · Permission Test');
+  await page.clock.install();
+  await page.evaluate(()=>document.documentElement.setAttribute('data-defer-calendar','true'));
+  const dataTransfer=await page.evaluateHandle(()=>new DataTransfer());
+  await card.dispatchEvent('dragstart',{dataTransfer});
+  const destination=component.locator('[data-calendar-date="2026-10-07"]');
+  await destination.dispatchEvent('drop',{dataTransfer});
+  await page.clock.runFor(300);
+  await expect(page.locator('.calendar-activity')).toHaveText('Updating calendar…');
+  await page.evaluate(()=>document.dispatchEvent(new Event('release-calendar')));
+  await expect(page.locator('.calendar-activity')).toHaveCount(0);
+  card=destination.locator('[data-booking-id="production-test"]');
+  await card.dispatchEvent('dragend',{dataTransfer});
+  await page.clock.runFor(300);
+  await card.click();
+  await expect(card.locator('strong')).toHaveText('2 · Permission Test');
+  await card.getByRole('button',{name:'More details for Permission Test'}).click();
+  page.once('dialog',dialog=>dialog.accept());
+  await component.locator('.calendar-detail-panel').getByRole('button',{name:'Delete',exact:true}).click();
+  await page.clock.runFor(300);
+  await expect(page.locator('.calendar-activity')).toHaveText('Deleting…');
+  await page.evaluate(()=>document.dispatchEvent(new Event('release-calendar')));
+  await expect(page.locator('.calendar-activity')).toHaveCount(0);
+  await expect(card).toHaveCount(0);
+});
+
+for (const linked of [false, true]) test(`expanded identity and real completion activity linked=${linked}`, async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const component = await mount(<CalendarPermissionsHarness linked={linked} identity/>);
+  const card = component.locator('[data-booking-id="production-test"]').first();
+  await expect(card).toContainText('3.5 · Hamilton · 1603345');
+  await expect(page.locator('.calendar-activity')).toHaveCount(0);
+  await card.click();
+  await expect(card.locator('strong')).toHaveText('3.5 · Hamilton · 1603345');
+  await expect(card.locator('strong')).toHaveCSS('white-space', 'normal');
+  if (linked) await expect(card.getByRole('link', {name:'Open Job'})).toHaveAttribute('href', /\/jobs\/11111111-1111-4111-8111-111111111111/);
+  await page.clock.install();
+  await page.evaluate(()=>document.documentElement.setAttribute('data-defer-calendar','true'));
+  await card.getByRole('button',{name:'Complete',exact:true}).click();
+  await page.clock.runFor(200);
+  await expect(page.locator('.calendar-activity')).toHaveCount(0);
+  await page.clock.runFor(100);
+  await expect(page.locator('.calendar-activity')).toHaveText('Updating calendar…');
+  await page.evaluate(()=>document.dispatchEvent(new Event('release-calendar')));
+  await expect(page.locator('.calendar-activity')).toHaveCount(0);
+  await expect(card.getByRole('button',{name:'Reopen',exact:true})).toBeVisible();
+  await expect(card.locator('strong')).toHaveText('3.5 · Hamilton · 1603345');
+  await page.evaluate(()=>document.documentElement.removeAttribute('data-defer-calendar'));
+  await card.getByRole('button',{name:'Reopen',exact:true}).click();
+  await page.clock.runFor(300);
+  await expect(page.locator('.calendar-activity')).toHaveCount(0);
+  await expect(card.locator('strong')).toHaveText('3.5 · Hamilton · 1603345');
+});
+
+test('missing hours are omitted and edit failure clears real activity', async ({ mount, page }) => {
+  await page.setViewportSize({ width:1600,height:1000 });
+  const component = await mount(<CalendarPermissionsHarness identity legacy/>);
+  const card = component.locator('[data-booking-id="production-test"]').first();
+  await expect(card).toContainText('Hamilton · 1603345');
+  await card.click();
+  await expect(card.locator('strong')).toHaveText('Hamilton · 1603345');
+  await card.getByRole('button',{name:'More details for Hamilton'}).click();
+  await component.locator('.calendar-detail-panel').getByRole('button',{name:'Edit',exact:true}).click();
+  await expect(component.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+  await page.clock.install();
+  await page.evaluate(()=>{document.documentElement.setAttribute('data-defer-calendar','true');document.documentElement.setAttribute('data-fail-calendar','true');});
+  await component.getByRole('button',{name:'Save',exact:true}).click();
+  await page.clock.runFor(300);
+  await expect(page.locator('.calendar-activity')).toHaveText('Saving…');
+  await page.evaluate(()=>document.dispatchEvent(new Event('release-calendar')));
+  await expect(page.locator('.calendar-activity')).toHaveCount(0);
+  await expect(component.getByRole('alert')).toHaveText('Test save failed');
+});
+
 test('Calendar view renders without lifecycle or Manager controls', async ({ mount, page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   const component = await mount(<CalendarPermissionsHarness use={false}/>);

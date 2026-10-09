@@ -1,4 +1,5 @@
 'use client';
+import { useCalendarActivity } from './CalendarActivity';
 
 import { useEffect, useState } from 'react';
 import { DateOnlyPicker } from '@/components/jobs/DateOnlyPicker';
@@ -18,6 +19,7 @@ export function OperationalItemDateEditor({ card, closedDates, onClose, onSave }
   const [closedAcknowledged, setClosedAcknowledged] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useCalendarActivity(saving ? 'Saving…' : !snapshot && !error ? 'Loading…' : null);
   const requiresClosedAcknowledgement = Boolean(date && closedDates.includes(date));
   const label = card.recordKind !== 'calendar_item' ? 'Production' : card.calendarItemType === 'customer_pickup' ? 'Customer Pickup' : 'Delivery';
 

@@ -461,6 +461,15 @@ body {
 .calendar-expanded-info { min-width: 0; }
 .calendar-expanded-info strong, .calendar-expanded-info span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-expanded-info span { margin-top: .2rem; font-size: .62rem; font-weight: 600; opacity: .8; }
+.calendar-expanded-production { grid-template-columns: auto auto minmax(0, 1fr); }
+.calendar-expanded-production .calendar-expanded-actions { grid-column: 1 / -1; }
+.calendar-expanded-production .calendar-expanded-info strong,
+.calendar-expanded-production .calendar-expanded-info span { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.calendar-workspace[data-operation-pending="true"] { cursor: progress; }
+.calendar-activity { position: fixed; right: 1rem; bottom: 1rem; z-index: 100; display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; border: 1px solid var(--app-color-border); border-radius: .5rem; background: white; color: rgb(30 41 59); box-shadow: 0 2px 10px rgb(0 0 0 / .15); font-size: .8rem; pointer-events: none; }
+.calendar-activity-spinner { width: 1rem; height: 1rem; border: 2px solid rgb(203 213 225); border-top-color: rgb(2 132 199); border-radius: 50%; animation: calendar-activity-spin .8s linear infinite; }
+@keyframes calendar-activity-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .calendar-activity-spinner { animation: none; } }
 .calendar-detail-panel { position: fixed; z-index: 35; width: 22rem; max-width: calc(100vw - 2rem); max-height: calc(100vh - 1rem); overflow: auto; border: 1px solid var(--app-color-border); border-radius: .45rem; background: white; box-shadow: 0 12px 32px rgb(15 23 42 / .22); }
 .calendar-detail-panel > header, .calendar-quick-add > header { display: flex; min-height: 2.25rem; cursor: move; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--app-color-border); background: rgb(248 250 252); padding: .35rem .55rem; font-size: .75rem; user-select: none; touch-action: none; }
 .calendar-detail-panel > header button, .calendar-quick-add > header button { min-width: 1.7rem; font-size: 1.05rem; }

@@ -155,7 +155,9 @@ export function calendarCardText(card:ProductionBoardCard):string {
   const identity=calendarCardIdentity(card);
   if(card.recordKind==='staff_away')return [identity.primary,'Away',card.staffAwayMode==='partial'?'Partial':null].filter(Boolean).join(' · ');
   if(card.recordKind==='capacity_exception')return [identity.primary,card.capacityExceptionCapacity===0?'Closed':`${card.capacityExceptionCapacity??0}h`].join(' · ');
-  if(card.recordKind!=='calendar_item')return [card.shopHoursKnown?formatHours(card.shopHours??0):'◷',identity.primary,identity.salesOrder].filter(Boolean).join(' · ');
+  // A title fallback is opaque legacy identity, not a structured customer name.
+  if(card.recordKind!=='calendar_item' && !card.customer?.trim())return card.title || 'Untitled';
+  if(card.recordKind!=='calendar_item')return [card.shopHoursKnown && card.shopHours != null ? formatHours(card.shopHours) : null,identity.primary,identity.salesOrder].filter(Boolean).join(' · ');
   return [identity.primary,identity.salesOrder,card.timing?.trim()].filter(Boolean).join(' · ');
 }
 

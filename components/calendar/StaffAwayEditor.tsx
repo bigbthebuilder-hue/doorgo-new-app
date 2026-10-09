@@ -1,9 +1,11 @@
 'use client';
+import { useCalendarActivity } from './CalendarActivity';
 import{useEffect,useRef,useState}from'react';import type{ProductionBoardCard,StaffAwayRosterOption}from'@/lib/production-board/types';import{deleteStaffAway,saveStaffAway,loadStaffAwayCapacityDragMax,type StaffAwayMaximumResult}from'@/lib/calendar/staff-away-actions';import{datesInRange}from'@/lib/calendar/staff-away';
 
 type Props={canEdit:boolean;card?:ProductionBoardCard|null;initialDate?:string;roster:StaffAwayRosterOption[];onClose:()=>void;onChanged:(dates:string[])=>void};
 export function StaffAwayEditor({canEdit,card,initialDate,roster,onClose,onChanged}:Props){
   const savingRef=useRef(false);const [saving,setSaving]=useState(false);const [error,setError]=useState<string|null>(null);
+  useCalendarActivity(saving ? 'Updating calendar…' : null);
   const [staffId,setStaffId]=useState(card?.staffId??roster[0]?.staffId??'');const [startDate,setStartDate]=useState(card?.staffAwayStartDate??initialDate??'');
   const [endDate,setEndDate]=useState(card?.staffAwayEndDate??initialDate??'');const [mode,setMode]=useState<'full_day'|'partial'>(card?.staffAwayMode??'full_day');
   const [partialDrag,setPartialDrag]=useState(card?.partialDragHours?.toString()??'');const [reason,setReason]=useState(card?.details??'');

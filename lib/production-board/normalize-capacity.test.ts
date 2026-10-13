@@ -10,6 +10,7 @@ import {
 } from './flow-presentation';
 import { normalizeProductionBoard } from './normalize';
 import type { ProductionBookingRow } from './types';
+import { calendarCardText } from '../calendar/presentation';
 
 const params = {
   startDate: '2026-07-06',
@@ -55,6 +56,41 @@ function capacity(overrides: Partial<DailyCapacity>): DailyCapacity {
     mirroredAt: null,
     ...overrides,
   };
+}
+
+// Calendar-native unlinked names come from the booking, without Job enrichment.
+for (const [title, job_id] of [['Cole Oakes', '1680515'], ['Jean Tejkel', '1652480'], ['5 Star Construction', '1234567']]) {
+  for (const completed_at of [null, '2026-10-13T12:00:00Z']) {
+    const board = normalizeProductionBoard([booking({ title, job_id, shop_hours: 1.5,
+      source: 'DoorGo Calendar', source_system: 'doorgo_native', completed_at,
+    })], [], [], params);
+    const card = board.days.flatMap(day => day.cards)[0];
+    assert.equal(card.customer, null, 'no linked customer is required');
+    assert.equal(calendarCardText(card), `1.5 · ${title} · ${job_id}`);
+    assert.equal(calendarCardText({ ...card, shopHours: null, shopHoursKnown: false }), `${title} · ${job_id}`);
+    assert.equal(calendarCardText({ ...card, jobId: null }), `1.5 · ${title}`);
+    assert.equal(calendarCardText({ ...card, title: '' }), `1.5 · ${job_id}`);
+    for (const provenance of [{ source: 'Import', sourceSystem: 'doorgo_native' }, { source: 'DoorGo Calendar', sourceSystem: 'legacy' }]) {
+      assert.equal(calendarCardText({ ...card, ...provenance, title: "2.25 Hamilton Bro's 1254815" }), "2.25 Hamilton Bro's 1254815");
+    }
+  }
+}
+
+// Native enrichment must survive normalization even when no legacy Job customer exists.
+for (const completed_at of [null, '2026-10-13T12:00:00Z']) {
+  const board = normalizeProductionBoard([
+    booking({ job_id: '1407030', title: 'CROWN ISLE HOMES', shop_hours: 8.5, completed_at }),
+  ], [{ job_id: '1407030', customer: null, native_customer: 'CROWN ISLE HOMES',
+    internal_job_id: 'native-job', native_sales_order: '1407030', site_address: null,
+    salesperson: null, status: null, active: null, shop_hours: null, job_stage: null,
+  }], [], params);
+  const crown = board.days.flatMap(day => day.cards)[0];
+  assert.equal(crown.customer, 'CROWN ISLE HOMES');
+  assert.equal(calendarCardText(crown), '8.5 · CROWN ISLE HOMES · 1407030');
+  assert.equal(calendarCardText({ ...crown, shopHours: null, shopHoursKnown: false }), 'CROWN ISLE HOMES · 1407030');
+  assert.equal(calendarCardText({ ...crown, jobId: null, nativeSalesOrder: null }), '8.5 · CROWN ISLE HOMES');
+  assert.equal(calendarCardText({ ...crown, customer: '5 Star Construction' }), '8.5 · 5 Star Construction · 1407030');
+  assert.equal(calendarCardText({ ...crown, customer: null, title: "2.25 Hamilton Bro's 1254815", shopHours: 2.25, jobId: '1254815', nativeSalesOrder: null }), "2.25 Hamilton Bro's 1254815");
 }
 
 function capacities(

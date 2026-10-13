@@ -25,6 +25,7 @@ export type ProductionBookingRow = {
 };
 
 export type DoorGoJobRow = {
+  native_customer?: string | null;
   internal_job_id?: string | null;
   native_sales_order?: string | null;
   job_id: string;

@@ -154,6 +154,7 @@ export async function loadProductionBoardReadOnly(params: {
         job_stage: legacy?.job_stage ?? null,
         internal_job_id: native?.internalJobId ?? null,
         native_sales_order: native?.salesOrder ?? null,
+        native_customer: native?.customer ?? null,
       };
     });
   }

@@ -61,7 +61,7 @@ export function normalizeProductionBoard(
         linkedJob?.customer ||
         row.job_id ||
         'Untitled production booking',
-      customer: linkedJob?.customer ?? null,
+      customer: linkedJob?.native_customer?.trim() || linkedJob?.customer || null,
       jobId: row.job_id,
       internalJobId: linkedJob?.internal_job_id ?? null,
       nativeSalesOrder: linkedJob?.native_sales_order ?? null,

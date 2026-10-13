@@ -2,6 +2,15 @@ import { expect, test } from '@playwright/experimental-ct-react';
 import { CalendarPermissionsHarness, ExistingCalendarEditHarness } from './CalendarPermissionsHarness';
 
 for (const scenario of [
+  {name:'native unlinked Cole',customer:null,title:'Cole Oakes',hours:1.5,so:'1680515',expected:'1.5 · Cole Oakes · 1680515'},
+  {name:'native unlinked Jean',customer:null,title:'Jean Tejkel',hours:1.5,so:'1652480',expected:'1.5 · Jean Tejkel · 1652480'},
+  {name:'native numeric name',customer:null,title:'5 Star Construction',hours:1.5,so:'1680515',expected:'1.5 · 5 Star Construction · 1680515'},
+  {name:'native missing hours',customer:null,title:'Cole Oakes',hours:null,so:'1680515',expected:'Cole Oakes · 1680515'},
+  {name:'native missing SO',customer:null,title:'Cole Oakes',hours:1.5,so:null,expected:'1.5 · Cole Oakes'},
+  {name:'native missing name',customer:null,title:'',hours:1.5,so:'1680515',expected:'1.5 · 1680515'},
+  {name:'CROWN native customer',customer:'CROWN ISLE HOMES',title:'CROWN ISLE HOMES',hours:8.5,so:'1407030',expected:'8.5 · CROWN ISLE HOMES · 1407030'},
+  {name:'SIMBA structured customer',customer:'SIMBA ( Laurie )',title:'SIMBA ( Laurie )',hours:1,so:'1720560',expected:'1 · SIMBA ( Laurie ) · 1720560'},
+  {name:'numeric-ending customer',customer:'Company 1407030',title:'Old title',hours:8.5,so:'1407030',expected:'8.5 · Company 1407030 · 1407030'},
   {name:'opaque title',customer:null,title:"2.25 Hamilton Bro's 1254815",hours:2.25,so:'1254815',expected:"2.25 Hamilton Bro's 1254815"},
   {name:'structured',customer:"Hamilton Bro's",title:'Opaque old title',hours:2.25,so:'1254815',expected:"2.25 · Hamilton Bro's · 1254815"},
   {name:'numeric customer',customer:'5 Star Construction',title:'Old title',hours:5,so:'1108850',expected:'5 · 5 Star Construction · 1108850'},
@@ -9,7 +18,7 @@ for (const scenario of [
   {name:'missing SO',customer:"Hamilton Bro's",title:'Old title',hours:2.25,so:null,expected:"2.25 · Hamilton Bro's"},
 ]) test(`Production identity remains intact: ${scenario.name}`,async({mount,page})=>{
   await page.setViewportSize({width:1600,height:1000});
-  const component=await mount(<CalendarPermissionsHarness identityFields={{customer:scenario.customer,title:scenario.title,shopHours:scenario.hours,shopHoursKnown:scenario.hours!==null,nativeSalesOrder:scenario.so,jobId:scenario.so}}/>);
+  const component=await mount(<CalendarPermissionsHarness legacy={scenario.name==='opaque title'} identityFields={{customer:scenario.customer,title:scenario.title,shopHours:scenario.hours,shopHoursKnown:scenario.hours!==null,nativeSalesOrder:scenario.customer ? scenario.so : null,jobId:scenario.so}}/>);
   const card=component.locator('[data-booking-id="production-test"]').first();
   await expect(card.locator('.calendar-production-card-text')).toHaveText(scenario.expected);
   await card.click();

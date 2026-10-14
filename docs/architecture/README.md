@@ -7,7 +7,7 @@ This reference helps maintainers and future Codex sessions locate authoritative 
 | Section | Status | Scope |
 | --- | --- | --- |
 | [01 — Application overview](01-application-overview.md) | Completed | Stack, routes, modules, dependencies, risks, and verification entry points |
-| 02 — Data model and ownership | Planned; not written | Entities, identifiers, persistence, current SQL/RPC/trigger relationships |
+| [02 — Database and data ownership](02-database-and-data-ownership.md) | Completed | Entities, identifiers, effective local SQL/RPC/trigger relationships, access boundaries and unresolved risks |
 | 03 — Authentication and authorization | Planned; not written | Session flow, feature permissions, server and database boundaries |
 | 04 — Intake, calculations, and output | Planned; not written | Input authority, geometry, saved-line presentation, Work Orders/PDF/email |
 | 05 — Calendar and production operations | Planned; not written | Scheduling, capacity, checkpoints, fulfillment, Staff Away |
@@ -24,4 +24,4 @@ Planned sections are proposals, not existing documentation or authorization to i
 - Each document must record its verification commit, distinguish source observations from unverified runtime assumptions, and link to code instead of copying formulas or SQL.
 - Recheck relevant links, effective SQL definitions, and tests when changing a documented boundary. Preserve historical documents as evidence; do not assume their checkpoint or deployment statements describe current main.
 
-Task 1 created only this index and the application overview. Database architecture and hosted-state verification are deferred.
+Tasks 1 and 2 cover the application overview and source-verified database/data ownership. Hosted-state verification and the remaining planned sections are deferred.

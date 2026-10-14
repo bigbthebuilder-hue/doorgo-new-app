@@ -1,0 +1,117 @@
+# 03 — Authentication and security
+
+Verified against `3ac66170223520d06cd0eb451b2b929b55d0b675` on `main`, 2026-10-14. This is a repository-source reference, not a penetration test or hosted-security certification. SQL conclusions assume the local migration chain through `20261009153600` succeeds against its prerequisites. No hosted service, credentials, or applied-migration history was inspected. Start with the [overview](01-application-overview.md), [database reference](02-database-and-data-ownership.md), and [index](README.md).
+
+## Authentication and sessions — source-verified
+
+| Stage | Implemented boundary |
+| --- | --- |
+| Login | [Login action](../../app/login/actions.ts) validates form input, calls Supabase `signInWithPassword`, verifies the user with `getUser`, and chooses a permission-aware landing page. [Login helper](../../lib/auth/login.ts) handles failure without returning provider error details. |
+| Session restoration/refresh | [Root proxy](../../proxy.ts) delegates to [Supabase proxy](../../lib/supabase/proxy.ts): SSR client reads cookies, calls `getClaims`, and propagates refreshed cookies to request/response. This is session refresh, not feature authorization. |
+| Server identity | [Current access](../../lib/auth/current-access.ts) calls `getUser`, then reads that user's profile and permissions. Auth failure resolves unauthenticated; profile/permission query failures throw rather than grant fallback access. |
+| Protected pages | [Protected-access helper](../../lib/auth/protected-access.ts) redirects unauthenticated users to login and active users requiring password setup to `/account/change-password`. Missing/inactive profiles are returned for page-level denial; the helper alone does not authorize a feature. [Navigation](../../lib/app-shell/navigation.ts) controls visible destinations separately. |
+| Logout | [POST route](../../app/auth/logout/route.ts) uses [local logout](../../lib/auth/logout.ts), `signOut({scope:'local'})`, then a 303 redirect. Failure destinations pass the [same-origin local-path validator](../../lib/auth/safe-redirect.ts). It does not promise logout of every device. |
+| Password setup/recovery | [Setup action](../../app/account/change-password/actions.ts) updates Auth password, then calls `complete_dg_initial_password_setup`. [Validation](../../lib/auth/password-setup.ts) requires matching 12–256 character passwords. Partial failure is reported because Auth and profile updates are separate operations. Admin temporary-password reset is implemented; no self-service reset-email/token-exchange flow was found in `app`/`lib`. |
+
+Expiration/refresh is delegated to Supabase Auth/SSR; no application-owned session lifetime was established. Hosted JWT lifetime, refresh-token policy, MFA, email delivery and rate limits remain unknown. A restored Auth session is not proof of an active DoorGo profile or feature access.
+
+## Identity, permissions, and scope — source-verified
+
+[Access model](../../lib/auth/access.ts) resolves four states: unauthenticated, missing profile, inactive profile, active. `dg_user_profiles.user_id` refers to Auth identity; [profiles migration][profiles] enables own-row SELECT under RLS. [Permissions migration][permissions] stores per-user feature levels; unknown levels normalize to `none`. Direct profile/permission writes are not the ordinary client path.
+
+The nine keys are `production`, `production_checkpoints`, `calendar`, `jobs`, `documents`, `tools`, `reports`, `settings`, and `users`. `view` and `use` both satisfy read access; only `use` satisfies mutation helpers. These are application feature permissions, not a staff/manager role hierarchy. An active `is_manager` flag is checked separately and does not automatically grant every module. “Admin / Settings” and “User Administration” are permission labels, not additional Auth roles.
+
+[User administration contract](../../lib/admin/users-contract.ts) and [SQL administration][admin] require `users` view for listing, use for changes, active profile, and completed password setup. They do not require `is_manager`. Provisioning creates a non-manager profile; these operations do not expose assignment of manager status. How initial administrators/managers were bootstrapped is not established here. [Service](../../lib/admin/users-service.ts) prevents self-deactivation; permission changes, activation and password requirements use authenticated RPCs.
+
+Permissions are keyed by user/feature, not company. Company/location is a separate profile attribute: [settings scope][staff] and Staff Away scopes use it for capacity configuration, with a `default` fallback. This is not evidence of universal tenant isolation. Jobs, Calendar, user administration and shared legacy reads must be assessed individually; do not infer organization-wide filtering from the presence of `company_location`.
+
+## Clients, credentials, and trust boundaries
+
+| Client | Credentials and responsibility |
+| --- | --- |
+| [Browser](../../lib/supabase/client.ts) | SSR browser client uses `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` through [public configuration](../../lib/supabase/public-env.ts). Public configuration is not privileged authorization; session identity and database checks still matter. |
+| [Authenticated server](../../lib/supabase/server.ts) | `server-only` cookie-backed SSR client uses the same public configuration and the caller's session. Cookie writes are attempted where allowed; proxy handles refresh. A server action using this client does not become service-role execution. |
+| [Trusted client](../../lib/supabase/trusted-read-server.ts) | `server-only`; loads `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, disables session persistence/auto-refresh. The name `createTrustedReadOnlySupabaseClient` is descriptive, not an enforced read-only capability. |
+
+Trusted callers include [board queries](../../lib/production-board/queries.ts), [capacity queries](../../lib/production-board/capacity-queries.ts), [checkpoint queries](../../lib/production-flow/checkpoint-queries.ts), [destination preview](../../lib/production-schedule/destination-preview-service.ts), [Calendar search](../../lib/calendar/calendar-item-actions.ts), [recipient directory](../../lib/jobs/work-order-recipient-directory.ts), and [user administration adapter](../../lib/admin/users-server.ts). Some low-level readers rely on their caller's authorization. The admin adapter uses Auth admin writes, including account creation/password changes, after service checks. Never expose these helpers as caller-authorized merely because they run on the server.
+
+Privileged credentials use non-public variables and server-only imports; no credential values are documented. Email adds server-side `RESEND_API_KEY` and `DOORGO_EMAIL_FROM` in the [provider contract](../../lib/jobs/work-order-send-contract.ts). Deployed bundle contents and actual environment configuration were not inspected.
+
+## Workflow enforcement map
+
+UI controls are useful affordances; server actions and SQL must remain independently authoritative. Revision, completed-item, closed-date and acknowledgement checks are business safeguards distinct from feature permission.
+
+| Workflow | Source-verified enforcement / dependencies |
+| --- | --- |
+| Jobs, imports | [Job service](../../lib/jobs/job-intake-service.ts) checks Jobs read/write capabilities; [hosted adapter](../../lib/jobs/hosted-job-intake-repository.ts) calls authenticated native Job RPCs with SQL access/revision checks. [Import page](../../app/jobs/import/page.tsx) and transfer creation use the Jobs workflow, not a privileged bulk-import bypass. |
+| Permanent Job deletion | [Delete contract](../../lib/jobs/manager-job-delete-contract.ts) and [delete RPC][delete-job] require active manager status separately. This is not ordinary Calendar booking deletion. |
+| Work Order preview/PDF/email | [Generation](../../lib/jobs/work-order-generation-service-contract.ts), [PDF service](../../lib/jobs/work-order-pdf-service-contract.ts), and [route](../../app/jobs/%5BinternalJobId%5D/work-order/pdf/route.ts) use saved Job read authority, revision matching and preflight. [Send contract](../../lib/jobs/work-order-send-contract.ts) permits Jobs **view or use** to send; it is not restricted to Jobs use or Documents permission. Recipient IDs resolve through the authorized directory; PDF/preflight validation precedes transport. |
+| Calendar lifecycle | [Mutation helper](../../lib/calendar/permissions.ts) requires active Calendar use. [Actions](../../lib/calendar/calendar-item-actions.ts) and [Calendar Production actions](../../lib/production-bookings/calendar-production-actions.ts) invoke authenticated RPCs. [Operational migration][operations] provides Calendar-only Production move/reorder/complete/reopen/delete paths without granting planning permission. View remains read-only for these operations. |
+| Calendar linked Job fields | [Full edit][edit] authorizes bounded linked Job updates under Calendar use, with Job/item concurrency checks and completed/locked restrictions. This is broader than hiding Open Job for users without Jobs access. Creating/linking an item can have different Jobs checks; do not extrapolate one RPC's permission to every Calendar operation. |
+| Production planning/recovery | [Schedule](../../app/production-schedule/page.tsx), [recovery](../../app/production-recovery/page.tsx), and [booking modules](../../lib/production-bookings/) retain separate Production permission paths; [checkpoints](../../lib/production-flow/checkpoint-service.ts) use their own permission. Calendar RPC copies do not rewrite original planning permissions. Recovery here means scheduling recovery, not Auth account recovery or a general database restore facility. |
+| Staff Away | [Actions](../../lib/calendar/staff-away-actions.ts), [Away foundation][away], and latest scope in [operational migration][operations] allow Calendar-use absence operations; read scope also supports Production readers. [Maximum RPC][maximum] requires Calendar use and staff/location scope; it delegates to the existing SQL capacity calculation. |
+| Settings/admin | [Manager page](../../app/manager/page.tsx) separates settings and users panels. [Capacity settings][staff] and [exceptions][exceptions] use settings view/use and location scope. User administration uses its separate permission and lazy privileged adapter. Auth provisioning has compensating deletion on SQL provisioning failure, not a distributed transaction. |
+
+## SQL/RLS and effective migration boundaries
+
+See the [database reference](02-database-and-data-ownership.md) for table relationships and exact replacement history. `auth.uid()` establishes caller identity in authenticated SQL; `SECURITY DEFINER` changes execution privileges, not caller authorization. Many mutation RPCs explicitly check active profile/permission and pin an empty search path with qualified object names. Verify each function and its grants rather than assuming this pattern covers all objects.
+
+| Objects | Local-chain protections and limits |
+| --- | --- |
+| Profiles/permissions | RLS enabled; authenticated own-row SELECT, ordinary writes revoked. Admin mutation goes through [admin RPCs][admin]. |
+| Native Jobs/lines/commands | [Foundation][jobs] enables RLS and RPC-based access. [Hardening][job-grants] also revokes service-role table/sequence/RPC privileges. RLS bypass alone does not restore revoked SQL grants. |
+| Calendar items/events | [Foundation][calendar] enables RLS with active Calendar view/use SELECT; direct ordinary mutations are revoked. Authenticated RPCs perform mutations with explicit access checks. Full-edit events follow [full-edit migration][edit]. |
+| Fulfillment portions/membership | [Foundation][families] enables RLS for active Calendar or Jobs readers; [grant hardening][family-grants] restricts authenticated direct access to SELECT. |
+| Capacity configuration/absence | [Settings][staff], [Away][away], and [exceptions][exceptions] enable RLS and scoped RPC access. Do not confuse company-scoped configuration with the shared date-keyed daily-capacity table. |
+| Legacy/shared objects | Complete creation/RLS/grant history for `dg_jobs`, `dg_production_bookings`, and `dg_calendar_links` is absent. Trusted reads and migration references do not establish their full effective security. |
+
+The [checkpoint validator amendment][checkpoint-hardening] changes owner, security context, search path and execution grants without replacing its body. [Delete-event hardening][delete-hardening] restricts authenticated table access to SELECT. Later Calendar RPCs in [20261006201036][operations] are distinct from older planning functions: `dg_calendar_require_use(true)` still checks Production, while Calendar-only callers use `false` or explicit Calendar checks. Trace `ALTER`/`GRANT`/`REVOKE` and dynamic patches, not only the latest `CREATE FUNCTION`.
+
+Job synchronization triggers execute inside the initiating transaction and can modify Calendar/fulfillment records without a second browser action. Their combined/split history, dynamic function patches and audit exceptions are mapped in [Task 2](02-database-and-data-ownership.md). Changes to SQL access or trigger authority can affect apparently unrelated Job, Calendar and capacity workflows.
+
+## Potential concerns requiring investigation
+
+These are concrete source observations and review questions, **not confirmed hosted vulnerabilities**:
+
+- **Password requirement is not a universal mutation gate.** `getPermissionAccess` checks active state, not `mustChangePassword`; protected-page redirects enforce setup in navigation. Admin service/SQL explicitly checks it, while many other RPCs do not. [Setup completion RPC][password] clears the flag for the active caller without independently verifying an Auth password update occurred. Dedicated direct-RPC/action tests should establish the intended enforcement boundary.
+- **Calendar data reach differs from Jobs UI reach.** [Full-edit RPCs][edit] expose/change selected linked Job data under Calendar use. [Linked-notes RPC][notes] checks Calendar use and active supplied Job UUIDs but does not itself require linkage to a Calendar item. Review this callable boundary against the intended permission model; a narrower UI call pattern is not an SQL restriction.
+- **Trusted reads depend on upstream checks.** Board/capacity/checkpoint helpers and Calendar search use service role. Review every reachable caller, returned field and company filter; do not replace authenticated clients with this helper to bypass a failing permission check.
+- **Company isolation is not uniform.** Settings/Away are scoped, feature grants are per-user, and shared legacy/capacity objects have different ownership. User administration's authorization helper has no company predicate. Confirm intended cross-company visibility before introducing filtering or describing the app as tenant-isolated.
+- **Separate external operations can partially succeed.** Auth provisioning/reset and email are outside the SQL transaction. Existing compensation/partial-success handling needs targeted failure-path coverage; database audit records are not a universal external-operation log.
+
+**Unverified/unknown:** applied migrations, live grants/default privileges and function owners, pre-existing shared-object RLS, external writers, Auth configuration/session revocation behavior, deployment secret handling, rate limiting, and end-to-end cross-user/organization isolation. Repository inspection cannot certify these. No security fixes or hosted checks were performed.
+
+## Tests and change-impact guidance
+
+Commands are references, not tests run for this documentation task. Confirm scope in [package.json](../../package.json) before execution; mocked/static tests do not prove hosted RLS.
+
+| Area | Existing verification |
+| --- | --- |
+| Auth/session/password/redirects | `npm run verify:phase-2f-c1-auth-contract`; [auth tests](../../lib/auth/), [public-config tests](../../lib/supabase/public-env.test.ts) |
+| Page/navigation permissions | `npm run verify:permission-routing`; [navigation tests](../../lib/app-shell/navigation.test.ts) |
+| Privileged administration | `npm run verify:admin-users`; [service tests](../../lib/admin/users-service.test.ts) |
+| Calendar versus planning | `node scripts/verify-calendar-operational-permissions.mjs`; `npx.cmd playwright test -c playwright-calendar-permissions.config.ts --workers=1` (component/action shims, not live database enforcement) |
+| Job/output authority | `npm run verify:hosted-native-job-adapter`; `npm run verify:manager-native-job-delete`; `npm run verify:native-job-intake-j3b`; `npm run verify:native-job-intake-j3c` |
+| SQL checkpoint boundaries | [RPC verifier](../../scripts/verify-phase-2f-c2-checkpoint-rpc-contract.mjs), [read verifier](../../scripts/verify-phase-2f-c4a-checkpoint-read-contract.mjs) |
+
+Shared access changes affect navigation, every protected page, action services and test fixtures. SQL permission changes additionally affect direct RPC clients, trigger side effects and legacy integrations. Client-helper changes can change privilege level across all callers. Consult [authentication contract](../authentication-permissions-contract.md) and [permission/safety guidance](../DOORGO_PERMISSIONS_AND_SAFETY.md), reconciling older wording with current source. Future authorized security verification should test direct calls as well as UI access, including inactive/setup-required users, view-only users, Calendar-only users, and cross-company IDs. Hosted execution and remediation require separate authorization.
+
+[profiles]: ../../supabase/migrations/20260712000000_create_dg_user_profiles.sql
+[permissions]: ../../supabase/migrations/20260712010000_create_dg_user_permissions.sql
+[password]: ../../supabase/migrations/20260712020000_add_dg_password_setup_requirement.sql
+[admin]: ../../supabase/migrations/20260911010000_add_user_administration.sql
+[jobs]: ../../supabase/migrations/20260728000000_create_native_job_persistence.sql
+[job-grants]: ../../supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql
+[delete-job]: ../../supabase/migrations/20260815010000_add_manager_native_job_delete.sql
+[calendar]: ../../supabase/migrations/20260821030000_add_operational_calendar_items.sql
+[operations]: ../../supabase/migrations/20261006201036_calendar_operational_permissions.sql
+[edit]: ../../supabase/migrations/20261007153000_calendar_full_item_edit.sql
+[notes]: ../../supabase/migrations/20261007174500_calendar_linked_fulfillment_notes.sql
+[maximum]: ../../supabase/migrations/20261009153600_staff_away_capacity_drag_max.sql
+[families]: ../../supabase/migrations/20260823000000_add_fulfillment_order_families.sql
+[family-grants]: ../../supabase/migrations/20260823010000_harden_fulfillment_order_family_grants.sql
+[staff]: ../../supabase/migrations/20260825030000_add_manager_capacity_foundation.sql
+[away]: ../../supabase/migrations/20260825040000_add_staff_away_operations.sql
+[exceptions]: ../../supabase/migrations/20260825050000_add_capacity_exceptions.sql
+[checkpoint-hardening]: ../../supabase/migrations/20260712040000_secure_production_flow_checkpoint_link_validator.sql
+[delete-hardening]: ../../supabase/migrations/20260825020000_harden_production_delete_event_grants.sql

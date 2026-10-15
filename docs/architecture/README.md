@@ -11,10 +11,9 @@ This reference helps maintainers and future Codex sessions locate authoritative 
 | [03 — Authentication and security](03-authentication-and-security.md) | Completed | Session flow, feature permissions, server/database enforcement and security-review boundaries |
 | [04 — Door geometry and configuration](04-door-geometry-and-configuration.md) | Completed | Shared calculators, input authority, validation, persistence, diagrams and output dependencies |
 | [05 — Calendar and production workflows](05-calendar-and-production-workflows.md) | Completed | Booking lifecycle, scheduling, capacity, checkpoints, fulfillment, Staff Away and synchronization |
-| 06 — Services and deployment | Planned; not written | External integrations, environment roles, migration/release operations |
-| 07 — Testing and change-impact guide | Planned; not written | Focused checks, harness boundaries, regression and manual acceptance matrix |
+| [06 — Testing and development guide](06-testing-and-development-guide.md) | Completed | Environment, test selection, harness boundaries, database safety and change workflow |
 
-Planned sections are proposals, not existing documentation or authorization to implement them.
+The authorized six-task documentation series is complete. The earlier proposed separate services/deployment and testing sections were superseded by Task 6's testing/development scope. Deployment operations and hosted-state certification remain outside this series; completion is not authorization for remediation.
 
 ## Authority and maintenance
 
@@ -24,4 +23,4 @@ Planned sections are proposals, not existing documentation or authorization to i
 - Each document must record its verification commit, distinguish source observations from unverified runtime assumptions, and link to code instead of copying formulas or SQL.
 - Recheck relevant links, effective SQL definitions, and tests when changing a documented boundary. Preserve historical documents as evidence; do not assume their checkpoint or deployment statements describe current main.
 
-Tasks 1–5 cover the application overview, database/data ownership, authentication/security, shared door geometry/configuration, and Calendar/production workflows. Hosted-state verification and the remaining planned sections are deferred.
+Tasks 1–6 provide the architecture and development reference. Each document records its own source-verification commit; hosted state and current application test health remain separately unverified.

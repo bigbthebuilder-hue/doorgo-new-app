@@ -1,0 +1,97 @@
+# Isolated password-operation PostgreSQL tests
+
+Prepared against `156498f`. **Preparation only: these commands have not been executed.**
+Obtain separate approval before creating/starting the cluster, applying SQL, or running database tests.
+Never use the existing Windows PostgreSQL service or a hosted Supabase connection.
+
+## Scope and prerequisites
+
+- Installed PostgreSQL 18.4 binaries: `C:\Program Files\PostgreSQL\18\bin`; Node.js.
+- A fresh user-owned directory outside the repository, unused port `55432`, and local disk space.
+- Dedicated cluster superuser `postgres`, created interactively with SCRAM password authentication.
+- A user-prepared, access-restricted PostgreSQL password file **outside the repository**, for the exact local host/port/database/user only. No wildcards. Never commit it or put its contents in command arguments/logs. Preparing this credential file is a separate operator step after approval; the scripts neither create nor read its contents (libpq consumes it).
+- Cluster must be named `doorgo_password_isolated`; database must be `doorgo_password_test`.
+
+The bootstrap creates NOLOGIN roles `anon`, `authenticated`, and `service_role`. Only the latter has BYPASSRLS, matching the relevant Supabase boundary. Tests connect as the isolated owner and use SET ROLE to exercise real PostgreSQL privileges. This is not a Supabase Auth/PostgREST environment and does not test real JWT issuance or Auth password writes.
+
+**Test-only stand-ins:** `auth.users(id uuid primary key)` supplies the profile FK; `auth.uid()` reads `request.jwt.claim.sub` for policy compatibility, without validating a JWT. Nothing should use this stand-in as authentication outside the disposable tests.
+
+The bootstrap executes these actual, unchanged repository migrations via `\ir`:
+
+1. [Profile schema](../supabase/migrations/20260712000000_create_dg_user_profiles.sql).
+2. [Password setup prerequisite](../supabase/migrations/20260712020000_add_dg_password_setup_requirement.sql), including its historical completion function. That function is not invoked or certified by this suite.
+3. [Password operation foundation](../supabase/migrations/20261016120000_password_operation_foundation.sql).
+
+This is a dependency-minimal test schema, **not a replay of the complete DoorGo migration history**. It seeds two synthetic active setup-required profiles (employee and manager), with no existing operation state. No real identities, emails or passwords are seeded. The Calendar-notes suite requires a different bootstrap and is out of scope.
+
+## Create the isolated cluster — later approval only
+
+Run from the repository root in PowerShell. Do not run elevated or change the existing service.
+
+```powershell
+$pgBin = 'C:\Program Files\PostgreSQL\18\bin'
+$testRoot = Join-Path $env:LOCALAPPDATA 'DoorGoPasswordTests'
+$testData = Join-Path $testRoot 'pgdata'
+if (Get-ChildItem Env: | Where-Object Name -Match '^PG') {
+    throw 'Inherited PostgreSQL settings exist; review before using direct PostgreSQL utilities.'
+}
+if (Test-Path -LiteralPath $testRoot) { throw 'Directory exists: inspect; do not overwrite.' }
+if (Get-NetTCPConnection -State Listen -LocalPort 55432 -ErrorAction SilentlyContinue) {
+    throw 'Port 55432 is already in use.'
+}
+New-Item -ItemType Directory -Path $testRoot -ErrorAction Stop
+& "$pgBin\initdb.exe" -D $testData -U postgres --auth-host=scram-sha-256 --auth-local=scram-sha-256 -W
+if ($LASTEXITCODE -ne 0) { throw 'initdb failed; stop and inspect.' }
+& "$pgBin\pg_ctl.exe" -D $testData -l (Join-Path $testRoot 'postgres.log') `
+    -o '-h 127.0.0.1 -p 55432 -c cluster_name=doorgo_password_isolated' -w start
+if ($LASTEXITCODE -ne 0) { throw 'Isolated startup failed; stop and inspect.' }
+& "$pgBin\createdb.exe" -h 127.0.0.1 -p 55432 -U postgres -W --maintenance-db=postgres doorgo_password_test
+if ($LASTEXITCODE -ne 0) { throw 'Database creation failed; stop and inspect.' }
+```
+
+Passwords are entered through the interactive prompts, never as command arguments. Use a local-only password. Do not reuse production credentials. Before executing these direct PostgreSQL utilities, ensure the shell has no inherited `PGHOSTADDR`, `PGSERVICE`, `PGSERVICEFILE` or `PGOPTIONS` overrides; stop for review if it does. The Node runners below independently remove inherited PG settings from child processes.
+
+## Bootstrap and test — later approval only
+
+After the operator has prepared the narrowly scoped, private password file, supply its absolute path. No global PATH or parent environment changes are needed.
+
+```powershell
+$passfile = Read-Host 'Absolute path to the approved private local PostgreSQL password file'
+if (-not (Test-Path -LiteralPath $passfile -PathType Leaf)) { throw 'Password file missing.' }
+$connection = @('--host', '127.0.0.1', '--port', '55432',
+    '--database', 'doorgo_password_test', '--user', 'postgres',
+    '--psql', 'C:\Program Files\PostgreSQL\18\bin\psql.exe', '--passfile', $passfile)
+
+node scripts/run-password-database.mjs bootstrap @connection
+if ($LASTEXITCODE -ne 0) { throw 'Bootstrap failed; do not retry on this database.' }
+node scripts/run-password-database.mjs test @connection
+if ($LASTEXITCODE -ne 0) { throw 'SQL tests failed.' }
+node scripts/verify-password-operations-concurrency.mjs @connection
+if ($LASTEXITCODE -ne 0) { throw 'Concurrency test failed.' }
+```
+
+The bootstrap intentionally requires a fresh cluster/database; reruns are rejected rather than overwriting objects. The migrations have their own transaction boundaries: a failed bootstrap can leave partial setup. Stop and inspect; recreate only after separate cleanup approval. Tests can be rerun after successful setup: fixture mutations roll back, including both concurrency sessions.
+
+The runners validate arguments before spawning psql; prohibit port 5432, DNS/non-loopback hosts and other database names; use explicit executable paths; ignore psqlrc; disable interactive password prompts; and remove inherited libpq connection overrides. Same-connection SQL guards verify server address, port, cluster name, database and session user. Bootstrap checks for existing roles, schemas, public relations/functions and unrelated databases before creating anything. A session advisory lock serializes cooperating bootstraps across migration commits. Do not use the cluster concurrently for other work. Local port forwarding is not a supported target.
+
+The concurrency test uses a short lock timeout to prove contention, not to release production password-operation state. PostgreSQL statement/connect timeouts bound test failures; no test assertion was removed. These tests do not establish hosted schema parity or full Auth concurrency.
+
+## Stop and clean up
+
+Stop only the cluster identified by the previously verified `$testData` directory:
+
+```powershell
+& "$pgBin\pg_ctl.exe" -D $testData -m fast -w stop
+if ($LASTEXITCODE -ne 0) { throw 'Stop failed; inspect before cleanup.' }
+```
+
+No automatic deletion is provided. **After separate cleanup approval**, confirm the cluster is stopped, resolve `$testRoot` to its absolute path, verify it is exactly the dedicated `DoorGoPasswordTests` directory outside the repository and installed PostgreSQL data directory, then remove only that directory and its dedicated credential file if appropriate. Never stop a Windows service, drop an existing database, or recursively delete a computed path without this verification.
+
+## Offline checks (no database connections)
+
+```powershell
+node scripts/verify-password-bootstrap.mjs
+node scripts/verify-password-operations.mjs
+npx.cmd eslint scripts/password-test-connection.mjs scripts/run-password-database.mjs scripts/verify-password-bootstrap.mjs scripts/verify-password-operations-concurrency.mjs
+git diff --check
+```

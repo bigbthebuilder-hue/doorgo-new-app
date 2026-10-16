@@ -1,12 +1,13 @@
 ﻿-- Local fixture-dependent runtime tests. No migration application; all changes roll back.
--- psql -X -h 127.0.0.1 -d doorgo_password_test -v ON_ERROR_STOP=1 -f scripts/verify-password-operations-local.sql
+-- Use run-password-database.mjs test with explicit isolated connection parameters.
 -- Requires migration through 20261016120000 and two active profiles requiring setup,
 -- neither previously initialized in dg_password_setup_state. Run as local test owner.
 \set ON_ERROR_STOP on
 BEGIN;
 DO $$ BEGIN
-  IF current_database()<>'doorgo_password_test' OR
-    (inet_server_addr() IS NOT NULL AND inet_server_addr() NOT IN ('127.0.0.1'::inet,'::1'::inet)) THEN
+  IF current_database()<>'doorgo_password_test' OR session_user<>'postgres'
+    OR inet_server_addr() IS NULL OR inet_server_addr() NOT IN ('127.0.0.1'::inet,'::1'::inet)
+    OR inet_server_port()=5432 OR current_setting('cluster_name')<>'doorgo_password_isolated' THEN
     RAISE EXCEPTION 'Requires isolated local doorgo_password_test';
   END IF;
 END $$;

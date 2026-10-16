@@ -1,0 +1,21 @@
+﻿// Static safeguards only. SQL runtime/concurrency suites are separate and require local PostgreSQL.
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const sql = readFileSync('supabase/migrations/20261016120000_password_operation_foundation.sql', 'utf8');
+const tests = readFileSync('scripts/verify-password-operations-local.sql', 'utf8');
+assert.equal((sql.match(/CREATE FUNCTION public\.dg_password_/g) ?? []).length, 6);
+assert.equal((sql.match(/SECURITY DEFINER SET search_path = ''/g) ?? []).length, 6);
+assert.match(sql, /CREATE UNIQUE INDEX dg_password_one_unresolved_write[\s\S]*?WHERE state IN \('reserved', 'unknown'\)/);
+assert.match(sql, /WHERE user_id=p_user_id FOR UPDATE/);
+assert.match(sql, /generation=generation\+1,setup_required=true,reset_pending=true/);
+assert.match(sql, /op\.generation<>s\.generation/);
+assert.match(sql, /password\.reconciliation_required/);
+assert.match(sql, /password\.evidence_required/);
+assert.match(sql, /FROM PUBLIC,anon,authenticated,service_role/);
+assert.match(sql, /TO service_role;/);
+assert.doesNotMatch(sql, /(?:UPDATE|ALTER TABLE) public\.dg_user_profiles/i);
+assert.doesNotMatch(sql, /CREATE (?:OR REPLACE )?FUNCTION public\.(?:complete_dg_initial_password_setup|dg_admin_)/i);
+assert.doesNotMatch(sql, /auth\.users|encrypted_password|interval\s*'/i);
+assert.doesNotMatch(sql, /GRANT[^;]*TO (?:authenticated|anon|PUBLIC)/i);
+for (const marker of ['reset increments', 'stale success', 'duplicate finalization', 'unknown remains', 'cross-user', 'authenticated denied', 'active profile flag unchanged']) assert.ok(tests.includes(marker), marker);
+console.log('Password operation static safeguards passed (not runtime authorization proof).');

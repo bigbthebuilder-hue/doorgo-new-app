@@ -161,3 +161,22 @@ Highest regression risks are the overlapping Job sync paths, current-portion uni
 [checkpoints]: ../../supabase/migrations/20260711010000_create_dg_production_flow_checkpoints.sql
 [checkpoint-rpcs]: ../../supabase/migrations/20260712030000_create_production_flow_checkpoint_rpcs.sql
 [checkpoint-reads]: ../../supabase/migrations/20260713000000_create_production_flow_checkpoint_read_rpcs.sql
+
+## Password operation foundation — Stage 1 (not connected)
+
+Source addition based on `9efaf06`: [20261016120000_password_operation_foundation.sql](../../supabase/migrations/20261016120000_password_operation_foundation.sql). This is implemented SQL source, not evidence of migration application. No active authentication flow calls it.
+
+| Object | Ownership / purpose |
+| --- | --- |
+| `dg_password_setup_state` | Restricted internal state keyed to `dg_user_profiles.user_id`: generation, setup-required flag and pending-reset flag. Lazily initialized from the profile; does not update the profile. |
+| `dg_password_operations` | Operation UUID, target user, generation, employee/admin kind, lifecycle, terminal outcome and optional reconciliation reference. No credentials. |
+| `dg_password_request_reset` | Advances generation and queues a reset without dispatch permission; supersedes older queued resets, never unresolved writes. Repeated request UUID is idempotent. |
+| `dg_password_reserve` | Locks profile then state; reserves one write per user. Employee setup requires no pending reset; admin reservation requires the current pending reset. Duplicate reservation is NOT permission to redispatch. |
+| `dg_password_finish`, `dg_password_reconcile` | Record trusted results; unknown outcomes require explicit reconciliation with an evidence reference. Stale successful writes settle as superseded without completing current setup. |
+| `dg_password_lock_state`, `dg_password_settle` | Private helpers; no service-role or ordinary-client execution grants. |
+
+Only the four transition entry points grant `service_role` EXECUTE. Both tables enable RLS with no client policies and revoke ordinary/service-role direct table privileges. Functions use explicit postgres ownership and empty search paths. New tables deliberately do not cascade profile deletion. An eventual account-deletion workflow must handle their history explicitly.
+
+Profile/state row locks serialize requests; a partial unique index additionally prevents two reserved/unknown writes per user. SQL transactions do not encompass Auth HTTP calls. Initial state is generation 1; each distinct reset request increments it, even while another write is unresolved. `pending -> reserved -> succeeded/failed/unknown`; unknown requires trusted reconciliation to become terminal. Superseded pending requests were never dispatched; superseded successful writes carry a successful outcome but cannot complete the new generation. Terminal duplicates with the same outcome return unchanged; conflicting outcomes fail.
+
+Integration must synchronize the real profile requirement, reset/provisioning paths and business gates atomically with these transitions. This stage intentionally does **not** do so: internal state may diverge from existing active flows and must not yet be treated as their authority. See [security boundary and recovery limits](03-authentication-and-security.md#password-operation-foundation--stage-1-not-connected) and [tests](06-testing-and-development-guide.md#password-operation-foundation-checks).

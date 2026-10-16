@@ -115,3 +115,15 @@ Shared access changes affect navigation, every protected page, action services a
 [exceptions]: ../../supabase/migrations/20260825050000_add_capacity_exceptions.sql
 [checkpoint-hardening]: ../../supabase/migrations/20260712040000_secure_production_flow_checkpoint_link_validator.sql
 [delete-hardening]: ../../supabase/migrations/20260825020000_harden_production_delete_event_grants.sql
+
+## Password operation foundation — Stage 1 (not connected)
+
+The [new SQL foundation](../../supabase/migrations/20261016120000_password_operation_foundation.sql), based on `9efaf06`, is implemented but **not connected to active authentication flows**. It does not close the existing password-setup enforcement gaps. Existing login, setup action, completion RPC, administrative reset service, profile flags and module permission gates remain unchanged. No hosted application is claimed.
+
+The trusted server will eventually attest Auth results through service-role-only transitions. A browser cannot invoke these transitions or write their tables. The database checks operation/user binding and generation, not whether an Auth call actually happened; that attestation remains a privileged server responsibility. The restricted reconciliation reference is an audit pointer, not cryptographic proof. Never put passwords, tokens or provider response bodies in it.
+
+Unknown outcomes retain the write reservation indefinitely. No timestamp authorizes release. A late successful result for an obsolete generation releases the old reservation but cannot clear the newer internal requirement. Admin success leaves employee setup required; failed admin resets retain the pending-reset barrier and require a new reset request. A newer reset can queue while an old write is unresolved, but cannot dispatch until that write settles. Inactive profiles cannot reserve or complete internal setup successfully.
+
+Future integration must: (1) authorize each server caller before privileged operations; (2) reserve before every controlled Auth write and never redispatch on duplicate/lost reservation responses; (3) establish the real profile requirement before admin Auth writes; (4) remove the session-only completion bypass and enforce business-operation gates; (5) atomically finalize the real profile with current-generation success; (6) provide safe status/retry access without exposing attestation authority. Initialize/reconcile dormant state at that cutover rather than assuming it stayed synchronized with old flows.
+
+A lost Auth response or server death before recording success remains unresolved. A successful login, elapsed time or browser assertion cannot establish the missing evidence. Operators must establish that the external write has settled before trusted reconciliation; unsupported automatic recovery remains deferred. Out-of-band Auth/admin writes do not participate in these locks. No undocumented Auth fields, password hashes or Auth triggers are used.

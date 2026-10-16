@@ -101,3 +101,16 @@ Before any separately authorized migration, identify the exact target, remote hi
 **Coverage unclear, requiring a targeted audit:** exhaustive geometry combinations; unequal DD diagrams; old-record round trips under new formulas; simultaneous Job/Calendar mutations; cross-company visibility/capacity; external writer races; live Auth/provider failure paths. No coverage percentage or universal test runner was established. Relevant `.test.ts` existence does not prove a package script runs it.
 
 For high-risk changes, separately authorize manual save/reopen, direct-role/RPC and realistic print checks. Record the tested commit, data/configuration, expected result and actual result. Never claim current hosted security, migration compatibility or manufacturing acceptance from this documentation series alone.
+
+## Password operation foundation checks
+
+Stage 1 adds [static safeguards](../../scripts/verify-password-operations.mjs), [transactional SQL cases](../../scripts/verify-password-operations-local.sql), and a [two-session reservation check](../../scripts/verify-password-operations-concurrency.mjs). The source migration is [20261016120000](../../supabase/migrations/20261016120000_password_operation_foundation.sql); it must follow the existing local chain, whose previous newest migration is `20261015120000`. It does not modify historical migrations or active authentication behavior.
+
+- `node scripts/verify-password-operations.mjs`: static source/grant-shape checks only.
+- `npx.cmd eslint scripts/verify-password-operations.mjs scripts/verify-password-operations-concurrency.mjs`: scoped JS lint.
+- `psql -X -h 127.0.0.1 -d doorgo_password_test -v ON_ERROR_STOP=1 -f scripts/verify-password-operations-local.sql`: real SQL transitions/grants, all changes rolled back.
+- `node scripts/verify-password-operations-concurrency.mjs --local`: two local psql sessions; first reservation holds locks, competing reservation times out, retry after rollback succeeds. This timeout is a test of lock contention, never a production recovery rule.
+
+Runtime prerequisites: separately prepared isolated local `doorgo_password_test`, migration applied locally, Supabase roles, local owner connection, and two active setup-required profile fixtures with no internal setup-state rows. Tests do not create Auth users, call Auth, apply migrations or connect to hosted Supabase. Standard local psql connection configuration supplies the user/port; host and database are fixed by the runner. Both sessions roll back. Reserved test operation UUIDs must be unused.
+
+Coverage includes generation/request idempotency, pending-reset supersession, stale and duplicate completion, definitive failure, unknown-outcome blocking despite age, explicit reconciliation, cross-user isolation, actual ordinary-role denial and trusted-role invocation. The two-session check proves lock contention/rollback retry, not full Auth concurrency or all transaction isolation levels. No local psql/Docker/Supabase executable was available during implementation, so SQL/runtime and concurrency suites were **not executed**. Static success is not runtime proof. Future integration needs Auth crash/retry/reset tests and deployment-grant verification.

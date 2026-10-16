@@ -17,6 +17,8 @@ The authorized six-task documentation series is complete. The earlier proposed s
 
 ## Authority and maintenance
 
+- This is the maintained shared reference for developers and Codex. Consult the index for each task, then read only affected sections and linked source; expand for actual dependencies or risks, not by routinely rereading all six chapters. Isolated cosmetic changes do not require broad investigation.
+- When implementation changes documented behavior or dependencies, update only the affected architecture documents in the same task and authorized commit. Report updated chapters or explain why none needed changes. Do not defer necessary updates to indefinite cleanup. See [governance](../../AGENTS.md) for new-feature documentation and scope-conflict rules.
 - Follow the current task and [repository governance](../../AGENTS.md). Existing detailed contracts remain important; start with the links in the overview.
 - Source code and the latest effective definitions in the current [SQL migration chain](../../supabase/migrations/) are authoritative for implemented behavior when architecture documentation becomes stale. This does not prove those migrations are applied to a hosted database.
 - If implementation conflicts with an explicit product rule or authorized task, report the conflict rather than silently choosing a new behavior.

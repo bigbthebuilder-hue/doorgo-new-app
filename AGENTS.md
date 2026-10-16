@@ -16,6 +16,31 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 A lower-authority file must not silently override a higher-authority source. If two higher-authority sources materially conflict, stop and report instead of guessing.
 
+The [architecture reference](docs/architecture/README.md) describes implemented behavior and dependencies; it does not override this authority order or approved product requirements. Source code and effective database definitions establish current implementation, not proof of hosted migration state. Explicitly approved new behavior takes precedence over outdated documentation. Report disagreements between requirements, implementation and documentation; resolve them only within the authorized task, otherwise stop for direction. Never turn an unverified architectural assumption into a product requirement.
+
+## Focused architecture reference usage
+- Developers and Codex share [docs/architecture/README.md](docs/architecture/README.md) as the maintained architecture entry point.
+- For each task, read root `AGENTS.md`, consult the architecture index, identify the affected feature, and read only relevant chapter sections and linked source files. Do not read all six chapters routinely.
+- Expand to other chapters only when dependencies or risks require it. Trivial, isolated cosmetic changes do not require a broad architecture investigation.
+- Verify important claims against current code before changing behavior; use the references to avoid repeatedly rediscovering the application.
+
+| Feature | Reference |
+| --- | --- |
+| Application overview | [01 — Application overview](docs/architecture/01-application-overview.md) |
+| Database and data ownership | [02 — Database and data ownership](docs/architecture/02-database-and-data-ownership.md) |
+| Authentication and security | [03 — Authentication and security](docs/architecture/03-authentication-and-security.md) |
+| Door geometry and configuration | [04 — Door geometry and configuration](docs/architecture/04-door-geometry-and-configuration.md) |
+| Calendar and production workflows | [05 — Calendar and production workflows](docs/architecture/05-calendar-and-production-workflows.md) |
+| Testing and development | [06 — Testing and development guide](docs/architecture/06-testing-and-development-guide.md) |
+
+## Architecture maintenance with implementation
+- For every code change, identify affected chapters, review relevant behavior/dependencies, implement the approved change, and run appropriate verification. Update only documents whose documented behavior or dependencies actually changed.
+- Required architecture updates belong in the same development task and, when a commit is authorized, the same commit as the implementation. Do not defer them indefinitely to documentation cleanup. This rule does not independently authorize a commit or override a task's file restrictions; report any scope conflict.
+- New features must document purpose/behavior, data ownership, applicable tables/RPCs/permissions, cross-feature dependencies, and tests/verification commands. Add a chapter only when existing chapters cannot reasonably accommodate the feature.
+- In the completion report, name updated chapters or explain why no architecture update was necessary. Keep source links and verification context accurate, and distinguish verified behavior from unknowns.
+- Before changing shared behavior, trace Job/Calendar synchronization (including retained combined-trigger logic), Sales Order portions, booking identity/revisions, and production scheduling/capacity dependencies as applicable. Do not duplicate shared geometry or capacity rules in consumers.
+- Inspect effective migration history, including later patches and grants. Local SQL is not evidence of hosted state. Protect shared objects belonging to other applications; hosted access, migration and deployment restrictions below still apply.
+
 ## Working rules
 - Verify branch, commit, complete working-tree state, and relevant repository structure before editing.
 - Inspect the current implementation and task-relevant contracts before changing behavior.

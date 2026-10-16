@@ -120,7 +120,7 @@ Highest regression risks are the overlapping Job sync paths, current-portion uni
 - `dg_delete_native_job` predates later fulfillment and delete-event foreign keys. Its permanent-delete body does not enumerate all later dependent tables; actual behavior for those dependencies requires a focused database test. Do not promise it deletes every modern aggregate successfully.
 - Dynamic hash-guarded patches require specific predecessor definitions. Hosted drift, extensions, grants, migration history and data backfills remain unverified.
 - The original combined sync function still contains fulfillment work even after the firing-column split. Interaction of simultaneous header/fulfillment edits and triggers requires focused regression coverage, not an assumption of complete separation.
-- No claim is made about current test pass status or production readiness. Task 3/access documentation and any remediation are separate work.
+- No claim is made about current test pass status or production readiness. [Chapter 03](03-authentication-and-security.md) documents repository authentication/access boundaries; hosted verification and remediation require separate authorization.
 
 [jobs]: ../../supabase/migrations/20260728000000_create_native_job_persistence.sql
 [glass]: ../../supabase/migrations/20260805000000_add_direct_dimension_glass_sources.sql

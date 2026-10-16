@@ -79,7 +79,7 @@ Build entry points are `npm run dev`, `npm run build`, and `npm run start`. [Nex
 ## Unresolved and explicitly unverified
 
 - Hosted deployment settings, active external synchronization services, and applied migration history were not inspected. Local migrations do not establish remote state; `supabase/config.toml` was absent at verification.
-- Full effective SQL/RLS/trigger ownership mapping is deferred to a separately approved database investigation. Do not infer all side effects from TypeScript callers.
+- Repository database ownership and effective local SQL/RLS/trigger relationships are documented in [Chapter 02](02-database-and-data-ownership.md). Hosted state and missing legacy schema remain unverified; do not infer all side effects from TypeScript callers.
 - Native Job enrichment is permission-dependent in the [Calendar page](../../app/calendar/page.tsx); some records may legitimately lack linked display data. Do not infer data provenance from whether Open Job is visible.
 - No separate customer/product/pricing subsystem was found in the inspected source; externally owned systems remain unverified.
 - [Current checkpoint](../DOORGO_CURRENT_CHECKPOINT.md) records an older branch/checkpoint. Read it as historical context unless reconciled with current Git state. Existing [workflow](../DOORGO_CODEX_WORKFLOW.md) and [root governance](../../AGENTS.md) still govern task scope.

@@ -147,3 +147,29 @@ The [orchestrator](../../lib/auth/employee-password-operation.ts) obtains identi
 `operation_complete` means internal operation completion, **not permission to enter business screens**: the real profile flag remains unchanged. Production activation must wait for coordinated resets, atomic real-profile finalization, old completion-RPC removal and required business gates. The new read RPC must be deployed and verified before any future wiring. The adapter deliberately never calls `complete_dg_initial_password_setup`, never uses Auth admin APIs to change the employee password, and lazily creates the existing trusted client only after identity verification. No secrets or Auth results are persisted in browser state or logs.
 
 The adapter also requires the existing public Auth URL and trusted Supabase URL to match before any trusted RPC or password write. This prevents accidentally attesting an Auth response from a different configured project; it adds no new environment variable. URL/configuration failures return unavailable without exposing configuration values.
+
+## Administrative reset integration — Stage 3, implemented but inactive
+
+Based on `dddb746`, [password-reset-server.ts](../../lib/admin/password-reset-server.ts) is server-only, has no `use server` directive and no action/UI callers. It does not replace [users-service.ts](../../lib/admin/users-service.ts) or [users-server.ts](../../lib/admin/users-server.ts), activate employee setup, introduce a flag, or change login/business gates. Existing production reset ordering remains Auth first, then profile requirement. No migration is introduced in Stage 3.
+
+The [inactive orchestrator](../../lib/admin/password-reset-operation.ts) follows this sequence:
+
+1. Use session-derived `getCurrentDoorGoAccess()` (`auth.getUser()` plus profile/permissions), existing `assertUserAdmin(access,true)` and existing temporary-password/UUID validation before privileged operations. User Administration use, active profile and completed setup are required; manager status alone is insufficient.
+2. Resolve an active DoorGo target through authenticated `dg_admin_list_users`; require matching public/trusted Supabase project URLs. Generate an internal operation UUID; request a new generation with `dg_password_request_reset` before any Auth write.
+3. Call authenticated `dg_admin_require_password_change`, rechecking SQL user-administration permission and setting the real profile requirement. Read the trusted snapshot; require matching target/generation, active profile, both setup requirements, pending reset and no unresolved write. Reserve that exact admin operation through `dg_password_reserve`.
+4. Call the existing trusted Auth boundary, `auth.admin.updateUserById(target,{password})`, once. Match the successful response user to the target. Only explicit password-validation rejection (`same_password`/`weak_password`, 400/422) is definitive failure; other errors, missing/mismatched responses and exceptions are unknown.
+5. Finalize the same operation/outcome through `dg_password_finish`, with at most one same-request retry using the retained Auth response. Confirm the current snapshot still requires setup. Admin success clears only internal reset-pending, leaving internal setup-required and the real profile requirement true. A newer generation or superseded result cannot report current success.
+
+| Failure/race | Inactive behavior |
+| --- | --- |
+| Earlier employee/admin write reserved or unknown | New generation/pending reset can be recorded, but no competing Auth dispatch. Return recovery-required; do not poll, time out, unlock or reconcile automatically. |
+| Lost request/reservation response | No Auth dispatch; uncertain state remains for review. |
+| Profile requirement update fails | Internal pending/reset requirement remains. No Auth dispatch; the real flag may or may not have committed. |
+| Definitive Auth rejection | Record failed; preserve reset-pending and setup requirements. A deliberate new reset request can retry; never reuse the old dispatch ID. |
+| Unknown Auth outcome or process death before durable attestation | Leave reserved/unknown unresolved. Explicit trusted reconciliation requires evidence; elapsed time and login are not proof. |
+| Finalization response lost | Retry only the same attestation in this request, never Auth. Terminal same-outcome finalization is idempotent. After process loss there is no new automatic cross-request admin-receipt recovery API. |
+| Competing resets | New requests advance generation; pending older requests are superseded. An older in-flight Auth write may still finish, but cannot settle the newer generation or permit a competing write. |
+
+Passwords only enter Auth's password argument, never operation records, logs, result DTOs or form-derived authority fields. Results contain status only. Snapshot trust remains service-role-wide; the adapter fixes all RPC/Auth targets to the validated employee UUID.
+
+**Not an activation-ready protocol:** profile requirement, internal generation and Auth are separate transactions. Legacy completion/reset paths and out-of-band Auth writes still bypass coordination. The database reserve/settle checks active target state, but cannot atomically encompass deactivation, permission changes or Auth HTTP dispatch. Future activation must coordinate every password-writing path, real-profile completion, direct completion-RPC removal and business gates, and define exceptional recovery. No live security gap is claimed fixed by these inactive modules.

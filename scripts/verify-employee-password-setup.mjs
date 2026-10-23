@@ -20,8 +20,8 @@ function walk(directory) {
     ? walk(path.join(directory,e.name)) : [path.join(directory,e.name)]);
 }
 for (const file of [...walk('app'),...walk('components'),...walk('lib')]) {
-  if (!/\.tsx?$/.test(file) || file.endsWith('.test.ts') || /employee-password-(server|operation)\.ts$/.test(file)) continue;
-  assert.doesNotMatch(read(file),/employee-password-(server|operation)/,`Inactive boundary: ${file}`);
+  if (!/\.tsx?$/.test(file) || file.endsWith('.test.ts') || /(?:employee-password|password-reset)-(server|operation)\.ts$/.test(file)) continue;
+  assert.doesNotMatch(read(file),/employee-password-(server|operation)|password-reset-(server|operation)/,`Inactive boundary: ${file}`);
 }
 assert.match(read('app/account/change-password/actions.ts'),/executeInitialPasswordSetup/);
 const sql = read('supabase/migrations/20261023120000_employee_password_operation_snapshot.sql');

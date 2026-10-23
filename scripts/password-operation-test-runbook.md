@@ -95,3 +95,42 @@ node scripts/verify-password-operations.mjs
 npx.cmd eslint scripts/password-test-connection.mjs scripts/run-password-database.mjs scripts/verify-password-bootstrap.mjs scripts/verify-password-operations-concurrency.mjs
 git diff --check
 ```
+
+## Snapshot RPC follow-up validation
+
+Validated locally against `1dd7e45` on 2026-10-23 using the preserved cluster above.
+Do not repeat cluster creation, database creation, or bootstrap. After verifying the
+preserved cluster identity and starting it if needed, reuse `$connection` above:
+
+```powershell
+node scripts/run-password-snapshot.mjs inspect @connection
+if ($LASTEXITCODE -ne 0) { throw 'Prerequisite inspection failed.' }
+# Apply only with separate authorization, and only if inspect reports no snapshot function:
+node scripts/run-password-snapshot.mjs apply @connection
+if ($LASTEXITCODE -ne 0) { throw 'Snapshot migration failed.' }
+node scripts/run-password-snapshot.mjs test @connection
+if ($LASTEXITCODE -ne 0) { throw 'Snapshot tests failed.' }
+node scripts/run-password-database.mjs test @connection
+if ($LASTEXITCODE -ne 0) { throw 'Foundation tests failed.' }
+node scripts/verify-password-operations-concurrency.mjs @connection
+if ($LASTEXITCODE -ne 0) { throw 'Concurrency tests failed.' }
+```
+
+The snapshot migration is now present in this disposable database: **skip apply on
+subsequent test runs**. The runner rejects an existing function rather than replacing
+it, requires exactly `127.0.0.1:55432`, uses the shared connection safeguards, and checks
+for the two preserved setup-required profiles and empty foundation state/operation
+tables. It applies the actual repository migration, not a copied definition.
+
+[Snapshot SQL tests](verify-password-snapshot-local.sql) exercise real `service_role`,
+`authenticated`, and `anon` privileges, generation/default/receipt selection, pending
+resets, stale unresolved writes, unknown outcomes, user isolation, missing profiles,
+unchanged table contents, and execution in a read-only transaction. All test mutations
+roll back. The trusted service role can intentionally request either user's snapshot;
+binding the target to `auth.getUser()` belongs to the inactive server adapter. Ordinary
+roles are denied both their own and another user's snapshot, even with a subject claim.
+
+Snapshot tests, unchanged foundation SQL tests, and two-session reservation tests all
+passed. No bootstrap was rerun. This validates PostgreSQL behavior in the minimal
+fixture schema, not Supabase Auth, PostgREST, hosted grants, or full migration replay.
+Stop the isolated cluster using the existing stop instructions; preserve its files.

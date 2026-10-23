@@ -1,4 +1,4 @@
-﻿-- Local fixture-dependent runtime tests. No migration application; all changes roll back.
+-- Local fixture-dependent runtime tests. No migration application; all changes roll back.
 -- Use run-password-database.mjs test with explicit isolated connection parameters.
 -- Requires migration through 20261016120000 and two active profiles requiring setup,
 -- neither previously initialized in dg_password_setup_state. Run as local test owner.

@@ -68,7 +68,7 @@ try {
     const trusted={async rpc(name,args){
       calls.push(name); assert.equal(args.p_user_id,userId);
       if(name==='dg_password_employee_snapshot') return {error:null,data:{user_id:userId,active:true,
-        must_change_password:mode!=='not-required',generation:'1',setup_required:!completed,reset_pending:false,
+        must_change_password:mode!=='not-required'&&!completed,generation:'1',setup_required:!completed,reset_pending:false,
         unresolved:operation?.state==='reserved'||operation?.state==='unknown'?operation:null,
         completion:completed?operation:null}};
       if(name==='dg_password_reserve') {

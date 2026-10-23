@@ -11,7 +11,7 @@ const read=f=>readFileSync(f,'utf8');
 const server=read('lib/admin/password-reset-server.ts');
 assert.match(server,/^import 'server-only'/);
 assert.doesNotMatch(server,/^['"]use server['"]/m);
-assert.doesNotMatch(server,/console\.|dg_password_reconcile|complete_dg_initial_password_setup/);
+assert.doesNotMatch(server,/console\.|dg_password_reconcile|complete_dg_initial_password_setup|dg_admin_require_password_change/);
 const walk=d=>readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):[path.join(d,e.name)]);
 for(const file of [...walk('app'),...walk('components'),...walk('lib')]){
   if(!/\.tsx?$/.test(file)||file.endsWith('.test.ts')||/password-reset-(server|operation)\.ts$/.test(file))continue;
@@ -32,10 +32,9 @@ try{
     let operation=null,writes=0,factories=0,required=false,finished=false;
     const calls=[];
     const access={state:'active',user:{id:actor,email:null},profile:{userId:actor,active:true,mustChangePassword:mode==='setup-required'},permissions:{users:mode==='denied'?'view':'use'}};
-    const authenticated={async rpc(name,args){calls.push(name);
-      if(name==='dg_admin_list_users')return {data:[{userId:user,active:mode!=='inactive',mustChangePassword:false}],error:null};
-      assert.equal(name,'dg_admin_require_password_change');assert.equal(args.p_user_id,user);required=true;
-      return {data:{userId:user,active:true,mustChangePassword:true},error:null};
+    const authenticated={async rpc(name){calls.push(name);
+      assert.equal(name,'dg_admin_list_users');
+      return {data:[{userId:user,active:mode!=='inactive',mustChangePassword:false}],error:null};
     }};
     const trusted={auth:{admin:{async updateUserById(id,attributes){
       writes++;calls.push('Auth');assert.equal(id,user);assert.deepEqual(Object.keys(attributes),['password']);assert.equal(required,true);
@@ -44,7 +43,7 @@ try{
       return {data:{user:error?null:{id:mode==='wrong-user'?actor:user}},error};
     }}},async rpc(name,args){calls.push(name);assert.equal(args.p_user_id,user);
       assert.doesNotMatch(JSON.stringify(args),/synthetic temporary/);
-      if(name==='dg_password_request_reset'){operation={user_id:user,operation_id:args.p_operation_id,generation:2,kind:'admin_reset',state:'pending',outcome:null};return {data:operation,error:null};}
+      if(name==='dg_password_request_reset'){required=true;operation={user_id:user,operation_id:args.p_operation_id,generation:2,kind:'admin_reset',state:'pending',outcome:null};return {data:operation,error:null};}
       if(name==='dg_password_employee_snapshot')return {data:{user_id:user,active:true,must_change_password:required,generation:'2',setup_required:true,
         reset_pending:!finished,unresolved:operation?.state==='reserved'||operation?.state==='unknown'?operation:null,completion:null},error:null};
       if(name==='dg_password_reserve'){assert.equal(args.p_kind,'admin_reset');assert.equal(args.p_generation,'2');operation={...operation,state:'reserved'};return {data:operation,error:null};}
@@ -65,7 +64,7 @@ try{
     const result=await evaluated.exports.runInactiveAdminPasswordReset(user,form);
     assert.equal(calls[0],'access');assert.deepEqual(Object.keys(result),['status']);
     if(['denied','setup-required','inactive','wrong-project'].includes(mode)){assert.equal(factories,0);assert.equal(writes,0);}
-    else {assert.equal(writes,1);assert.ok(calls.indexOf('dg_admin_require_password_change')<calls.indexOf('Auth'));}
+    else {assert.equal(writes,1);assert.ok(calls.indexOf('dg_password_request_reset')<calls.indexOf('Auth'));}
     return result.status;
   }
   for(const [mode,expected] of [['success','operation_complete'],['denied','not_allowed'],['setup-required','not_allowed'],['inactive','not_allowed'],

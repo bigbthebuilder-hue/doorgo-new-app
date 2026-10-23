@@ -1,0 +1,20 @@
+// Offline shape checks supplement real SQL tests; never connect to a database.
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=f=>readFileSync(f,'utf8').replace(/\r\n/g,'\n');
+const sql=read('supabase/migrations/20261023140000_password_atomic_profile_transitions.sql');
+const original=read('supabase/migrations/20261016120000_password_operation_foundation.sql');
+let request=original.slice(original.indexOf('CREATE FUNCTION public.dg_password_request_reset'),original.indexOf('-- A successful return')).trim().replace('CREATE FUNCTION','CREATE OR REPLACE FUNCTION');
+request=request.replace("  UPDATE public.dg_password_operations SET state='superseded'", "  IF NOT EXISTS(SELECT 1 FROM public.dg_user_profiles WHERE user_id=p_user_id AND active) THEN\n    RAISE EXCEPTION 'password.inactive_user';\n  END IF;\n  UPDATE public.dg_password_operations SET state='superseded'");
+request=request.replace('  INSERT INTO public.dg_password_operations', '  UPDATE public.dg_user_profiles SET must_change_password=true,updated_at=pg_catalog.clock_timestamp()\n    WHERE user_id=p_user_id;\n  INSERT INTO public.dg_password_operations');
+let settle=original.slice(original.indexOf('CREATE FUNCTION public.dg_password_settle'),original.indexOf('CREATE FUNCTION public.dg_password_finish')).trim().replace('CREATE FUNCTION','CREATE OR REPLACE FUNCTION');
+settle=settle.replace('      UPDATE public.dg_password_setup_state SET setup_required=false WHERE user_id=p_user_id;', '      UPDATE public.dg_password_setup_state SET setup_required=false WHERE user_id=p_user_id;\n      UPDATE public.dg_user_profiles SET must_change_password=false,\n        password_changed_at=op.settled_at,updated_at=op.settled_at WHERE user_id=p_user_id;');
+assert.ok(sql.includes(request));assert.ok(sql.includes(settle));
+assert.equal((sql.match(/CREATE OR REPLACE FUNCTION/g)||[]).length,2);
+assert.match(sql,/BEGIN;[\s\S]*COMMIT;\s*$/);
+assert.match(sql,/REVOKE ALL ON FUNCTION public\.dg_password_request_reset\(uuid,uuid\),public\.dg_password_settle\(uuid,uuid,text,text\)\n  FROM PUBLIC,anon,authenticated,service_role;/);
+assert.equal((sql.match(/GRANT EXECUTE/g)||[]).length,1);
+assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.dg_password_request_reset\(uuid,uuid\) TO service_role;/);
+assert.doesNotMatch(sql,/complete_dg_initial_password_setup|CREATE TABLE|CREATE POLICY|auth\.users/);
+assert.doesNotMatch(read('lib/admin/password-reset-server.ts'),/dg_admin_require_password_change/);
+console.log('Atomic SQL: two bounded replacements, original guards/transitions preserved, restricted grants passed (static).');

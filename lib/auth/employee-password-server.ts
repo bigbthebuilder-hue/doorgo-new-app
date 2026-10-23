@@ -8,8 +8,8 @@ import { executeEmployeePasswordOperation, parseEmployeeSnapshot, parsePasswordO
   type EmployeeSetupResult } from './employee-password-operation';
 
 // INACTIVE: no action, route or component imports this module. Do not add 'use server'.
-// Activation requires coordinated resets, atomic real-profile completion and business
-// gates. Stage 2 completes ONLY the internal operation, not the active profile flag.
+// Activation still requires coordinated legacy writers, completion authority and business
+// gates. Stage 4A SQL atomically completes the internal operation and profile requirement.
 export async function runInactiveEmployeePasswordSetup(form: FormData): Promise<EmployeeSetupResult> {
   try {
     const authenticated = await createAuthenticatedSupabaseServerClient();

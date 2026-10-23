@@ -15,11 +15,10 @@ function fixture() {
   const rows=new Map<string,PasswordOperation>(); const calls:string[]=[]; let sequence=0;
   const operations: ResetOperations={
     async target(id) { calls.push('target'); assert.equal(id,user); return {userId:user,active:state.active}; },
-    async requireSetup(id) { calls.push('require'); assert.equal(id,user); state.must_change_password=true; return {userId:user,active:state.active,mustChangePassword:true}; },
     newOperationId() { return `30000000-0000-4000-8000-${String(++sequence).padStart(12,'0')}`; },
     async request(id,operationId) {
       calls.push('request'); assert.equal(id,user);
-      state.generation=String(Number(state.generation)+1); state.setup_required=true; state.reset_pending=true;
+      state.generation=String(Number(state.generation)+1); state.setup_required=true; state.reset_pending=true; state.must_change_password=true;
       for(const row of rows.values()) if(row.state==='pending')row.state='superseded';
       const row:PasswordOperation={user_id:id,operation_id:operationId,generation:state.generation,kind:'admin_reset',state:'pending',outcome:null};
       rows.set(operationId,row); return structuredClone(row);
@@ -46,7 +45,7 @@ function fixture() {
 }
 test('authorized reset: generation and real profile requirement precede Auth; setup stays required',async()=>{
   const f=fixture();assert.deepEqual(await f.run(),{status:'operation_complete'});
-  assert.deepEqual(f.calls,['factory','target','request','require','snapshot','reserve','auth','finish:succeeded','snapshot']);
+  assert.deepEqual(f.calls,['factory','target','request','snapshot','reserve','auth','finish:succeeded','snapshot']);
   assert.equal(f.state.generation,'2');assert.equal(f.state.setup_required,true);assert.equal(f.state.must_change_password,true);assert.equal(f.state.reset_pending,false);
 });
 test('unauthorized/view/setup-required/inactive administrators never instantiate operations',async()=>{
@@ -111,7 +110,7 @@ test('cross-user and mismatched operation results fail closed',async()=>{
     assert.equal((await f.run()).status,'operation_mismatch');if(phase!=='finish')assert.ok(!f.calls.includes('auth'));
   }
 });
-test('requirement failure retains pending operation without Auth',async()=>{
-  const f=fixture();f.operations.requireSetup=async()=>{throw new Error('permission revoked');};
-  assert.equal((await f.run()).status,'recovery_required');assert.equal(f.state.reset_pending,true);assert.ok(!f.calls.includes('auth'));
+test('lost atomic reset response retains both requirements without Auth',async()=>{
+  const f=fixture();const request=f.operations.request;f.operations.request=async(...args)=>{await request(...args);throw new Error('lost');};
+  assert.equal((await f.run()).status,'recovery_required');assert.equal(f.state.reset_pending,true);assert.equal(f.state.must_change_password,true);assert.ok(!f.calls.includes('auth'));
 });

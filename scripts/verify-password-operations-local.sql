@@ -72,7 +72,7 @@ BEGIN
   op:=public.dg_password_finish(u,e,'succeeded');
   PERFORM pg_temp.check_it(op.settled_at=stamp,'duplicate finalization idempotent');
   PERFORM pg_temp.check_it((SELECT NOT setup_required FROM public.dg_password_setup_state WHERE user_id=u),'current employee success completes internal state');
-  PERFORM pg_temp.check_it((SELECT must_change_password FROM public.dg_user_profiles WHERE user_id=u),'active profile flag unchanged in Stage 1');
+  PERFORM pg_temp.check_it((SELECT NOT must_change_password FROM public.dg_user_profiles WHERE user_id=u),'Stage 4A clears real profile requirement atomically');
   op:=public.dg_password_request_reset(u,f);
   op:=public.dg_password_finish(u,e,'succeeded');
   PERFORM pg_temp.check_it((SELECT generation=5 AND setup_required FROM public.dg_password_setup_state WHERE user_id=u),'duplicate old finalization cannot clear later reset');

@@ -134,3 +134,40 @@ Snapshot tests, unchanged foundation SQL tests, and two-session reservation test
 passed. No bootstrap was rerun. This validates PostgreSQL behavior in the minimal
 fixture schema, not Supabase Auth, PostgREST, hosted grants, or full migration replay.
 Stop the isolated cluster using the existing stop instructions; preserve its files.
+
+## Stage 4A atomic-transition validation
+
+Against source `3ef49aa`, the actual `20261023140000_password_atomic_profile_transitions.sql`
+was applied only to this preserved disposable database. Do not recreate fixtures or
+rerun bootstrap. Start/stop only the existing isolated cluster as described above.
+Reuse the explicit `$connection` arguments, then:
+
+```powershell
+node scripts/run-password-atomic.mjs inspect @connection
+if ($LASTEXITCODE -ne 0) { throw 'Inspection failed.' }
+# Only with authorization and only when inspect reports atomic_completion = f:
+node scripts/run-password-atomic.mjs apply @connection
+if ($LASTEXITCODE -ne 0) { throw 'Migration failed.' }
+node scripts/run-password-atomic.mjs test @connection
+if ($LASTEXITCODE -ne 0) { throw 'Atomic SQL tests failed.' }
+node scripts/verify-password-atomic-concurrency.mjs @connection
+if ($LASTEXITCODE -ne 0) { throw 'Atomic concurrency tests failed.' }
+node scripts/run-password-database.mjs test @connection
+if ($LASTEXITCODE -ne 0) { throw 'Foundation regression failed.' }
+node scripts/run-password-snapshot.mjs test @connection
+if ($LASTEXITCODE -ne 0) { throw 'Snapshot regression failed.' }
+node scripts/verify-password-operations-concurrency.mjs @connection
+if ($LASTEXITCODE -ne 0) { throw 'Reservation regression failed.' }
+```
+
+**Skip apply on this database now:** the atomic migration is already installed. All
+listed runtime tests passed. The two older SQL suites now expect profile completion
+and therefore require Stage 4A; the bootstrap itself remains historical and unchanged.
+Atomic rollback tests create failure-injection triggers inside a rolled-back transaction.
+The new concurrency suite commits competing operations on unique random synthetic test
+users and removes only those newly inserted rows afterward; it does not modify the two
+original fixtures, invoke Auth, or delete cluster files. Failed assertions remain failures.
+The minimal Auth table is still a test stand-in, not a live account service.
+
+Offline SQL check: `node scripts/verify-password-atomic.mjs`. The cluster was stopped
+after validation and its files/credentials preserved. No hosted-state inference applies.

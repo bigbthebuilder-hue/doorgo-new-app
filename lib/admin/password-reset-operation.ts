@@ -7,7 +7,6 @@ export type ResetResult = { status: 'operation_complete' | 'not_allowed' | 'inva
   | 'unavailable' | 'recovery_required' | 'stale_generation' | 'operation_mismatch' | 'auth_rejected' };
 export type ResetOperations = {
   target: (id: string) => Promise<{ userId: string; active: boolean } | null>;
-  requireSetup: (id: string) => Promise<{ userId: string; active: boolean; mustChangePassword: boolean }>;
   newOperationId: () => string;
   request: (id: string, operationId: string) => Promise<PasswordOperation>;
   snapshot: (id: string) => Promise<EmployeeSetupSnapshot | null>;
@@ -38,11 +37,8 @@ export async function executeAdminPasswordReset(access: CurrentDoorGoAccess, id:
     && op.generation===generation && op.kind==='admin_reset';
   if (!matches(requested) || requested.state!=='pending' || requested.outcome!==null) return { status: 'operation_mismatch' };
   try {
-    // Existing authenticated RPC rechecks users/use and sets the real profile flag.
-    // Separate transactions: failure leaves the internal requirement/pending reset intact.
-    const profile=await ops.requireSetup(id);
-    if (profile.userId!==id) return { status: 'operation_mismatch' };
-    if (!profile.active || !profile.mustChangePassword) return { status: 'recovery_required' };
+    // The reset request atomically sets the profile and internal requirements.
+    // Do not issue a separate, generation-unaware profile update here.
     const current=await ops.snapshot(id);
     if (!current || current.user_id!==id) return { status: 'operation_mismatch' };
     if (current.generation!==generation) return { status: 'stale_generation' };

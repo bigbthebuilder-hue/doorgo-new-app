@@ -17,5 +17,5 @@ assert.doesNotMatch(sql, /(?:UPDATE|ALTER TABLE) public\.dg_user_profiles/i);
 assert.doesNotMatch(sql, /CREATE (?:OR REPLACE )?FUNCTION public\.(?:complete_dg_initial_password_setup|dg_admin_)/i);
 assert.doesNotMatch(sql, /auth\.users|encrypted_password|interval\s*'/i);
 assert.doesNotMatch(sql, /GRANT[^;]*TO (?:authenticated|anon|PUBLIC)/i);
-for (const marker of ['reset increments', 'stale success', 'duplicate finalization', 'unknown remains', 'cross-user', 'authenticated denied', 'active profile flag unchanged']) assert.ok(tests.includes(marker), marker);
+for (const marker of ['reset increments', 'stale success', 'duplicate finalization', 'unknown remains', 'cross-user', 'authenticated denied', 'Stage 4A clears real profile requirement atomically']) assert.ok(tests.includes(marker), marker);
 console.log('Password operation static safeguards passed (not runtime authorization proof).');

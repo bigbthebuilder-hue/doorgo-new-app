@@ -39,7 +39,7 @@ function matches(op: PasswordOperation, userId: string, id: string, generation: 
 }
 function completed(s: EmployeeSetupSnapshot, userId: string, id?: string) {
   const op = s.completion;
-  return s.active && s.must_change_password && !s.setup_required && !s.reset_pending && !s.unresolved
+  return s.active && !s.must_change_password && !s.setup_required && !s.reset_pending && !s.unresolved
     && op !== null && matches(op,userId,id ?? op.operation_id,s.generation)
     && op.state === 'succeeded' && op.outcome === 'succeeded';
 }
@@ -54,11 +54,12 @@ export async function executeEmployeePasswordOperation(
     if (!user) return { status: 'not_allowed' };
     snapshot = await operations.snapshot(user.id);
   } catch { return { status: 'unavailable' }; }
-  if (!snapshot || !snapshot.active || !snapshot.must_change_password) return { status: 'not_allowed' };
+  if (!snapshot || !snapshot.active) return { status: 'not_allowed' };
   if (snapshot.user_id !== user.id) return { status: 'operation_mismatch' };
   // A durable current-generation receipt permits a later request/session to recover
   // without resubmitting a password. Login or a false setup flag alone is not proof.
   if (completed(snapshot,user.id)) return { status: 'operation_complete' };
+  if (!snapshot.must_change_password) return { status: 'not_allowed' };
   if (snapshot.unresolved || snapshot.reset_pending || !snapshot.setup_required) return { status: 'recovery_required' };
   const validation = validateNewPasswordForm(form);
   if (!validation.valid) return { status: 'validation_error', message: validation.message };

@@ -65,7 +65,7 @@ BEGIN
   PERFORM pg_temp.check_it(j#>>'{completion,operation_id}'=c::text
     AND j#>>'{completion,user_id}'=u::text AND j#>>'{completion,generation}'='2'
     AND j#>>'{completion,state}'='succeeded' AND j#>>'{completion,outcome}'='succeeded'
-    AND NOT (j->>'setup_required')::boolean AND (j->>'must_change_password')::boolean,'current employee receipt; profile unchanged');
+    AND NOT (j->>'setup_required')::boolean AND NOT (j->>'must_change_password')::boolean,'current employee receipt; profile completed atomically');
   PERFORM public.dg_password_reserve(v,d,1,'employee_setup');
   j:=pg_temp.snapshot(v);
   PERFORM pg_temp.check_it(j->>'user_id'=v::text AND j#>>'{unresolved,operation_id}'=d::text

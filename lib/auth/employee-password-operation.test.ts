@@ -31,17 +31,17 @@ function fixture() {
       if (outcome === 'unknown') { op.state = 'unknown'; return structuredClone(op); }
       op.state = outcome === 'succeeded' && op.generation !== state.generation ? 'superseded' : outcome;
       op.outcome = outcome; state.unresolved = null;
-      if (op.state === 'succeeded') { state.setup_required = false; state.completion = op; }
+      if (op.state === 'succeeded') { state.setup_required = false; state.must_change_password = false; state.completion = op; }
       return structuredClone(op);
     },
   };
   return { state, calls, operations, run: (f = form()) => executeEmployeePasswordOperation(f,operations) };
 }
 
-test('verified identity -> reservation -> Auth -> trusted finalization; profile flag unchanged', async () => {
+test('verified identity -> reservation -> Auth -> trusted atomic finalization clears profile flag', async () => {
   const f = fixture(); assert.deepEqual(await f.run(),{ status: 'operation_complete' });
   assert.deepEqual(f.calls,['identity','snapshot','reserve','auth','finish:succeeded','snapshot']);
-  assert.equal(f.state.must_change_password,true);
+  assert.equal(f.state.must_change_password,false);
 });
 test('definitive Auth rejection settles failed and permits a new operation', async () => {
   const f = fixture(); f.operations.updatePassword = async () => ({ status: 'rejected' });

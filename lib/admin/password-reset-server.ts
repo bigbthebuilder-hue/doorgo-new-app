@@ -16,7 +16,7 @@ function profile(value: unknown): { userId: string; active: boolean; mustChangeP
 }
 
 // INACTIVE. No action/UI callers or 'use server' directive; no feature flag.
-// Do not wire before coordinated profile finalization and business gates are ready.
+// Do not wire before legacy writers, completion authority and business gates are coordinated.
 export async function runInactiveAdminPasswordReset(id: string, form: FormData): Promise<ResetResult> {
   try {
     const access=await getCurrentDoorGoAccess(); // auth.getUser + current profile/permissions
@@ -37,11 +37,6 @@ export async function runInactiveAdminPasswordReset(id: string, form: FormData):
           if (error || !Array.isArray(data)) throw new Error('User lookup unavailable');
           const found=data.map(profile).find(user=>user.userId===id);
           return found ?? null;
-        },
-        async requireSetup() {
-          const {data,error}=await authenticated.rpc('dg_admin_require_password_change',{p_user_id:id});
-          if (error) throw new Error('Setup requirement unavailable');
-          return profile(data);
         },
         newOperationId:randomUUID,
         async request(_user,operationId) { return parsePasswordOperation(await rpc('dg_password_request_reset',{p_operation_id:operationId})); },

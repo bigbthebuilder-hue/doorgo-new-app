@@ -266,3 +266,27 @@ node scripts/verify-password-atomic-concurrency.mjs @connection
 Check each exit code and stop on failure. The actual [migration](../supabase/migrations/20261026120000_password_require_change.sql) was applied only to the disposable database on 2026-10-26; **skip apply on subsequent runs**. All listed SQL/concurrency suites passed. SQL tests roll back; concurrency tests clean up only their own random synthetic identities. Stop the isolated cluster afterward using the earlier instructions; preserve cluster files and credentials. Never operate the Windows PostgreSQL service.
 
 Offline checks: `node scripts/verify-password-require-change.mjs`, existing employee/admin password verifiers, `npx.cmd tsc --noEmit`, scoped ESLint on the new adapter and three .mjs files, and `git diff --check`. The adapter's human-admin authorization is mocked separately from real SQL role tests; no Auth call is made. Generation advances on every successful request; lost-response retry can advance again. Pending admin resets are rejected unchanged; unresolved employee writes remain blocked. No active action is connected, no production migration is applied, and no hosted state is inferred.
+
+## Stage 4C-2A reactivation validation
+
+Source baseline `cebea05`. Reuse the existing cluster and `$connection`; verify directory, loopback port, cluster name and prerequisites. Do not recreate fixtures or bootstrap. Only the new [migration](../supabase/migrations/20261026160000_password_reactivation.sql) may be applied to this disposable database under separate task authorization.
+
+```powershell
+node scripts/run-password-reactivation.mjs inspect @connection
+# Only if absent and explicitly authorized:
+node scripts/run-password-reactivation.mjs apply @connection
+node scripts/run-password-reactivation.mjs test @connection
+node scripts/verify-password-reactivation-concurrency.mjs @connection
+node scripts/run-password-database.mjs test @connection
+node scripts/run-password-snapshot.mjs test @connection
+node scripts/run-password-atomic.mjs test @connection
+node scripts/run-password-authority.mjs test @connection
+node scripts/run-password-require-change.mjs test @connection
+node scripts/verify-password-operations-concurrency.mjs @connection
+node scripts/verify-password-atomic-concurrency.mjs @connection
+node scripts/verify-password-require-change-concurrency.mjs @connection
+```
+
+Stop on any nonzero exit code. Applied locally on 2026-10-26: **skip apply on future runs**. New SQL/concurrency and existing runtime regressions passed. SQL mutations roll back; concurrency cases remove only their own random synthetic identities. Stop the isolated cluster afterward, preserving its files; never touch the Windows service.
+
+Offline: `node scripts/verify-password-reactivation.mjs`, existing password verifiers, `npx.cmd tsc --noEmit`, scoped ESLint for changed TS/.mjs files, documentation-link validation and `git diff --check`. Mocked Auth is not real Auth/session evidence. No active workflows, earlier migrations or business permissions change. Cutover still requires coordinated writers, denial of inactive/setup-required business access, session freshness and exceptional recovery. Successful reconciliation must have trusted evidence; a reference string or elapsed time alone is insufficient.

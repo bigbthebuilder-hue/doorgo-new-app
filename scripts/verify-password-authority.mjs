@@ -15,7 +15,7 @@ const action=read('app/account/change-password/actions.ts');
 assert.match(action,/executeInitialPasswordSetup/);assert.match(action,/complete_dg_initial_password_setup/);
 const walk=d=>readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):[path.join(d,e.name)]);
 for(const file of [...walk('app'),...walk('components'),...walk('lib')]){
- if(!/\.tsx?$/.test(file)||file.endsWith('.test.ts')||/(employee-password|password-reset)-(server|operation)\.ts$/.test(file))continue;
- assert.doesNotMatch(read(file),/employee-password-(server|operation)|password-reset-(server|operation)|password_completion_cutover/,'Inactive/staging boundary: '+file);
+ if(!/\.tsx?$/.test(file)||file.endsWith('.test.ts')||/(employee-password|password-reset|reactivation)-(server|operation)\.ts$/.test(file))continue;
+ assert.doesNotMatch(read(file),/employee-password-(server|operation)|password-reset-(server|operation)|reactivation-(server|operation)|password_completion_cutover/,'Inactive/staging boundary: '+file);
 }
 console.log('Cutover guard, bounded DROP RESTRICT, unchanged active caller and inactive imports verified. Hosted state UNKNOWN; static checks cannot prove non-application.');

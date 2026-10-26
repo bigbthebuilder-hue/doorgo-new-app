@@ -5,7 +5,7 @@ export type PasswordOperation = {
   operation_id: string;
   user_id: string;
   generation: string;
-  kind: 'employee_setup' | 'admin_reset';
+  kind: 'employee_setup' | 'admin_reset' | 'reactivation';
   state: 'pending' | 'reserved' | 'unknown' | 'succeeded' | 'failed' | 'superseded';
   outcome: 'succeeded' | 'failed' | null;
 };
@@ -137,7 +137,7 @@ function boolean(value: unknown): boolean {
 }
 export function parsePasswordOperation(value: unknown): PasswordOperation {
   const r = record(value);
-  if (r.kind !== 'employee_setup' && r.kind !== 'admin_reset') throw new Error('Invalid operation kind');
+  if (r.kind !== 'employee_setup' && r.kind !== 'admin_reset' && r.kind !== 'reactivation') throw new Error('Invalid operation kind');
   if (typeof r.state !== 'string' || !['pending','reserved','unknown','succeeded','failed','superseded'].includes(r.state)
     || ![null,'succeeded','failed'].includes(r.outcome as string | null)) throw new Error('Invalid operation outcome');
   return { user_id: identifier(r.user_id), operation_id: identifier(r.operation_id), generation: generation(r.generation),

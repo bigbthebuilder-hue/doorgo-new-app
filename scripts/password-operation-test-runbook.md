@@ -171,3 +171,76 @@ The minimal Auth table is still a test stand-in, not a live account service.
 
 Offline SQL check: `node scripts/verify-password-atomic.mjs`. The cluster was stopped
 after validation and its files/credentials preserved. No hosted-state inference applies.
+
+## Stage 4B cutover-only legacy removal
+
+Prepared from `93fb453`, resumed 2026-10-26. The earlier partial run already applied
+[20261023160000](../supabase/migrations/20261023160000_retire_legacy_password_completion.sql)
+to this disposable database. **Do not recreate the RPC, rebootstrap, or repeat apply.**
+No hosted database was accessed; static tests cannot prove hosted migration state.
+
+Repository inspection found no `supabase/config.toml`, project-local CLI installation,
+package migration command or checked-in CI migration workflow. The isolated runners use
+one direct `psql` process, `-X -w`, `ON_ERROR_STOP=1`, explicit connection arguments and
+the existing cluster guard. They do not update Supabase migration history.
+
+With the existing `$connection` arguments and verified isolated cluster, run:
+
+```powershell
+node scripts/run-password-authority.mjs inspect @connection
+if ($LASTEXITCODE -ne 0) { throw 'Inspection failed.' }
+node scripts/run-password-authority.mjs guard-test @connection
+if ($LASTEXITCODE -ne 0) { throw 'Guard tests failed.' }
+node scripts/run-password-authority.mjs test @connection
+if ($LASTEXITCODE -ne 0) { throw 'Authority tests failed.' }
+```
+
+Run the existing foundation/snapshot/atomic SQL and both concurrency suites afterward.
+Stop only the isolated cluster; preserve files and credentials. Authority tests roll back.
+The earlier `apply` run proved rejection without acknowledgement and successful removal
+with acknowledgement. Resumed `guard-test` proves fresh/separate-session rejection and
+same-direct-session passage through the actual migration guard to the already-absent
+DROP (an expected error, not a second application). It never recreates the bypass.
+Successful local DROP RESTRICT established local catalog compatibility only.
+
+### Future authorized cutover procedure — not performed
+
+The GUC is an accident-prevention acknowledgement, not authorization or readiness proof.
+Never set it as a role/database default, inherited PGOPTIONS, or pooled-session setting.
+Ordinary migration execution with it unset fails. A generic migration sweep is not an
+approved procedure; neither is setting it in one SQL Editor/CLI request and relying on
+another request to inherit it.
+
+1. Obtain separate cutover approval. Verify hosted migration history, prerequisites through
+   Stage 4A, grants, dependencies and existing operations. Prepare compatible application,
+   recovery and remaining coordination/gates first. Hosted parity has not been inspected.
+2. Quiesce and drain old password writers. Keep supported login/logout/recovery available.
+   Do not serve the old setup action during schema/application cutover.
+3. Use a fresh **direct, non-pooled** owner connection, with no inherited libpq routing or
+   option overrides. Check the acknowledgement is unset. Supply credentials through a
+   private password file, not command arguments. If a direct endpoint or a verified plan
+   to record migration history is unavailable, stop; do not improvise with pooling.
+4. Execute acknowledgement and SQL in one dedicated process, using separately reviewed
+   target parameters (these variables are intentionally not populated here):
+
+```powershell
+$approvedDirectConnection = @('-X', '-w', '-v', 'ON_ERROR_STOP=1',
+    '-h', $verifiedDirectHost, '-p', $verifiedDirectPort,
+    '-U', $approvedOwner, '-d', $approvedDatabase)
+& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' @approvedDirectConnection `
+    -c "SELECT set_config('doorgo.password_completion_cutover','approved',false);" `
+    -f 'supabase/migrations/20261023160000_retire_legacy_password_completion.sql'
+if ($LASTEXITCODE -ne 0) { throw 'Cutover failed; keep password writers quiesced.' }
+```
+
+Both commands use the same direct backend; the process exits afterward. There is no
+transaction-pooling or connection-reuse dependency. The file supplies its own transaction;
+do not add an outer `--single-transaction` wrapper.
+
+5. Verify RPC absence and trusted setup/retry behavior. Record exactly this migration using
+   the separately verified migration-history procedure, only after successful DDL. Raw
+   `psql` does not record Supabase history; no unverified repair command is prescribed.
+6. Switch to the coordinated application, verify, then reopen writes. The unchanged old
+   action would update Auth and fail completion against this schema. Never restore it or
+   the session-only RPC as an automatic fallback; keep writers paused or use a reviewed
+   forward correction on failure. None of these deployment steps is authorized by testing.

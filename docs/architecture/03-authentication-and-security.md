@@ -1,5 +1,22 @@
 # 03 — Authentication and security
 
+## Legacy-administration cutover restriction
+
+Prepared from `fe6af88`, [20261028120000](../../supabase/migrations/20261028120000_restrict_legacy_user_administration.sql) requires same-session `doorgo.legacy_admin_cutover='approved'`, installed trusted replacement RPCs/business gate, and retirement of the old completion RPC by its separate migration. It revokes all function privileges (EXECUTE/grant authority) on exactly `dg_admin_set_user_active(uuid,boolean)` and `dg_admin_require_password_change(uuid)` from PUBLIC, anon, authenticated and service_role, with RESTRICT. There is no remaining legitimate application caller of either generation-unaware writer. Function bodies/ownership, provisioning, directory, permission editing, trusted replacements and application workflows are unchanged.
+
+Postconditions use `has_function_privilege` for effective execution and `pg_has_role(...,'MEMBER')` to detect executable member roles, including non-inherited membership conservatively. See [PostgreSQL privilege inquiry documentation](https://www.postgresql.org/docs/current/functions-info.html). Unexpected inherited/role-switch authority, missing prerequisites or dependent grants abort the transaction; there is no swallowed exception, CASCADE, automatic shared-role change or partial successful restriction. Resolve such a failure with an explicitly reviewed change to these function grants, not global role membership changes. Owner/superuser authority remains a trusted boundary. A later privileged regrant can reopen access, so verify the postconditions after cutover.
+
+The [ordered sequence](02-database-and-data-ownership.md#final-legacy-administration-restriction-and-pending-sequence) incorporates the owner's hosted findings without claiming this migration has run. The separate acknowledgements for legacy completion and Stage 5A still apply. Do not set acknowledgements as database/role defaults or rely on a previous SQL Editor request retaining a session. Stage the compatible application, drain old requests, execute the reviewed sequence, record history and verify before reopening DoorGo. No new session subsystem or employee status is introduced.
+
+Only the following compatibility questions remain for SQL Editor inspection before activation; do not repeat the confirmed absence inventory or query nonexistent operation tables:
+
+1. Two legacy target signatures' owner/ACL/member-role execution paths and dependent grants. Also confirm no unexpected dependent objects prevent the separate completion DROP RESTRICT. A remaining member-role grant intentionally stops the new migration.
+2. Stage 5A's exact 31 targets: one definition each, expected PL/pgSQL body shape, no existing wrapper; its 19 tables: RLS enabled and no pre-existing `dg_business_setup_complete` policy. Inspect effective definitions/grants, not merely names/history. Verify own-profile SELECT remains available and ordinary clients cannot update profile authorization flags.
+3. October 15 linked-note prerequisites/effective definition: `dg_calendar_require_use`, native Job archive/notes columns, Calendar linked Job/type/deletion columns. Preserve the company-wide linkage restriction.
+4. At least one active, setup-complete `users=use` administrator for acceptance; current prerequisite profile columns/types and expected protected-role identities. Application public/trusted configuration must target the same project (verify privately, not by sharing keys).
+
+The known absence of operation tables removes the earlier dormant-state reconciliation question for this snapshot. Recheck only if new password writers run before cutover. After application/SQL cutover, separately authorized acceptance must test all six workflows, direct legacy-RPC denial and business gating, setup/logout, Calendar access, and native Auth session behavior. Unknown Auth outcomes remain evidence-based recovery cases; SQL rollback cannot undo an external password change. This task provides static verification only, not hosted runtime assurance.
+
 ## Connected password workflows (local application cutover)
 
 Prepared from `be2911f`. The application now calls the previously isolated trusted adapters. **This is source wiring, not hosted activation or proof that prerequisite migrations are applied.** The historical Stage 2?4 sections below record preparation milestones; their ?inactive/no callers? descriptions are superseded by this section.

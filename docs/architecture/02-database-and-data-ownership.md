@@ -1,5 +1,27 @@
 # 02 — Database and data ownership
 
+## Final legacy-administration restriction and pending sequence
+
+Prepared from `fe6af88`. The owner reports the original profile/permission migrations recorded, existing administration and legacy completion installed, and no password-operation tables/functions or business-access helper in hosted Supabase. October 15-27 security migrations are not recorded. These are **owner-supplied hosted findings**, not a connection or independent inspection by this task. At that reported snapshot there is no dormant password-operation state to reconcile.
+
+The new [20261028120000 restriction](../../supabase/migrations/20261028120000_restrict_legacy_user_administration.sql) changes only the ACLs of `dg_admin_set_user_active(uuid,boolean)` and `dg_admin_require_password_change(uuid)`. It retains their definitions/ownership and changes no tables, records, role memberships or other application objects. Provisioning, user-directory and permission-management RPCs remain unchanged. See [security boundary and remaining checks](03-authentication-and-security.md#legacy-administration-cutover-restriction).
+
+Execute only in an approved, drained DoorGo cutover, in this dependency-compatible filename order. Do not replay the original profile/administration migrations or use a blanket database push.
+
+| Order | Migration | Dependency / compatibility |
+| --- | --- | --- |
+| 1 | [20261015120000](../../supabase/migrations/20261015120000_restrict_calendar_linked_fulfillment_notes.sql) | Existing Calendar use helper, native Jobs and linked Delivery/Pickup columns. Not a password prerequisite, but part of the reported pending security sequence; compare effective definition for a possible unrecorded manual application. |
+| 2 | [20261016120000](../../supabase/migrations/20261016120000_password_operation_foundation.sql) | Existing profile schema; reported absence of operation objects matches fresh creation. No historical operations to migrate at the reported snapshot. |
+| 3 | [20261023120000](../../supabase/migrations/20261023120000_employee_password_operation_snapshot.sql) | Foundation tables; snapshot includes lazy profile-based initial state. |
+| 4 | [20261023140000](../../supabase/migrations/20261023140000_password_atomic_profile_transitions.sql) | Foundation functions; adds atomic profile updates. |
+| 5 | [20261023160000](../../supabase/migrations/20261023160000_retire_legacy_password_completion.sql) | Snapshot/atomic completion; separate cutover acknowledgement and DROP RESTRICT. Old setup callers must be drained. |
+| 6 | [20261026120000](../../supabase/migrations/20261026120000_password_require_change.sql) | Foundation locking/state and profile requirement. |
+| 7 | [20261026160000](../../supabase/migrations/20261026160000_password_reactivation.sql) | Foundation's exact constraint names; replaces reservation/settlement while retaining atomic completion. |
+| 8 | [20261027120000](../../supabase/migrations/20261027120000_business_access_requirement.sql) | Its 31 effective function definitions and 19 RLS tables must match the guarded preconditions. Separate cutover acknowledgement. |
+| 9 | [20261028120000](../../supabase/migrations/20261028120000_restrict_legacy_user_administration.sql) | Trusted replacement signatures and business helper installed, legacy completion already absent, explicit acknowledgement. ACL denial is checked before commit. |
+
+The four legacy tables (`dg_jobs`, `dg_production_bookings`, `dg_calendar_links`, `dg_daily_capacity`) remain outside Stage 5A's policy additions. Their reported enabled/non-forced RLS with no policies is not permission to add permissive policies. Normal-role access, privileged RPC ownership and service-role reads are separate boundaries. Record migration history accurately after verified execution; a local file or missing history record alone is not effective-definition proof. Each migration has its own transaction: failure does not undo earlier files or any external Auth write. Keep DoorGo closed on failure and recover deliberately; do not restore legacy authority as an application rollback shortcut.
+
 ## Password application wiring after Stage 5A
 
 Prepared from `be2911f`: application password/reset/requirement/reactivation callers now use the existing trusted operation RPCs; [deactivation adapter](../../lib/admin/deactivation-server.ts) calls existing `dg_password_deactivate(uuid)`. No SQL definitions, grants or schema changed in this task. See [connected workflow authority](03-authentication-and-security.md#connected-password-workflows-local-application-cutover).

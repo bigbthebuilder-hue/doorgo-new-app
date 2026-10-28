@@ -1,5 +1,11 @@
 # 06 — Testing and development guide
 
+## Legacy-administration restriction verification
+
+Prepared from `fe6af88`. Run `node scripts/verify-legacy-admin-restriction.mjs`: verifies the exact two-function/four-grantee RESTRICT scope, cutover/prerequisite checks, effective and member-role execution denial before commit, absence of other DDL/DML/role changes, preserved application boundaries and ordered pending migration filenames. Negative source mutations exercise missing PUBLIC revocation, removed privilege/membership checks, a downgraded error and accidental provisioning-target changes. These are static contract checks, **not PostgreSQL execution or inheritance tests**.
+
+Also run `node scripts/verify-password-authority.mjs`, `node scripts/verify-business-access.mjs`, `node scripts/verify-admin-users.mjs`, `node scripts/verify-password-workflow-actions.mjs`, `npx.cmd eslint scripts/verify-legacy-admin-restriction.mjs` and `git diff --check`. No new environment or migration execution is needed for these checks. Remaining SQL Editor compatibility questions and coordinated cutover safeguards are in [security](03-authentication-and-security.md#legacy-administration-cutover-restriction); the dependency order is in [database ownership](02-database-and-data-ownership.md#final-legacy-administration-restriction-and-pending-sequence).
+
 ## Connected password-workflow verification
 
 Prepared from `be2911f`. Run `node scripts/verify-password-workflow-actions.mjs` for real setup/admin actions and service bindings with mocked server dependencies, deactivation authorization/error cases, and static reactivation-form wiring. It tests successful completion/receipt recovery, rejection, unknown/stale/mismatched results, and confirmed mutation with failed refresh. It does **not** prove browser interaction or real Supabase behavior.

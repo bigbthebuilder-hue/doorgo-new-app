@@ -1,5 +1,13 @@
 # 02 — Database and data ownership
 
+## Stage 5A: prepared business authorization gate
+
+Based on `aeb0ef9`, [20261027120000](../../supabase/migrations/20261027120000_business_access_requirement.sql) adds `dg_business_eligible()` and `dg_require_business_access()`: caller `auth.uid()`, active profile and `must_change_password IS FALSE`. Existing module permissions remain authoritative. There is no caller-selected identity or service-role bypass.
+
+The migration wraps 31 explicitly named PL/pgSQL boundaries: Calendar/Settings/Staff Away scopes, native Jobs, independent planning/checkpoint RPCs and manager deletion. It uses `pg_get_functiondef` to retain effective historical dynamic patches, grants and domain logic. Missing/overloaded/unexpected definitions abort the transaction. The outer block checks eligibility before original declarations and exception handlers. Nineteen known business tables gain restrictive authenticated SELECT policies that AND with existing policies. Own profile/permission reads, trusted password functions and internal triggers remain untouched.
+
+**Cutover-only; not applied in Stage 5A.** Requires compatible setup and explicit same-session business-access acknowledgement. Does not execute legacy-completion retirement. Older shared tables without complete local DDL, including `dg_jobs`, `dg_production_bookings`, `dg_calendar_links` and `dg_daily_capacity`, are not reconstructed or claimed protected. See [security](03-authentication-and-security.md#stage-5a-business-eligibility-prepared-for-coordinated-cutover) and [runtime prerequisites](../../scripts/verify-business-access-local.sql).
+
 Verified from repository commit `de4beb90d4cc95a0689874afa29d9d4e240f2771`, on `main`, 2026-10-14. This reference describes the intended effective behavior of the **local migration chain through `20261009153600`**, assuming its prerequisites exist and every migration succeeds. No hosted database, environment secrets, or applied-migration history was inspected. It is not a security certification or a complete generated schema. See [overview](01-application-overview.md) and [index](README.md).
 
 ## Tables, relationships, and feature ownership

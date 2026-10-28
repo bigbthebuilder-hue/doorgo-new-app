@@ -1,5 +1,15 @@
 # 03 — Authentication and security
 
+## Stage 5A: business eligibility prepared for coordinated cutover
+
+Prepared from `aeb0ef9`. [Shared authorization](../../lib/auth/access.ts) now requires active status and completed mandatory setup before returning module access or manager authority. [Manager deletion](../../lib/jobs/manager-job-delete-contract.ts) uses the same manager helper. Raw current-access loading, setup redirect/action and logout remain available. Existing User Administration already checks both flags. These prepared paths supersede the historical missing-setup-gate observations below; this is not a deployment claim.
+
+[20261027120000](../../supabase/migrations/20261027120000_business_access_requirement.sql) guards independent business RPCs and existing scope helpers and adds restrictive SELECT policies without replacing module/location filters. Calendar stays company-wide; linked-note restrictions are unchanged. Password operations, profile/permission self-read and synchronization triggers are excluded.
+
+**Do not deploy this application change or apply this migration before compatible setup is connected.** The migration requires same-session `doorgo.business_access_cutover='approved'`; acknowledgement is not proof of readiness. It neither executes nor replaces legacy-completion retirement. All new password adapters remain inactive; the legacy completion caller remains unchanged. No custom session tracking was added, following the approved native-Supabase-session policy.
+
+Older shared-object grants/RLS remain a verification gap. Tests: [static coverage](../../scripts/verify-business-access.mjs), [access matrix](../../lib/auth/access.test.ts), [manager denial](../../lib/jobs/manager-job-delete-contract.test.ts), [prepared SQL suite](../../scripts/verify-business-access-local.sql). Static checks do not establish runtime SQL authorization.
+
 Verified against `3ac66170223520d06cd0eb451b2b929b55d0b675` on `main`, 2026-10-14. This is a repository-source reference, not a penetration test or hosted-security certification. SQL conclusions assume the local migration chain through `20261009153600` succeeds against its prerequisites. No hosted service, credentials, or applied-migration history was inspected. Start with the [overview](01-application-overview.md), [database reference](02-database-and-data-ownership.md), and [index](README.md).
 
 ## Authentication and sessions — source-verified

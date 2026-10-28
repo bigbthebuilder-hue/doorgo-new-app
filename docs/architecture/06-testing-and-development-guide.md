@@ -1,5 +1,13 @@
 # 06 — Testing and development guide
 
+## Stage 5A focused authorization verification
+
+Prepared from `aeb0ef9`. Run `node scripts/verify-business-access.mjs` for allowlist/body-shape coverage and inactive-adapter safeguards; it is static analysis, not PostgreSQL execution. Existing `node scripts/verify-permission-routing.mjs`, `node scripts/verify-calendar-operational-permissions.mjs`, `node scripts/verify-calendar-linked-notes.mjs` and `node scripts/verify-admin-users.mjs` cover routing, mocked Calendar boundaries and admin behavior. [Access tests](../../lib/auth/access.test.ts) exercise all nine permissions across active/setup/view/use combinations; [manager tests](../../lib/jobs/manager-job-delete-contract.test.ts) reject restricted managers.
+
+[verify-business-access-local.sql](../../scripts/verify-business-access-local.sql) is rollback-only and requires a separately prepared loopback, nondefault-port `doorgo_notes_test`, the effective business schema and Stage 5A migration, a Calendar-use employee and populated Calendar items. It is **not compatible with the minimal password-operation bootstrap**. It tests real role execution of all 31 guarded boundaries, business SELECT restrictions, self-profile access, eligible Calendar use and anonymous denial. Run only after authorized fixture preparation, with explicit safe connection parameters. Do not apply legacy-completion retirement to obtain this fixture. Existing linked-notes runtime tests remain required for detailed linkage/view-only regression coverage. No runtime SQL execution is claimed by the static checks.
+
+Stage 5A application and SQL are coordinated-cutover work; these verification commands do not authorize hosted access or automatic migration application.
+
 Verified against `7d21f975e103c49a7cfde7e171fd9e8ab563015a` on `main`, 2026-10-15. Commands and paths were inspected, not executed as application verification. This documentation task did not install dependencies, run tests/builds, inspect hosted services or apply SQL. Series completion does not certify current test health.
 
 Start with the [application map](01-application-overview.md), [database ownership](02-database-and-data-ownership.md), [security boundaries](03-authentication-and-security.md), [geometry](04-door-geometry-and-configuration.md) or [Calendar/production](05-calendar-and-production-workflows.md), according to the change. Recheck only affected source paths and later Git changes rather than repeating the full investigation.

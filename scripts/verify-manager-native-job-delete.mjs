@@ -29,7 +29,7 @@ assert.match(rollback,/rollback_contract_drift/);
 assert.match(rollback,/IF v_delete IS NULL[\s\S]*v_status_guard IS NULL[\s\S]*v_move_guard IS NULL[\s\S]*v_completion_guard IS NULL/);
 assert.doesNotMatch(rollback,/DELETE FROM|DROP TABLE|TRUNCATE/i);
 assert.match(action,/getCurrentDoorGoAccess\(\)[\s\S]*deleteJobWithAccess/);
-assert.match(service,/access\.state !== 'active' \|\| !access\.profile\.isManager/);
+assert.match(service,/if \(!isManager\(access\)\)/);
 assert.match(page,/canPermanentlyDelete=\{access\.state === 'active' && access\.profile\.isManager\}/);
 assert.match(control,/Permanently Delete Job[\s\S]*This cannot be undone[\s\S]*Delete Job Permanently/);
 assert.match(control,/visibleIdentifier[\s\S]*customer/);

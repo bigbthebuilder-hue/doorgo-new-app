@@ -118,7 +118,7 @@ export function getPermissionAccess(
   access: CurrentDoorGoAccess,
   permissionKey: string,
 ): DoorGoAccessLevel {
-  if (access.state !== 'active') {
+  if (access.state !== 'active' || access.profile.mustChangePassword) {
     return 'none';
   }
 
@@ -140,7 +140,7 @@ export function canUse(
 }
 
 export function isManager(access: CurrentDoorGoAccess): boolean {
-  return access.state === 'active' && access.profile.isManager;
+  return access.state === 'active' && !access.profile.mustChangePassword && access.profile.isManager;
 }
 
 export function getProtectedAccessRedirect(

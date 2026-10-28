@@ -111,10 +111,35 @@ function run(): void {
     permissionRows: [{ permission_key: 'production', access_level: 'use' }],
   });
   assert.equal(getProtectedAccessRedirect(managerMustChange), '/account/change-password');
-  assert.equal(canUse(managerMustChange, 'production'), true);
+  assert.equal(canUse(managerMustChange, 'production'), false);
+  assert.equal(hasAtLeastView(managerMustChange, 'production'), false);
+  assert.equal(isManager(managerMustChange), false);
   assert.equal(getPermissionAccess(managerMustChange, 'production_checkpoints'), 'none');
   assert.equal(getProtectedAccessRedirect(active), null);
   assert.equal(getProtectedAccessRedirect(unauthenticated), '/login');
+
+  for (const key of DOORGO_PERMISSION_KEYS) {
+    for (const level of ['none', 'view', 'use'] as const) {
+      for (const enabled of [false, true]) {
+        for (const required of [false, true]) {
+          const candidate = resolveCurrentDoorGoAccess({
+            user: { id: 'matrix' },
+            profile: { user_id: 'matrix', display_name: 'Test', active: enabled,
+              is_manager: true, company_location: null, must_change_password: required },
+            permissionRows: [{ permission_key: key, access_level: level }],
+          });
+          const eligible = enabled && !required;
+          assert.equal(getPermissionAccess(candidate, key), eligible ? level : 'none');
+          assert.equal(canUse(candidate, key), eligible && level === 'use');
+          assert.equal(hasAtLeastView(candidate, key), eligible && level !== 'none');
+          assert.equal(isManager(candidate), eligible);
+          // Identity/profile remain loadable: mandatory setup isn't a new account state.
+          assert.equal(candidate.state, enabled ? 'active' : 'inactive_profile');
+          if (enabled && required) assert.equal(getProtectedAccessRedirect(candidate), '/account/change-password');
+        }
+      }
+    }
+  }
 
   console.log('DoorGo access helper verification passed');
 }

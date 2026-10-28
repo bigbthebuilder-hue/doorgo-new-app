@@ -5,9 +5,9 @@ import { createTrustedReadOnlySupabaseClient } from '../supabase/trusted-read-se
 import { getPublicSupabaseEnvironment } from '../supabase/public-env';
 import { assertUserAdmin, validateUserId } from './users-contract';
 
-// INACTIVE: no actions/UI import this module. No password is accepted or dispatched.
-// Requires coordinated legacy writers and business gates before activation.
-export async function runInactiveRequirePasswordChange(id: string): Promise<{ ok: boolean }> {
+// Connected server boundary; deployment requires the coordinated SQL cutover.
+// Never fall back to legacy completion or an unreserved Auth write.
+export async function runRequirePasswordChange(id: string): Promise<{ ok: boolean }> {
   try {
     const access = await getCurrentDoorGoAccess(); // Verified auth.getUser + current permissions.
     assertUserAdmin(access, true);

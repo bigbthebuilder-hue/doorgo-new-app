@@ -15,9 +15,9 @@ function profile(value: unknown): { userId: string; active: boolean; mustChangeP
   return {userId:value.userId,active:value.active,mustChangePassword:value.mustChangePassword};
 }
 
-// INACTIVE. No action/UI callers or 'use server' directive; no feature flag.
-// Do not wire before legacy writers, completion authority and business gates are coordinated.
-export async function runInactiveReactivation(id: string, form: FormData): Promise<ReactivationResult> {
+// Connected server boundary; deployment requires the coordinated SQL cutover.
+// Never fall back to legacy completion or an unreserved Auth write.
+export async function runReactivation(id: string, form: FormData): Promise<ReactivationResult> {
   try {
     const access=await getCurrentDoorGoAccess(); // auth.getUser + current profile/permissions
     const authenticated=await createAuthenticatedSupabaseServerClient();

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DOORGO_PERMISSION_KEYS, type DoorGoPermissionMap } from '@/lib/auth/access';
 import { MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH } from '@/lib/auth/password-setup';
 import { MODULE_LABELS, type AdminResult, type AdminUser } from '@/lib/admin/users-contract';
-import { createAdminUser, loadAdminUsers, requireAdminPasswordChange, resetAdminPassword, saveAdminPermissions, setAdminUserActive } from '@/lib/admin/users-actions';
+import { createAdminUser, loadAdminUsers, requireAdminPasswordChange, resetAdminPassword, reactivateAdminUser, saveAdminPermissions, setAdminUserActive } from '@/lib/admin/users-actions';
 
 const emptyPermissions = () => Object.fromEntries(DOORGO_PERMISSION_KEYS.map(key => [key, 'none'])) as DoorGoPermissionMap;
 
@@ -52,6 +52,10 @@ export function UsersAccessWorkspace({ canEdit, callerId, initialUsers, loadErro
           setUsers(old => [...old.filter(item => item.userId !== user.userId), user].sort((a, b) => a.displayName.localeCompare(b.displayName)));
           setSelected(user); setPermissions({ ...emptyPermissions(), ...user.permissions });
           setCreating(false); setShowReset(false); router.refresh();
+        } else if (result.ok) {
+          // Confirmed mutation, unavailable refresh: do not retain a stale account
+          // or encourage another Auth write (notably after a self-reset).
+          clearEditor(); setListReady(false); router.refresh();
         }
       } catch { setMessage('The request could not be confirmed. Refresh users before retrying.'); }
       finally { setPasswordKey(key => key + 1); }
@@ -64,7 +68,8 @@ export function UsersAccessWorkspace({ canEdit, callerId, initialUsers, loadErro
   function reset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!selected) return;
     const form = new FormData(event.currentTarget);
-    setPasswordKey(key => key + 1); run(() => resetAdminPassword(selected.userId, form));
+    setPasswordKey(key => key + 1);
+    run(() => selected.active ? resetAdminPassword(selected.userId, form) : reactivateAdminUser(selected.userId, form));
   }
   return <section className="admin-users" aria-labelledby="users-access-heading">
     <div className="admin-users-heading"><div><h2 id="users-access-heading">Users &amp; Access</h2><p>Manage account access as staff complete training.</p></div>
@@ -96,12 +101,15 @@ export function UsersAccessWorkspace({ canEdit, callerId, initialUsers, loadErro
         </dl>
           <fieldset disabled={pending}><PermissionFields permissions={permissions} setPermissions={setPermissions} readOnly={!canEdit}/>
             {canEdit && <div className="admin-user-actions"><button type="button" onClick={() => run(() => saveAdminPermissions(selected.userId, permissions))}>Save Access</button>
-              <button type="button" disabled={selected.userId === callerId && selected.active} onClick={() => run(() => setAdminUserActive(selected.userId, !selected.active))}>{selected.active ? 'Deactivate' : 'Reactivate'}</button>
-              <button type="button" onClick={() => run(() => requireAdminPasswordChange(selected.userId))}>Require Password Change</button>
-              <button type="button" onClick={() => { setShowReset(!showReset); setPasswordKey(key => key + 1); }}>Reset Temporary Password</button></div>}
+              <button type="button" disabled={selected.userId === callerId && selected.active} onClick={() => {
+                if (selected.active) run(() => setAdminUserActive(selected.userId, false));
+                else { setShowReset(true); setPasswordKey(key => key + 1); }
+              }}>{selected.active ? 'Deactivate' : 'Reactivate'}</button>
+              <button type="button" disabled={!selected.active} onClick={() => run(() => requireAdminPasswordChange(selected.userId))}>Require Password Change</button>
+              <button type="button" disabled={!selected.active} onClick={() => { setShowReset(!showReset); setPasswordKey(key => key + 1); }}>Reset Temporary Password</button></div>}
           </fieldset>
           {!canEdit && <p>Your User Administration access is read-only.</p>}
-          {showReset && canEdit && <form onSubmit={reset}><fieldset disabled={pending}><legend>Reset Temporary Password</legend><PasswordFields key={passwordKey}/><button type="submit">Save Temporary Password</button><button type="button" onClick={() => setShowReset(false)}>Cancel</button></fieldset></form>}
+          {showReset && canEdit && <form onSubmit={reset}><fieldset disabled={pending}><legend>{selected.active ? 'Reset Temporary Password' : 'Reactivate with Temporary Password'}</legend><PasswordFields key={passwordKey}/><button type="submit">{selected.active ? 'Save Temporary Password' : 'Reset Password and Reactivate'}</button><button type="button" onClick={() => setShowReset(false)}>Cancel</button></fieldset></form>}
         </>}
       </div>
     </div>

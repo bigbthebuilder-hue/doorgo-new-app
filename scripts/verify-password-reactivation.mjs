@@ -24,8 +24,9 @@ assert.doesNotMatch(server,/^['"]use server['"]/m);
 assert.doesNotMatch(server,/console\.|dg_password_reconcile|complete_dg_initial_password_setup|dg_admin_require_password_change/);
 const walk=d=>readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):[path.join(d,e.name)]);
 for(const file of [...walk('app'),...walk('components'),...walk('lib')]){
+  if (['app/account/change-password/actions.ts','lib/admin/users-server.ts','lib/admin/users-service.ts'].includes(file.replaceAll('\\','/'))) continue;
   if(!/\.tsx?$/.test(file)||file.endsWith('.test.ts')||/reactivation-(server|operation)\.ts$/.test(file))continue;
-  assert.doesNotMatch(read(file),/reactivation-(server|operation)/,`Inactive boundary: ${file}`);
+  assert.doesNotMatch(read(file),/reactivation-(server|operation)/,`Server import boundary: ${file}`);
 }
 const prefix=path.resolve('.tmp-reactivation-');const temporary=mkdtempSync(prefix);
 try{
@@ -71,7 +72,7 @@ try{
         require:id=>{assert.ok(id in imports,id);return imports[id];}});
     const form=new FormData();form.set('newPassword','synthetic temporary password');form.set('confirmPassword','synthetic temporary password');
     form.set('operationId',actor);form.set('generation','100');form.set('userId',actor);form.set('success','true');
-    const result=await evaluated.exports.runInactiveReactivation(user,form);
+    const result=await evaluated.exports.runReactivation(user,form);
     assert.equal(calls[0],'access');assert.deepEqual(Object.keys(result),['status']);
     if(['denied','setup-required','active-target','wrong-project'].includes(mode)){assert.equal(factories,0);assert.equal(writes,0);}
     else {assert.equal(writes,1);assert.ok(calls.indexOf('dg_password_request_reactivation')<calls.indexOf('Auth'));}
@@ -81,5 +82,5 @@ try{
     ['wrong-project','unavailable'],['weak','auth_rejected'],['500','recovery_required'],['throw','recovery_required'],['wrong-user','recovery_required']]){
     assert.equal(await adapterCase(mode),expected,mode);
   }
-  console.log('9 real-adapter/mocked-SDK cases passed; inactive boundary passed. Not SQL/Auth integration proof.');
+  console.log('9 real-adapter/mocked-SDK cases passed; server boundary passed. Not SQL/Auth integration proof.');
 }finally{assert.ok(path.resolve(temporary).startsWith(prefix));rmSync(temporary,{recursive:true,force:true});}

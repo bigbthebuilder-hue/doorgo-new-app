@@ -12,10 +12,11 @@ assert.match(sql,/DROP FUNCTION public\.complete_dg_initial_password_setup\(\) R
 assert.doesNotMatch(sql.replace(/^\s*--.*$/gm,''),/\bCASCADE\b|CREATE (?:OR REPLACE )?FUNCTION|GRANT |UPDATE public\.|DELETE FROM/i);
 assert.match(sql,/BEGIN;[\s\S]*COMMIT;/);
 const action=read('app/account/change-password/actions.ts');
-assert.match(action,/executeInitialPasswordSetup/);assert.match(action,/complete_dg_initial_password_setup/);
+assert.match(action,/runEmployeePasswordSetup/);assert.doesNotMatch(action,/executeInitialPasswordSetup|complete_dg_initial_password_setup/);
 const walk=d=>readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):[path.join(d,e.name)]);
 for(const file of [...walk('app'),...walk('components'),...walk('lib')]){
+  if (['app/account/change-password/actions.ts','lib/admin/users-server.ts','lib/admin/users-service.ts'].includes(file.replaceAll('\\','/'))) continue;
  if(!/\.tsx?$/.test(file)||file.endsWith('.test.ts')||/(employee-password|password-reset|reactivation)-(server|operation)\.ts$/.test(file))continue;
  assert.doesNotMatch(read(file),/employee-password-(server|operation)|password-reset-(server|operation)|reactivation-(server|operation)|password_completion_cutover/,'Inactive/staging boundary: '+file);
 }
-console.log('Cutover guard, bounded DROP RESTRICT, unchanged active caller and inactive imports verified. Hosted state UNKNOWN; static checks cannot prove non-application.');
+console.log('Cutover guard, bounded DROP RESTRICT, trusted action caller and bounded imports verified. Hosted state UNKNOWN; static checks cannot prove non-application.');

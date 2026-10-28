@@ -1,4 +1,4 @@
-// Inactive orchestration; credentials and Auth clients belong only to the server adapter.
+// Shared orchestration; credentials and Auth clients belong only to the server adapter.
 import type { CurrentDoorGoAccess } from '../auth/access';
 import type { EmployeeSetupSnapshot, PasswordOperation } from '../auth/employee-password-operation';
 import { assertUserAdmin, temporaryPassword, validateUserId } from './users-contract';

@@ -23,7 +23,7 @@ assert.match(sql, /BEGIN;[\s\S]*COMMIT;/);
 const server = read('lib/admin/users-server.ts');
 assert.match(server, /^import 'server-only'/);
 assert.match(server, /getCurrentDoorGoAccess\(\)/);
-assert.deepEqual([...server.matchAll(/admin\.(\w+)\(/g)].map(match => match[1]).sort(), ['createUser','deleteUser','getUserById','updateUserById']);
+assert.deepEqual([...server.matchAll(/admin\.(\w+)\(/g)].map(match => match[1]).sort(), ['createUser','deleteUser','getUserById']);
 assert.doesNotMatch(server, /console\.(log|error)\([^;]*(password|form|error\.message)/);
 const ui = read('components/manager/UsersAccessWorkspace.tsx');
 assert.doesNotMatch(ui, /users-server|trusted-read-server|auth\.admin|localStorage|sessionStorage/);

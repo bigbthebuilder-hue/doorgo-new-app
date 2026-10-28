@@ -5,11 +5,11 @@ import type { DoorGoPermissionMap } from '../auth/access';
 import { UserAdminError, type AdminResult, type AdminUser } from './users-contract';
 import { currentUsersService } from './users-server';
 
-async function perform(operation: () => Promise<AdminUser>, message: string): Promise<AdminResult> {
+async function perform(operation: () => Promise<AdminUser | undefined>, message: string): Promise<AdminResult> {
   try {
     const user = await operation();
     revalidatePath('/manager');
-    return { ok: true, message, user };
+    return { ok: true, message: user ? message : `${message} Refresh users to see current account status.`, user };
   } catch (error) {
     return { ok: false, message: error instanceof UserAdminError ? error.message : 'User administration is unavailable. Try again.' };
   }
@@ -32,4 +32,7 @@ export async function requireAdminPasswordChange(id: string) {
 }
 export async function resetAdminPassword(id: string, form: FormData) {
   return perform(async () => (await currentUsersService()).resetPassword(id, form), 'Temporary password reset. Password change is required.');
+}
+export async function reactivateAdminUser(id: string, form: FormData) {
+  return perform(async () => (await currentUsersService()).reactivate(id, form), 'User reactivated with a new temporary password. Password change is required.');
 }

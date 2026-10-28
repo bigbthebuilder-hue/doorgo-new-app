@@ -16,30 +16,40 @@ function form() {
   for (const [key, value] of Object.entries({ displayName: 'Test User', email: 'test@example.invalid', companyLocation: 'Shop', active: 'true', newPassword: 'temporary-test-password', confirmPassword: 'temporary-test-password' })) form.set(key, value);
   return form;
 }
-function harness(options: { provisioningFails?: boolean; cleanupFails?: boolean; requirementFails?: boolean; authFails?: boolean } = {}) {
+function harness(options: { provisioningFails?: boolean; cleanupFails?: boolean; requirementFails?: boolean; authFails?: boolean; refreshFails?: boolean } = {}) {
   const calls: string[] = [];
   let stored: AdminUser = { userId: targetId, email: null, displayName: 'Test', active: true, companyLocation: null, mustChangePassword: false, passwordChangedAt: null, permissions: permissions() };
   const ops: UsersOperations = {
     async rpc(name, args) {
       calls.push(name);
       assert.doesNotMatch(JSON.stringify(args ?? {}), /temporary-test-password|newPassword|confirmPassword/);
-      if (name === 'dg_admin_list_users') return [structuredClone(stored)];
+      if (name === 'dg_admin_list_users') { if (options.refreshFails) throw new Error('refresh'); return [structuredClone(stored)]; }
       if (name === 'dg_admin_provision_user') {
         if (options.provisioningFails) throw new Error('db failure');
         stored = { ...stored, displayName: String(args?.p_display_name), active: args?.p_active === true, permissions: args?.p_permissions as DoorGoPermissionMap, mustChangePassword: true };
       }
       if (name === 'dg_admin_update_permissions') stored = { ...stored, permissions: structuredClone(args?.p_permissions as DoorGoPermissionMap) };
-      if (name === 'dg_admin_set_user_active') stored = { ...stored, active: args?.p_active === true };
-      if (name === 'dg_admin_require_password_change') {
-        if (options.requirementFails) throw new Error('db failure');
-        stored = { ...stored, mustChangePassword: true };
-      }
       return structuredClone(stored);
     },
     async email() { calls.push('email'); return 'test@example.invalid'; },
     async createAuth(email, password) { calls.push('createAuth'); assert.equal(email, 'test@example.invalid'); assert.equal(password, 'temporary-test-password'); if (options.authFails) throw new Error('duplicate'); return targetId; },
     async deleteCreatedAuth(id) { calls.push('deleteCreatedAuth'); assert.equal(id, targetId); if (options.cleanupFails) throw new Error('cleanup'); },
-    async resetAuth(id, password) { calls.push('resetAuth'); assert.equal(id, targetId); assert.equal(password, 'temporary-test-password'); if (options.authFails) throw new Error('auth'); },
+    async resetPassword(id, form) {
+      calls.push('resetPassword'); assert.equal(form.get('newPassword'), 'temporary-test-password');
+      if (id !== stored.userId || !stored.active) return { status: 'not_allowed' };
+      if (options.authFails) return { status: 'auth_rejected' };
+      if (options.requirementFails) return { status: 'recovery_required' };
+      stored = { ...stored, mustChangePassword: true }; return { status: 'operation_complete' };
+    },
+    async reactivate(id, form) {
+      calls.push('reactivate'); assert.equal(form.get('newPassword'), 'temporary-test-password');
+      if (id !== stored.userId || stored.active) return { status: 'not_allowed' };
+      if (options.authFails) return { status: 'auth_rejected' };
+      if (options.requirementFails) return { status: 'recovery_required' };
+      stored = { ...stored, active: true, mustChangePassword: true }; return { status: 'operation_complete' };
+    },
+    async requirePasswordChange(id) { calls.push('requirePasswordChange'); assert.equal(id, targetId); stored = { ...stored, mustChangePassword: true }; return { ok: !options.requirementFails }; },
+    async deactivate(id) { calls.push('deactivate'); assert.equal(id, targetId); stored = { ...stored, active: false, mustChangePassword: true }; return { ok: true }; },
     operationalError(code, id) { calls.push(code); assert.equal(id, targetId); },
   };
   return { calls, service: (a = access()) => usersService(a, () => { calls.push('factory'); return ops; }) };
@@ -63,6 +73,7 @@ test('denied/inactive/setup-required callers never reach privileged operations',
     await assert.rejects(svc.setActive(targetId, false));
     await assert.rejects(svc.resetPassword(targetId, form()));
     await assert.rejects(svc.requirePasswordChange(targetId));
+    await assert.rejects(svc.reactivate(targetId, form()));
     assert.equal(h.calls.length, 0);
     if (a.permissions.users !== 'view') { await assert.rejects(svc.list()); assert.equal(h.calls.length, 0); }
   }
@@ -101,15 +112,19 @@ test('compensation failure reports administrator attention and only safe operati
   await assert.rejects(h.service().create(form(), permissions()), /Administrator attention/);
   assert.equal(h.calls.at(-1), 'user_provision_compensation_failed');
 });
-test('reset validates target, mutates Auth, then marks existing password requirement', async () => {
-  const h = harness(); assert.equal((await h.service().resetPassword(targetId, form())).mustChangePassword, true);
-  assert.deepEqual(h.calls, ['factory', 'dg_admin_list_users', 'resetAuth', 'dg_admin_require_password_change']);
-  const missing = harness(); await assert.rejects(missing.service().resetPassword(actor, form()), /not found/); assert.equal(missing.calls.includes('resetAuth'), false);
+test('reset delegates to reserved operation without a legacy Auth/profile write', async () => {
+  const h = harness(); assert.equal((await h.service().resetPassword(targetId, form()))?.mustChangePassword, true);
+  assert.deepEqual(h.calls, ['factory', 'resetPassword', 'dg_admin_list_users']);
+  const missing = harness(); await assert.rejects(missing.service().resetPassword(actor, form()), /not allowed/);
 });
-test('reset partial failure is explicit; Auth failure does not claim profile completion', async () => {
-  const h = harness({ requirementFails: true }); await assert.rejects(h.service().resetPassword(targetId, form()), /password changed.*Require Password Change/);
-  assert.equal(h.calls.at(-1), 'user_password_requirement_failed');
-  const auth = harness({ authFails: true }); await assert.rejects(auth.service().resetPassword(targetId, form())); assert.equal(auth.calls.includes('dg_admin_require_password_change'), false);
+test('unknown reset never reports success or invokes a legacy fallback', async () => {
+  const h = harness({ requirementFails: true }); await assert.rejects(h.service().resetPassword(targetId, form()), /recovery before retrying/);
+  assert.deepEqual(h.calls, ['factory', 'resetPassword']);
+  const auth = harness({ authFails: true }); await assert.rejects(auth.service().resetPassword(targetId, form()), /rejected/);
+});
+test('confirmed reset with unavailable directory does not become a failed password write', async () => {
+  const h = harness({ refreshFails: true }); assert.equal(await h.service().resetPassword(targetId, form()), undefined);
+  assert.deepEqual(h.calls, ['factory', 'resetPassword', 'dg_admin_list_users']);
 });
 test('password confirmation and existing validation run before Auth operations', async () => {
   for (const password of ['short', 'a'.repeat(257)]) {
@@ -119,10 +134,20 @@ test('password confirmation and existing validation run before Auth operations',
   const h = harness(); const f = form(); f.set('confirmPassword', 'different');
   await assert.rejects(h.service().create(f, permissions()), /do not match/); assert.equal(h.calls.length, 0);
 });
-test('activation persists; self-deactivation rejected before operations', async () => {
-  const h = harness(); const svc = h.service(); await assert.rejects(svc.setActive(actor, false), /own account/); assert.equal(h.calls.length, 0);
-  assert.equal((await svc.setActive(targetId, false)).active, false); assert.equal((await svc.list())[0].active, false);
-  assert.equal((await svc.setActive(targetId, true)).active, true);
-  assert.equal((await svc.requirePasswordChange(targetId)).mustChangePassword, true);
-  assert.equal(h.calls.includes('resetAuth'), false);
+test('deactivation fences operations; reactivation requires password; requirement does not reset', async () => {
+  const h = harness(); const svc = h.service();
+  await assert.rejects(svc.setActive(actor, false), /own account/); assert.equal(h.calls.length, 0);
+  await assert.rejects(svc.setActive(targetId, true), /temporary password/); assert.equal(h.calls.length, 0);
+  assert.equal((await svc.setActive(targetId, false))?.active, false);
+  assert.equal((await svc.list())[0].active, false);
+  assert.equal((await svc.reactivate(targetId, form()))?.active, true);
+  assert.equal((await svc.requirePasswordChange(targetId))?.mustChangePassword, true);
+  assert.equal(h.calls.includes('resetPassword'), false);
+});
+test('failed or uncertain reactivation leaves inactive account unchanged', async () => {
+  for (const options of [{authFails: true}, {requirementFails: true}]) {
+    const h = harness(options); await h.service().setActive(targetId, false);
+    await assert.rejects(h.service().reactivate(targetId, form()));
+    assert.equal((await h.service().list())[0].active, false);
+  }
 });

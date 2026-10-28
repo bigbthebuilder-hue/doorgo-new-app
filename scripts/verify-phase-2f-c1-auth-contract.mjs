@@ -99,8 +99,9 @@ requirePattern(passwordSetupMigration, /create or replace function public\.compl
 requirePattern(passwordSetupMigration, /auth\.uid\(\)[\s\S]*caller_user_id is null[\s\S]*update public\.dg_user_profiles as profile[\s\S]*where profile\.user_id = caller_user_id[\s\S]*and profile\.active = true[\s\S]*and profile\.must_change_password = true/, 'Completion RPC must derive identity and use qualified caller-owned update predicates');
 rejectPattern(passwordSetupMigration, /complete_dg_initial_password_setup\([^)]*(uuid|user_id)/, 'Completion RPC cannot accept a user identity');
 requirePattern(passwordSetupMigration, /revoke all[\s\S]*from public[\s\S]*revoke all[\s\S]*from anon[\s\S]*grant execute[\s\S]*to authenticated/, 'Completion RPC grants are unsafe');
-requirePattern(passwordSetup, /auth\.updateuser\(\{ password \}\)[\s\S]*complete_dg_initial_password_setup/, 'Authenticated password update must precede profile completion');
-requirePattern(passwordSetup, /your password was changed, but setup could not be finalized/, 'Partial success must be reported accurately');
+requirePattern(passwordSetup, /runemployeepasswordsetup\(formdata\)/, 'Setup must use the trusted reserved-operation adapter');
+rejectPattern(passwordSetup, /complete_dg_initial_password_setup|auth\.updateuser/, 'Setup must not restore legacy completion or direct Auth writes');
+requirePattern(passwordSetup, /administrator for recovery before retrying/, 'Unconfirmed outcomes must require recovery rather than claim password success');
 rejectPattern(passwordSetup, /console\.(?:log|error)\([^)]*password/, 'Passwords must not be logged');
 rejectPattern(passwordSetup, /(?:redirect|new url)\([^)]*password/, 'Passwords must not be placed in URLs');
 for (const variable of [

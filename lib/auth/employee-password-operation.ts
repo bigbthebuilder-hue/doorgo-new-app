@@ -1,4 +1,4 @@
-// Inactive orchestration contract. No credentials or live clients in this module.
+// Shared orchestration contract. No credentials or live clients in this module.
 import { validateNewPasswordForm } from './password-setup';
 
 export type PasswordOperation = {

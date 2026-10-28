@@ -1,5 +1,12 @@
 # 02 — Database and data ownership
 
+## Password application wiring after Stage 5A
+
+Prepared from `be2911f`: application password/reset/requirement/reactivation callers now use the existing trusted operation RPCs; [deactivation adapter](../../lib/admin/deactivation-server.ts) calls existing `dg_password_deactivate(uuid)`. No SQL definitions, grants or schema changed in this task. See [connected workflow authority](03-authentication-and-security.md#connected-password-workflows-local-application-cutover).
+
+Existing employee provisioning is retained; the snapshot uses profile state when no internal state exists, and reservation initializes that state under the profile-first lock. This does not reconcile an already-existing dormant state that diverged through legacy writers. Effective hosted migration versions, old direct RPC authority and dormant-state reconciliation remain cutover prerequisites. Source wiring must not be deployed before that verification and the coordinated business-access/legacy-completion cutover. No hosted state was inspected or inferred.
+
+
 ## Stage 5A: prepared business authorization gate
 
 Based on `aeb0ef9`, [20261027120000](../../supabase/migrations/20261027120000_business_access_requirement.sql) adds `dg_business_eligible()` and `dg_require_business_access()`: caller `auth.uid()`, active profile and `must_change_password IS FALSE`. Existing module permissions remain authoritative. There is no caller-selected identity or service-role bypass.

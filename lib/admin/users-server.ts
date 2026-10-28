@@ -4,6 +4,10 @@ import { createAuthenticatedSupabaseServerClient } from '../supabase/server';
 import { createTrustedReadOnlySupabaseClient } from '../supabase/trusted-read-server';
 import { UserAdminError } from './users-contract';
 import { usersService, type UsersOperations } from './users-service';
+import { runAdminPasswordReset } from './password-reset-server';
+import { runReactivation } from './reactivation-server';
+import { runRequirePasswordChange } from './require-password-change-server';
+import { runEmployeeDeactivation } from './deactivation-server';
 
 export async function currentUsersService() {
   const access = await getCurrentDoorGoAccess();
@@ -35,10 +39,10 @@ export async function currentUsersService() {
         const { error } = await admin.deleteUser(id);
         if (error) throw new Error('Compensation failed');
       },
-      async resetAuth(id, password) {
-        const { error } = await admin.updateUserById(id, { password });
-        if (error) throw new UserAdminError('Temporary password reset failed. No successful reset was confirmed.');
-      },
+      resetPassword: runAdminPasswordReset,
+      reactivate: runReactivation,
+      requirePasswordChange: runRequirePasswordChange,
+      deactivate: runEmployeeDeactivation,
       operationalError(code, id) { console.error('DoorGo user administration', { code, userId: id }); },
     };
   });

@@ -20,10 +20,11 @@ assert.match(server,/^import 'server-only'/);
 assert.doesNotMatch(server,/['"]use server['"]|updateUser|createUser|\.auth\.|console\.|dg_password_reconcile/);
 const walk=d=>readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):[path.join(d,e.name)]);
 for(const file of [...walk('app'),...walk('components'),...walk('lib')]){
+  if (['app/account/change-password/actions.ts','lib/admin/users-server.ts','lib/admin/users-service.ts'].includes(file.replaceAll('\\','/'))) continue;
   if(!/\.tsx?$/.test(file)||file.endsWith('.test.ts')||file.endsWith('require-password-change-server.ts'))continue;
-  assert.doesNotMatch(read(file),/require-password-change-server/,`Inactive boundary: ${file}`);
+  assert.doesNotMatch(read(file),/require-password-change-server/,`Server import boundary: ${file}`);
 }
-assert.match(read('lib/admin/users-service.ts'),/rpc\('dg_admin_require_password_change'/);
+assert.doesNotMatch(read('lib/admin/users-service.ts'),/dg_admin_require_password_change|dg_admin_set_user_active/);
 const prefix=path.resolve('.tmp-require-password-'),temporary=mkdtempSync(prefix);
 try{
   execFileSync(process.execPath,['node_modules/typescript/bin/tsc','--strict','--pretty','false','--target','es2022',
@@ -50,12 +51,12 @@ try{
     runInNewContext(ts.transpileModule(server,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
       {module:evaluated,exports:evaluated.exports,URL,process:{env:{SUPABASE_URL:mode==='wrong-project'?'https://other.invalid':'https://test.invalid'}},
         require:id=>{assert.ok(id in imports,id);return imports[id];}});
-    const result=await evaluated.exports.runInactiveRequirePasswordChange(mode==='invalid-id'?'bad':user);
+    const result=await evaluated.exports.runRequirePasswordChange(mode==='invalid-id'?'bad':user);
     assert.equal(result.ok,['success','repeat'].includes(mode),mode);
     assert.deepEqual(Object.keys(result),['ok']);
-    if(mode==='repeat'){assert.equal((await evaluated.exports.runInactiveRequirePasswordChange(user)).ok,true);assert.equal(writes,2);}
+    if(mode==='repeat'){assert.equal((await evaluated.exports.runRequirePasswordChange(user)).ok,true);assert.equal(writes,2);}
     else if(['success','rpc-error','lost-response','bad-result'].includes(mode))assert.equal(writes,1);
     else {assert.equal(writes,0);assert.equal(factories,0);}
   }
-  console.log('14 mocked adapter cases and SQL/inactive-boundary static checks passed. No Auth/database integration claimed.');
+  console.log('14 mocked adapter cases and SQL/server-boundary static checks passed. No Auth/database integration claimed.');
 }finally{assert.ok(path.resolve(temporary).startsWith(prefix));rmSync(temporary,{recursive:true,force:true});}

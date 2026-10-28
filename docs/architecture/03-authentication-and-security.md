@@ -1,12 +1,32 @@
 # 03 — Authentication and security
 
+## Connected password workflows (local application cutover)
+
+Prepared from `be2911f`. The application now calls the previously isolated trusted adapters. **This is source wiring, not hosted activation or proof that prerequisite migrations are applied.** The historical Stage 2?4 sections below record preparation milestones; their ?inactive/no callers? descriptions are superseded by this section.
+
+| Workflow | Current application boundary |
+| --- | --- |
+| Create employee / normal login | Existing [provisioning service](../../lib/admin/users-service.ts) still creates a fresh Auth identity, provisions the profile with mandatory setup and compensates provisioning failure. Normal login/session handling is unchanged. Password state initializes lazily from the profile; no new account states or session tracking. |
+| Employee setup | [Setup action](../../app/account/change-password/actions.ts) calls [trusted employee adapter](../../lib/auth/employee-password-server.ts). Verified Auth identity ? current snapshot ? validation/reservation ? Auth update ? trusted atomic finish ? snapshot. A current durable receipt recovers lost completion responses, including when the profile flag is already cleared. No legacy completion RPC or unreserved Auth fallback. |
+| Admin reset | [User service](../../lib/admin/users-server.ts) binds reset to [trusted reset adapter](../../lib/admin/password-reset-server.ts): atomic requirement/generation ? exclusive reservation ? Auth reset ? finish. Setup remains required. |
+| Require Password Change | [Requirement adapter](../../lib/admin/require-password-change-server.ts) calls only `dg_password_require_change`; it accepts no password and performs no Auth write. |
+| Deactivate | [Deactivation adapter](../../lib/admin/deactivation-server.ts) checks current users-use permission, UUID, self-deactivation, directory membership and project identity before trusted `dg_password_deactivate`. No Auth dependency or timeout unlock. |
+| Reactivate | [Existing workspace](../../components/manager/UsersAccessWorkspace.tsx) opens its password form for an inactive employee. A separate action invokes [reactivation adapter](../../lib/admin/reactivation-server.ts); the boolean activation path is rejected. Only current-generation confirmed Auth success permits SQL activation with mandatory setup. Ordinary reset cannot activate. |
+
+Validation and existing module gates remain. Unknown/mismatched/stale outcomes return recovery instructions, never ?password changed? or a legacy fallback. A confirmed administrative operation whose directory refresh fails remains successful without returning a fabricated profile; the UI clears stale selection and asks for refresh. This also handles an administrator resetting their own password and losing business access. Form fields are cleared after submission as before.
+
+**Deployment prerequisites remain blocking:** verify effective password foundation/snapshot/atomic/require-change/reactivation functions and service-role grants; coordinate business SQL gates and retirement of legacy completion authority; drain older application writers; assess dormant state touched by legacy flows; arrange evidence-based recovery for unresolved operations. This task neither removes legacy database functions nor connects to Supabase. Missing RPCs fail closed, but availability alone does not prove the correct migration version. Do not deploy this commit independently of that coordinated cutover. Historical authenticated legacy administration RPCs also need an explicit cutover review so direct callers cannot bypass generations. Native Auth session revocation behavior remains unverified; profile eligibility checks remain required.
+
+Verification: [connected actions](../../scripts/verify-password-workflow-actions.mjs), existing employee/reset/reactivation/require-change verifiers and [user-service tests](../../lib/admin/users-service.test.ts). They execute mocked server/Auth boundaries, not live SQL/Auth or browser acceptance.
+
+
 ## Stage 5A: business eligibility prepared for coordinated cutover
 
 Prepared from `aeb0ef9`. [Shared authorization](../../lib/auth/access.ts) now requires active status and completed mandatory setup before returning module access or manager authority. [Manager deletion](../../lib/jobs/manager-job-delete-contract.ts) uses the same manager helper. Raw current-access loading, setup redirect/action and logout remain available. Existing User Administration already checks both flags. These prepared paths supersede the historical missing-setup-gate observations below; this is not a deployment claim.
 
 [20261027120000](../../supabase/migrations/20261027120000_business_access_requirement.sql) guards independent business RPCs and existing scope helpers and adds restrictive SELECT policies without replacing module/location filters. Calendar stays company-wide; linked-note restrictions are unchanged. Password operations, profile/permission self-read and synchronization triggers are excluded.
 
-**Do not deploy this application change or apply this migration before compatible setup is connected.** The migration requires same-session `doorgo.business_access_cutover='approved'`; acknowledgement is not proof of readiness. It neither executes nor replaces legacy-completion retirement. All new password adapters remain inactive; the legacy completion caller remains unchanged. No custom session tracking was added, following the approved native-Supabase-session policy.
+**Do not deploy this application change or apply this migration before compatible setup is connected.** The migration requires same-session `doorgo.business_access_cutover='approved'`; acknowledgement is not proof of readiness. It neither executes nor replaces legacy-completion retirement. At Stage 5A preparation the adapters were inactive; the connected-workflow section above supersedes that application boundary. SQL retirement remains unapplied by this task. No custom session tracking was added, following the approved native-Supabase-session policy.
 
 Older shared-object grants/RLS remain a verification gap. Tests: [static coverage](../../scripts/verify-business-access.mjs), [access matrix](../../lib/auth/access.test.ts), [manager denial](../../lib/jobs/manager-job-delete-contract.test.ts), [prepared SQL suite](../../scripts/verify-business-access-local.sql). Static checks do not establish runtime SQL authorization.
 

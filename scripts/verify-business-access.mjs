@@ -52,7 +52,8 @@ for (const [name, definition] of definitions) {
 // Preserve the accepted linked-note restriction and existing module gates verbatim.
 assert.ok(definitions.get('calendar_linked_fulfillment_notes').body.includes('dg_calendar_require_use(false)'));
 assert.ok(!guarded.includes('calendar_linked_fulfillment_notes'));
-assert.match(read('app/account/change-password/actions.ts'), /complete_dg_initial_password_setup/);
+assert.match(read('app/account/change-password/actions.ts'), /runEmployeePasswordSetup/);
+assert.doesNotMatch(read('app/account/change-password/actions.ts'), /complete_dg_initial_password_setup/);
 for (const directory of ['app', 'components']) {
   function check(folder) {
     for (const entry of fs.readdirSync(folder, { withFileTypes: true })) {
@@ -63,4 +64,4 @@ for (const directory of ['app', 'components']) {
   }
   check(directory);
 }
-console.log('Business authorization static coverage passed: 31 guarded boundaries, 19 restrictive SELECT policies; no adapter activation. Runtime SQL remains separate.');
+console.log('Business authorization static coverage passed: 31 guarded boundaries, 19 restrictive SELECT policies; trusted setup caller. Runtime SQL remains separate.');

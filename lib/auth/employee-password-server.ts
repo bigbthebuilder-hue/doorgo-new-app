@@ -7,10 +7,9 @@ import { getPublicSupabaseEnvironment } from '../supabase/public-env';
 import { executeEmployeePasswordOperation, parseEmployeeSnapshot, parsePasswordOperation,
   type EmployeeSetupResult } from './employee-password-operation';
 
-// INACTIVE: no action, route or component imports this module. Do not add 'use server'.
-// Activation still requires coordinated legacy writers, completion authority and business
-// gates. Stage 4A SQL atomically completes the internal operation and profile requirement.
-export async function runInactiveEmployeePasswordSetup(form: FormData): Promise<EmployeeSetupResult> {
+// Connected server boundary; deployment requires the coordinated SQL cutover.
+// Never fall back to legacy completion or an unreserved Auth write.
+export async function runEmployeePasswordSetup(form: FormData): Promise<EmployeeSetupResult> {
   try {
     const authenticated = await createAuthenticatedSupabaseServerClient();
     let verifiedUserId: string | null = null;

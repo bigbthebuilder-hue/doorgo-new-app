@@ -20,10 +20,11 @@ function walk(directory) {
     ? walk(path.join(directory,e.name)) : [path.join(directory,e.name)]);
 }
 for (const file of [...walk('app'),...walk('components'),...walk('lib')]) {
+  if (['app/account/change-password/actions.ts','lib/admin/users-server.ts','lib/admin/users-service.ts'].includes(file.replaceAll('\\','/'))) continue;
   if (!/\.tsx?$/.test(file) || file.endsWith('.test.ts') || /(?:employee-password|password-reset|reactivation)-(server|operation)\.ts$/.test(file)) continue;
-  assert.doesNotMatch(read(file),/employee-password-(server|operation)|password-reset-(server|operation)/,`Inactive boundary: ${file}`);
+  assert.doesNotMatch(read(file),/employee-password-(server|operation)|password-reset-(server|operation)/,`Server import boundary: ${file}`);
 }
-assert.match(read('app/account/change-password/actions.ts'),/executeInitialPasswordSetup/);
+assert.match(read('app/account/change-password/actions.ts'),/runEmployeePasswordSetup/);
 const sql = read('supabase/migrations/20261023120000_employee_password_operation_snapshot.sql');
 assert.match(sql,/LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''/);
 assert.match(sql,/WHERE p\.user_id=p_user_id/);
@@ -39,9 +40,10 @@ try {
   execFileSync(process.execPath,['node_modules/typescript/bin/tsc','--strict','--pretty','false',
     '--target','es2022','--module','commonjs','--moduleResolution','node','--esModuleInterop',
     '--rootDir','lib','--outDir',temporary,'lib/auth/employee-password-operation.test.ts',
-    'lib/auth/password-setup.test.ts','lib/auth/access.test.ts'],{stdio:'inherit'});
+    'lib/auth/password-setup.test.ts','lib/auth/access.test.ts',
+    'lib/auth/login.test.ts','lib/auth/logout.test.ts'],{stdio:'inherit'});
   execFileSync(process.execPath,['--test',path.join(temporary,'auth/employee-password-operation.test.js')],{stdio:'inherit'});
-  for (const file of ['password-setup.test.js','access.test.js']) {
+  for (const file of ['password-setup.test.js','access.test.js','login.test.js','logout.test.js']) {
     execFileSync(process.execPath,[path.join(temporary,'auth',file)],{stdio:'inherit'});
   }
 
@@ -94,7 +96,7 @@ try {
     const form=new FormData();form.set('newPassword','valid new passphrase');form.set('confirmPassword','valid new passphrase');
     // Client-supplied authority fields are ignored.
     form.set('userId','attacker');form.set('generation','999');form.set('success','true');
-    const result=await evaluated.exports.runInactiveEmployeePasswordSetup(form);
+    const result=await evaluated.exports.runEmployeePasswordSetup(form);
     assert.equal(calls[0],'getUser');
     if(mode==='anonymous'){assert.equal(trustedFactories,0);assert.equal(authWrites,0);}
     if(mode==='not-required')assert.equal(authWrites,0);
@@ -106,7 +108,7 @@ try {
     ['wrong-user','recovery_required'],['anonymous','not_allowed'],['not-required','not_allowed'],['wrong-project','unavailable']]) {
     assert.equal(await adapterCase(mode),expected,mode);
   }
-  console.log('10 real-adapter/mocked-SDK cases passed; inactive import and SQL grant checks passed. No live Auth or SQL proof.');
+  console.log('10 real-adapter/mocked-SDK cases passed; bounded server import and SQL grant checks passed. No live Auth or SQL proof.');
 } finally {
   // Only remove the unique compilation directory created by this invocation.
   assert.ok(path.resolve(temporary).startsWith(prefix));

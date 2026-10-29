@@ -1,5 +1,11 @@
 # 03 — Authentication and security
 
+## Coordinated password-security release
+
+See the [operator cutover runbook](../password-security-cutover-runbook.md) for the nine-file SQL order, same-session acknowledgements, old-writer pause, compatible deployment, six-workflow acceptance and fail-closed recovery. Prepared from `8ff5ab2`; owner-supplied hosted structural checks are not runtime verification. No migration or deployment is performed by this documentation.
+
+The three legacy verifier expectations were updated to current behavior: protected Production Board access, shared full Calendar edit fields, and reviewed read-only enrichment. Historical migration hashes and completion-contract checks remain; later migrations are checked for direct completion-RPC redefinition instead of banning every mention of completion. Application behavior is unchanged.
+
 ## Legacy-administration cutover restriction
 
 Prepared from `fe6af88`, [20261028120000](../../supabase/migrations/20261028120000_restrict_legacy_user_administration.sql) requires same-session `doorgo.legacy_admin_cutover='approved'`, installed trusted replacement RPCs/business gate, and retirement of the old completion RPC by its separate migration. It revokes all function privileges (EXECUTE/grant authority) on exactly `dg_admin_set_user_active(uuid,boolean)` and `dg_admin_require_password_change(uuid)` from PUBLIC, anon, authenticated and service_role, with RESTRICT. There is no remaining legitimate application caller of either generation-unaware writer. Function bodies/ownership, provisioning, directory, permission editing, trusted replacements and application workflows are unchanged.

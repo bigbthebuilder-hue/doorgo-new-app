@@ -1,5 +1,11 @@
 # 06 — Testing and development guide
 
+## Coordinated password-security release
+
+See the [operator cutover runbook](../password-security-cutover-runbook.md) for the nine-file SQL order, same-session acknowledgements, old-writer pause, compatible deployment, six-workflow acceptance and fail-closed recovery. Prepared from `8ff5ab2`; owner-supplied hosted structural checks are not runtime verification. No migration or deployment is performed by this documentation.
+
+The three legacy verifier expectations were updated to current behavior: protected Production Board access, shared full Calendar edit fields, and reviewed read-only enrichment. Historical migration hashes and completion-contract checks remain; later migrations are checked for direct completion-RPC redefinition instead of banning every mention of completion. Application behavior is unchanged.
+
 ## Google Calendar retirement regression check
 
 Run `node scripts/verify-google-calendar-retirement.mjs` ([source](../../scripts/verify-google-calendar-retirement.mjs)). It checks tracked application/configuration and non-verifier scripts for known Google Calendar API, OAuth, sync/reconnect and dependency patterns, with positive/negative detector cases. Historical SQL migrations, documentation and tests are excluded; historical IDs and Google Fonts are allowed. This is a focused static guard, not exhaustive detection of arbitrary HTTP code or proof that external Apps Script jobs stopped. Preserve native Calendar/Job synchronization and bridge-derived capacity when reviewing retirement changes.

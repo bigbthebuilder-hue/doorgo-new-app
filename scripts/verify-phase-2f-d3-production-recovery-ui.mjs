@@ -88,8 +88,10 @@ assert.doesNotMatch(d3Runtime, /calendar_id\s*:|calendar_event_id\s*:|calendar_s
 
 const board = read(paths.board); const checkpoints = read(paths.checkpoints);
 assert.match(board, /loadProductionBoardReadOnly/);
-assert.doesNotMatch(board, /requireDoorGoProtectedAccess|redirect\(['"]\/login/);
-assert.match(board, /getCurrentDoorGoAccess[\s\S]*access\.state === 'active' \? buildProtectedAppNavigation\(access\) : buildPublicAppNavigation\(\)/);
+assert.match(board, /requireDoorGoProtectedAccess\(\)/);
+assert.match(board, /hasAtLeastView\(access, 'production'\)/);
+assert.match(board, /buildProtectedAppNavigation\(access\)/);
+assert.doesNotMatch(board, /buildPublicAppNavigation/);
 assert.match(checkpoints, /requireDoorGoProtectedAccess\(\)/);
 assert.match(checkpoints, /hasAtLeastView\(access, 'production_checkpoints'\)/);
 

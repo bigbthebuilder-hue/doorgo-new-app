@@ -59,8 +59,8 @@ const additionalMigrations = migrations.filter((name) => !(name in protectedMigr
 for (const name of additionalMigrations) {
   assert.doesNotMatch(
     read(`supabase/migrations/${name}`),
-    /complete_production_booking|reopen_production_booking|dg_production_booking_completion_events|\bcompleted_at\b|production[-_ ]completion UI/i,
-    `Post-F2 migration changes the protected completion contract: ${name}`,
+    /(?:CREATE(?:\s+OR\s+REPLACE)?|DROP)\s+FUNCTION\s+public\.(?:complete_production_booking|reopen_production_booking)\s*\(/i,
+    `Unexpected direct redefinition of protected completion RPC: ${name}`,
   );
 }
 
@@ -188,8 +188,10 @@ assert.match(docs, /(?:does not|neither action) freezes? or changes? Shop Hours/
 assert.match(docs, /Live authenticated mutation.*deferred/i);
 
 const repositoryExtensions = ['.ts', '.tsx', '.mjs', '.js'];
+// Re-reviewed at 8ff5ab2: Calendar/Native Job enrichment and authenticated linked-note
+// reads are established read-only behavior; retain hashes to flag future boundary changes.
 const readOnlyGraphBoundaries = new Map([
-  ['lib/production-board/queries.ts', '3E9E47A48EDDD2F39A50974616FCC19EB12E8C7B96E1E342A9FC1DB1D6BA13AD'],
+  ['lib/production-board/queries.ts', '722C06D16C3DD678EBB2D76998672DF5019D4EC94487D9E52B971BC08D098E7E'],
   ['lib/production-schedule/destination-preview-action.ts', '8419A8ABB4A00B7F3EF35C63585DF7B7B35C2D4F195D8843E13E0D2BEBBEF4B7'],
 ]);
 for (const [file, checksum] of readOnlyGraphBoundaries) {

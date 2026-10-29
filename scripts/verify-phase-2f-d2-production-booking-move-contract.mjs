@@ -144,7 +144,7 @@ for (const marker of [
 ]) assert.ok(tests.includes(marker), `Missing focused test marker: ${marker}`);
 
 assert.match(docs, /Supabase is the permanent production[\s\S]*schedule source of truth/i);
-assert.match(docs, /Google Calendar is import-only/i);
+assert.match(docs, /Google Calendar is permanently discontinued/i);
 assert.match(docs, /booking_kind = 'production'[\s\S]*booking_kind = 'placeholder'/i);
 assert.match(docs, /partly completed[\s\S]*Production Carry Checkpoint/i);
 assert.match(docs, /not active until final cutover/i);

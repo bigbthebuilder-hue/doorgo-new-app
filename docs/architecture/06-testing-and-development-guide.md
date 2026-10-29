@@ -1,5 +1,9 @@
 # 06 — Testing and development guide
 
+## Google Calendar retirement regression check
+
+Run `node scripts/verify-google-calendar-retirement.mjs` ([source](../../scripts/verify-google-calendar-retirement.mjs)). It checks tracked application/configuration and non-verifier scripts for known Google Calendar API, OAuth, sync/reconnect and dependency patterns, with positive/negative detector cases. Historical SQL migrations, documentation and tests are excluded; historical IDs and Google Fonts are allowed. This is a focused static guard, not exhaustive detection of arbitrary HTTP code or proof that external Apps Script jobs stopped. Preserve native Calendar/Job synchronization and bridge-derived capacity when reviewing retirement changes.
+
 ## Legacy-administration restriction verification
 
 Prepared from `fe6af88`. Run `node scripts/verify-legacy-admin-restriction.mjs`: verifies the exact two-function/four-grantee RESTRICT scope, cutover/prerequisite checks, effective and member-role execution denial before commit, absence of other DDL/DML/role changes, preserved application boundaries and ordered pending migration filenames. Negative source mutations exercise missing PUBLIC revocation, removed privilege/membership checks, a downgraded error and accidental provisioning-target changes. These are static contract checks, **not PostgreSQL execution or inheritance tests**.

@@ -1,5 +1,11 @@
 # 02 — Database and data ownership
 
+## Permanent Google Calendar retirement
+
+Source reviewed at `2e8f0e2`. Google Calendar is permanently discontinued; no Calendar API, OAuth/reconnect flow or Google sync worker was found in this application. Historical Calendar/event IDs, source metadata and records remain for compatibility. Native Job-to-Calendar, fulfillment and Production synchronization remain authoritative internal workflows, not Google integration.
+
+The external Apps Script bridge is not in this repository and has not been disabled or verified stopped. Capacity still contains bridge-baseline dependencies: confirm its writer and preserve capacity supply before external shutdown. Do not delete events, records, shared credentials or historical migrations. See the [retirement guard](../../scripts/verify-google-calendar-retirement.mjs); it checks repository patterns, not hosted jobs or external authorization. This retirement is separate from the password-security cutover.
+
 ## Final legacy-administration restriction and pending sequence
 
 Prepared from `fe6af88`. The owner reports the original profile/permission migrations recorded, existing administration and legacy completion installed, and no password-operation tables/functions or business-access helper in hosted Supabase. October 15-27 security migrations are not recorded. These are **owner-supplied hosted findings**, not a connection or independent inspection by this task. At that reported snapshot there is no dormant password-operation state to reconcile.

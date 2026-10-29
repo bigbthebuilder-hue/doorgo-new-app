@@ -1,7 +1,7 @@
 # Production booking recovery move contract (Phase 2F-D2)
 
 After final import and reconciliation, Supabase is the permanent production
-schedule source of truth. Google Calendar is import-only: legacy calendar IDs,
+schedule source of truth. Google Calendar is permanently discontinued: legacy calendar IDs,
 event IDs, timestamps, and synchronization labels remain historical references
 and are never read as authorization or updated by this workflow. The original
 Apps Script application, Calendar APIs, dual writes, and synchronization queues

@@ -1,5 +1,11 @@
 # 05 — Calendar and production workflows
 
+## Permanent Google Calendar retirement
+
+Source reviewed at `2e8f0e2`. Google Calendar is permanently discontinued; no Calendar API, OAuth/reconnect flow or Google sync worker was found in this application. Historical Calendar/event IDs, source metadata and records remain for compatibility. Native Job-to-Calendar, fulfillment and Production synchronization remain authoritative internal workflows, not Google integration.
+
+The external Apps Script bridge is not in this repository and has not been disabled or verified stopped. Capacity still contains bridge-baseline dependencies: confirm its writer and preserve capacity supply before external shutdown. Do not delete events, records, shared credentials or historical migrations. See the [retirement guard](../../scripts/verify-google-calendar-retirement.mjs); it checks repository patterns, not hosted jobs or external authorization. This retirement is separate from the password-security cutover.
+
 Verified against `32c79b1f385af7a1063f96e6e655ee772c9398af` on `main`, 2026-10-15. This reference describes source behavior and the effective local migration chain through `20261009153600`, assuming its prerequisites and successful application. No hosted state or test pass status was verified. Reuse the [overview](01-application-overview.md), [database ownership](02-database-and-data-ownership.md), [security](03-authentication-and-security.md), and [geometry](04-door-geometry-and-configuration.md) references for their respective boundaries.
 
 ## Shared read model and data owners

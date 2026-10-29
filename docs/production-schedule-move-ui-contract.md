@@ -14,4 +14,4 @@ Each attempt receives one secure command UUID. An unchanged retry after an unava
 
 Completed and locked bookings are not draggable and have disabled Move controls with an explanation. E2C adds no Started status, placeholders, booking creation, Shop Hours editing, completion controls, job changes, scheduling notes, Calendar synchronization, checkpoint mutation, or capacity mutation.
 
-This workflow is available for controlled Vercel parallel testing only. The current Apps Script DoorGo and Google Calendar remain the live operational system until every replacement workflow is complete and final cutover is approved.
+Google Calendar is permanently discontinued. DoorGo internal scheduling remains supported. This decision does not certify external Apps Script shutdown or authorize deployment: external writers must be retired separately without deleting Google events or interrupting capacity supply.

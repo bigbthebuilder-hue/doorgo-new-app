@@ -26,6 +26,6 @@
 - Keep one clean visible workflow connected to the proven action engine.
 - Initial booking for a job with no event is a separate controlled workflow.
 - The new DoorGo app becomes the operational source of truth after an explicitly approved cutover.
-- Google Calendar is migration/import history for the new app, not the future operational source of truth or a permanent second source of truth after cutover.
+- Google Calendar is permanently discontinued. Do not add API, OAuth, synchronization or reconnect functionality. Preserve historical identifiers and records. External Apps Script shutdown remains separately authorized and must preserve capacity continuity.
 - Hosted cutover has not occurred unless the current checkpoint explicitly says otherwise. Until then, follow the checkpoint's read/write restrictions.
 - Historical Apps Script and Google Calendar scheduling direction is continuity material only and must not override current new-app governance or detailed contracts.

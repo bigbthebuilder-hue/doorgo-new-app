@@ -9,8 +9,9 @@ import { accessFixture, clearPreflight, J3C_HARNESS_ONLY_MARKER, recipients as d
 declare global { interface Window { __j3cRequests?: unknown[] } }
 export type HarnessOutcome = 'success' | 'failure' | 'partial' | 'stale' | 'delayed-success' | 'failure-then-success';
 
-export function J3CBrowserHarness({ accessLevel = 'view', manager = false, preflight = clearPreflight, recipients = defaultRecipients, directoryError = null, outcome = 'success', visibleIdentifier = 'SO-900', pdfFilename = 'Work_Order_SO-900.pdf' }: { accessLevel?: 'none' | 'view' | 'use'; manager?: boolean; preflight?: WorkOrderPreflight; recipients?: WorkOrderRecipient[]; directoryError?: string | null; outcome?: HarnessOutcome; visibleIdentifier?: string; pdfFilename?: string }) {
+export function J3CBrowserHarness({ calendarAccess = 'none', accessLevel = 'view', manager = false, preflight = clearPreflight, recipients = defaultRecipients, directoryError = null, outcome = 'success', visibleIdentifier = 'SO-900', pdfFilename = 'Work_Order_SO-900.pdf' }: { calendarAccess?: 'none' | 'view' | 'use'; accessLevel?: 'none' | 'view' | 'use'; manager?: boolean; preflight?: WorkOrderPreflight; recipients?: WorkOrderRecipient[]; directoryError?: string | null; outcome?: HarnessOutcome; visibleIdentifier?: string; pdfFilename?: string }) {
   const access = accessFixture(accessLevel, manager);
+  access.permissions.calendar = calendarAccess;
   const [attempt, setAttempt] = useState(0);
   if (!hasAtLeastView(access, 'jobs')) return <main data-testid={J3C_HARNESS_ONLY_MARKER}><p>Jobs access is required.</p></main>;
   const sendWorkOrder: WorkOrderSendCallback = async (request) => {
@@ -22,7 +23,7 @@ export function J3CBrowserHarness({ accessLevel = 'view', manager = false, prefl
     if (outcome === 'partial') return { ok: true, outcome: 'partial', message: `Sent to 1 of ${request.recipientUserIds.length} recipients. 1 failed.`, failedRecipientUserIds: [request.recipientUserIds.at(-1)!] };
     return { ok: true, outcome: 'success', message: `Sent to ${request.recipientUserIds.length} ${request.recipientUserIds.length === 1 ? 'recipient' : 'recipients'}.`, failedRecipientUserIds: [] };
   };
-  return <div data-testid={J3C_HARNESS_ONLY_MARKER}><WorkOrderPreview internalJobId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" pdfFilename={pdfFilename} preflight={preflight} recipientDirectoryError={directoryError} recipients={recipients} sendWorkOrder={sendWorkOrder} sourceRevision={7} visibleIdentifier={visibleIdentifier}/></div>;
+  return <div data-testid={J3C_HARNESS_ONLY_MARKER}><WorkOrderPreview canViewCalendar={hasAtLeastView(access, 'calendar')} internalJobId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" pdfFilename={pdfFilename} preflight={preflight} recipientDirectoryError={directoryError} recipients={recipients} sendWorkOrder={sendWorkOrder} sourceRevision={7} visibleIdentifier={visibleIdentifier}/></div>;
 }
 
 export function DirtySendEntryHarness({ dirty }: { dirty: boolean }) {

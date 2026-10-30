@@ -12,7 +12,7 @@ DoorGo is a Next.js App Router application. [Root layout](../../app/layout.tsx) 
 
 | Routes | Feature and source entry points |
 | --- | --- |
-| `/`, `/login`, `/account`, `/account/change-password`, `/auth/logout` | Home/account/session flow: [app routes](../../app/), [auth contracts/services](../../lib/auth/), [navigation](../../lib/app-shell/navigation.ts) |
+| `/`, `/login`, `/account`, `/account/change-password`, `/auth/logout` | Permission-aware startup/account/session flow: [app routes](../../app/), [auth contracts/services](../../lib/auth/), [navigation](../../lib/app-shell/navigation.ts) |
 | `/jobs`, `/jobs/new`, `/jobs/[internalJobId]/edit` | Native Job workspace: [routes](../../app/jobs/), [JobsWorkspace](../../components/jobs/JobsWorkspace.tsx), [JobHeaderForm](../../components/jobs/JobHeaderForm.tsx), [DoorLineWorkspace](../../components/jobs/DoorLineWorkspace.tsx) |
 | `/jobs/import` | Legacy transfer validation and unsaved review: [import page](../../app/jobs/import/page.tsx), [mapping](../../lib/jobs/legacy-transfer-mapping.ts), [import contract](../../lib/jobs/legacy-transfer-import-contract.ts) |
 | `/jobs/[internalJobId]/work-order`, suffix `/pdf` | Saved Job preview/PDF: [route directory](../../app/jobs/%5BinternalJobId%5D/work-order/), [WorkOrderPreview](../../components/jobs/WorkOrderPreview.tsx), [document contract](../../lib/jobs/work-order-document-contract.ts) |
@@ -84,3 +84,13 @@ Build entry points are `npm run dev`, `npm run build`, and `npm run start`. [Nex
 - No separate customer/product/pricing subsystem was found in the inspected source; externally owned systems remain unverified.
 - [Current checkpoint](../DOORGO_CURRENT_CHECKPOINT.md) records an older branch/checkpoint. Read it as historical context unless reconciled with current Git state. Existing [workflow](../DOORGO_CODEX_WORKFLOW.md) and [root governance](../../AGENTS.md) still govern task scope.
 - Test health and manual production acceptance were not reassessed for this document. Source-linked test presence is not a claim that all tests currently pass.
+
+## Navigation update (working tree based on `1abbac6`)
+
+The [root route](../../app/page.tsx) has no unique business workflow: it redirects through the existing protected-access guard and [landing selector](../../lib/app-shell/navigation.ts). Login and root/PWA startup prefer Calendar; fallbacks are Jobs, Production Board, Checkpoints, Documents, Glass Calculator, Admin, then Account according to existing permissions. Unauthenticated startup goes to login; mandatory setup still goes to password setup. The [manifest](../../app/manifest.webmanifest) retains `start_url: /`. Only startup routes select a default; existing permitted destination URLs remain unchanged.
+
+The shared sidebar no longer contains Home. Its prominent **+ New Job** link requires Jobs `use`, opens the existing `/jobs/new` workflow, and retains the [unsaved-change guard](../../components/app-shell/UnsavedChangesGuard.tsx). Jobs `view` does not expose creation; the destination still enforces its own permission. No creation or persistence logic is duplicated.
+
+The saved [Work Order page](../../app/jobs/%5BinternalJobId%5D/work-order/page.tsx) passes Calendar visibility to [WorkOrderPreview](../../components/jobs/WorkOrderPreview.tsx). **Go to Calendar** follows **Back to Job**, without saving, changing revisions, or invoking PDF/Send actions. Printing stays on the preview.
+
+Focused checks: `node scripts/verify-permission-routing.mjs`; [navigation contracts](../../lib/app-shell/navigation.test.ts); `npx.cmd playwright test -c playwright-desktop-shell.config.ts tests/desktop-shell/navigation.spec.tsx --workers=1`; `npx.cmd playwright test -c playwright-ct.config.ts tests/j3c-browser/work-order-preview.spec.tsx --workers=1`. Browser tests use local component harnesses and synthetic destinations; installed-app startup and live account acceptance remain manual checks. The broader `verify:desktop-shell` currently has a pre-existing standalone-calculator source assertion failure, also reproduced against `1abbac6`.

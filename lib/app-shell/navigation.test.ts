@@ -19,11 +19,7 @@ assert.equal(isAppNavigationItemActive('/production-board', buildPublicAppNaviga
 assert.equal(isAppNavigationItemActive('/production-schedule', buildPublicAppNavigation()[0]), false);
 
 const none = buildProtectedAppNavigation(access({})).map((item) => item.href);
-assert.deepEqual(none, ['/', '/account']);
-const homeItem = buildProtectedAppNavigation(access({}))[0];
-assert.equal(isAppNavigationItemActive('/', homeItem), true);
-assert.equal(isAppNavigationItemActive('/jobs', homeItem), false);
-
+assert.deepEqual(none, ['/account']);
 const jobs = buildProtectedAppNavigation(access({ jobs: 'view' })).map((item) => item.href);
 assert.ok(jobs.includes('/jobs'));
 assert.ok(!jobs.includes('/glass-calculator'));
@@ -53,7 +49,7 @@ assert.ok(documents.includes('/documents'));
 
 const calendar = buildProtectedAppNavigation(access({ calendar: 'view' })).map((item) => item.href);
 assert.ok(calendar.includes('/calendar'));
-assert.deepEqual(calendar, ['/', '/calendar', '/account']);
+assert.deepEqual(calendar, ['/calendar', '/account']);
 assert.equal(protectedLandingDestination(access({calendar:'view'})),'/calendar');
 assert.equal(protectedLandingDestination(access({jobs:'view'})),'/jobs');
 assert.equal(protectedLandingDestination(access({production:'view'})),'/production-board');
@@ -70,7 +66,25 @@ const inactive: CurrentDoorGoAccess = {
 };
 assert.deepEqual(
   buildProtectedAppNavigation(inactive).map((item) => item.href),
-  ['/', '/account'],
+  ['/account'],
 );
 
 console.log('Desktop shell navigation contract passed');
+
+for (const level of ['none', 'view', 'use'] as const) {
+  const items = buildProtectedAppNavigation(access({ jobs: level }));
+  assert.equal(items.some(item => item.href === '/jobs/new'), level === 'use');
+  assert.equal(items.some(item => item.label === 'Home'), false);
+}
+const create = buildProtectedAppNavigation(access({ jobs: 'use' })).find(item => item.href === '/jobs/new')!;
+assert.equal(create.prominent, true);
+assert.equal(isAppNavigationItemActive('/jobs/new', create), true);
+assert.equal(isAppNavigationItemActive('/jobs/new', jobsItem), false);
+for (const [permission, destination] of Object.entries({ tools: '/glass-calculator', settings: '/manager', users: '/manager', production_checkpoints: '/production-checkpoints', documents: '/documents' })) {
+  assert.equal(protectedLandingDestination(access({ [permission]: 'view' })), destination);
+}
+const requiredSetup = access({ jobs: 'use', calendar: 'use' });
+if (requiredSetup.state === 'active') requiredSetup.profile.mustChangePassword = true;
+assert.deepEqual(buildProtectedAppNavigation(requiredSetup).map(item => item.href), ['/account']);
+assert.equal(protectedLandingDestination(access({})), '/account');
+assert.equal(protectedLandingDestination(access({ calendar: 'view', jobs: 'use', users: 'use' })), '/calendar');

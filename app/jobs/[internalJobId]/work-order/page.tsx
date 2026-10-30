@@ -32,5 +32,5 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
   } catch {
     recipientDirectoryError = 'DoorGo recipients are temporarily unavailable.';
   }
-  return <WorkOrderPreview initialAction={initialAction} internalJobId={internalJobId} pdfFilename={document.pdfFilename} preflight={evaluateWorkOrderPreflight(document)} recipientDirectoryError={recipientDirectoryError} recipients={recipients} sendWorkOrder={sendWorkOrderAction} sourceRevision={document.internalCorrelation.sourceAggregateRevision} visibleIdentifier={document.visibleIdentifier}/>;
+  return <WorkOrderPreview canViewCalendar={hasAtLeastView(access, 'calendar')} initialAction={initialAction} internalJobId={internalJobId} pdfFilename={document.pdfFilename} preflight={evaluateWorkOrderPreflight(document)} recipientDirectoryError={recipientDirectoryError} recipients={recipients} sendWorkOrder={sendWorkOrderAction} sourceRevision={document.internalCorrelation.sourceAggregateRevision} visibleIdentifier={document.visibleIdentifier}/>;
 }

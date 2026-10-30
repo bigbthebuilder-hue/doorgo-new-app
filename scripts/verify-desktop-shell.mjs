@@ -117,7 +117,7 @@ assert.match(css, /\.app-shell-main\[data-scroll-owner="workspace"\] > \.app-wor
 assert.match(documents, /<ContextTopBar density="compact" title="Documents" secondary="Document tools"/, 'Documents must use the sparse compact shell without invented controls');
 assert.match(documents, /scrollOwner="main"[\s\S]*<Workspace width="fluid">[\s\S]*app-workspace-panel/, 'Documents must use explicit main-scroll ownership and the neutral workspace while its cards retain surface ownership');
 assert.doesNotMatch(documents, /<WorkspaceSurface/, 'Documents must not invent a page-wide white surface around independent cards');
-assert.match(home, /<ContextTopBar density="compact" title="Home"/, 'Home must use the sparse compact shell without moving workspace navigation');
+assert.ok(home.includes('redirect(protectedLandingDestination(access))'), 'Root honors setup protection and permission-aware startup');
 assert.match(jobsList, /sm:grid-cols-\[8rem_8rem_minmax\(9rem,1fr\)/, 'Jobs must use the dense desktop row contract');
 assert.doesNotMatch(jobsList, /Archived lines:/, 'Zero archived counts must not consume a dedicated Jobs row');
 assert.match(jobsWorkspace, /placeholder="Identifier, customer or site"/, 'Jobs filter copy must match the fields present in the loaded list projection');
@@ -154,9 +154,9 @@ assert.match(productionDay, /day\.cards\.slice\(0, visibleCardLimit\)/, 'Busy Pr
 assert.match(productionDay, /aria-expanded=\{expanded\}/, 'Busy-day overflow must expose accessible expansion state');
 assert.match(productionDay, /Carry checkpoint recorded/, 'Production Board must retain compact checkpoint evidence');
 assert.doesNotMatch(productionDay, /CheckpointMetric|formatCheckpointTime/, 'Production Board must not render checkpoint report mechanics');
-assert.match(home, /getCurrentDoorGoAccess/);
-assert.match(home, /Measure\. Build\. Schedule\./);
-assert.match(home, /buildProtectedAppNavigation\(access\)/, 'Authenticated Home must reuse permission-aware navigation');
+assert.match(home, /requireDoorGoProtectedAccess/);
+assert.ok(!home.includes('Choose a workspace.'));
+assert.ok(home.includes('protectedLandingDestination(access)'), 'Root uses permission-aware startup');
 assert.match(login, /\/brand\/doorgo-mark\.svg/);
 assert.doesNotMatch(login, /<AppShell/, 'Unauthenticated login must not render the authenticated rail');
 

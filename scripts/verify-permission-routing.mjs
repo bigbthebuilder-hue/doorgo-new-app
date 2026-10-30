@@ -71,6 +71,8 @@ async function routeAllowed(file, value) {
 let checks = 0;
 async function verify(value) {
   const navigation = nav.buildProtectedAppNavigation(value);
+  assert.equal(navigation.some(item => item.href === '/jobs/new'), auth.canUse(value, 'jobs'));
+  assert.equal(navigation.some(item => item.href === '/'), false);
   const home = navigation.filter(item => item.showOnHome).map(item => item.href);
   for (const [route, ...keys] of routes) {
     const expected = keys.some(key => auth.hasAtLeastView(value, key));
@@ -94,7 +96,7 @@ for (const manager of [false, true]) {
   }
 }
 const aaron = access({ calendar: 'use', tools: 'use' });
-assert.deepEqual(Array.from(nav.buildProtectedAppNavigation(aaron), item => item.label), ['Home', 'Calendar', 'Glass Calculator', 'Account']);
+assert.deepEqual(Array.from(nav.buildProtectedAppNavigation(aaron), item => item.label), ['Calendar', 'Glass Calculator', 'Account']);
 await verify(aaron);
 for (const state of ['inactive_profile', 'missing_profile', 'unauthenticated']) {
   const value = { ...access(Object.fromEntries(auth.DOORGO_PERMISSION_KEYS.map(k => [k, 'use']))), state };
@@ -107,7 +109,13 @@ assert.equal(definitions.find(item => item.key === 'glass_calculation').entryHre
 assert.equal(definitions.find(item => item.key === 'glass_calculation').permissionKey, 'tools');
 assert.equal(definitions.find(item => item.key === 'work_order').permissionKey, 'jobs');
 assert.match(fs.readFileSync('app/documents/page.tsx', 'utf8'), /hasAtLeastView\(access, definition.permissionKey\)/);
-assert.match(fs.readFileSync('app/page.tsx', 'utf8'), /navigation\.filter\(\(item\) => item\.showOnHome\)/);
+// Root startup redirects do not intercept destination page guards tested above.
+for (const [value, destination] of [[aaron, '/calendar'], [access({jobs:'view'}), '/jobs'], [access({tools:'use'}), '/glass-calculator'], [access({users:'use'}), '/manager'], [access({}), '/account'], [setup, '/account/change-password'], [{state:'unauthenticated'}, '/login']]) {
+  currentAccess = value;
+  await assert.rejects(() => load('app/page.tsx').default(), error => error instanceof Redirect && error.destination === destination);
+}
+assert.ok(fs.readFileSync('app/login/actions.ts', 'utf8').includes('redirect(protectedLandingDestination'));
+assert.equal(JSON.parse(fs.readFileSync('app/manifest.webmanifest', 'utf8')).start_url, '/');
 assert.equal(fs.existsSync('app/reports'), false, 'Reports stays reserved; no invented workspace');
 assert.equal(nav.buildProtectedAppNavigation(access({ reports: 'use' })).some(item => item.showOnHome), false);
 console.log(`Permission routing: PASS (${checks} navigation/Home/actual page-guard checks; all nine keys, manager variants, Aaron regression, secondary routes and reserved Reports).`);

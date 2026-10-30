@@ -4,6 +4,27 @@ import { blockedPreflight, excludedInactiveRecipient, recipientIds, recipients, 
 
 test.beforeEach(async ({ page }) => { await page.setViewportSize({ width: 1440, height: 900 }); await page.evaluate(() => { window.__j3cRequests = []; }); });
 
+test('Calendar navigation is permission-aware and does not send or change revision', async ({ mount, page }) => {
+  const denied = await mount(<J3CBrowserHarness/>);
+  await expect(denied.getByRole('link', { name: 'Go to Calendar' })).toHaveCount(0);
+  await denied.unmount();
+  for (const calendarAccess of ['view', 'use'] as const) {
+    const preview = await mount(<J3CBrowserHarness calendarAccess={calendarAccess}/>);
+    await expect(preview.getByRole('link', { name: 'Back to Job' })).toHaveAttribute('href', '/jobs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/edit');
+    await expect(preview.getByRole('link', { name: 'Go to Calendar' })).toHaveAttribute('href', '/calendar');
+    await expect(preview.getByRole('link', { name: 'Download PDF' })).toHaveAttribute('href', /revision=7/);
+    expect(await preview.locator('.work-order-preview-controls a').allTextContents()).toEqual(['Back to Job', 'Go to Calendar', 'Download PDF']);
+    await expect(preview.getByRole('button', { name: 'Print' })).toBeEnabled();
+    await expect(preview.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
+    expect(await page.evaluate(() => window.__j3cRequests)).toEqual([]);
+    await preview.unmount();
+  }
+  const preview = await mount(<J3CBrowserHarness calendarAccess="view"/>);
+  await page.route('**/calendar', route => route.fulfill({ contentType: 'text/html', body: '<h1>Calendar destination</h1>' }));
+  await preview.getByRole('link', { name: 'Go to Calendar' }).click();
+  await expect(page).toHaveURL(/\/calendar$/);
+});
+
 test('real preview UI exposes actions and sends IDs only', async ({ mount, page }) => {
   const component = await mount(<J3CBrowserHarness/>);
   await expect(component.getByText('Saved Work Order')).toBeVisible();
@@ -24,11 +45,29 @@ test('real preview UI exposes actions and sends IDs only', async ({ mount, page 
   expect(JSON.stringify(requests)).not.toContain('@');
 });
 
+test('Print stays on the preview and Back to Job keeps its destination', async ({ mount, page }) => {
+  const preview = await mount(<J3CBrowserHarness calendarAccess="view"/>);
+  await expect(preview.getByRole('button', { name: 'Print' })).toBeEnabled();
+  const before = page.url();
+  await preview.locator('iframe').evaluate((element) => {
+    const frame = element as HTMLIFrameElement;
+    if (!frame.contentWindow) throw new Error('Preview frame missing');
+    frame.contentWindow.print = () => { document.body.dataset.printed = 'true'; };
+  });
+  await preview.getByRole('button', { name: 'Print' }).click();
+  await expect(page.locator('body')).toHaveAttribute('data-printed', 'true');
+  expect(page.url()).toBe(before);
+  expect(await page.evaluate(() => window.__j3cRequests)).toEqual([]);
+  await page.route('**/jobs/*/edit', route => route.fulfill({ contentType: 'text/html', body: '<h1>Saved Job editor</h1>' }));
+  await preview.getByRole('link', { name: 'Back to Job' }).click();
+  await expect(page).toHaveURL(/\/jobs\/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\/edit$/);
+});
+
 test('permissions, blockers, warnings, and directory errors fail closed', async ({ mount }) => {
   for (const props of [{ accessLevel: 'none' as const }, { accessLevel: 'none' as const, manager: true }]) { const denied = await mount(<J3CBrowserHarness {...props}/>); await expect(denied.getByRole('button', { name: 'Send' })).toHaveCount(0); await denied.unmount(); }
   for (const accessLevel of ['view', 'use'] as const) { const allowed = await mount(<J3CBrowserHarness accessLevel={accessLevel}/>); await expect(allowed.getByRole('button', { name: 'Send' })).toBeVisible(); await allowed.unmount(); }
   const blocked = await mount(<J3CBrowserHarness preflight={blockedPreflight}/>); await expect(blocked.getByRole('button', { name: 'Send' })).toBeDisabled(); await expect(blocked.getByText('Fixture line is blocked.')).toBeVisible(); await blocked.unmount();
-  const warned = await mount(<J3CBrowserHarness preflight={warningPreflight}/>); await expect(warned.getByRole('button', { name: 'Send' })).toBeDisabled(); await warned.getByRole('button', { name: 'Acknowledge and Preview' }).click(); await warned.getByRole('button', { name: 'Send' }).click(); await expect(warned.getByText('Fixture warning requires review.', { exact: true })).toBeVisible(); await warned.unmount();
+  const warned = await mount(<J3CBrowserHarness preflight={warningPreflight}/>); await expect(warned.getByRole('button', { name: 'Send' })).toBeDisabled(); await warned.getByRole('button', { name: 'Acknowledge and Preview' }).click(); await warned.getByRole('button', { name: 'Send' }).click(); await expect(warned.getByRole('region', { name: 'Send Work Order' }).getByText('Warning: Fixture warning requires review.', { exact: true })).toBeVisible(); await warned.unmount();
   const directory = await mount(<J3CBrowserHarness directoryError="Recipient directory unavailable." recipients={[]}/>); await directory.getByRole('button', { name: 'Send' }).click(); await expect(directory.getByRole('alert')).toHaveText('Recipient directory unavailable.');
 });
 

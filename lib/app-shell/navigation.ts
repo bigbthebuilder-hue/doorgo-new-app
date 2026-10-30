@@ -1,4 +1,4 @@
-import { hasAtLeastView, type CurrentDoorGoAccess } from '../auth/access';
+import { canUse, hasAtLeastView, type CurrentDoorGoAccess } from '../auth/access';
 
 export type AppNavigationIcon = 'home' | 'account' | 'calculator' | 'documents' | 'jobs' | 'production' | 'recovery' | 'schedule' | 'checkpoint' | 'manager';
 
@@ -8,6 +8,7 @@ export type AppNavigationItem = {
   icon: AppNavigationIcon;
   match?: 'exact' | 'section';
   placement?: 'bottom';
+  prominent?: boolean;
   showOnHome?: boolean;
 };
 
@@ -24,13 +25,17 @@ export function buildPublicAppNavigation(): AppNavigationItem[] {
 }
 
 export function isAppNavigationItemActive(pathname: string, item: AppNavigationItem): boolean {
+  if (item.href === '/jobs' && pathname === '/jobs/new') return false;
   return item.match === 'section'
     ? pathname === item.href || pathname.startsWith(`${item.href}/`)
     : pathname === item.href;
 }
 
 export function buildProtectedAppNavigation(access: CurrentDoorGoAccess): AppNavigationItem[] {
-  const items: AppNavigationItem[] = [{ href: '/', label: 'Home', icon: 'home', match: 'exact' }];
+  const items: AppNavigationItem[] = [];
+  if (canUse(access, 'jobs')) {
+    items.push({ href: '/jobs/new', label: '+ New Job', icon: 'jobs', match: 'exact', prominent: true });
+  }
 
   if (hasAtLeastView(access, 'calendar')) {
     items.push({ href: '/calendar', label: 'Calendar', icon: 'schedule', match: 'section', showOnHome: true });
@@ -59,5 +64,7 @@ export function protectedLandingDestination(access:CurrentDoorGoAccess):string{
   if(hasAtLeastView(access,'production'))return '/production-board';
   if(hasAtLeastView(access,'production_checkpoints'))return '/production-checkpoints';
   if(hasAtLeastView(access,'documents'))return '/documents';
+  if(hasAtLeastView(access,'tools'))return '/glass-calculator';
+  if(hasAtLeastView(access,'settings') || hasAtLeastView(access,'users'))return '/manager';
   return '/account';
 }

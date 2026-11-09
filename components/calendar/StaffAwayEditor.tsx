@@ -1,9 +1,10 @@
 'use client';
 import { useCalendarActivity } from './CalendarActivity';
-import{useEffect,useRef,useState}from'react';import type{ProductionBoardCard,StaffAwayRosterOption}from'@/lib/production-board/types';import{deleteStaffAway,saveStaffAway,loadStaffAwayCapacityDragMax,type StaffAwayMaximumResult}from'@/lib/calendar/staff-away-actions';import{datesInRange}from'@/lib/calendar/staff-away';
+import{useEffect,useRef,useState}from'react';import type{ProductionBoardCard,StaffAwayRosterOption}from'@/lib/production-board/types';import{deleteStaffAway,saveStaffAway,loadStaffAwayCapacityDragMax,type StaffAwayMaximumResult}from'@/lib/calendar/staff-away-actions';import{datesInRange,canEditStaffAwayPeriod}from'@/lib/calendar/staff-away';
 
 type Props={canEdit:boolean;card?:ProductionBoardCard|null;initialDate?:string;roster:StaffAwayRosterOption[];onClose:()=>void;onChanged:(dates:string[])=>void};
-export function StaffAwayEditor({canEdit,card,initialDate,roster,onClose,onChanged}:Props){
+export function StaffAwayEditor({canEdit:canUseCalendar,card,initialDate,roster,onClose,onChanged}:Props){
+  const canEdit=canEditStaffAwayPeriod(canUseCalendar,card);
   const savingRef=useRef(false);const [saving,setSaving]=useState(false);const [error,setError]=useState<string|null>(null);
   useCalendarActivity(saving ? 'Updating calendar…' : null);
   const [staffId,setStaffId]=useState(card?.staffId??roster[0]?.staffId??'');const [startDate,setStartDate]=useState(card?.staffAwayStartDate??initialDate??'');
@@ -29,7 +30,7 @@ export function StaffAwayEditor({canEdit,card,initialDate,roster,onClose,onChang
     try{const result=await deleteStaffAway({commandId:crypto.randomUUID(),periodId:card.staffAwayPeriodId,expectedRevision:card.revision??0});if(!result.ok){setError(result.message);return;}onChanged(datesInRange(result.startDate,result.endDate));onClose();
     }catch{setError('Staff Away could not be deleted. Please try again.');}finally{savingRef.current=false;setSaving(false);}};
   return <div className="calendar-floating-backdrop"><form aria-label={card?'Staff Away details':'Add Staff Away'} className="calendar-quick-add calendar-staff-away-editor" onSubmit={submit}><header><strong>{card?'Staff Away period':'Add Staff Away'}</strong><button aria-label="Close Staff Away" onClick={onClose} type="button">×</button></header>
-    <div className="calendar-quick-add-form"><label><span>Staff member</span><select autoFocus disabled={!canEdit||saving} onChange={(event)=>{setMaximumResult(null);setStaffId(event.target.value)}} required value={staffId}>{options.map((staff)=><option key={staff.staffId} value={staff.staffId}>{staff.displayName}</option>)}</select></label>
+    <div className="calendar-quick-add-form">{card?.staffAwayCompanyLocation?<p>Location: {card.staffAwayCompanyLocation}</p>:null}<label><span>Staff member</span><select autoFocus disabled={!canEdit||saving} onChange={(event)=>{setMaximumResult(null);setStaffId(event.target.value)}} required value={staffId}>{options.map((staff)=><option key={staff.staffId} value={staff.staffId}>{staff.displayName}</option>)}</select></label>
       <label><span>Start date</span><input disabled={!canEdit||saving} onChange={(event)=>{setMaximumResult(null);setStartDate(event.target.value);if(mode==='partial')setEndDate(event.target.value);}} required type="date" value={startDate}/></label>
       <label><span>End date</span><input disabled={!canEdit||saving||mode==='partial'} min={startDate} onChange={(event)=>{setMaximumResult(null);setEndDate(event.target.value)}} required type="date" value={mode==='partial'?startDate:endDate}/></label>
       <fieldset disabled={!canEdit||saving}><legend>Absence</legend><label><input checked={mode==='full_day'} name="awayMode" onChange={()=>{setMaximumResult(null);setMode('full_day')}} type="radio" value="full_day"/>Full Day</label><label><input checked={mode==='partial'} name="awayMode" onChange={()=>{setMaximumResult(null);setMode('partial');setEndDate(startDate);}} type="radio" value="partial"/>Partial</label></fieldset>

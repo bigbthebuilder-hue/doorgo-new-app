@@ -1,5 +1,15 @@
 # 05 — Calendar and production workflows
 
+## Calendar View visibility correction — prepared 2026-11-02
+
+Source base: `f9bbaa02019fe6a0bd2853e85423aa75b8934646` on `main`; the current approved shared-Calendar requirements supersede historical descriptions below. This is not hosted-state verification.
+
+Calendar View and Use share linked fulfillment-note visibility under the [notes migration](../../supabase/migrations/20261102120000_calendar_view_linked_fulfillment_notes.sql), superseding historical use-only descriptions below. [Optional enrichment](../../lib/calendar/linked-fulfillment-notes.ts) preserves Calendar entries on failure without privileged Jobs fallback.
+
+The approved shared Calendar rule is implemented by a [dedicated read RPC](../../supabase/migrations/20261102130000_calendar_shared_staff_away_read.sql), called through [Staff Away queries](../../lib/calendar/staff-away-queries.ts) by the shared reader for initial load, refresh and extension. It returns all nondeleted overlapping Staff Away periods across viewer locations. Identity/location are preserved; occurrences use the absence's own location/workweek and the existing impact helper. Occurrence dates join Calendar's exceptional visible dates so other-location Saturday workdays are not silently dropped; production calculation inputs/formulas are unchanged.
+
+The active editor roster remains scoped to the viewer's existing location. `companyLocation`/`inEditScope` map to Calendar cards; details display original location and prevent editing a newly visible foreign-location period. Calendar View stays read-only. Existing save/delete/max RPCs, shared scope helper, RLS, staffing rules and capacity recalculation remain unchanged. No hosted migration/deployment is claimed. See [release instructions](../calendar-view-visibility-release.md).
+
 ## Permanent Google Calendar retirement
 
 Source reviewed at `2e8f0e2`. Google Calendar is permanently discontinued; no Calendar API, OAuth/reconnect flow or Google sync worker was found in this application. Historical Calendar/event IDs, source metadata and records remain for compatibility. Native Job-to-Calendar, fulfillment and Production synchronization remain authoritative internal workflows, not Google integration.

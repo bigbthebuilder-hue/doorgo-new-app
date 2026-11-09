@@ -318,3 +318,16 @@ test('Staff Away maximum failure offers retry without blocking authoritative sav
  const saved=JSON.parse((await page.locator('html').getAttribute('data-away-save'))!);
  expect(saved).toMatchObject({partialDragHours:1,mode:'partial',startDate:'2026-10-07'});
 });
+
+
+test('Shared Staff Away from another location remains visible and read-only for Calendar Use',async({mount,page})=>{
+ await mount(<ExistingCalendarEditHarness away foreignAway/>);
+ await expect(page.getByText('Location: South',{exact:true})).toBeVisible();
+ await expect(page.getByRole('combobox',{name:'Staff member',exact:true})).toHaveValue('staff-1');
+ await expect(page.getByRole('combobox',{name:'Staff member',exact:true})).toBeDisabled();
+ await expect(page.getByRole('textbox',{name:'Reason / note',exact:true})).toBeDisabled();
+ await expect(page.getByRole('button',{name:'Save Changes',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Delete',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Close',exact:true}).click();
+ await expect(page.locator('html')).not.toHaveAttribute('data-away-save',/./);
+});

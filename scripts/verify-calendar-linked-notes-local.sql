@@ -18,11 +18,12 @@ CREATE TEMP TABLE notes_actors(label text PRIMARY KEY, user_id uuid NOT NULL);
 INSERT INTO notes_actors
 SELECT 'use', p.user_id FROM public.dg_user_profiles p
 JOIN public.dg_user_permissions a ON a.user_id=p.user_id AND a.permission_key='calendar' AND a.access_level='use'
-WHERE p.active AND NOT EXISTS (SELECT 1 FROM public.dg_user_permissions j WHERE j.user_id=p.user_id AND j.permission_key='jobs' AND j.access_level IN ('view','use')) LIMIT 1;
+WHERE p.active AND p.must_change_password IS FALSE AND NOT EXISTS (SELECT 1 FROM public.dg_user_permissions j WHERE j.user_id=p.user_id AND j.permission_key='jobs' AND j.access_level IN ('view','use')) LIMIT 1;
 INSERT INTO notes_actors
 SELECT 'view', p.user_id FROM public.dg_user_profiles p
 JOIN public.dg_user_permissions a ON a.user_id=p.user_id AND a.permission_key='calendar' AND a.access_level='view'
-WHERE p.active LIMIT 1;
+WHERE p.active AND p.must_change_password IS FALSE
+AND NOT EXISTS (SELECT 1 FROM public.dg_user_permissions j WHERE j.user_id=p.user_id AND j.permission_key='jobs' AND j.access_level IN ('view','use')) LIMIT 1;
 
 -- Delivery belongs to another user: shared Calendar access must not be owner-filtered.
 INSERT INTO notes_cases SELECT 'delivery', j.internal_job_id, j.notes
@@ -56,8 +57,10 @@ END $$;
 GRANT SELECT ON notes_cases, notes_actors TO authenticated;
 SELECT set_config('request.jwt.claim.sub', (SELECT user_id::text FROM notes_actors WHERE label='use'), true);
 SET LOCAL ROLE authenticated;
-DO $$ DECLARE c record; actual text; n integer; expected uuid[]; returned uuid[];
+DO $$ DECLARE c record; actor record; actual text; n integer; expected uuid[]; returned uuid[];
 BEGIN
+ FOR actor IN SELECT * FROM notes_actors LOOP
+  PERFORM set_config('request.jwt.claim.sub',actor.user_id::text,true);
   FOR c IN SELECT * FROM notes_cases LOOP
     SELECT count(*), min(r.notes) INTO n, actual FROM public.calendar_linked_fulfillment_notes(ARRAY[c.job_id]) r;
     IF c.label IN ('delivery','pickup','completed') THEN
@@ -71,15 +74,7 @@ BEGIN
   IF returned IS DISTINCT FROM expected THEN RAISE EXCEPTION 'Mixed/duplicate UUID batch bypassed linkage'; END IF;
   IF EXISTS (SELECT 1 FROM public.calendar_linked_fulfillment_notes(NULL))
      OR EXISTS (SELECT 1 FROM public.calendar_linked_fulfillment_notes('{}'::uuid[])) THEN RAISE EXCEPTION 'Empty input returned notes'; END IF;
-END $$;
-SELECT set_config('request.jwt.claim.sub', (SELECT user_id::text FROM notes_actors WHERE label='view'), true);
-DO $$ BEGIN
-  BEGIN
-    PERFORM * FROM public.calendar_linked_fulfillment_notes((SELECT array_agg(job_id) FROM notes_cases));
-    RAISE EXCEPTION 'View-only caller was allowed';
-  EXCEPTION WHEN raise_exception THEN
-    IF SQLERRM <> 'calendar_item.permission_required' THEN RAISE; END IF;
-  END;
+ END LOOP;
 END $$;
 SELECT set_config('request.jwt.claim.sub', '', true);
 DO $$ BEGIN

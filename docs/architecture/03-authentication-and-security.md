@@ -1,5 +1,13 @@
 # 03 — Authentication and security
 
+## Calendar View visibility correction — prepared 2026-11-02
+
+Source base: `f9bbaa02019fe6a0bd2853e85423aa75b8934646` on `main`; the current approved shared-Calendar requirements supersede historical descriptions below. This is not hosted-state verification.
+
+The [linked-notes correction](../../supabase/migrations/20261102120000_calendar_view_linked_fulfillment_notes.sql) permits Calendar View/Use under existing business eligibility without unrestricted Jobs access. The [new Calendar-only Staff Away RPC](../../supabase/migrations/20261102130000_calendar_shared_staff_away_read.sql) requires `auth.uid()`, active/setup-complete business eligibility and explicit Calendar View/Use. Production permission or manager status alone does not authorize it. SECURITY DEFINER, empty search path and authenticated-only execution provide a bounded shared-Calendar projection; no table policies/grants are broadened.
+
+The approved product rule supersedes historical location-limited Calendar visibility: all Calendar readers see all company Calendar absences. Original locations remain intact. Write scope, editable roster and capacity rules remain location-specific; UI uses `canEditStaffAwayPeriod` to combine Calendar Use with per-period `inEditScope`. These affordances do not replace existing server mutation checks. The old Production-compatible range RPC and shared `dg_staff_away_scope` are untouched. Hosted state/authorization remains unverified. See [release instructions](../calendar-view-visibility-release.md).
+
 ## Coordinated password-security release
 
 See the [operator cutover runbook](../password-security-cutover-runbook.md) for the nine-file SQL order, same-session acknowledgements, old-writer pause, compatible deployment, six-workflow acceptance and fail-closed recovery. Prepared from `8ff5ab2`; owner-supplied hosted structural checks are not runtime verification. No migration or deployment is performed by this documentation.

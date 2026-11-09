@@ -1,5 +1,17 @@
 # 06 — Testing and development guide
 
+## Calendar View visibility correction — prepared 2026-11-02
+
+Local follow-up 2026-11-04: [baseline prerequisites and actual local results](../calendar-local-schema-prerequisites.md) record accessible PostgreSQL 18.4 test databases on loopback port 5433, missing legacy DDL/security prerequisites and blocked SQL execution. The visibility verifier normalizes CRLF/LF source reads; this changes no application behavior. Static/mocked verification passed; SQL authorization and reusable baseline setup remain blocked pending authoritative definitions.
+
+Source base: `f9bbaa02019fe6a0bd2853e85423aa75b8934646` on `main`; the current approved shared-Calendar requirements supersede historical descriptions below. This is not hosted-state verification.
+
+Run `node --experimental-vm-modules scripts/verify-calendar-view-visibility.mjs` (Node 24): actual shared reader/normalization/actions with mocked RPCs/identity/checkpoint/capacity reads. Covers View/Use + Jobs none across North/South/default locations, layer toggling, identity/location preservation, edit-scope metadata, own-workweek Saturday display, initial/refresh/extension consistency, denied access and optional-note failures. `node scripts/verify-calendar-staff-away-read.mjs` statically checks the dedicated read projection/security boundary and pins unchanged historical scope/edit/capacity authority. Neither is PostgreSQL authorization execution.
+
+TypeScript, focused ESLint, production build, `verify:staff-away-foundation`, `verify:capacity-contract`, `verify:production-board-capacity`, Staff Away maximum and Calendar operational-permissions verifiers passed. Locked dependencies are unchanged. The new read-only foreign-location editor browser test is authored; the focused browser suite is unverified because the previous Chromium downloads failed. No installation retry was performed.
+
+Prepared local-only SQL suites: [linked notes](../../scripts/verify-calendar-linked-notes-local.sql) and [cross-location Staff Away](../../scripts/verify-calendar-staff-away-read-local.sql), requiring separately seeded disposable databases and separate authorization to execute. Neither was run and no database migrations were applied. Supabase CLI/PostgreSQL were unavailable; forward SQL files were prepared directly. Real SQL/RLS/ACL and browser acceptance remain release requirements. See [release instructions](../calendar-view-visibility-release.md).
+
 ## Coordinated password-security release
 
 See the [operator cutover runbook](../password-security-cutover-runbook.md) for the nine-file SQL order, same-session acknowledgements, old-writer pause, compatible deployment, six-workflow acceptance and fail-closed recovery. Prepared from `8ff5ab2`; owner-supplied hosted structural checks are not runtime verification. No migration or deployment is performed by this documentation.

@@ -1,4 +1,4 @@
-import assert from'node:assert/strict';import{calendarCardOrder,datesInRange,staffAwayCard,type StaffAwayPeriod}from'./staff-away';import type{ProductionBoardCard}from'../production-board/types';import{buildCalendarLayers,calendarCardText,calendarItemTypeLabel,searchCalendarCards}from'./presentation';
+import assert from'node:assert/strict';import{calendarCardOrder,datesInRange,staffAwayCard,canEditStaffAwayPeriod,type StaffAwayPeriod}from'./staff-away';import type{ProductionBoardCard}from'../production-board/types';import{buildCalendarLayers,calendarCardText,calendarItemTypeLabel,searchCalendarCards}from'./presentation';
 const period=(overrides:Partial<StaffAwayPeriod>={}):StaffAwayPeriod=>({periodId:'11111111-1111-4111-8111-111111111111',staffId:'22222222-2222-4222-8222-222222222222',staffName:'Jordan',startDate:'2026-08-27',endDate:'2026-08-31',mode:'full_day',partialDragHours:null,reason:'Vacation',revision:1,createdAt:'2026-08-25T00:00:00Z',updatedAt:'2026-08-25T00:00:00Z',occurrences:[{date:'2026-08-27',deductionHours:7},{date:'2026-08-28',deductionHours:7},{date:'2026-08-31',deductionHours:7}],...overrides});
 const away=staffAwayCard(period(),period().occurrences[0]);
 assert.equal(away.locked,true);assert.equal(away.productionDate,'2026-08-27');assert.equal(away.staffAwayPeriodId,period().periodId);assert.equal(calendarCardText(away),'Jordan · Away');assert.equal(calendarItemTypeLabel(away),'Staff Away');
@@ -10,4 +10,13 @@ assert.deepEqual(calendarCardOrder([ordinary as ProductionBoardCard,away,alex]).
 assert.equal(buildCalendarLayers([]).find((layer)=>layer.key==='other:away')?.available,true);
 assert.deepEqual(searchCalendarCards([away],'jordan').map((card)=>card.bookingId),[away.bookingId]);
 assert.deepEqual(datesInRange('2026-08-28','2026-08-31'),['2026-08-28','2026-08-29','2026-08-30','2026-08-31']);
-console.log('Staff Away presentation and range tests passed');
+const foreign=staffAwayCard(period({companyLocation:'South',inEditScope:false}),{date:'2026-08-29',deductionHours:7});
+assert.equal(foreign.staffId,period().staffId);
+assert.equal(foreign.staffAwayCompanyLocation,'South');
+assert.equal(foreign.productionDate,'2026-08-29');
+assert.equal(canEditStaffAwayPeriod(true,foreign),false,'Cross-location visibility must not enable edits');
+assert.equal(canEditStaffAwayPeriod(false,foreign),false);
+assert.equal(canEditStaffAwayPeriod(true,{...foreign,staffAwayInEditScope:true}),true);
+assert.equal(canEditStaffAwayPeriod(false,{...foreign,staffAwayInEditScope:true}),false,'View stays read-only at own location');
+assert.equal(canEditStaffAwayPeriod(true),true,'Existing create permission retained');
+console.log('Staff Away presentation, employee/location preservation, edit-scope and range tests passed');

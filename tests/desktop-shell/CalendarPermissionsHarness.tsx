@@ -21,8 +21,8 @@ export function CalendarPermissionsHarness({ use = true, linked = false, mixed =
   return <div data-calendar-test-linked={String(linked)}><CalendarWorkspace board={visibleBoard} canAddBackorders={false} canUseCalendar={canMutateCalendar(access)} canManageSettings={false} canOpenJobs={identity && linked} currentMonday="2026-10-05" defaultSalesperson="Staff" initialTargetMonday="2026-10-05" preferenceOwner="permission-test" today="2026-10-06"/></div>;
 }
 
-export function ExistingCalendarEditHarness({away=false}:{away?:boolean}) {
+export function ExistingCalendarEditHarness({away=false,foreignAway=false}:{away?:boolean;foreignAway?:boolean}) {
  const [open,setOpen]=useState(true);const [dates,setDates]=useState<string[]>([]);
- const card={bookingId:'item:test',title:'Note',customer:'Staff',details:'Original',productionDate:'2026-10-06',salesperson:'Staff',revision:1,staffId:'staff-1',staffAwayPeriodId:'period-1',staffAwayStartDate:'2026-10-06',staffAwayEndDate:'2026-10-08',staffAwayMode:'full_day'} as ProductionBoardCard;
+ const card={bookingId:'item:test',title:'Note',customer:'Staff',details:'Original',productionDate:'2026-10-06',salesperson:'Staff',revision:1,staffId:'staff-1',staffAwayPeriodId:'period-1',staffAwayStartDate:'2026-10-06',staffAwayEndDate:'2026-10-08',staffAwayMode:'full_day',staffAwayCompanyLocation:foreignAway?'South':undefined,staffAwayInEditScope:!foreignAway} as ProductionBoardCard;
  return <div>{open?(away?<StaffAwayEditor canEdit card={card} roster={[{staffId:'staff-1',displayName:'Staff'},{staffId:'staff-2',displayName:'Other Staff'}]} onChanged={setDates} onClose={()=>setOpen(false)}/>:<NoteActionPanel canUseCalendar card={card} mode="edit" boardStart="2026-10-05" weeks={1} today="2026-10-06" roster={[]} onSaved={()=>{}} onConverted={()=>{}} onClose={()=>setOpen(false)}/>):<p>Saved</p>}<output aria-label="Refreshed dates">{dates.join(',')}</output></div>;
 }

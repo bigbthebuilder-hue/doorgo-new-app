@@ -9,24 +9,10 @@ export async function loadDailyCapacityReadOnly(params: {
   const supabase = createTrustedReadOnlySupabaseClient();
 
   const { data, error } = await supabase
-    .from('dg_daily_capacity')
-    .select(`
-      production_date,
-      available_hours,
-      staff_capacity_hours,
-      deduction_hours,
-      capacity_source,
-      is_closed,
-      notes,
-      details,
-      source_system,
-      calculated_at,
-      mirrored_at,
-      created_at,
-      updated_at
-    `)
-    .gte('production_date', params.startDate)
-    .lt('production_date', params.endDateExclusive)
+    .rpc('load_effective_daily_capacity', {
+      p_start: params.startDate,
+      p_end_exclusive: params.endDateExclusive,
+    })
     .order('production_date', { ascending: true });
 
   if (error) {

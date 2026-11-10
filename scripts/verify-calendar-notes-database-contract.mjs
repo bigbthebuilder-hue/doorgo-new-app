@@ -57,7 +57,8 @@ assert.match(editor,/linkedInternalJobId:jobId/);
 assert.match(editor,/linkedInternalJobId:card\.internalJobId\?\?null/);
 assert.match(editor,/destination==='staff_away'/);
 assert.match(editor,/date\|\|null/);
-assert.match(page,/canInteract=\{canUse\(access, ['"]calendar['"]\)\}/);
+assert.match(page,/canUseCalendar=\{canMutateCalendar\(access\)\}/);
+assert.match(workspace,/const canInteract = canUseCalendar;/);
 assert.match(workspace,/noteCard&&canDelete/);
 assert.match(itemMapping,/calendarItemType==='note'\|\|card\.bookingKind==='note'/);
 assert.match(editor,/if\(card\.completedAt\)return null/);
@@ -100,19 +101,32 @@ console.log('Calendar Notes database contract verification passed (static; Postg
 let allowed = true;
 let calls = [];
 let card = { bookingId: 'item:note', productionDate: null, title: 'Measure opening', revision: 1 };
-const actionModule = { exports: {} };
-const compiled = ts.transpileModule(actions, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-vm.runInNewContext(compiled, { exports: actionModule.exports, module: actionModule, require(name) {
-  if (name.endsWith('/auth/current-access')) return { getCurrentDoorGoAccess: async () => ({}) };
-  if (name.endsWith('/auth/access')) return { getPermissionAccess: () => allowed ? 'use' : 'none' };
+function loadModule(source, require) {
+  const loadedModule = { exports: {} };
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  vm.runInNewContext(compiled, { exports: loadedModule.exports, module: loadedModule, require });
+  return loadedModule.exports;
+}
+const accessHelpers = loadModule(fs.readFileSync('lib/auth/access.ts', 'utf8'));
+const permissions = loadModule(fs.readFileSync('lib/calendar/permissions.ts', 'utf8'), name => {
+  assert.equal(name, '../auth/access');
+  return accessHelpers;
+});
+const api = loadModule(actions, name => {
+  if (name === './permissions') return permissions;
+  if (name.endsWith('/auth/current-access')) return { getCurrentDoorGoAccess: async () => ({
+    state: 'active',
+    profile: { mustChangePassword: false },
+    permissions: { calendar: allowed ? 'use' : 'view' },
+  }) };
+  if (name.endsWith('/auth/access')) return accessHelpers;
   if (name.endsWith('/supabase/server')) return { createAuthenticatedSupabaseServerClient: async () => ({ rpc: async (name, args) => {
     calls.push({ name, args });
     return { data: { id: 'note', record_kind: 'calendar_item' }, error: null };
   } }) };
   if (name.endsWith('/production-board/queries')) return { loadProductionBoardReadOnly: async () => ({ needsAttentionCards: card.productionDate === null ? [card] : [], days: [{ cards: card.productionDate ? [card] : [] }] }) };
   return new Proxy({}, { get: () => () => { throw new Error(`Unexpected dependency: ${name}`); } });
-} });
-const api = actionModule.exports;
+});
 const context = { commandId: 'command', itemId: 'note', expectedRevision: 1, boardStart: '2026-09-14', boardEndExclusive: '2026-09-28', weeks: 2, today: '2026-09-14' };
 const noteInput = { ...context, itemType: 'note', scheduledDate: null, linkedInternalJobId: null, name: 'Measure opening', title: 'Measure opening', details: 'Check dimensions', salesOrder: '', salesperson: '', shopHours: null, timing: '', fulfillmentNote: '' };
 assert.equal((await api.createCalendarItem(noteInput)).ok, true);

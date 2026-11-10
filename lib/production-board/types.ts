@@ -72,6 +72,8 @@ export type ProductionBoardCard = {
   includedOrders?: string[];
   sendOrders?: string[];
   availableFamilyOrders?: string[];
+  staffAwayCompanyLocation?: string;
+  staffAwayInEditScope?: boolean;
   staffAwayPeriodId?: string;
   staffId?: string;
   staffAwayStartDate?: string;

@@ -1,5 +1,13 @@
 # 02 — Database and data ownership
 
+## Calendar View visibility correction — prepared 2026-11-02
+
+Source base: `f9bbaa02019fe6a0bd2853e85423aa75b8934646` on `main`; the current approved shared-Calendar requirements supersede historical descriptions below. This is not hosted-state verification.
+
+The [linked-notes migration](../../supabase/migrations/20261102120000_calendar_view_linked_fulfillment_notes.sql) permits Calendar View/Use with business eligibility and preserves the bounded nonarchived Job/direct nondeleted Delivery/Pickup projection. No unrestricted Jobs access or mutation gate changes.
+
+The [Staff Away migration](../../supabase/migrations/20261102130000_calendar_shared_staff_away_read.sql) adds only `load_calendar_staff_away_range(date,date)`. Period visibility is company-wide, independent of viewer location; `company_location` is descriptive, not a tenant boundary. Returned periods preserve employee identity and original location. Occurrences use each period's `company_location` with the existing workday/full-day-impact helpers. The active editor roster and returned `inEditScope` remain caller-location-specific. Existing range RPC, scope helper, write RPCs, RLS, table grants and capacity calculators are unchanged. Both new functions require the installed business-access foundation. Neither migration has been applied by this task. See [release instructions](../calendar-view-visibility-release.md).
+
 ## Permanent Google Calendar retirement
 
 Source reviewed at `2e8f0e2`. Google Calendar is permanently discontinued; no Calendar API, OAuth/reconnect flow or Google sync worker was found in this application. Historical Calendar/event IDs, source metadata and records remain for compatibility. Native Job-to-Calendar, fulfillment and Production synchronization remain authoritative internal workflows, not Google integration.

@@ -2,6 +2,7 @@ import type {ProductionBoardCard,ProductionBoardViewModel,StaffAwayRosterOption}
 
 export type StaffAwayOccurrence={date:string;deductionHours:number|string};
 export type StaffAwayPeriod={
+  companyLocation?:string;inEditScope?:boolean;
   periodId:string;staffId:string;staffName:string;startDate:string;endDate:string;mode:'full_day'|'partial';
   partialDragHours:number|string|null;reason:string|null;revision:number|string;createdAt:string;updatedAt:string;occurrences:StaffAwayOccurrence[];
 };
@@ -12,6 +13,7 @@ export function staffAwayCard(period:StaffAwayPeriod,occurrence:StaffAwayOccurre
     type:'biztrack_only',typeLabel:'BizTrack-only',productionDate:occurrence.date,dayOrder:Number.MIN_SAFE_INTEGER,title:period.staffName,customer:period.staffName,
     jobId:null,calendarId:null,calendarEventId:null,shopHours:null,shopHoursKnown:true,salesperson:null,source:'DoorGo Staff Away',sourceSystem:'doorgo_native',
     bookingKind:'staff_away',locked:true,completedAt:null,updatedAt:period.updatedAt,details:period.reason,staffAwayPeriodId:period.periodId,staffId:period.staffId,
+    staffAwayCompanyLocation:period.companyLocation,staffAwayInEditScope:period.inEditScope,
     staffAwayStartDate:period.startDate,staffAwayEndDate:period.endDate,staffAwayMode:period.mode,partialDragHours:period.partialDragHours===null?null:Number(period.partialDragHours)};
 }
 
@@ -35,4 +37,9 @@ export function calendarCardOrder(cards:ProductionBoardCard[]):ProductionBoardCa
 
 export function datesInRange(start:string,end:string):string[]{
   const values:string[]=[];for(let value=start;value<=end;){values.push(value);const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+1);value=date.toISOString().slice(0,10);}return values;
+}
+
+// Display metadata narrows the existing Calendar Use UI; server write RPCs remain authoritative.
+export function canEditStaffAwayPeriod(canUseCalendar:boolean,card?:ProductionBoardCard|null):boolean{
+  return canUseCalendar&&card?.staffAwayInEditScope!==false;
 }

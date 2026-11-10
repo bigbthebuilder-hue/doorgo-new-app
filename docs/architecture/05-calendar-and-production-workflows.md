@@ -1,5 +1,15 @@
 # 05 — Calendar and production workflows
 
+## Calendar View visibility correction — prepared 2026-11-02
+
+Source base: `f9bbaa02019fe6a0bd2853e85423aa75b8934646` on `main`; the current approved shared-Calendar requirements supersede historical descriptions below. This is not hosted-state verification.
+
+Calendar View and Use share linked fulfillment-note visibility under the [notes migration](../../supabase/migrations/20261102120000_calendar_view_linked_fulfillment_notes.sql), superseding historical use-only descriptions below. [Optional enrichment](../../lib/calendar/linked-fulfillment-notes.ts) preserves Calendar entries on failure without privileged Jobs fallback.
+
+The approved shared Calendar rule is implemented by a [dedicated read RPC](../../supabase/migrations/20261102130000_calendar_shared_staff_away_read.sql), called through [Staff Away queries](../../lib/calendar/staff-away-queries.ts) by the shared reader for initial load, refresh and extension. It returns all nondeleted overlapping Staff Away periods across viewer locations. Identity/location are preserved; occurrences use the absence's own location/workweek and the existing impact helper. Occurrence dates join Calendar's exceptional visible dates so other-location Saturday workdays are not silently dropped; production calculation inputs/formulas are unchanged.
+
+The active editor roster remains scoped to the viewer's existing location. `companyLocation`/`inEditScope` map to Calendar cards; details display original location and prevent editing a newly visible foreign-location period. Calendar View stays read-only. Existing save/delete/max RPCs, shared scope helper, RLS, staffing rules and capacity recalculation remain unchanged. No hosted migration/deployment is claimed. See [release instructions](../calendar-view-visibility-release.md).
+
 ## Permanent Google Calendar retirement
 
 Source reviewed at `2e8f0e2`. Google Calendar is permanently discontinued; no Calendar API, OAuth/reconnect flow or Google sync worker was found in this application. Historical Calendar/event IDs, source metadata and records remain for compatibility. Native Job-to-Calendar, fulfillment and Production synchronization remain authoritative internal workflows, not Google integration.
@@ -56,7 +66,7 @@ Reverse active fulfillment synchronization updates Job fields/revision; complete
 
 ## Capacity, staff and availability
 
-[Capacity normalization](../../lib/production-board/capacity-normalize.ts) converts stored values; it does not reconstruct the workforce baseline. [Capacity foundation][capacity] identifies an `apps-script-bridge` source whose full external writer is not in this repository. Do not assume manager settings generate every baseline row.
+[Capacity normalization](../../lib/production-board/capacity-normalize.ts) converts the shared read result. The external Apps Script writer still owns the stored bridge ledger. [The effective-capacity RPC](../../supabase/migrations/20261110000000_resolve_bridge_capacity_from_staff.sql) uses the saved effective staff versions for normal calculated bridge workdays from October 28, 2026, the first affected change. It sums active direct-production productive hours, preserves bridge deductions and reuses the existing Staff Away deduction helper, including support drag. Historical dates, missing rows, incomplete configurations, nonworking dates and exception rows retain their prior read behavior. The server-only RPC returns the existing daily capacity shape to Calendar, Production and destination preview. It performs no writes.
 
 [Manager configuration](../../lib/manager/capacity-configuration.ts) and [SQL foundation][staff] own effective-dated staff roles/weekday hours and company workweeks. [Staff Away SQL][away] resolves full-day impact from the applicable staff capacity version (`productive_hours` or `away_impact_hours`), checks working dates/overlap, and recalculates affected existing capacity rows. Full Day can span multiple dates; Partial is limited to one normal working date and bounded capacity drag. [Maximum-read RPC][maximum] calls the same `dg_staff_away_full_day_impact`; [actions](../../lib/calendar/staff-away-actions.ts) do not duplicate that formula in TypeScript.
 

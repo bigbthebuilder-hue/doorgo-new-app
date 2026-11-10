@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DOORGO_PERMISSION_KEYS, type CurrentDoorGoAccess, type DoorGoPermissionMap } from '../auth/access';
 import { buildProtectedAppNavigation } from '../app-shell/navigation';
-import { adminWorkspaceAccess, validatePermissions, type AdminUser } from './users-contract';
+import { adminWorkspaceAccess, changeModulePermission, permissionIssues, validatePermissions, type AdminUser } from './users-contract';
 import { usersService, type UsersOperations } from './users-service';
 
 const actor = '00000000-0000-4000-8000-000000000001';
 const targetId = '00000000-0000-4000-8000-000000000002';
 const permissions = (level: 'none' | 'view' | 'use' = 'none'): DoorGoPermissionMap => Object.fromEntries(DOORGO_PERMISSION_KEYS.map(key => [key, level]));
 function access(users = 'use', settings = 'none'): CurrentDoorGoAccess {
-  return { state: 'active', user: { id: actor, email: null }, profile: { userId: actor, displayName: 'Admin', active: true, isManager: false, companyLocation: null, mustChangePassword: false }, permissions: { users, settings } as DoorGoPermissionMap };
+  return { state: 'active', user: { id: actor, email: null }, profile: { userId: actor, displayName: 'Admin', active: true, isManager: false, companyLocation: null, mustChangePassword: false }, permissions: { administration: users, settings } as DoorGoPermissionMap };
 }
 function form() {
   const form = new FormData();
@@ -55,11 +55,11 @@ function harness(options: { provisioningFails?: boolean; cleanupFails?: boolean;
   return { calls, service: (a = access()) => usersService(a, () => { calls.push('factory'); return ops; }) };
 }
 
-test('Admin navigation and tabs independently follow users/settings, never manager fallback', () => {
+test('Administration Use opens both tabs and ignores legacy settings and manager status', () => {
   for (const users of ['none', 'view', 'use']) for (const settings of ['none', 'view', 'use']) {
     const a = access(users, settings);
-    assert.deepEqual(adminWorkspaceAccess(a), { users: users !== 'none', settings: settings !== 'none' });
-    assert.equal(buildProtectedAppNavigation(a).some(item => item.href === '/manager' && item.label === 'Admin'), users !== 'none' || settings !== 'none');
+    assert.deepEqual(adminWorkspaceAccess(a), { users: users === 'use', settings: users === 'use' });
+    assert.equal(buildProtectedAppNavigation(a).some(item => item.href === '/manager' && item.label === 'Admin'), users === 'use');
   }
   const a = access('none'); a.profile!.isManager = true;
   assert.equal(buildProtectedAppNavigation(a).some(item => item.href === '/manager'), false);
@@ -75,17 +75,34 @@ test('denied/inactive/setup-required callers never reach privileged operations',
     await assert.rejects(svc.requirePasswordChange(targetId));
     await assert.rejects(svc.reactivate(targetId, form()));
     assert.equal(h.calls.length, 0);
-    if (a.permissions.users !== 'view') { await assert.rejects(svc.list()); assert.equal(h.calls.length, 0); }
+    await assert.rejects(svc.list()); assert.equal(h.calls.length, 0);
   }
 });
-test('view can read cross-user directory and safe email identity', async () => {
-  const h = harness(); const users = await h.service(access('view')).list();
+test('Administration Use can read cross-user directory and safe email identity', async () => {
+  const h = harness(); const users = await h.service().list();
   assert.equal(users[0].userId, targetId); assert.equal(users[0].email, 'test@example.invalid');
   assert.deepEqual(h.calls, ['factory', 'dg_admin_list_users', 'email']);
 });
 test('permission map strict validation rejects unknown, missing and invalid values', async () => {
   for (const invalid of [null, [], {}, { ...permissions(), unknown: 'use' }, { ...permissions(), users: 'admin' }, { ...permissions(), users: null }, { ...permissions(), users: 1 }]) assert.throws(() => validatePermissions(invalid));
   const h = harness(); await assert.rejects(h.service().savePermissions(targetId, { ...permissions(), users: 'invalid' } as unknown as DoorGoPermissionMap)); assert.equal(h.calls.length, 0);
+});
+test('raising dependent grants is explicit and lowering prerequisites requires correction', () => {
+  const base = permissions();
+  const calendar = changeModulePermission(base, 'calendar', 'use');
+  assert.equal(calendar.jobs, 'none');
+  assert.equal(changeModulePermission(base, 'jobs', 'view').calendar, 'view');
+  assert.equal(changeModulePermission(base, 'jobs', 'use').calendar, 'use');
+  const production = changeModulePermission({ ...base, documents: 'view' }, 'production_checkpoints', 'use');
+  assert.deepEqual(production, {
+    ...base, jobs: 'use', calendar: 'use', production: 'use', production_checkpoints: 'use', documents: 'view',
+  });
+  const incompatible = changeModulePermission(production, 'calendar', 'view');
+  assert.equal(incompatible.jobs, 'use');
+  assert.equal(incompatible.documents, 'view');
+  assert.ok(permissionIssues(incompatible).length);
+  assert.throws(() => validatePermissions(incompatible), /requires Calendar Use/);
+  assert.deepEqual(changeModulePermission(base, 'administration', 'use'), { ...base, administration: 'use' });
 });
 test('persisted permission round trip supports full pilot and Calendar-only rollout', async () => {
   const h = harness(); const svc = h.service();

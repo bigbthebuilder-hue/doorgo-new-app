@@ -65,14 +65,13 @@ requirePattern(logout, /auth\.signOut/i, 'Logout route is required');
 requirePattern(logout, /signout\(\{ scope: 'local' \}\)/, 'Normal logout must be local-device only');
 requirePattern(account, /display name[\s\S]*account state[\s\S]*manager[\s\S]*company\/location[\s\S]*module permissions/, 'Account verification details are incomplete');
 
-const initialPermissionKeys = ['production', 'production_checkpoints', 'calendar', 'jobs', 'documents', 'tools', 'reports', 'settings', 'users'];
-assert.equal(initialPermissionKeys.length, 9, 'There must be nine supported initial permission keys');
-for (const key of initialPermissionKeys) {
+const configuredPermissionKeys = ['jobs', 'calendar', 'production', 'production_checkpoints', 'documents', 'administration'];
+for (const key of configuredPermissionKeys) {
   assert.ok(access.includes(`'${key}'`), `Missing broad permission key: ${key}`);
 }
 requirePattern(account, /doorgo_permission_keys\.map/, 'Account must display every supported permission');
 requirePattern(contract, /production_checkpoints[\s\S]*none[\s\S]*view[\s\S]*use[\s\S]*manager status[\s\S]*broad `production` permission/, 'Dedicated checkpoint permission semantics are incomplete');
-requirePattern(access, /return access\.permissions\[permissionkey\] \?\? 'none'/, 'Missing permission rows must resolve to none');
+requirePattern(access, /return grants\[permissionkey\] \?\? 'none'/, 'Missing permission rows must resolve to none');
 rejectPattern(access, /raw_user_meta_data|user_metadata/, 'Raw metadata must not authorize access');
 rejectPattern(profiles, /salesperson|calendar_id|calendar_color/, 'Auth profiles must not own salesperson/calendar identity');
 requirePattern(contract, /america\/vancouver/, 'Business timezone remains documented');
@@ -299,6 +298,7 @@ assert.deepEqual(
     'scripts/verify-native-job-hosted-migration-package.mjs',
     'scripts/verify-native-job-intake-j3c.mjs',
     'scripts/verify-phase-2f-c1-auth-contract.mjs',
+    'scripts/verify-permission-restructure-local.mjs',
     'scripts/verify-phase-2f-c3-checkpoint-actions.mjs',
     'supabase/migrations/20260729000000_harden_native_job_service_role_grants.sql',
     'supabase/migrations/20260730000000_add_legacy_transfer_persistence.sql',
@@ -308,6 +308,7 @@ assert.deepEqual(
     'supabase/migrations/20260815010000_add_manager_native_job_delete.sql',
     'supabase/migrations/20260825040000_add_staff_away_operations.sql',
     'supabase/migrations/20260911010000_add_user_administration.sql',
+    'supabase/migrations/20261110142021_restructure_doorgo_permissions.sql',
   ],
   'Service-role references must remain limited to approved runtime, placeholder, and verifier files',
 );

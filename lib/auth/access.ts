@@ -1,13 +1,5 @@
 export const DOORGO_PERMISSION_KEYS = [
-  'production',
-  'production_checkpoints',
-  'calendar',
-  'jobs',
-  'documents',
-  'tools',
-  'reports',
-  'settings',
-  'users',
+  'jobs', 'calendar', 'production', 'production_checkpoints', 'documents', 'administration',
 ] as const;
 
 export type DoorGoPermissionKey = (typeof DOORGO_PERMISSION_KEYS)[number];
@@ -122,7 +114,23 @@ export function getPermissionAccess(
     return 'none';
   }
 
-  return access.permissions[permissionKey] ?? 'none';
+  const grants = access.permissions;
+  const admin = grants.administration === 'use';
+  if (permissionKey === 'reports') return 'none';
+  if (permissionKey === 'tools') return 'use';
+  if (permissionKey === 'administration' || permissionKey === 'settings' || permissionKey === 'users') {
+    return admin ? 'use' : 'none';
+  }
+  if (admin && (DOORGO_PERMISSION_KEYS as readonly string[]).includes(permissionKey)) return 'use';
+  const calendar = grants.calendar ?? 'none';
+  const jobs = calendar === 'none' ? 'none'
+    : grants.jobs === 'use' && calendar !== 'use' ? 'view' : grants.jobs ?? 'none';
+  if (permissionKey === 'jobs') return jobs;
+  if (permissionKey === 'production' || permissionKey === 'production_checkpoints') {
+    return jobs === 'use' && calendar === 'use' &&
+      grants.production === 'use' && grants.production_checkpoints === 'use' ? 'use' : 'none';
+  }
+  return grants[permissionKey] ?? 'none';
 }
 
 export function hasAtLeastView(

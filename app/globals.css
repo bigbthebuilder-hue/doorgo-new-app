@@ -160,6 +160,24 @@
 .job-date-only-grid button[data-date-state="today"] { border-color: #0284c7; color: #0369a1; font-weight: 800; }
 .job-date-only-grid button[data-date-state="selected"] { background: #0f172a; color: white; font-weight: 800; }
 .job-date-only-grid button[data-date-state="today-selected"] { border-color: #38bdf8; background: #0f172a; color: white; box-shadow: 0 0 0 2px white inset; font-weight: 800; }
+  .job-date-capacity-marker { display: inline-block; width: .4rem; height: .4rem; flex: none; border-radius: 50%; background: #94a3b8; }
+  .job-date-capacity-marker[data-capacity="fits"] { background: #16a34a; }
+  .job-date-capacity-marker[data-capacity="exceeds"] { background: #ea580c; }
+  .job-date-capacity-marker[data-capacity="full"] { background: #dc2626; }
+  .job-date-only-grid button:has(.job-date-capacity-marker) { position: relative; padding-bottom: .3rem; }
+  .job-date-only-grid .job-date-capacity-marker { position: absolute; bottom: .24rem; left: 50%; transform: translateX(-50%); }
+  .job-date-capacity-legend { display: grid; grid-template-columns: auto auto; gap: .2rem .45rem; margin-top: .35rem; color: #334155; font-size: .62rem; line-height: 1.1; letter-spacing: normal; text-transform: none; }
+  .job-date-capacity-legend > span { display: flex; align-items: center; gap: .25rem; }
+  @media (max-width: 767px) {
+    .job-date-capacity-popover {
+      position: fixed;
+      inset: 50% auto auto 50%;
+      transform: translate(-50%, -50%);
+      width: min(17rem, calc(100% - 2rem));
+      max-height: calc(100dvh - 2rem);
+      overflow-y: auto;
+    }
+  }
 .job-date-only-popover footer { justify-content: flex-end; margin-top: .35rem; }
   .app-job-lifecycle { display: grid; gap: .2rem; }
   .app-job-lifecycle button { min-height: 1.5rem; border: 1px solid var(--app-color-border); border-radius: .35rem; padding: .1rem .4rem; font-size: .65rem; font-weight: 700; }

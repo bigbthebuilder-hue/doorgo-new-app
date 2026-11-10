@@ -110,12 +110,12 @@ assert.equal(definitions.find(item => item.key === 'glass_calculation').permissi
 assert.equal(definitions.find(item => item.key === 'work_order').permissionKey, 'jobs');
 assert.match(fs.readFileSync('app/documents/page.tsx', 'utf8'), /hasAtLeastView\(access, definition.permissionKey\)/);
 // Root startup redirects do not intercept destination page guards tested above.
-for (const [value, destination] of [[aaron, '/calendar'], [access({jobs:'view'}), '/jobs'], [access({tools:'use'}), '/glass-calculator'], [access({users:'use'}), '/manager'], [access({}), '/account'], [setup, '/account/change-password'], [{state:'unauthenticated'}, '/login']]) {
+for (const [value, destination] of [[aaron, '/calendar'], [access({jobs:'view',calendar:'view'}), '/calendar'], [access({tools:'use'}), '/glass-calculator'], [access({administration:'use'}), '/calendar'], [access({}), '/glass-calculator'], [setup, '/account/change-password'], [{state:'unauthenticated'}, '/login']]) {
   currentAccess = value;
   await assert.rejects(() => load('app/page.tsx').default(), error => error instanceof Redirect && error.destination === destination);
 }
 assert.ok(fs.readFileSync('app/login/actions.ts', 'utf8').includes('redirect(protectedLandingDestination'));
 assert.equal(JSON.parse(fs.readFileSync('app/manifest.webmanifest', 'utf8')).start_url, '/');
 assert.equal(fs.existsSync('app/reports'), false, 'Reports stays reserved; no invented workspace');
-assert.equal(nav.buildProtectedAppNavigation(access({ reports: 'use' })).some(item => item.showOnHome), false);
-console.log(`Permission routing: PASS (${checks} navigation/Home/actual page-guard checks; all nine keys, manager variants, Aaron regression, secondary routes and reserved Reports).`);
+assert.deepEqual(Array.from(nav.buildProtectedAppNavigation(access({ reports: 'use' })), item => item.href), ['/glass-calculator', '/account']);
+console.log(`Permission routing: PASS (${checks} navigation/Home/actual page-guard checks; all configured keys, manager variants, Aaron regression, secondary routes and reserved Reports).`);

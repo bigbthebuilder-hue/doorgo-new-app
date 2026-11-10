@@ -1,5 +1,9 @@
 # 03 — Authentication and security
 
+## Pending permission cutover
+
+The feature-branch [cutover plan](../permission-restructure-cutover.md) supersedes the legacy module model described below once approved and deployed. Six editable assignments feed an effective-grant projection in the existing permission table. Jobs requires Calendar, Production grants are paired, and Administration grants full access. The migration requires explicit administrator identity confirmation and protects the last active administrator. Legacy employee assignments remain visible to administrators for review. Standalone Glass Calculator access is available to active users after password setup.
+
 ## Calendar View visibility correction — prepared 2026-11-02
 
 Source base: `f9bbaa02019fe6a0bd2853e85423aa75b8934646` on `main`; the current approved shared-Calendar requirements supersede historical descriptions below. This is not hosted-state verification.
@@ -95,6 +99,8 @@ Permissions are keyed by user/feature, not company. Company/location is a separa
 | [Trusted client](../../lib/supabase/trusted-read-server.ts) | `server-only`; loads `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, disables session persistence/auto-refresh. The name `createTrustedReadOnlySupabaseClient` is descriptive, not an enforced read-only capability. |
 
 Trusted callers include [board queries](../../lib/production-board/queries.ts), [capacity queries](../../lib/production-board/capacity-queries.ts), [checkpoint queries](../../lib/production-flow/checkpoint-queries.ts), [destination preview](../../lib/production-schedule/destination-preview-service.ts), [Calendar search](../../lib/calendar/calendar-item-actions.ts), [recipient directory](../../lib/jobs/work-order-recipient-directory.ts), and [user administration adapter](../../lib/admin/users-server.ts). Some low-level readers rely on their caller's authorization. The admin adapter uses Auth admin writes, including account creation/password changes, after service checks. Never expose these helpers as caller-authorized merely because they run on the server.
+
+The [Shop Date capacity action](../../lib/jobs/job-intake-actions.ts) checks active `jobs=use` and password setup before trusted reads. It permits Jobs editors without Production access to receive the bounded date-level projection described in [Calendar and production workflows](05-calendar-and-production-workflows.md). Booking identities and operational details stay server-side.
 
 Privileged credentials use non-public variables and server-only imports; no credential values are documented. Email adds server-side `RESEND_API_KEY` and `DOORGO_EMAIL_FROM` in the [provider contract](../../lib/jobs/work-order-send-contract.ts). Deployed bundle contents and actual environment configuration were not inspected.
 

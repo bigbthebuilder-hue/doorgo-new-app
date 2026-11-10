@@ -10,7 +10,12 @@ export function StaffAwayEditor({canEdit:canUseCalendar,card,initialDate,roster,
   const [staffId,setStaffId]=useState(card?.staffId??roster[0]?.staffId??'');const [startDate,setStartDate]=useState(card?.staffAwayStartDate??initialDate??'');
   const [endDate,setEndDate]=useState(card?.staffAwayEndDate??initialDate??'');const [mode,setMode]=useState<'full_day'|'partial'>(card?.staffAwayMode??'full_day');
   const [partialDrag,setPartialDrag]=useState(card?.partialDragHours?.toString()??'');const [reason,setReason]=useState(card?.details??'');
-  const options=card?.staffId&&!roster.some((staff)=>staff.staffId===card.staffId)?[{staffId:card.staffId,displayName:card.customer??card.title},...roster]:roster;
+  const scopedRoster = card?.staffAwayCompanyLocation
+    ? roster.filter(staff => !staff.companyLocation || staff.companyLocation === card.staffAwayCompanyLocation)
+    : roster;
+  const options = card?.staffId && !scopedRoster.some(staff => staff.staffId === card.staffId)
+    ? [{ staffId: card.staffId, displayName: card.customer ?? card.title }, ...scopedRoster]
+    : scopedRoster;
   const [maximumResult,setMaximumResult]=useState<{key:string;result:StaffAwayMaximumResult}|null>(null);
   const [maximumRetry,setMaximumRetry]=useState(0);
   const maximumKey=JSON.stringify([staffId,startDate,endDate,mode,maximumRetry]);
@@ -40,7 +45,9 @@ export function StaffAwayEditor({canEdit:canUseCalendar,card,initialDate,roster,
       </small>:null}
       <label><span>Reason / note</span><textarea disabled={!canEdit||saving} onChange={(event)=>setReason(event.target.value)} value={reason}/></label>
       {card?<small>Changes and deletion apply to the entire {card.staffAwayStartDate===card.staffAwayEndDate?'date':'date range'}.</small>:null}
-      {error?<p aria-live="polite" role="alert">{error}</p>:null}<footer>{card&&canEdit?<button disabled={saving} onClick={()=>void remove()} type="button">Delete</button>:null}<button disabled={saving} onClick={onClose} type="button">{canEdit?'Cancel':'Close'}</button>{canEdit?<button aria-busy={saving||undefined} disabled={saving||!roster.length} type="submit">{saving?(card?'Saving…':'Adding…'):card?'Save Changes':'Add Staff Away'}</button>:null}</footer>
+      {canUseCalendar && !canEdit ? <p>Editing is limited to your assigned location.</p> : null}
+      {canEdit && !options.length ? <p>No active staff are available in your editing scope.</p> : null}
+      {error?<p aria-live="polite" role="alert">{error}</p>:null}<footer>{card&&canEdit?<button disabled={saving} onClick={()=>void remove()} type="button">Delete</button>:null}<button disabled={saving} onClick={onClose} type="button">{canEdit?'Cancel':'Close'}</button>{canEdit?<button aria-busy={saving||undefined} disabled={saving||!options.length} type="submit">{saving?(card?'Saving…':'Adding…'):card?'Save Changes':'Add Staff Away'}</button>:null}</footer>
     </div>
   </form></div>;
 }

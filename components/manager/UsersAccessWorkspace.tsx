@@ -4,10 +4,14 @@ import { useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { DOORGO_PERMISSION_KEYS, type DoorGoPermissionMap } from '@/lib/auth/access';
 import { MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH } from '@/lib/auth/password-setup';
-import { MODULE_LABELS, type AdminResult, type AdminUser } from '@/lib/admin/users-contract';
+import { changeModulePermission, MODULE_LABELS, permissionIssues, type AdminResult, type AdminUser } from '@/lib/admin/users-contract';
 import { createAdminUser, loadAdminUsers, requireAdminPasswordChange, resetAdminPassword, reactivateAdminUser, saveAdminPermissions, setAdminUserActive } from '@/lib/admin/users-actions';
 
 const emptyPermissions = () => Object.fromEntries(DOORGO_PERMISSION_KEYS.map(key => [key, 'none'])) as DoorGoPermissionMap;
+
+const editablePermissions = (grants: DoorGoPermissionMap) => Object.fromEntries(
+  DOORGO_PERMISSION_KEYS.map(key => [key, grants[key] ?? 'none']),
+) as DoorGoPermissionMap;
 
 export function UsersAccessWorkspace({ canEdit, callerId, initialUsers, loadError, defaultLocation }: {
   canEdit: boolean; callerId: string; initialUsers: AdminUser[]; loadError?: string; defaultLocation: string | null;
@@ -37,7 +41,7 @@ export function UsersAccessWorkspace({ canEdit, callerId, initialUsers, loadErro
       if (!fresh) return;
       const user = fresh.find(user => user.userId === id);
       if (!user) { clearEditor(); setMessage('User is no longer available.'); return; }
-      setSelected(user); setPermissions({ ...emptyPermissions(), ...user.permissions });
+      setSelected(user); setPermissions(editablePermissions(user.permissions));
       setCreating(false); setShowReset(false); setMessage(''); setPasswordKey(key => key + 1);
     });
   }
@@ -50,7 +54,7 @@ export function UsersAccessWorkspace({ canEdit, callerId, initialUsers, loadErro
           const persisted = result.user;
           const user = { ...persisted, email: persisted.email ?? selected?.email ?? null };
           setUsers(old => [...old.filter(item => item.userId !== user.userId), user].sort((a, b) => a.displayName.localeCompare(b.displayName)));
-          setSelected(user); setPermissions({ ...emptyPermissions(), ...user.permissions });
+          setSelected(user); setPermissions(editablePermissions(user.permissions));
           setCreating(false); setShowReset(false); router.refresh();
         } else if (result.ok) {
           // Confirmed mutation, unavailable refresh: do not retain a stale account
@@ -108,6 +112,9 @@ export function UsersAccessWorkspace({ canEdit, callerId, initialUsers, loadErro
               <button type="button" disabled={!selected.active} onClick={() => run(() => requireAdminPasswordChange(selected.userId))}>Require Password Change</button>
               <button type="button" disabled={!selected.active} onClick={() => { setShowReset(!showReset); setPasswordKey(key => key + 1); }}>Reset Temporary Password</button></div>}
           </fieldset>
+          {!selected.permissions.administration &&
+            (['settings', 'users'].some(key => selected.permissions[key] && selected.permissions[key] !== 'none')) &&
+            <p role="status">This account has legacy administrative grants. Administration is assigned separately.</p>}
           {!canEdit && <p>Your User Administration access is read-only.</p>}
           {showReset && canEdit && <form onSubmit={reset}><fieldset disabled={pending}><legend>{selected.active ? 'Reset Temporary Password' : 'Reactivate with Temporary Password'}</legend><PasswordFields key={passwordKey}/><button type="submit">{selected.active ? 'Save Temporary Password' : 'Reset Password and Reactivate'}</button><button type="button" onClick={() => setShowReset(false)}>Cancel</button></fieldset></form>}
         </>}
@@ -121,7 +128,11 @@ function PasswordFields() {
     <p>Use at least {MIN_PASSWORD_LENGTH} characters. The user must change this password when entering DoorGo.</p></div>;
 }
 function PermissionFields({ permissions, setPermissions, readOnly }: { permissions: DoorGoPermissionMap; setPermissions: (permissions: DoorGoPermissionMap) => void; readOnly: boolean }) {
-  return <div className="admin-permissions">{DOORGO_PERMISSION_KEYS.map(key => <fieldset key={key} disabled={readOnly}><legend>{MODULE_LABELS[key]}</legend><div className="admin-access-levels">
-    {(['none', 'view', 'use'] as const).map(level => <label key={level} data-selected={(permissions[key] ?? 'none') === level}><input type="radio" name={`permission-${key}`} value={level} checked={(permissions[key] ?? 'none') === level} onChange={() => setPermissions({ ...permissions, [key]: level })}/>{level[0].toUpperCase() + level.slice(1)}</label>)}
+  const issues = permissionIssues(permissions);
+  return <div className="admin-permissions">{issues.length ? <p role="status">{issues.join(' ')}</p> : null}
+  {permissions.administration === 'use' ? <p>Administration Use grants full effective access.</p> : null}
+  {DOORGO_PERMISSION_KEYS.map(key => <fieldset key={key} disabled={readOnly}><legend>{MODULE_LABELS[key]}</legend><div className="admin-access-levels">
+    {(['none', 'view', 'use'] as const).filter(level => level !== 'view' ||
+      (key !== 'administration' && key !== 'production' && key !== 'production_checkpoints')).map(level => <label key={level} data-selected={(permissions[key] ?? 'none') === level}><input type="radio" name={`permission-${key}`} value={level} checked={(permissions[key] ?? 'none') === level} onChange={() => setPermissions(changeModulePermission(permissions, key, level))}/>{level[0].toUpperCase() + level.slice(1)}</label>)}
   </div></fieldset>)}</div>;
 }

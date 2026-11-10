@@ -21,3 +21,12 @@ export async function checkSalesOrderAction(value: string, internalJobId?: strin
   if (value === 'UNAVAILABLE') return { ok: false as const, message: 'Could not check Sales Order. Leave the field again to retry.' };
   return { ok: true as const, duplicate: value === 'DUPLICATE' || value === 'SLOW-DUPLICATE' || (value === 'DG-000123' && internalJobId !== '11111111-1111-4111-8111-111111111111') };
 }
+
+export async function loadShopDateAvailabilityAction(month: string, internalJobId: string | null, estimatedHours: number | null) {
+  const fixture = globalThis as typeof globalThis & { shopCapacityRequests?: [string, string | null, number | null][] };
+  (fixture.shopCapacityRequests ??= []).push([month, internalJobId, estimatedHours]);
+  return {
+    [`${month}-10`]: (internalJobId ? (estimatedHours ?? 0) <= 4 ? 'fits' : 'exceeds' : 'full') as 'fits' | 'exceeds' | 'full',
+    [`${month}-11`]: 'unavailable' as const,
+  };
+}

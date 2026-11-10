@@ -5,11 +5,13 @@ import { salesOrderIsDuplicate, type SalesOrderCheckResult } from './sales-order
 import { createJobIntakeRepository } from './job-intake-repository';
 import { getPermissionAccess } from '@/lib/auth/access';
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
-import { canWriteJobs, jobFailureMessage } from './job-intake-contract';
+import { canWriteJobs, isUuid, jobFailureMessage } from './job-intake-contract';
 import { assertConfirmedJobActiveLineInvariant, withEffectiveShopHours } from './door-line-contract';
-import { archiveJobWithAccess, createJobWithAccess, createTransferredJobWithAccess, deleteJobWithAccess, prepareGlassOverrideWithAccess, removeGlassOverrideWithAccess, updateJobWithAccess } from './job-intake-service';
+import { archiveJobWithAccess, findJobWithAccess, createJobWithAccess, createTransferredJobWithAccess, deleteJobWithAccess, prepareGlassOverrideWithAccess, removeGlassOverrideWithAccess, updateJobWithAccess } from './job-intake-service';
 import { mapLegacyTransferToUnsavedEditor } from './legacy-transfer-mapping';
 import type { LegacyTransferMappingResult } from './legacy-transfer-types';
+import { loadShopDateIndicators } from './shop-date-capacity-queries';
+import type { ShopDateIndicators } from './shop-date-capacity';
 import {
   JobIntakeFailure,
   type DoorLineInput,
@@ -48,6 +50,27 @@ function actionWriteCheck(access: Awaited<ReturnType<typeof getCurrentDoorGoAcce
   }
   if (!canWriteJobs(getPermissionAccess(access, 'jobs'))) {
     throw new JobIntakeFailure('permission_required', jobFailureMessage('permission_required'));
+  }
+}
+
+export async function loadShopDateAvailabilityAction(
+  month: string,
+  internalJobId: string | null,
+  estimatedHours: number | null,
+): Promise<ShopDateIndicators | null> {
+  if (typeof month !== 'string' || !/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(month)) return null;
+  if (internalJobId !== null && (typeof internalJobId !== 'string' || !isUuid(internalJobId))) return null;
+  try {
+    const access = await getCurrentDoorGoAccess();
+    actionWriteCheck(access);
+    if (getPermissionAccess(access, 'calendar') !== 'use') return null;
+    if (estimatedHours !== null && (typeof estimatedHours !== 'number' || !Number.isFinite(estimatedHours)
+        || estimatedHours < 0 || !Number.isSafeInteger(Math.round(estimatedHours * 100)))) return null;
+    const job = internalJobId ? await findJobWithAccess(access, internalJobId.toLowerCase()) : null;
+    if (internalJobId && (!job || job.archivedAt || job.internalJobId !== internalJobId.toLowerCase())) return null;
+    return await loadShopDateIndicators(month, job?.internalJobId ?? null, estimatedHours);
+  } catch {
+    return null;
   }
 }
 

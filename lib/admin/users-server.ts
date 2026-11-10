@@ -19,6 +19,9 @@ export async function currentUsersService() {
     return {
       async rpc(name, args) {
         const { data, error } = await client.rpc(name, args);
+        if (error?.message === 'users.last_administrator') {
+          throw new UserAdminError('Keep at least one active administrator who has completed password setup.');
+        }
         if (error) throw new UserAdminError('User administration could not be saved or loaded. Check access and that the administration migration is applied.');
         return data;
       },

@@ -11,8 +11,8 @@ import {
 } from './access';
 
 function run(): void {
-  assert.equal(DOORGO_PERMISSION_KEYS.length, 9);
-  assert.deepEqual(DOORGO_PERMISSION_KEYS, ['production', 'production_checkpoints', 'calendar', 'jobs', 'documents', 'tools', 'reports', 'settings', 'users']);
+  assert.equal(DOORGO_PERMISSION_KEYS.length, 6);
+  assert.deepEqual(DOORGO_PERMISSION_KEYS, ['jobs', 'calendar', 'production', 'production_checkpoints', 'documents', 'administration']);
   assert.equal(normalizeAccessLevel('none'), 'none');
   assert.equal(normalizeAccessLevel('view'), 'view');
   assert.equal(normalizeAccessLevel('use'), 'use');
@@ -66,10 +66,10 @@ function run(): void {
   assert.equal(active.state, 'active');
   assert.equal(active.profile.companyLocation, 'Main Shop');
   assert.equal(isManager(active), true);
-  assert.equal(canUse(active, 'production'), true);
-  assert.equal(hasAtLeastView(active, 'production_checkpoints'), true);
+  assert.equal(canUse(active, 'production'), false);
+  assert.equal(hasAtLeastView(active, 'production_checkpoints'), false);
   assert.equal(canUse(active, 'production_checkpoints'), false);
-  assert.equal(hasAtLeastView(active, 'reports'), true);
+  assert.equal(hasAtLeastView(active, 'reports'), false);
   assert.equal(canUse(active, 'reports'), false);
   assert.equal(getPermissionAccess(active, 'settings'), 'none');
   assert.equal(getPermissionAccess(active, 'users'), 'none');
@@ -80,7 +80,7 @@ function run(): void {
     permissionRows: [{ permission_key: 'production_checkpoints', access_level: 'use' }],
   });
   assert.equal(isManager(checkpointUser), false);
-  assert.equal(canUse(checkpointUser, 'production_checkpoints'), true);
+  assert.equal(canUse(checkpointUser, 'production_checkpoints'), false);
   assert.equal(getPermissionAccess(checkpointUser, 'production'), 'none');
 
   const falseStringManager = resolveCurrentDoorGoAccess({
@@ -129,9 +129,13 @@ function run(): void {
             permissionRows: [{ permission_key: key, access_level: level }],
           });
           const eligible = enabled && !required;
-          assert.equal(getPermissionAccess(candidate, key), eligible ? level : 'none');
-          assert.equal(canUse(candidate, key), eligible && level === 'use');
-          assert.equal(hasAtLeastView(candidate, key), eligible && level !== 'none');
+          const independentlyAllowed = key === 'calendar' || key === 'documents';
+          const expected = eligible && (independentlyAllowed || (key === 'administration' && level === 'use'))
+            ? level : 'none';
+          assert.equal(getPermissionAccess(candidate, key), expected);
+          assert.equal(canUse(candidate, key), expected === 'use');
+          assert.equal(hasAtLeastView(candidate, key), expected !== 'none');
+          assert.equal(canUse(candidate, 'tools'), eligible);
           assert.equal(isManager(candidate), eligible);
           // Identity/profile remain loadable: mandatory setup isn't a new account state.
           assert.equal(candidate.state, enabled ? 'active' : 'inactive_profile');

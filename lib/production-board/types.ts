@@ -87,7 +87,7 @@ export type ProductionBoardCard = {
   capacityExceptionStaff?:string[];
 };
 
-export type StaffAwayRosterOption={staffId:string;displayName:string};
+export type StaffAwayRosterOption={staffId:string;displayName:string;companyLocation?:string};
 
 export type ProductionBoardDay = {
   date: string;

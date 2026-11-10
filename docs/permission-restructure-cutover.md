@@ -1,0 +1,64 @@
+# DoorGo permission restructuring cutover
+
+Prepared against DoorGo `8443537`. Migration `20261110142021_restructure_doorgo_permissions.sql` is local-only pending separate release approval.
+
+## Contract
+
+Users & Access writes six assigned module values. The migration stores those assignments in an RLS-enabled private table and materializes effective permissions into the existing `dg_user_permissions` table. Keeping its object identity preserves existing SQL, policy, and password-operation references. Neither new table is exposed to client roles. The permission and profile write paths serialize last-administrator checks through a private guard row.
+
+Legacy employee assignments stay recorded without automatic expansion. Jobs Use reduces to View if only Calendar View is present, and Jobs has no effective access without Calendar. Production stays disabled unless both assignments are Use and Jobs and Calendar are both Use. Legacy Settings/User Administration grants do not confer Administration. Documents grants are retained. Glass Calculator access follows active, setup-complete business access.
+
+Calendar-only schedulers keep their location-scoped Staff Away write path. Administration can use the company-wide roster, and existing periods keep their original location. The latest Calendar Notes projection and its linkage checks are retained. The new Staff Away projection preserves the company-wide period/occurrence read for Calendar View and Use.
+
+CAL-03 sends only date/status pairs and requests a new projection as Shop Hours change. It requires Jobs Use and Calendar Use, resolves edit access and booking linkage server-side, and subtracts a current booking only on its actual date when its booking ID is present in the Calendar projection. Calendar operational date bounds apply. It does not change the stored booking or capacity formulas.
+
+## Release sequence
+
+1. Obtain separate authorization for a coordinated application and database cutover. Identify and confirm the existing administrator UUID through an approved read-only check. Confirm the active, setup-complete legacy administrator has manager status and both Settings Use and Users Use. Capture the effective hosted definitions, owners, ACLs, and DoorGo permission rows before proceeding. Compare affected Staff Away and permanent-delete definitions against the locally tested baseline, including the November 10 Calendar corrections. Stop on drift.
+2. Rehearse the migration and rollback against an isolated hosted-schema copy. Test the currently deployed client with the migrated database for the short compatibility window. Pause DoorGo account and permission changes throughout cutover. The old admin editor sends the obsolete nine-key write contract and the migration intentionally rejects it.
+3. In the same SQL connection, set `doorgo.permission_cutover_administrator` to the explicitly confirmed UUID using `set_config(..., false)`, then run the migration. It aborts if the identity is missing or does not meet the legacy checks. Verify effective permissions and authenticated database denials before activating the application build.
+4. Activate the compatible application. Verify administrator sign-in, last-administrator protections, a Calendar-only scheduler, same- and different-location Staff Away, linked and regular Calendar Notes, Jobs/Calendar dependencies, paired Production access, and CAL-03 on a narrow screen. Open Users & Access and review flagged legacy assignments before resuming permission changes.
+
+## Rollback plan
+
+- If the migration transaction fails, verify the original application and permissions remain active. The migration has a single transaction.
+- If it commits but application acceptance fails, suspend DoorGo permission and account operations again. Revert application traffic to the prior known-good deployment in coordination with restoring the prior database contract.
+- Under a transaction, restore the captured pre-cutover definitions and ACLs for the changed administration, Staff Away and permanent-delete routines. Remove the new profile trigger and restore the captured DoorGo grants exactly, including the original administrator grants. Remove the migration-created helper functions and private tables after preserving an approved audit copy. Recheck the prior nine-key permission write contract, administrator access, Notes and Staff Away. Record migration history consistently using the approved release procedure.
+- If grants or accounts changed after cutover, stop before restoring the old snapshot. Reconcile those changes explicitly from a fresh export to avoid dropping newly assigned access or restoring deliberately revoked grants. A SQL rollback does not reverse Supabase Auth changes.
+
+## Local verification
+
+`node scripts/verify-permission-restructure-local.mjs /absolute/path/to/@electric-sql/pglite/dist/index.js` applies the actual migration to a fresh in-memory PostgreSQL database with synthetic identities and selected repository migrations. It exercises authenticated SQL roles, RLS on private grants, administrator selection and protection, legacy restrictions, linked Notes and Staff Away read/mutations. The permanent-delete body uses a minimal test stand-in for its legacy authorization clause. This suite does not certify hosted policies, deployment compatibility, or the full hosted schema.
+
+Also run `npm run verify:permission-routing`, `npm run verify:admin-users`, the Calendar Notes, Staff Away, and Job synchronization verifiers, `node scripts/verify-shop-date-capacity.mjs`, the focused Shop Date Playwright spec, and `npm run build`.
+
+## Hosted-definition rehearsal — November 10, 2026
+
+Read-only inspection confirmed the existing administrator is active, setup-complete, and has legacy manager, Settings Use and User Administration Use. Confirmed the identity for the cutover setting privately. All eight active Staff Away roster members are in the `default` location. The non-administrator Calendar Use accounts inspected resolve to `Central Door & Window` or `Central Door` and have empty eligible rosters. The company-wide read projection still shows the entries. The location-limited write path intentionally refuses those cross-location edits. The permission migration leaves ordinary schedulers in their existing editing scope.
+
+A disposable PGlite PostgreSQL 17.5 database replayed captured hosted authorization and capacity routines with their execution grants, plus the selected hosted row policies, over synthetic profiles, bookings and Staff Away data and selected repository DDL. The actual migration committed there. Authenticated checks covered administrator protection, old-client write rejection, linked Notes, Staff Away write boundaries, a hosted-shaped empty roster, and capacity deduction. After discarding test mutations, a separate rollback transaction restored the permission rows including timestamps, function definitions and execution grants, selected policies and capacity fixture to their pre-cutover snapshots. The old nine-key admin write, administrator access and linked Notes worked after rollback.
+
+Hosted PostgreSQL is 17.11. This rehearsal used selected hosted definitions over a partial schema reconstruction. It did not restore a full hosted-schema export, exercise Supabase Auth or run the deployed application against a migrated replica. Permanent-delete authorization was exercised before data deletion. Before a production GO, resolve the scheduler-to-roster mapping through a separately approved scope decision, and rehearse against a complete isolated schema with authenticated application acceptance. Keep the old permission editor paused between database and application cutover.
+
+## Phase 1 compatibility addendum
+
+Migration `20261110150301_staff_away_cdw_compatibility.sql` follows the permissions migration. It resolves the two confirmed legacy CDW profile labels to the roster key `default` inside the Staff Away write resolver and Calendar editor-roster projection. No stored profile label, roster row, historical period, Job, booking, capacity formula, module grant, or company-wide period read changes. The existing active-account, Calendar Use and location validation still applies to writes. Other location labels continue to use their original scope.
+
+### Production sequence after separate release approval
+
+1. Verify the exact compatible build and rollback build, obtain a complete DoorGo schema export and rehearse it on an isolated Supabase environment. Confirm the publishing route can promote the approved build. Compare current hosted function bodies, owners and grants with the rehearsal. Capture the pre-cutover permission rows, function definitions, owners and ACLs, and confirm the approved administrator identity.
+2. Pause account and permission writes and Staff Away changes during cutover. Using one database connection, set `doorgo.permission_cutover_administrator` to the confirmed administrator UUID, then run `20261110142021` followed by `20261110150301`. If either fails, keep writes paused and roll back any migration that committed before resuming operation.
+3. Activate the compatible application. Sign in as the existing administrator and confirm Administration access. Sign in as a CDW Calendar Use scheduler, verify the roster and exercise create/edit/delete on an approved test period. Sign in as Calendar View, confirm company-wide Staff Away and Notes visibility and verify that Staff Away writes and Administration are denied. Verify Jobs/Calendar and paired Production grants, then check CAL-03 on new and existing Jobs at desktop and narrow widths. Compare workload and booking history to baseline. Resume writes only after acceptance.
+4. To roll back, pause writes and coordinate restoring the prior app with reversing the database changes. Run `scripts/rollback-staff-away-cdw-compatibility.sql` first. Then restore the captured pre-permissions functions and grants, remove the new profile trigger, restore permission rows, and remove the migration helpers/tables. Verify the old admin editor and Calendar reads before resuming. The old editor cannot save against the new database contract. If any account/permission writes occurred after cutover, reconcile them against both snapshots before restoring grants.
+
+The Phase 1 hosted-definition rehearsal applied both migrations on disposable PostgreSQL 17.5. Both CDW labels supported in-scope create/edit/delete, an unrelated location remained denied, and the rollback restored pre-cutover grants, function bodies and ACLs, selected policies, and the capacity fixture. The complete hosted 17.11 schema and native Supabase Auth/PostgREST remain separate verification gates.
+
+The compatible production build also passed browser acceptance with local fixture sign-in and a loopback bridge to the migrated PostgreSQL database. The checks covered administrator Users & Access, scheduler Staff Away create/edit/delete, mobile CAL-03 with live estimates and linked-booking exclusion, and Calendar View denial of writes and Administration while reading linked Notes. The bridge emulated Auth and selected REST endpoints. It does not certify the native hosted Auth/PostgREST path.
+
+The prior application at `8443537` passed the rollback browser smoke test against a disposable database after both migrations were reversed. Administrator sign-in, Users & Access, and linked Calendar Notes worked through the same fixture bridge. A full hosted-schema restore and native Supabase Auth/PostgREST acceptance are still required for production GO.
+
+### Final native rehearsal preflight
+
+The Commercial apps organization is on the Free plan, and the project has no development branch. The connected project inventory contains no dedicated rehearsal project. The current workspace has no Docker/Podman runtime, PostgreSQL dump/restore binaries, or complete hosted-schema export. The local Supabase CLI cannot inspect or start a native stack without a container runtime. The final native rehearsal is blocked. No migration, Auth operation, or acceptance write was attempted against hosted production.
+
+To clear this gate, provide a dedicated isolated Supabase environment with a verified complete pre-cutover schema, required managed Auth/PostgREST services and matching PostgreSQL version. Verify source and target project identifiers before restoring or applying anything. Use test-only Auth accounts and isolated application credentials. Capture pre-migration definitions, ACLs, grants and operational data fingerprints. Run both migrations and the authenticated acceptance checklist above, then reverse the migrations and switch to the prior build. Compare the restored authorization contract and operational fingerprints with the snapshot. The existing disposable rehearsal remains supporting evidence. Production release requires a passing native rehearsal and separate approval.

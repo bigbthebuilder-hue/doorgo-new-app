@@ -17,11 +17,11 @@ import { OperationalFields } from '@/components/calendar/OperationalFields';
 import type { CalendarEditSnapshot } from '@/lib/calendar/calendar-item-actions';
 import { OperationalItemDateEditor } from '@/components/calendar/OperationalItemDateEditor';
 import { deleteFulfillmentBackorder, setFulfillmentItemType } from '@/lib/calendar/fulfillment-actions';
-import { calendarItemLayerKey, calendarRecordKey, isCalendarNoteCard, removeCalendarCardLocally, replaceCalendarCardLocally } from '@/lib/calendar/calendar-items';
+import { calendarItemLayerKey, calendarOrderCards, calendarRecordKey, isCalendarNoteCard, removeCalendarCardLocally, replaceCalendarCardLocally } from '@/lib/calendar/calendar-items';
 import { getProductionScheduleCompletionBlockReason } from '@/lib/production-schedule/completion-ui-contract';
 import { getCalendarProductionMoveBlockReason } from '@/lib/calendar/production-move-eligibility';
 import { jobEditorHref } from '@/lib/jobs/job-editor-navigation';
-import { beginCalendarCardDrag, calendarDayDropTarget, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, shouldDismissQuickAdd, shouldExpandCollapsedCalendarCard, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
+import { beginCalendarCardDrag, calendarDayDropTarget, canRestoreCalendarOrder, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, shouldDismissQuickAdd, shouldExpandCollapsedCalendarCard, viewportAnchorAdjustment } from '@/lib/calendar/interaction';
 import {
   buildCalendarLayers,
   calendarCapacityLabel,
@@ -329,17 +329,23 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
     setMoveState(null);
     setMoveUndo(snapshot.undoing ? null : { bookingId: snapshot.card.bookingId, fromDate: snapshot.card.productionDate, toDate: snapshot.destinationDate, sourceOrder: snapshot.sourceOrder });
     if (snapshot.undoing) announce('success', 'Move undone.');
-    if (snapshot.undoing && snapshot.destinationDate) await restoreUndoOrder(optimistic, snapshot.destinationDate, snapshot.sourceOrder);
+    if (snapshot.undoing && snapshot.destinationDate) await restoreUndoOrder(optimistic, snapshot.destinationDate, snapshot.sourceOrder, snapshot.card.bookingId);
   };
-  const restoreUndoOrder = async (authoritativeCandidate: ProductionBoardViewModel, date: string, desiredOrder: string[]) => {
+  const restoreUndoOrder = async (authoritativeCandidate: ProductionBoardViewModel, date: string, desiredOrder: string[], movedId: string) => {
     const day = authoritativeCandidate.days.find((item) => item.date === date);
     if (!day) return;
-    const currentIds = day.cards.map((card) => card.bookingId);
-    if (currentIds.length !== desiredOrder.length || desiredOrder.some((id) => !currentIds.includes(id))) return;
-    const byId=new Map(day.cards.map((card)=>[card.bookingId,card]));
+    const sortableCards = calendarOrderCards(day.cards);
+    const currentIds = sortableCards.map((card) => card.bookingId);
+    if (!canRestoreCalendarOrder(currentIds, desiredOrder, movedId)) {
+      announce('success', 'Move undone. The day’s newer card order was kept.');
+      void reconcileDays([date]);
+      return;
+    }
+    if (currentIds.every((id, index) => id === desiredOrder[index])) return;
+    const byId=new Map(sortableCards.map((card)=>[card.bookingId,card]));
     const result = await reorderCalendarItems({ scheduledDate: date, expectedKeys:currentIds.map((id)=>calendarRecordKey(byId.get(id)!)),orderedKeys:desiredOrder.map((id)=>calendarRecordKey(byId.get(id)!)) });
     if (!result.ok) {
-      announce('error', 'The date was restored, but its prior order changed elsewhere. The affected day was reconciled.');
+      announce('error', 'The date was restored, but its prior order could not be restored.');
       void reconcileDays([date]);
     } else {
       setDisplayBoard((current)=>reorderCalendarDayLocally(current,date,desiredOrder));
@@ -370,14 +376,15 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
   const reorderDay = async (date: string, draggedId: string, targetId: string, beforeTarget: boolean) => {
     const day = displayBoard.days.find((item) => item.date === date);
     if (!day) return;
-    if(!canUseCalendar&&day.cards.some((card)=>card.recordKind!=='calendar_item')){announce('error','Calendar use permission is required to change a mixed day order.');return;}
-    const expected = day.cards.map((card) => card.bookingId);
+    const sortableCards = calendarOrderCards(day.cards);
+    if(!canUseCalendar&&sortableCards.some((card)=>card.recordKind!=='calendar_item')){announce('error','Calendar use permission is required to change a mixed day order.');return;}
+    const expected = sortableCards.map((card) => card.bookingId);
     const ordered = reorderBookingIds(expected, draggedId, targetId, beforeTarget);
     if (ordered === expected || ordered.every((id, index) => id === expected[index])) return;
     const before = displayBoard;
     setDisplayBoard(reorderCalendarDayLocally(before, date, ordered));
     setDragBusy(true);
-    const byId=new Map(day.cards.map((card)=>[card.bookingId,card]));
+    const byId=new Map(sortableCards.map((card)=>[card.bookingId,card]));
     const result = await reorderCalendarItems({ scheduledDate:date,expectedKeys:expected.map((id)=>calendarRecordKey(byId.get(id)!)),orderedKeys:ordered.map((id)=>calendarRecordKey(byId.get(id)!)) });
     setDragBusy(false);
     if (!result.ok) {
@@ -405,8 +412,9 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
     if (!draggedCard.current || dragBusy) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
+    const sortableIds = new Set(calendarOrderCards(displayBoard.days.find((day) => day.date === date)?.cards ?? []).map((card) => card.bookingId));
     const targets=[...event.currentTarget.querySelectorAll<HTMLElement>(':scope > .calendar-card-list > [data-booking-id]')]
-      .filter((target)=>target.dataset.bookingId!==draggedCard.current?.bookingId)
+      .filter((target)=>sortableIds.has(target.dataset.bookingId!) && target.dataset.bookingId!==draggedCard.current?.bookingId)
       .map((target)=>{const rect=target.getBoundingClientRect();return {id:target.dataset.bookingId!,top:rect.top,bottom:rect.bottom};});
     const {targetId,before}=calendarDayDropTarget(event.clientY,targets);
     setDropTarget((current) => current?.date === date && current.targetId === targetId && current.before === before ? current : { date, targetId, before });
@@ -422,12 +430,12 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
     if (date === card.productionDate) {
       if (target?.targetId) void reorderDay(date, card.bookingId, target.targetId, target.before);
       else {
-        const bottomTarget=sourceDay?.cards.findLast((item)=>item.bookingId!==card.bookingId);
+        const bottomTarget=calendarOrderCards(sourceDay?.cards ?? []).findLast((item)=>item.bookingId!==card.bookingId);
         if(bottomTarget)void reorderDay(date,card.bookingId,bottomTarget.bookingId,false);
       }
       return;
     }
-    beginDateMove(card, date, sourceDay?.cards.map((item) => item.bookingId) ?? displayBoard.needsAttentionCards.map((item) => item.bookingId));
+    beginDateMove(card, date, calendarOrderCards(sourceDay?.cards ?? displayBoard.needsAttentionCards).map((item) => item.bookingId));
   };
   const onCardDragEnd = () => { draggedCard.current = null; setDropTarget(null); setNeedsAttentionDropReady(false); window.setTimeout(()=>{suppressCardClick.current=false;},0); };
   const needsAttentionModel = needsAttentionToolbarModel(displayBoard.needsAttentionCards, visibleLayers);
@@ -452,7 +460,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
       return;
     }
     const source = displayBoard.days.find((day) => day.date === card.productionDate);
-    beginDateMove(card, null, source?.cards.map((item) => item.bookingId) ?? []);
+    beginDateMove(card, null, calendarOrderCards(source?.cards ?? []).map((item) => item.bookingId));
   };
 
   return <div className="calendar-workspace" data-operation-pending={dragBusy || moveState?.pending || undefined} ref={workspaceRef}>

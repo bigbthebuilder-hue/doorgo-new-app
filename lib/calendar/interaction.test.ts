@@ -1,5 +1,6 @@
+import { calendarOrderCards, calendarRecordKey } from './calendar-items';
 import assert from 'node:assert/strict';
-import { beginCalendarCardDrag, calendarDayDropTarget, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, shouldDismissQuickAdd, shouldExpandCollapsedCalendarCard, viewportAnchorAdjustment } from './interaction';
+import { beginCalendarCardDrag, calendarDayDropTarget, canRestoreCalendarOrder, clampCalendarDetailPosition, getCalendarMoveRequirements, insertCalendarCardLocally, isActiveCalendarDragOrigin, moveCalendarBookingLocally, needsAttentionDismissal, placeCalendarBookingLocally, reorderBookingIds, reorderCalendarDayLocally, resolveExpandedCalendarInteraction, shouldDismissQuickAdd, shouldExpandCollapsedCalendarCard, viewportAnchorAdjustment } from './interaction';
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 assert.deepEqual(reorderBookingIds(['a', 'b', 'c'], 'c', 'a', true), ['c', 'a', 'b']);
@@ -25,6 +26,27 @@ const newProduction={...first,bookingId:'new-production',dayOrder:4096,shopHours
 const reordered = reorderCalendarDayLocally(board, '2026-08-24', ['b', 'a']);
 assert.deepEqual(reordered.days[0].cards.map((item) => item.bookingId), ['b', 'a']);
 assert.equal(reordered.days[0].cards[0].completedAt, completed.completedAt);
+const away = { ...first, bookingId: 'away:fixture', recordKind: 'staff_away' as const, locked: true, dayOrder: Number.MIN_SAFE_INTEGER, shopHours: null };
+const closure = { ...first, bookingId: 'capacity:fixture', recordKind: 'capacity_exception' as const, locked: true, dayOrder: -2000000, shopHours: null };
+const delivery = { ...newDelivery, productionDate: first.productionDate, revision: 4, dayOrder: 2048 };
+const mixedDays = [day('2026-08-24', [closure, away, first, delivery]), days[1]];
+const mixedBoard = { ...board, days: mixedDays, weekGroups: [{ ...board.weekGroups[0], days: mixedDays }] };
+const snapshotKeys = (cards: ProductionBoardCard[]) => calendarOrderCards(cards).map(calendarRecordKey);
+assert.deepEqual(snapshotKeys(mixedDays[0].cards), ['production:a', 'item:delivery'], 'presentation cards never enter the persisted snapshot');
+const mixedReordered = reorderCalendarDayLocally(mixedBoard, '2026-08-24', ['item:delivery', 'a']);
+assert.deepEqual(mixedReordered.days[0].cards.map((item) => item.bookingId), [closure.bookingId, away.bookingId, delivery.bookingId, first.bookingId]);
+assert.equal(mixedReordered.days[0].cards[0], closure);
+assert.equal(mixedReordered.days[0].cards[1], away);
+assert.equal(mixedReordered.days[0].cards[2].revision, 5);
+assert.equal(mixedReordered.days[0].cards[3].salesperson, first.salesperson);
+const crossDay = placeCalendarBookingLocally(mixedBoard, 'a', '2026-08-25');
+assert.deepEqual(snapshotKeys(crossDay.days[0].cards), ['item:delivery']);
+assert.deepEqual(snapshotKeys(crossDay.days[1].cards), ['production:c', 'production:a']);
+const returned = placeCalendarBookingLocally(crossDay, 'a', '2026-08-24');
+assert.deepEqual(snapshotKeys(returned.days[0].cards), ['item:delivery', 'production:a']);
+assert.equal(canRestoreCalendarOrder(['item:delivery', 'a'], ['a', 'item:delivery'], 'a'), true);
+assert.equal(canRestoreCalendarOrder(['c', 'item:delivery', 'a'], ['a', 'item:delivery', 'c'], 'a'), false, 'undo preserves a newer reorder of other cards');
+assert.equal(canRestoreCalendarOrder(['c', 'a'], ['a', 'item:delivery'], 'a'), false, 'undo preserves newer day membership');
 const moved = moveCalendarBookingLocally(board, 'a', '2026-08-25');
 assert.deepEqual(moved.days[1].cards.map((item) => item.bookingId), ['c', 'a']);
 assert.equal(moved.days[0].remainingHours, 6);

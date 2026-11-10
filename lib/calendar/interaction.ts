@@ -1,3 +1,4 @@
+import { calendarOrderCards } from './calendar-items';
 import type { ProductionBoardCard, ProductionBoardDay, ProductionBoardViewModel } from '../production-board/types';
 
 export type ExpandedCalendarInteraction = { collapse: boolean; consume: boolean; interact: boolean };
@@ -44,6 +45,12 @@ export function reorderBookingIds(ids: string[], draggedId: string, targetId: st
   return [...withoutDragged.slice(0, insertionIndex), draggedId, ...withoutDragged.slice(insertionIndex)];
 }
 
+export function canRestoreCalendarOrder(currentIds: string[], priorIds: string[], movedId: string): boolean {
+  if (!currentIds.includes(movedId) || !priorIds.includes(movedId) || currentIds.length !== priorIds.length) return false;
+  const priorNeighbors = priorIds.filter((id) => id !== movedId);
+  return currentIds.filter((id) => id !== movedId).every((id, index) => id === priorNeighbors[index]);
+}
+
 export function calendarDayDropTarget(
   clientY: number,
   cards: Array<{ id: string; top: number; bottom: number }>,
@@ -57,9 +64,15 @@ export function calendarDayDropTarget(
 export function reorderCalendarDayLocally(board: ProductionBoardViewModel, date: string, orderedIds: string[]): ProductionBoardViewModel {
   const reorderDays = (days: ProductionBoardDay[]) => days.map((day) => {
     if (day.date !== date) return day;
-    const cardsById = new Map(day.cards.map((card) => [card.bookingId, card]));
-    if (orderedIds.length !== day.cards.length || orderedIds.some((id) => !cardsById.has(id))) return day;
-    return { ...day, cards: orderedIds.map((id, index) => {const card=cardsById.get(id)!;return {...card,dayOrder:(index+1)*1024,revision:card.recordKind==='calendar_item'?(card.revision??0)+1:card.revision};}) };
+    const sortableCards = calendarOrderCards(day.cards);
+    const cardsById = new Map(sortableCards.map((card) => [card.bookingId, card]));
+    if (orderedIds.length !== sortableCards.length || new Set(orderedIds).size !== sortableCards.length || orderedIds.some((id) => !cardsById.has(id))) return day;
+    const reorderedCards = orderedIds.map((id, index) => {
+      const card = cardsById.get(id)!;
+      return { ...card, dayOrder: (index + 1) * 1024, revision: card.recordKind === 'calendar_item' ? (card.revision ?? 0) + 1 : card.revision };
+    });
+    let nextIndex = 0;
+    return { ...day, cards: day.cards.map((card) => cardsById.has(card.bookingId) ? reorderedCards[nextIndex++] : card) };
   });
   return { ...board, days: reorderDays(board.days), weekGroups: board.weekGroups.map((week) => ({ ...week, days: reorderDays(week.days) })) };
 }

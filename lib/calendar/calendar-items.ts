@@ -40,6 +40,10 @@ export function removeCalendarCardLocally(board:ProductionBoardViewModel,booking
 }
 const order=(a:ProductionBoardCard,b:ProductionBoardCard)=>(a.dayOrder??0)-(b.dayOrder??0)||a.bookingId.localeCompare(b.bookingId);
 
+export function calendarOrderCards(cards: ProductionBoardCard[]): ProductionBoardCard[] {
+  return cards.filter((card) => card.recordKind !== 'staff_away' && card.recordKind !== 'capacity_exception');
+}
+
 export function calendarRecordKey(card:ProductionBoardCard):string {
   return card.recordKind==='calendar_item'||card.recordKind==='staff_away'||card.recordKind==='capacity_exception'?card.bookingId:`production:${card.bookingId}`;
 }

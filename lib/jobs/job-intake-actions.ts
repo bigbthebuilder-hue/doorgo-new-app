@@ -1,6 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { saveHostedDoorLineLabels } from './hosted-job-intake-repository';
+import type { DoorLabelSaveRequest } from './door-label-save-contract';
+import { createAuthenticatedSupabaseServerClient } from '@/lib/supabase/server';
 import { salesOrderIsDuplicate, type SalesOrderCheckResult } from './sales-order-check-contract';
 import { createJobIntakeRepository } from './job-intake-repository';
 import { getPermissionAccess } from '@/lib/auth/access';
@@ -50,6 +53,18 @@ function actionWriteCheck(access: Awaited<ReturnType<typeof getCurrentDoorGoAcce
   }
   if (!canWriteJobs(getPermissionAccess(access, 'jobs'))) {
     throw new JobIntakeFailure('permission_required', jobFailureMessage('permission_required'));
+  }
+}
+
+export async function saveDoorLineLabelsAction(request: DoorLabelSaveRequest): Promise<
+  { ok: true } | { ok: false; message: string }
+> {
+  try {
+    actionWriteCheck(await getCurrentDoorGoAccess());
+    await saveHostedDoorLineLabels(await createAuthenticatedSupabaseServerClient(), request);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: error instanceof JobIntakeFailure ? error.message : 'DoorGo could not save the door labels. Please try again.' };
   }
 }
 

@@ -7,6 +7,7 @@ import {
 } from './job-intake-types';
 import { normalizeJobHeaderInput, isUuid, jobFailureMessage } from './job-intake-contract';
 import { normalizeDoorLineInput } from './door-line-contract';
+import { doorLabelKeys, type DoorLabelSaveRequest } from './door-label-save-contract';
 
 type RpcError={message?:string;details?:string;code?:string};
 export type NativeJobRpcClient={rpc(name:string,args:Record<string,unknown>):PromiseLike<{data:unknown;error:RpcError|null}>};
@@ -63,6 +64,7 @@ function linePayload(input:DoorLineInput,index:number):Record<string,unknown>{
 function unavailable(){return new JobIntakeFailure('unavailable','Hosted Job Intake is temporarily unavailable.');}
 function failure(error:RpcError):JobIntakeFailure{
   const message=`${error.message??''} ${error.details??''}`.toLowerCase();
+  if (message.includes('native_job.stale_labels')) return new JobIntakeFailure('stale_revision', 'These door labels changed in another session. Reload the job before saving them again.');
   const mappings:[string,ConstructorParameters<typeof JobIntakeFailure>[0]][]=[
     ['authentication_required','authentication_required'],['active_profile_required','active_profile_required'],
     ['manager_required','manager_required'],['permission_required','permission_required'],['stale_revision','stale_revision'],['not_found','not_found'],
@@ -79,6 +81,27 @@ function failure(error:RpcError):JobIntakeFailure{
   return new JobIntakeFailure(match[1],match[1]==='validation_failed'
     ?'Hosted Job Intake rejected one or more job or door-line fields. Review the entered values and try again.'
     :jobFailureMessage(match[1]));
+}
+
+export async function saveHostedDoorLineLabels(client: NativeJobRpcClient, request: DoorLabelSaveRequest): Promise<void> {
+  const changes = request?.changes;
+  if (!isUuid(request?.internalJobId) || !isUuid(request?.lineId) || !changes || typeof changes !== 'object'
+      || Array.isArray(changes) || !Object.keys(changes).length
+      || Object.keys(changes).some((key) => !doorLabelKeys.includes(key as typeof doorLabelKeys[number]))) {
+    throw new JobIntakeFailure('validation_failed', 'Invalid door label update.');
+  }
+  for (const change of Object.values(changes)) {
+    if (!change || typeof change !== 'object' || Array.isArray(change)
+        || Object.keys(change).sort().join(',') !== 'expected,value'
+        || [change.expected, change.value].some((value) => value !== null && typeof value !== 'string')) {
+      throw new JobIntakeFailure('validation_failed', 'Invalid door label values.');
+    }
+  }
+  const result = await client.rpc('dg_update_native_door_labels', {
+    p_internal_job_id: request.internalJobId, p_line_id: request.lineId, p_changes: changes,
+  });
+  if (result.error) throw failure(result.error);
+  if (result.data !== true) throw unavailable();
 }
 function aggregate(value:unknown):NativeJobAggregate{
   if(!value||typeof value!=='object'||Array.isArray(value)) throw unavailable();

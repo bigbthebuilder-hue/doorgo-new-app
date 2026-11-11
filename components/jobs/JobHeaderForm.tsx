@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
-import { archiveDraftJobAction, checkSalesOrderAction, createDraftJobAction, createTransferredJobAction, deleteDraftJobAction, loadShopDateAvailabilityAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
+import { archiveDraftJobAction, checkSalesOrderAction, createDraftJobAction, createTransferredJobAction, deleteDraftJobAction, loadShopDateAvailabilityAction, saveDoorLineLabelsAction, updateDraftJobAction } from '@/lib/jobs/job-intake-actions';
 import { CONFIRMED_JOB_LINE_MESSAGE, hasValidActiveDoorLine, withEffectiveShopHours } from '@/lib/jobs/door-line-contract';
 import { jobAggregateDirtySnapshot, jobFailureMessage, jobSaveConfirmation, normalizePoNumbers } from '@/lib/jobs/job-intake-contract';
 import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggregate } from '@/lib/jobs/job-intake-types';
@@ -10,6 +10,7 @@ import type { LegacyTransferIssue, UnifiedTransferIdentifier } from '@/lib/jobs/
 import { unresolvedTransferBlockers } from '@/lib/jobs/legacy-transfer-import-contract';
 import { workOrderOutputDecision, type WorkOrderOutputIntent } from '@/lib/jobs/work-order-preview-contract';
 import { DoorLabelDialog } from './DoorLabelDialog';
+import { jobSpecificationSnapshot, mergeSavedDoorLabels, pendingDoorLabelSaves, retainPendingDoorLabelEdits } from '@/lib/jobs/door-label-save-contract';
 import { DoorLineWorkspace } from './DoorLineWorkspace';
 import { JobArchiveControl, jobArchiveTarget } from './JobArchiveControl';
 import { JobDeleteControl, jobDeleteTarget } from './JobDeleteControl';
@@ -237,7 +238,40 @@ export function JobHeaderForm({
   }
 
   async function persistAggregate() {
-    if (!validateAggregateBeforeSave()) return null;
+    // Label changes on persisted lines have their own compare-and-set operation.
+    // Keep each success in the baseline so a later conflict/failure is safely retryable.
+    let savedJob = job;
+    const specificationsChanged = jobSpecificationSnapshot(snapshot()) !== jobSpecificationSnapshot(baseline);
+    if ((!job || specificationsChanged) && !validateAggregateBeforeSave()) return null;
+    let savedLabelLines = 0;
+    if (savedJob) {
+      for (const request of pendingDoorLabelSaves(savedJob, lines)) {
+        const result = await saveDoorLineLabelsAction(request);
+        if (!result.ok) {
+          setMessage({ kind: 'error', text: savedLabelLines ? `Earlier door label changes were saved. ${result.message}` : result.message });
+          return null;
+        }
+        savedJob = { ...savedJob, lines: savedJob.lines.map((line) => mergeSavedDoorLabels(line, request)) };
+        savedLabelLines++;
+        setJob(savedJob);
+        setLines((current) => current.map((line) => {
+          // Retain edits typed while this request was in flight.
+          if (line.lineId !== request.lineId) return line;
+          const next = { ...line };
+          for (const key of ['doorId', 'productCode'] as const) {
+            const change = request.changes[key];
+            if (change && (line[key] || null) === change.value) next[key] = change.value;
+          }
+          return next;
+        }));
+        setBaseline((current) => {
+          const parsed = JSON.parse(current);
+          parsed.lines = parsed.lines.map((line: DoorLineInput) => mergeSavedDoorLabels(line, request));
+          return JSON.stringify(parsed);
+        });
+      }
+      if (!specificationsChanged) return savedJob;
+    }
     if (!job && transferReview && unresolvedTransferBlockers(transferReview.blockers).length) {
       setMessage({ kind: 'error', text: 'Resolve all legacy-transfer blockers before saving.' });
       return null;
@@ -250,14 +284,14 @@ export function JobHeaderForm({
         : await createDraftJobAction({ commandId: commandId.current as string, input, lines });
     if (!result.ok) {
       setEarlySalesOrderError(false);
-      setMessage({ kind: 'error', text: result.message });
+      setMessage({ kind: 'error', text: savedLabelLines ? `Door label changes were saved. ${result.message}` : result.message });
       setFieldErrors(result.fieldErrors ?? {});
       return null;
     }
     setJob(result.job);
     const savedValues = initialValues(result.job, defaultSalesperson);
     const savedPoNumberText = poNumberText(savedValues.poNumbers);
-    setValues(savedValues); setLines(result.job.lines); setLifecycleStage(result.job.lifecycleStage); setPendingPoNumber(savedPoNumberText);
+    setValues(savedValues); setLines((current) => retainPendingDoorLabelEdits(result.job.lines, lines, current)); setLifecycleStage(result.job.lifecycleStage); setPendingPoNumber(savedPoNumberText);
     setBaseline(jobAggregateDirtySnapshot({ values: savedValues, lines: result.job.lines, lifecycleStage: result.job.lifecycleStage, pendingPoNumber: savedPoNumberText }));
     return result.job;
   }

@@ -28,6 +28,8 @@ let saved = {
   }],
 };
 let writes = 0;
+let aggregateWrites = 0;
+let labelWrites = 0;
 const unexpected = [];
 
 // A loopback-only stand-in for Supabase. Next routes, server actions, auth clients and the job adapter are real.
@@ -46,6 +48,26 @@ const api = createServer(async (request, response) => {
   if (path === '/rest/v1/dg_fulfillment_order_portions' && request.method === 'GET') return reply([]);
   if (path === '/rest/v1/rpc/dg_get_native_job') return reply(saved);
   if (path === '/rest/v1/rpc/dg_list_native_jobs') return reply({ items: [], page: { limit: 100, has_more: false } });
+  if (path === '/rest/v1/rpc/dg_update_native_door_labels' && request.method === 'POST') {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const update = JSON.parse(Buffer.concat(chunks).toString());
+    const line = saved.lines.find((line) => line.line_id === update.p_line_id);
+    if (update.p_internal_job_id !== jobId || !line) return reply({ message: 'native_job.not_found' }, 404);
+    for (const [field, change] of Object.entries(update.p_changes)) {
+      const key = field === 'doorId' ? 'labelDoorId' : 'labelProductCode';
+      const current = line.glass_calc?.[key] ?? null;
+      if (current !== change.expected && current !== change.value) return reply({ message: 'native_job.stale_labels' }, 409);
+    }
+    for (const [field, change] of Object.entries(update.p_changes)) {
+      const key = field === 'doorId' ? 'labelDoorId' : 'labelProductCode';
+      line.glass_calc ??= {};
+      if (change.value === null) delete line.glass_calc[key];
+      else line.glass_calc[key] = change.value;
+    }
+    writes++; labelWrites++;
+    return reply(true);
+  }
   if (path === '/rest/v1/rpc/dg_update_native_job' && request.method === 'POST') {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
@@ -53,9 +75,18 @@ const api = createServer(async (request, response) => {
     if (update.p_internal_job_id !== jobId || update.p_expected_revision !== saved.job.revision) return reply({ message: 'native_job.stale_revision' }, 409);
     saved = {
       job: { ...saved.job, ...update.p_header, revision: saved.job.revision + 1 },
-      lines: update.p_lines.map((line) => ({ ...saved.lines.find((previous) => previous.line_id === line.line_id), ...line })),
+      lines: update.p_lines.map((line) => {
+        const previous = saved.lines.find((item) => item.line_id === line.line_id);
+        if (!previous) return line;
+        const geometry = { ...line.glass_calc };
+        for (const key of ['labelDoorId', 'labelProductCode']) {
+          delete geometry[key];
+          if (previous.glass_calc?.[key] !== undefined) geometry[key] = previous.glass_calc[key];
+        }
+        return { ...previous, ...line, glass_calc: Object.keys(geometry).length ? geometry : null };
+      }),
     };
-    writes++;
+    writes++; aggregateWrites++;
     return reply(saved);
   }
   unexpected.push(request.method + ' ' + path);
@@ -109,8 +140,16 @@ try {
     await listCode().waitFor();
   };
   const save = async (revision, code, doorId) => {
+    const beforeWrites = writes;
     await page.getByRole('button', { name: 'Save', exact: true }).click();
+    const deadline = Date.now() + 15000;
+    while (writes === beforeWrites) {
+      assert.ok(Date.now() < deadline, 'save request did not arrive');
+      await delay(25);
+    }
+    await page.getByText('001234 saved.', { exact: true }).first().waitFor();
     await page.getByText('Rev ' + revision, { exact: true }).waitFor();
+    assert.equal(saved.job.revision, revision);
     assert.equal(saved.lines[0].glass_calc?.labelProductCode, code);
     assert.equal(saved.lines[0].glass_calc?.labelDoorId ?? '', doorId);
     await reopen();
@@ -132,16 +171,22 @@ try {
   assert.equal(await listCode().inputValue(), draftCode);
   await intakeDoorId().fill('Draft 01');
   assert.equal(await listDoorId().inputValue(), 'Draft 01');
-  await save(2, draftCode, 'Draft 01');
+  const draftHeader = structuredClone(saved.job);
+  await save(1, draftCode, 'Draft 01');
+  assert.deepEqual(saved.job, draftHeader);
+  assert.equal(aggregateWrites, 0);
   assert.equal(saved.job.lifecycle_stage, 'Draft');
 
   await lifecycle().selectOption('Confirmed Job');
-  await save(3, draftCode, 'Draft 01');
+  await save(2, draftCode, 'Draft 01');
   const confirmedCode = ' 007x-Y ';
   const beforeConfirmedEdit = structuredClone(saved.lines[0]);
   await listCode().fill(confirmedCode);
   await listDoorId().fill('Confirmed 02');
-  await save(4, confirmedCode, 'Confirmed 02');
+  const confirmedHeader = structuredClone(saved.job);
+  await save(2, confirmedCode, 'Confirmed 02');
+  assert.deepEqual(saved.job, confirmedHeader);
+  assert.equal(aggregateWrites, 1);
   assert.equal(await lifecycle().inputValue(), 'Confirmed Job');
   assert.deepEqual({ ...saved.lines[0], glass_calc: beforeConfirmedEdit.glass_calc }, beforeConfirmedEdit);
   await page.locator('#job-lines-pane').getByRole('button', { name: 'Edit', exact: true }).first().click();
@@ -176,7 +221,28 @@ try {
   assert.equal(writes, writesBeforePrint);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await listDoorId().clear();
-  await save(5, confirmedCode, '');
+  await save(2, confirmedCode, '');
+  assert.equal(aggregateWrites, 1);
+  assert.equal(labelWrites, 3);
+  // A different session updates metadata while this editor still holds old data.
+  saved.lines[0].glass_calc.labelProductCode = 'REMOTE-001';
+  await page.locator('#job-lines-pane').getByRole('button', { name: '+ Qty', exact: true }).first().click();
+  await save(3, 'REMOTE-001', '');
+  assert.equal(labelWrites, 3, 'normal specification save must not send stale label edits');
+  assert.equal(saved.lines[0].qty, 3);
+
+  // Unsaved lines carry their initial labels through the first aggregate insert.
+  await page.getByRole('button', { name: 'Interior', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Door Type', exact: true }).fill('New fixture door');
+  await intakeCode().fill('NEW_002');
+  await intakeDoorId().fill('Unsaved room');
+  await page.getByRole('button', { name: 'Add Door', exact: true }).click();
+  await page.locator('#job-lines-pane .job-line-card').nth(1).waitFor();
+  await save(4, 'REMOTE-001', '');
+  assert.equal(saved.lines[1].glass_calc.labelProductCode, 'NEW_002');
+  assert.equal(saved.lines[1].glass_calc.labelDoorId, 'Unsaved room');
+  assert.equal(labelWrites, 3, 'unsaved new lines must not invoke the existing-line operation');
+  assert.equal(aggregateWrites, 3);
   assert.deepEqual(unexpected, []);
   console.log('Door label save/reopen passed: Draft and Confirmed Door ID and Product Code round trips, unchanged specs, and read-only printing and reprinting with batch-only overrides.');
 } catch (error) {

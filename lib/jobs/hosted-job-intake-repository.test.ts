@@ -52,15 +52,15 @@ async function main(){
   const doorId = 'North 02';
   const labelRepository = createHostedJobIntakeRepository({ client: {
     rpc: async (name, args) => {
-      assert.equal(name, 'dg_update_native_job');
+        assert.equal(name, 'dg_create_native_job');
       const written = (args.p_lines as Record<string, unknown>[])[0];
       assert.deepEqual(written.glass_calc, { labelDoorId: doorId, labelProductCode: exactCode });
       return { data: { job: { ...job, lifecycle_stage: 'Confirmed Job' }, lines: [{ ...line, glass_calc: written.glass_calc }] }, error: null };
     },
   } });
-  const updatedLabelJob = await labelRepository.update({
-    internalJobId: job.internal_job_id, expectedRevision: 1, actorUserId: job.updated_by_user_id,
-    input: { lifecycleStage: 'Confirmed Job' },
+  const updatedLabelJob = await labelRepository.create({
+    commandId: '99999999-9999-4999-8999-999999999999', actorUserId: job.updated_by_user_id, defaultSalesperson: 'Tester',
+    input: { lifecycleStage: 'Confirmed Job', customer: 'Label fixture' },
     lines: [{ ...created.lines[0], doorId, productCode: exactCode }],
   });
   assert.equal(updatedLabelJob.lines[0].doorId, doorId);

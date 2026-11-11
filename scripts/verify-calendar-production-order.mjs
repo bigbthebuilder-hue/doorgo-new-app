@@ -42,8 +42,6 @@ assert.match(workspace, /document\.addEventListener\('pointerdown',[\s\S]*true\)
 assert.match(workspace, /event\.key === 'Escape'[\s\S]*onCloseRef\.current\(\)/);
 assert.match(workspace, /aria-label="Close Calendar details"/);
 assert.match(workspace, /clampCalendarDetailPosition/);
-assert.match(workspace, /gridTemplateColumns:[\s\S]*'1\.7fr'/);
-assert.match(workspace, /setExpandedWithAnchor[\s\S]*viewportAnchorAdjustment/);
 assert.match(workspace, /beginCalendarCardDrag[\s\S]*onCardDragEnd/);
 assert.doesNotMatch(workspace, /calendar-stream[^\n]+onPointer(?:Down|Up|Cancel)Capture/);
 assert.doesNotMatch(workspace, /onFocus=\{\(\) => \{ setExpandedDate\(null\)/);
@@ -53,3 +51,6 @@ assert.match(workspace, /reopenCalendarProductionBooking/);
 const boardNormalize = readFileSync(normalizePath, 'utf8');
 assert.match(boardNormalize, /a\.dayOrder[\s\S]*b\.dayOrder/);
 console.log('Calendar Production ordering static verification passed (PostgreSQL execution not proven)');
+
+assert.doesNotMatch(workspace,/setExpandedDate|setExpandedWithAnchor/);
+assert.match(workspace,/calendar-card-actions/);

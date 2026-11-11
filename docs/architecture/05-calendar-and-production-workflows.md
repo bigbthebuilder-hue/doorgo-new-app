@@ -146,3 +146,13 @@ Commands below are references, not tests executed for this documentation. Verify
 [exceptions]: ../../supabase/migrations/20260825050000_add_capacity_exceptions.sql
 [maximum]: ../../supabase/migrations/20261009153600_staff_away_capacity_drag_max.sql
 [checkpoints]: ../../supabase/migrations/20260712030000_create_production_flow_checkpoint_rpcs.sql
+
+## Calendar stability — local follow-up to cd489ce, 2026-11-11
+
+Approved direction replaces click-to-expand days with compact rows and a persistent Actions button opening the existing permission-gated details/actions panel. Complete/Reopen, Edit, Open Job and type-specific controls reuse existing operations. No scheduling, capacity formula or database change.
+
+Shared updates use an authenticated, uncached GET window (visible weeks, bounded to sixteen weeks for unusually tall displays) every ten seconds while idle, plus focus, visibility and reconnect checks. This is polling, not a database Realtime subscription. Existing Calendar View/Use gates and read projections are reused. Refresh is paused during forms, details, search, layers, navigation, range loading and dragging. Aborted/late reads cannot replace local mutations. Failures retain existing data, display retry status and retry with a capped delay; a fifteen-second fetch timeout prevents a stuck read. Cached weeks outside the refreshed neighbourhood are updated when visited.
+
+The initial target is anchored without smooth scrolling, native browser scroll anchoring is disabled in favour of explicit prepend/visible-week preservation, and changing server board props no longer remounts the session. Weekend exception visibility comes from replacement server weeks.
+
+Verification: `npx playwright test -c playwright-calendar-stability.config.ts` uses fictional boards and intercepted GET responses, including two independent component sessions. `lib/calendar/refresh-window.test.ts` covers remote moves and Needs Attention. Actual hosted simultaneous-user and connection acceptance remains separate; no customer records are used.

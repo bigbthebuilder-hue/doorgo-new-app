@@ -894,3 +894,11 @@ body {
   }
   .standalone-glass-workspace .glass-calculator-print { break-inside: avoid; }
 }
+
+/* Compact Calendar actions and non-disruptive shared refresh feedback. */
+.calendar-stream { overflow-anchor: none; }
+.calendar-card-actions { flex: none; width: 1.7rem; height: 1.5rem; border-radius: .2rem; font-size: 1rem; line-height: 1; cursor: pointer; }
+.calendar-card-actions:hover { background: rgb(255 255 255 / .45); }
+.calendar-card-actions:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+.calendar-refresh-status { font-size: .65rem; color: var(--app-color-muted); white-space: nowrap; }
+.calendar-refresh-status[data-state="offline"], .calendar-refresh-status[data-state="retrying"] { color: rgb(154 52 18); }

@@ -6,14 +6,12 @@ const css=readFileSync('app/globals.css','utf8');
 const presentation=readFileSync('lib/calendar/presentation.ts','utf8');
 const calendarActions=readFileSync('lib/calendar/calendar-item-actions.ts','utf8');
 
-assert.match(workspace,/setExpandedWithAnchor[\s\S]*viewportAnchorAdjustment/);
 assert.match(workspace,/isActiveCalendarDragOrigin\(event\.target as Element\)/);
 assert.match(workspace,/onCardDragStart[\s\S]*beginCalendarCardDrag[\s\S]*draggedCard\.current = card/);
 assert.doesNotMatch(workspace,/consumeOutsideCalendarClick|dragOwnedGesture/);
 assert.doesNotMatch(workspace,/calendar-stream[^\n]+onPointer(?:Down|Up|Cancel)Capture/);
 assert.doesNotMatch(workspace,/onPointerDownCapture=[\s\S]*setExpandedDate\(null\)/);
 assert.doesNotMatch(workspace,/onFocus=\{\(\) => \{ setExpandedDate\(null\)/);
-assert.match(workspace,/calendar-month-row[^\n]+setExpandedWithAnchor\(null\)/);
 assert.doesNotMatch(workspace,/Link status|DoorGo-linked|'Unlinked'/);
 assert.match(workspace,/Open Job/);
 assert.match(css,/calendar-day:not\(\[data-expanded="true"\]\):hover[^\n]+rgb\(0 0 0\)/);
@@ -35,9 +33,11 @@ assert.match(workspace,/role="listbox"[\s\S]*role="option"/);
 assert.match(workspace,/backgroundColor:color\.background,color:color\.foreground/);
 assert.match(css,/calendar-layer-color-list[\s\S]*max-height: 15rem/);
 assert.match(workspace,/calendar-search-result[\s\S]*calendarCardIdentity\(option\.card\)\.primary/);
-assert.match(workspace,/calendar-expanded-info[\s\S]*calendarCardIdentity\(card\)\.primary/);
 assert.doesNotMatch(workspace,/No SO|No Sales Order|Not provided|DoorGo-linked|Unlinked/);
 assert.match(calendarActions,/loadCalendarNativeJobLinks[\s\S]*byVisibleIdentifier/);
 assert.match(calendarActions,/linked_internal_job_id[\s\S]*byInternalJobId/);
 
 console.log('Calendar interaction and presentation static verification passed');
+
+assert.doesNotMatch(workspace,/setExpandedDate|setExpandedWithAnchor/);
+assert.match(workspace,/calendar-card-actions/);

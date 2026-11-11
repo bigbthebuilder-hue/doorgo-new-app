@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {normalizeProductionBoard} from '../production-board/normalize';
+import {mergeRefreshedCalendarWindow} from './refresh-window';
+const current=normalizeProductionBoard([],[],[],{startDate:'2026-11-02',endDateExclusive:'2026-11-23',weeks:3,today:'2026-11-11'});
+const incoming=normalizeProductionBoard([],[],[],{startDate:'2026-11-09',endDateExclusive:'2026-11-16',weeks:1,today:'2026-11-11'});
+const card={bookingId:'moved',productionDate:'2026-11-03'} as typeof current.days[number]['cards'][number];
+current.days[0].cards=[card];
+incoming.days[0].cards=[{...card,productionDate:incoming.days[0].date,completedAt:'2026-11-11T12:00:00Z'}];
+incoming.days[0].availableHours=17;
+const merged=mergeRefreshedCalendarWindow(current,incoming);
+assert.equal(merged.days.flatMap(day=>day.cards).filter(item=>item.bookingId==='moved').length,1);
+assert.equal(merged.days.find(day=>day.date===incoming.days[0].date)?.availableHours,17);
+assert.equal(merged.startDate,current.startDate);assert.equal(merged.endDateExclusive,current.endDateExclusive);
+assert.equal(merged.days.filter(day=>day.date>='2026-11-09'&&day.date<'2026-11-16').length,incoming.days.length);
+incoming.needsAttentionCards=[{...card,productionDate:null}];incoming.days[0].cards=[];
+const undated=mergeRefreshedCalendarWindow(merged,incoming);
+assert.equal(undated.days.flatMap(day=>day.cards).length,0);assert.equal(undated.needsAttentionCards.length,1);
+console.log('Calendar refresh merge tests passed');

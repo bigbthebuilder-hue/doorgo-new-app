@@ -22,10 +22,10 @@ for (const scenario of [
   const card=component.locator('[data-booking-id="production-test"]').first();
   await expect(card.locator('.calendar-production-card-text')).toHaveText(scenario.expected);
   await card.click();
-  await expect(card.locator('.calendar-expanded-info strong')).toHaveText(scenario.expected);
-  await card.getByRole('button',{name:'Complete',exact:true}).click();
+  await expect(card.locator('.calendar-production-card-text')).toHaveText(scenario.expected);
+  await component.locator('.calendar-detail-panel').getByRole('button',{name:'Complete',exact:true}).click();
   await expect(card).toHaveAttribute('data-completed','true');
-  await expect(card.locator('.calendar-expanded-info strong')).toHaveText(scenario.expected);
+  await expect(card.locator('.calendar-production-card-text')).toHaveText(scenario.expected);
 });
 
 test('move activity clears then delete uses its own label; missing SO stays clean', async ({ mount, page }) => {
@@ -47,8 +47,7 @@ test('move activity clears then delete uses its own label; missing SO stays clea
   await card.dispatchEvent('dragend',{dataTransfer});
   await page.clock.runFor(300);
   await card.click();
-  await expect(card.locator('strong')).toHaveText('2 · Permission Test');
-  await card.getByRole('button',{name:'More details for Permission Test'}).click();
+  await expect(card.locator('.calendar-production-card-text')).toHaveText('2 · Permission Test');
   page.once('dialog',dialog=>dialog.accept());
   await component.locator('.calendar-detail-panel').getByRole('button',{name:'Delete',exact:true}).click();
   await page.clock.runFor(300);
@@ -58,32 +57,32 @@ test('move activity clears then delete uses its own label; missing SO stays clea
   await expect(card).toHaveCount(0);
 });
 
-for (const linked of [false, true]) test(`expanded identity and real completion activity linked=${linked}`, async ({ mount, page }) => {
+for (const linked of [false, true]) test(`compact identity and real completion activity linked=${linked}`, async ({ mount, page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   const component = await mount(<CalendarPermissionsHarness linked={linked} identity/>);
   const card = component.locator('[data-booking-id="production-test"]').first();
   await expect(card).toContainText('3.5 · Hamilton · 1603345');
   await expect(page.locator('.calendar-activity')).toHaveCount(0);
   await card.click();
-  await expect(card.locator('strong')).toHaveText('3.5 · Hamilton · 1603345');
-  await expect(card.locator('strong')).toHaveCSS('white-space', 'normal');
-  if (linked) await expect(card.getByRole('link', {name:'Open Job'})).toHaveAttribute('href', /\/jobs\/11111111-1111-4111-8111-111111111111/);
+  await expect(card.locator('.calendar-production-card-text')).toHaveText('3.5 · Hamilton · 1603345');
+  await expect(card.locator('.calendar-production-card-text')).toHaveCSS('white-space', 'nowrap');
+  if (linked) await expect(component.locator('.calendar-detail-panel').getByRole('link', {name:'Open Job'})).toHaveAttribute('href', /\/jobs\/11111111-1111-4111-8111-111111111111/);
   await page.clock.install();
   await page.evaluate(()=>document.documentElement.setAttribute('data-defer-calendar','true'));
-  await card.getByRole('button',{name:'Complete',exact:true}).click();
+  await component.locator('.calendar-detail-panel').getByRole('button',{name:'Complete',exact:true}).click();
   await page.clock.runFor(200);
   await expect(page.locator('.calendar-activity')).toHaveCount(0);
   await page.clock.runFor(100);
   await expect(page.locator('.calendar-activity')).toHaveText('Updating calendar…');
   await page.evaluate(()=>document.dispatchEvent(new Event('release-calendar')));
   await expect(page.locator('.calendar-activity')).toHaveCount(0);
-  await expect(card.getByRole('button',{name:'Reopen',exact:true})).toBeVisible();
-  await expect(card.locator('strong')).toHaveText('3.5 · Hamilton · 1603345');
+  await expect(component.locator('.calendar-detail-panel').getByRole('button',{name:'Reopen',exact:true})).toBeVisible();
+  await expect(card.locator('.calendar-production-card-text')).toHaveText('3.5 · Hamilton · 1603345');
   await page.evaluate(()=>document.documentElement.removeAttribute('data-defer-calendar'));
-  await card.getByRole('button',{name:'Reopen',exact:true}).click();
+  await component.locator('.calendar-detail-panel').getByRole('button',{name:'Reopen',exact:true}).click();
   await page.clock.runFor(300);
   await expect(page.locator('.calendar-activity')).toHaveCount(0);
-  await expect(card.locator('strong')).toHaveText('3.5 · Hamilton · 1603345');
+  await expect(card.locator('.calendar-production-card-text')).toHaveText('3.5 · Hamilton · 1603345');
 });
 
 test('missing hours are omitted and edit failure clears real activity', async ({ mount, page }) => {
@@ -92,8 +91,7 @@ test('missing hours are omitted and edit failure clears real activity', async ({
   const card = component.locator('[data-booking-id="production-test"]').first();
   await expect(card).toContainText('Hamilton · 1603345');
   await card.click();
-  await expect(card.locator('strong')).toHaveText('Hamilton · 1603345');
-  await card.getByRole('button',{name:'More details for Hamilton'}).click();
+  await expect(card.locator('.calendar-production-card-text')).toHaveText('Hamilton · 1603345');
   await component.locator('.calendar-detail-panel').getByRole('button',{name:'Edit',exact:true}).click();
   await expect(component.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
   await page.clock.install();
@@ -112,7 +110,6 @@ test('Calendar view renders without lifecycle or Manager controls', async ({ mou
   const card = component.locator('[data-booking-id="production-test"]').first();
   await expect(card).not.toHaveAttribute('draggable', 'true');
   await card.click();
-  await component.getByRole('button', { name: 'More details for Permission Test', exact: true }).click();
   const panel = component.locator('.calendar-detail-panel');
   await expect(panel.getByRole('button', { name: /^(Edit|Delete|Complete|Reopen)$/ })).toHaveCount(0);
   await expect(component.getByRole('button', { name: 'Production date', exact: true })).toHaveCount(0);
@@ -126,8 +123,7 @@ for (const linked of [false, true]) test(`Calendar use only: ${linked ? 'linked'
   const card = component.locator('[data-booking-id="production-test"]').first();
   await expect(card).toHaveAttribute('draggable', 'true');
   await card.click();
-  const details = component.getByRole('button', { name: 'More details for Permission Test', exact: true });
-  await details.click();
+  const details = component.getByRole('button', { name: 'Actions for Permission Test', exact: true });
   let panel = component.locator('.calendar-detail-panel');
   await panel.getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(component.getByRole('form', { name: 'Edit Production schedule' })).toBeVisible();
@@ -180,7 +176,6 @@ for (const legacy of [false, true]) for (const linked of [false, true]) test(`Ca
   const card = component.locator('[data-booking-id="production-test"]').first();
   await expect(card).toHaveAttribute('draggable', 'true');
   await card.click();
-  await component.getByRole('button', { name: 'More details for Permission Test', exact: true }).click();
   await component.locator('.calendar-detail-panel').getByRole('button', { name: 'Edit', exact: true }).click();
   const dateControl = component.getByRole('button', { name: 'Production date', exact: true });
   await expect(dateControl).toBeEnabled();
@@ -211,7 +206,6 @@ for(const kind of ['delivery','customer_pickup'] as const) for(const linked of [
  await page.setViewportSize({width:1600,height:1000});
  const component=await mount(<CalendarPermissionsHarness kind={kind} linked={linked}/>);
  await component.locator('[data-booking-id="item:'+kind+'"]').first().click();
- await component.getByRole('button',{name:'More details for Permission Test',exact:true}).click();
  await component.locator('.calendar-detail-panel').getByRole('button',{name:'Edit',exact:true}).click();
  await component.getByLabel('Name *',{exact:true}).fill('Edited fulfillment');
  await component.getByLabel('Sales Order',{exact:true}).fill('9876543');

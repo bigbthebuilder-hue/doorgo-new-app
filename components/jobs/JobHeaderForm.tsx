@@ -9,6 +9,7 @@ import type { DoorLineInput, JobHeaderInput, JobLifecycleStage, NativeJobAggrega
 import type { LegacyTransferIssue, UnifiedTransferIdentifier } from '@/lib/jobs/legacy-transfer-types';
 import { unresolvedTransferBlockers } from '@/lib/jobs/legacy-transfer-import-contract';
 import { workOrderOutputDecision, type WorkOrderOutputIntent } from '@/lib/jobs/work-order-preview-contract';
+import { DoorLabelDialog } from './DoorLabelDialog';
 import { DoorLineWorkspace } from './DoorLineWorkspace';
 import { JobArchiveControl, jobArchiveTarget } from './JobArchiveControl';
 import { JobDeleteControl, jobDeleteTarget } from './JobDeleteControl';
@@ -291,17 +292,26 @@ export function JobHeaderForm({
     });
   }
 
+  const [labelJob, setLabelJob] = useState<NativeJobAggregate | null>(null);
   const bottomStatus = message?.text ?? (navigationDirty ? 'Unsaved changes' : job ? `Saved · Rev ${job.revision}` : 'Not saved yet');
   const archiveTarget = jobArchiveTarget(job, canEdit);
   const deleteTarget = jobDeleteTarget(job, canPermanentlyDelete);
   const bottomActions = <>
     <button className="app-button app-button-secondary" onClick={leave} type="button">Exit</button>
-    {job ? <details className="job-work-order-menu relative" open={openBottomMenu === 'documents'} ref={documentsMenu}><summary className="app-button app-button-secondary cursor-pointer list-none" onClick={(event) => { event.preventDefault(); setOpenBottomMenu((current) => current === 'documents' ? null : 'documents'); }}>Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
+    {job ? <details className="job-work-order-menu relative" open={openBottomMenu === 'documents'} ref={documentsMenu}><summary className="app-button app-button-secondary cursor-pointer list-none" onClick={(event) => { event.preventDefault(); setOpenBottomMenu((current) => current === 'documents' ? null : 'documents'); }}>Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => {
+      setOpenBottomMenu(null);
+      if (dirty || hasUnappliedLineChanges) {
+        setMessage({ kind: 'error', text: 'Save the job before printing door labels.' });
+        return;
+      }
+      setLabelJob(job);
+    }} type="button">Print Door Labels</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
     {archiveTarget || deleteTarget ? <details className="job-actions-menu relative" open={openBottomMenu === 'job-actions'} ref={jobActionsMenu}><summary className="app-button app-button-secondary cursor-pointer list-none" onClick={(event) => { event.preventDefault(); setOpenBottomMenu((current) => current === 'job-actions' ? null : 'job-actions'); }}>Job Actions ▾</summary><div className="absolute right-0 z-20 grid min-w-52 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Actions</span><JobArchiveControl onArchive={archiveDraftJobAction} onNavigate={(path) => router.push(path)} target={archiveTarget}/><JobDeleteControl onDelete={deleteDraftJobAction} onNavigate={(path) => router.push(path)} target={deleteTarget}/></div></details> : null}
     {canEdit ? <><button aria-busy={pendingSaveIntent==='save'||undefined} className="app-button app-button-primary" disabled={isPending || salesOrderChecking || Boolean(fieldErrors.bizTrackSalesOrder) || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{pendingSaveIntent==='save' ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button aria-busy={pendingSaveIntent==='exit'||undefined} className="app-button app-button-dark" disabled={isPending || salesOrderChecking || Boolean(fieldErrors.bizTrackSalesOrder)} onClick={() => save(true)} type="button">{pendingSaveIntent==='exit'?'Saving…':'Save and Exit'}</button> : null}</> : null}
   </>;
   return (
     <>
+    {labelJob ? <DoorLabelDialog job={labelJob} onClose={() => setLabelJob(null)}/> : null}
     {inAppShell ? <ContextTopBar
       title={visibleIdentifier}
       status={<span className="job-shell-identity-status"><select aria-label="Job lifecycle" disabled={!canEdit} onChange={(event) => setLifecycleStage(event.target.value as JobLifecycleStage)} value={lifecycleStage}><option value="Draft">Draft</option><option disabled={lifecycleStage !== 'Confirmed Job' && !hasValidActiveDoorLine(lines)} value="Confirmed Job">Confirmed</option></select><span>{job ? `Rev ${job.revision}` : 'New'}{!canEdit ? ' · Read only' : ''}</span></span>}

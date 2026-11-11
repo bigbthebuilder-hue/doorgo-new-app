@@ -96,6 +96,8 @@ export type NativeDoorLine = {
   weatherstrip: string | null;
   hingeType: string | null;
   notes: string | null;
+  doorId?: string | null;
+  productCode?: string | null;
   qty: number;
   roWidth: string | null;
   roHeight: string | null;

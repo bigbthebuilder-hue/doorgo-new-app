@@ -1,9 +1,8 @@
-import { customSlabAxis, hasCustomSlabAxis } from './slab-sizing-contract';
+import { customSlabAxis } from './slab-sizing-contract';
 import { missingDoorFieldMessage } from './status-presentation';
 import { sillChoice } from './construction-contract';
-import { PATIO_DOOR_PRESETS } from './double-door-sizing-contract';
+import { canonicalStoredDimension, doorSizeDisplay } from './door-size-presentation';
 import { GROUP_SPACING, measureWorkOrderGroup, WORK_ORDER_FONT_METRICS, workOrderPrintableHeight } from './work-order-layout';
-import { parseStoredShopDimension } from './dimension-contract';
 import { calculateNonGlassFrameCut, type NonGlassFrameCutResult } from './non-glass-frame-cut-contract';
 import type { GlassGeometryValues, GlassIssue, NativeDoorLine, NativeJobAggregate, ResolvedSidelight, ResolvedTBar } from './job-intake-types';
 import { normalizeHingeColor, normalizeHingeType, workOrderHingeDisplay } from './hinge-contract';
@@ -141,11 +140,6 @@ export function formatWorkOrderPoNumbers(values: readonly unknown[]): { values: 
   return { values: normalized, display };
 }
 
-function canonicalStoredDimension(value: unknown): string {
-  const parsed = parseStoredShopDimension(value);
-  return parsed.ok ? parsed.formatted : text(value);
-}
-
 function isNoJamb(line: NativeDoorLine): boolean {
   return line.mode === 'Interior' && (line.config === 'PKT' || line.config === 'B.P.');
 }
@@ -169,24 +163,6 @@ function jambDisplay(line: NativeDoorLine): string {
   const width = text(line.jambWidth);
   if (!width) return type === 'Primed' ? '' : type;
   return type === 'Primed' ? width : `${width} ${type}`;
-}
-
-function sizeDisplay(line: NativeDoorLine): string {
-  if (line.doubleDoorSizing?.kind === 'custom-slabs') {
-    const sizing = line.doubleDoorSizing;
-    return `Active: ${canonicalStoredDimension(sizing.activeWidth)} x ${canonicalStoredDimension(sizing.height)}; Inactive: ${canonicalStoredDimension(sizing.inactiveWidth)} x ${canonicalStoredDimension(sizing.height)}`;
-  }
-  if (line.doubleDoorSizing?.kind === 'patio') {
-    const preset = PATIO_DOOR_PRESETS[line.doubleDoorSizing.preset];
-    if (preset) return `2 @ ${canonicalStoredDimension(preset.activeWidth)} x ${canonicalStoredDimension(preset.height)}`;
-  }
-  if (hasCustomSlabAxis(line)) {
-    const width = customSlabAxis(line, 'width') ? canonicalStoredDimension(line.customSlabWidth) || 'Not entered' : text(line.width);
-    const height = customSlabAxis(line, 'height') ? canonicalStoredDimension(line.customSlabHeight) || 'Not entered' : text(line.height);
-    return width + ' × ' + height;
-  }
-  if (text(line.height) === `6'8"`) return text(line.width);
-  return `${text(line.width)} × ${text(line.height)}`;
 }
 
 function issues(issuesToMap: readonly GlassIssue[]): string[] {
@@ -359,7 +335,7 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
     primaryRow: {
       lineId: outputLine.lineId, lineIndex: outputLine.lineIndex, status,
       cells: {
-        quantity: String(outputLine.qty), configuration: text(outputLine.config), size: sizeDisplay(outputLine),
+        quantity: String(outputLine.qty), configuration: text(outputLine.config), size: doorSizeDisplay(outputLine),
         thickness: text(outputLine.doorThickness) || (outputLine.mode === 'Interior' ? '1-3/8' : '1-3/4'),
         doorType: text(outputLine.doorType), drill: prepDisplay(outputLine.prep), hinge: workOrderHingeDisplay({ ...outputLine, hingeColor }),
         swing: isNoJamb(outputLine) ? '' : text(outputLine.hand), jamb: jambDisplay(outputLine), sill: isNoJamb(outputLine) || (outputLine.mode === 'Interior' && sillChoice(outputLine) === 'NONE') ? '' : sillChoice(outputLine),

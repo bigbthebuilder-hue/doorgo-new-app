@@ -48,6 +48,26 @@ async function main(){
   assert.ok(fercoPayload);
   const writtenLine=((fercoPayload as unknown as Record<string,unknown>).p_lines as Record<string,unknown>[])[0];
   assert.equal((writtenLine.glass_calc as Record<string,unknown>).doubleDoorAstragal,'wood-ferco-astra-lock','hosted writes persist the stable enum in the existing glass_calc JSON unit payload');
+  const exactCode = ' 00-Ab_9 ';
+  const doorId = 'North 02';
+  const labelRepository = createHostedJobIntakeRepository({ client: {
+    rpc: async (name, args) => {
+      assert.equal(name, 'dg_update_native_job');
+      const written = (args.p_lines as Record<string, unknown>[])[0];
+      assert.deepEqual(written.glass_calc, { labelDoorId: doorId, labelProductCode: exactCode });
+      return { data: { job: { ...job, lifecycle_stage: 'Confirmed Job' }, lines: [{ ...line, glass_calc: written.glass_calc }] }, error: null };
+    },
+  } });
+  const updatedLabelJob = await labelRepository.update({
+    internalJobId: job.internal_job_id, expectedRevision: 1, actorUserId: job.updated_by_user_id,
+    input: { lifecycleStage: 'Confirmed Job' },
+    lines: [{ ...created.lines[0], doorId, productCode: exactCode }],
+  });
+  assert.equal(updatedLabelJob.lines[0].doorId, doorId);
+  assert.equal(created.lines[0].doorId, null);
+  assert.equal(updatedLabelJob.lines[0].productCode, exactCode);
+  assert.equal(updatedLabelJob.lines[0].glassCalc, null);
+  assert.equal(created.lines[0].productCode, null);
   const page=await repository.listPage({limit:2,cursor:{updatedAt:'2026-07-29T11:00:00.000Z',internalJobId:'55555555-5555-4555-8555-555555555555'}});
   assert.equal(page.items[0].activeLineCount,1);assert.equal(page.page.hasMore,true);assert.equal(page.page.nextCursor?.internalJobId,job.internal_job_id);
   assert.deepEqual(calls[4].args,{p_include_archived:false,p_limit:2,p_cursor_updated_at:'2026-07-29T11:00:00.000Z',p_cursor_internal_job_id:'55555555-5555-4555-8555-555555555555'});

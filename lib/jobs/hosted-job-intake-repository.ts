@@ -29,7 +29,12 @@ function fromRow(row:unknown,fields:readonly string[]):Record<string,unknown>{
 
 function fromLineRow(row: unknown): Record<string, unknown> {
   const mapped = fromRow(row, serverLineFields);
-  const calc = mapped.glassCalc;
+  const storedCalc = mapped.glassCalc as NativeDoorLine['glassCalc'];
+  const { labelDoorId, labelProductCode, ...geometry } = storedCalc ?? {};
+  const calc = labelDoorId === undefined && labelProductCode === undefined ? storedCalc : Object.keys(geometry).length ? geometry : null;
+  mapped.glassCalc = calc;
+  mapped.doorId = typeof labelDoorId === 'string' ? labelDoorId : null;
+  mapped.productCode = typeof labelProductCode === 'string' ? labelProductCode : null;
   return { ...mapped, construction: normalizeConstruction(calc && typeof calc === 'object' ? (calc as Record<string, unknown>).construction : undefined), doubleDoorSizing: calc && typeof calc === 'object' && !Array.isArray(calc) ? ((calc as Record<string, unknown>).doubleDoorSizing as DoubleDoorSizing | undefined) ?? null : null, doubleDoorAstragal: calc && typeof calc === 'object' && !Array.isArray(calc) ? (calc as Record<string, unknown>).doubleDoorAstragal : null };
 }
 function createHeaderPayload(input:JobHeaderInput,defaultSalesperson:string|null):Record<string,unknown>{
@@ -43,7 +48,17 @@ function linePayload(input:DoorLineInput,index:number):Record<string,unknown>{
   if(lineId&&!isUuid(lineId))throw new JobIntakeFailure('validation_failed',`Door line ${index+1}: A new door line must have a valid UUID identity.`,{[`lines.${index}.lineId`]:'A new door line must have a valid UUID identity.'});
   const normalized=normalizeDoorLineInput(input);
   if(normalized.ok===false)throw new JobIntakeFailure('validation_failed',`Door line ${index+1}: ${normalized.message}`,Object.fromEntries(Object.entries(normalized.fieldErrors).map(([key,value])=>[`lines.${index}.${key}`,value])));
-  return mapFields({...normalized.value, glassCalc: normalizeConstruction(normalized.value.construction) !== 'standard' ? { ...(normalized.value.glassCalc ?? {}), construction: normalized.value.construction } : normalized.value.glassCalc, lineId:lineId||undefined,lineIndex:index+1,lineStatus:input.lineStatus==='Archived'||input.lineStatus==='Merged'?input.lineStatus:'Active'},lineFields,true);
+  const geometry = normalizeConstruction(normalized.value.construction) !== 'standard'
+    ? { ...(normalized.value.glassCalc ?? {}), construction: normalized.value.construction }
+    : normalized.value.glassCalc;
+  // Line metadata travels through the existing JSON field, as construction does.
+  const { doorId, productCode } = normalized.value;
+  const glassCalc = doorId || productCode ? {
+    ...geometry,
+    ...(doorId ? { labelDoorId: doorId } : {}),
+    ...(productCode ? { labelProductCode: productCode } : {}),
+  } : geometry;
+  return mapFields({...normalized.value, glassCalc, lineId:lineId||undefined,lineIndex:index+1,lineStatus:input.lineStatus==='Archived'||input.lineStatus==='Merged'?input.lineStatus:'Active'},lineFields,true);
 }
 function unavailable(){return new JobIntakeFailure('unavailable','Hosted Job Intake is temporarily unavailable.');}
 function failure(error:RpcError):JobIntakeFailure{

@@ -18,15 +18,25 @@ Hosted acceptance was not performed. Computer Use stopped because it could not v
 
 ## Decision
 
-NO-GO for controlled production release pending mobile acceptance resolution and authentic two-user acceptance. No new production-code change or redesign was made during this final pass. The local commit preserves the candidate and test evidence for review.
+Current decision: NO-GO for controlled production release pending authentic two-user acceptance. The mobile blocker from c579e271099dbe9d59fae0273452e887eca8714b is resolved by the focused follow-up described below.
 
 ## Release sequence — separately authorized future work
 
-1. Resolve the mobile acceptance finding in a separately scoped task; keep the failure visible until resolved.
+1. Mobile acceptance is now passed at 320px, 390px and 1600px. Preserve those browser checks.
 2. Establish two authorized signed-in sessions against this candidate in an approved environment, with a specifically approved internal item. Verify remote edits/moves/completion, protected edits and dragging, return-to-tab/reconnect recovery, Calendar View/Use, and cross-location Staff Away visibility/edit restrictions. Fixture sessions do not satisfy this gate. Do not infer permission to write production from this note.
 3. Once acceptance passes and release is separately approved, recheck GitHub main ancestry, the exact candidate scope, publishing access and current production/rollback deployments. Stop on drift or missing rollback evidence.
 4. Publish only the approved commit(s), without force push, using the existing production deployment route. Apply no SQL for this candidate.
 5. Confirm production READY and exact SHA, perform approved read-only smoke/integrity checks and retain release evidence.
+
+## Focused mobile correction after c579e27 — 2026-11-11
+
+The correction is CSS-only in production: below 42rem viewport width, the Needs Attention toolbar fills the available width, keeps its controls on the first row and the preview/hidden-layer message on a second row, and bounds the dropdown to the toolbar. Desktop keeps the existing 40rem presentation. The same narrow-screen rule removes the calendar overlay's desktop sidebar offset so Add/Close controls remain inside the viewport. No controls are hidden, no page overflow is masked, and the inner Calendar retains its established horizontal scrolling.
+
+Verification: 12 stability/responsive browser checks and all 36 existing Calendar browser checks passed (48 total). Empty and populated toolbar states, Expand/Collapse, Add/Close, compact actions, no horizontal page overflow, unchanged desktop toolbar width and preserved scroll were checked at 320px, 390px and 1600px. Initial new control tests exposed the existing off-screen Add Close button; correcting the mobile-only overlay offset resolved those failures. These remain fictional-data component tests, not hosted acceptance.
+
+TypeScript and full lint passed; lint reports two existing warnings: an unused review-evidence variable in legacy transfer validation and an anonymous default export in the previously committed stability test configuration. The final production build passed, including its TypeScript check and route generation. No dependencies, queries, polling, permissions, location rules, calculations or customer records changed in this follow-up. Architecture chapters 05 and 06 record the responsive rule and tests.
+
+Hosted status: the authenticated Windows browser route is now available and one signed-in session at the production Calendar was observed read-only. This supersedes the earlier browser-URL inspection failure above. However that session serves the released Calendar, not this unpublished candidate. The user confirmed that there is no test URL running the candidate. There is no identified second candidate session or specifically approved internal test item. No candidate hosted two-user, permission or location acceptance was performed; no production interaction was used as a substitute. This task does not authorize deployment, so hosted acceptance is blocked pending a separately approved way to run the candidate.
 
 ## Rollback
 

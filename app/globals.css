@@ -902,3 +902,18 @@ body {
 .calendar-card-actions:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
 .calendar-refresh-status { font-size: .65rem; color: var(--app-color-muted); white-space: nowrap; }
 .calendar-refresh-status[data-state="offline"], .calendar-refresh-status[data-state="retrying"] { color: rgb(154 52 18); }
+
+/* Keep every Needs Attention control inside narrow Calendar toolbars. */
+@media (max-width: 42rem) {
+  .calendar-needs-attention-toolbar,
+  .calendar-needs-attention-toolbar[data-empty="true"] {
+    width: 100%; min-width: 0; max-width: 100%; flex: 1 1 100%;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .calendar-needs-attention-toolbar > .calendar-production-card,
+  .calendar-needs-attention-toolbar > .calendar-needs-attention-hidden {
+    grid-column: 1 / -1; grid-row: 2;
+  }
+  .calendar-needs-attention-dropdown { width: 100%; max-width: 100%; }
+  .calendar-floating-backdrop { left: 0; }
+}

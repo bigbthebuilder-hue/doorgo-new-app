@@ -100,7 +100,7 @@ test('a timed-out refresh keeps current cards and recovers without stacking requ
   await expect(component.locator('.calendar-refresh-status')).toHaveAttribute('data-state','current');
 });
 
-for(const viewport of [{name:'desktop',width:1600,height:1000},{name:'mobile',width:390,height:844}])test('layout acceptance: '+viewport.name,async({mount,page},testInfo)=>{
+for(const viewport of [{name:'desktop',width:1600,height:1000},{name:'mobile',width:390,height:844},{name:'small-mobile',width:320,height:740}])test('layout acceptance: '+viewport.name,async({mount,page},testInfo)=>{
   await page.setViewportSize(viewport);
   await page.route('**/api/calendar/window?*',route=>route.fulfill({status:503,body:'{}'}));
   const component=await mount(<CalendarStabilityHarness/>);
@@ -127,4 +127,28 @@ for(const viewport of [{name:'desktop',width:1600,height:1000},{name:'mobile',wi
   const after=await stream.evaluate(node=>({top:node.scrollTop,left:node.scrollLeft}));
   expect(after.top).toBeCloseTo(before.top,0);expect(after.left).toBeCloseTo(before.left,0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
+});
+
+for(const width of [320,390,1600])test('Needs Attention controls remain usable at '+width+'px',async({mount,page},testInfo)=>{
+  await page.setViewportSize({width,height:900});
+  await page.route('**/api/calendar/window?*',route=>route.fulfill({status:503,body:'{}'}));
+  const component=await mount(<CalendarStabilityHarness needsAttention/>);
+  const toolbar=component.locator('.calendar-needs-attention-toolbar');
+  for(const name of ['Needs Attention · 1','+ Add','Expand']){
+    const button=toolbar.getByRole('button',{name,exact:true});await expect(button).toBeEnabled();
+    const box=(await button.boundingBox())!;expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);
+  }
+  await expect(toolbar.locator('.calendar-production-card-text')).toHaveText(/Unscheduled internal fixture/);
+  await toolbar.getByRole('button',{name:'Expand',exact:true}).click();
+  const dropdown=component.getByRole('region',{name:'Needs Attention items'});
+  await expect(dropdown).toBeVisible();
+  await expect(dropdown).toContainText('Unscheduled internal fixture');
+  const box=(await dropdown.boundingBox())!;expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);
+  await page.screenshot({path:testInfo.outputPath('needs-attention-'+width+'.png')});
+  await toolbar.getByRole('button',{name:'Collapse',exact:true}).click();await expect(dropdown).toHaveCount(0);
+  await toolbar.getByRole('button',{name:'+ Add',exact:true}).click();
+  await expect(component.getByRole('dialog',{name:'Add to Needs Attention'})).toBeVisible();
+  await component.getByRole('button',{name:'Close Add picker'}).click();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  if(width===1600)expect((await toolbar.boundingBox())!.width).toBe(640);
 });

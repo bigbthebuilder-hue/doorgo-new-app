@@ -233,3 +233,7 @@ Shared updates use an authenticated, uncached GET window (visible weeks, bounded
 The initial target is anchored without smooth scrolling, native browser scroll anchoring is disabled in favour of explicit prepend/visible-week preservation, and changing server board props no longer remounts the session. Weekend exception visibility comes from replacement server weeks.
 
 Verification: `npx playwright test -c playwright-calendar-stability.config.ts` uses fictional boards and intercepted GET responses, including two independent component sessions. `lib/calendar/refresh-window.test.ts` covers remote moves and Needs Attention. Actual hosted simultaneous-user and connection acceptance remains separate; no customer records are used.
+
+### Calendar mobile follow-up — after c579e27
+
+The stability browser suite now includes empty/populated Needs Attention toolbar checks at 320px, 390px and 1600px, no document-level horizontal overflow, bounded actions/dropdown, Expand/Collapse, Add/Close, preserved scroll and unchanged desktop width. Run `npx playwright test -c playwright-calendar-stability.config.ts --workers=1` (12 tests), and the existing `playwright-calendar-permissions.config.ts` suite (36 tests). All 48 passed for the focused responsive correction. Browser fixtures are not authenticated hosted acceptance; the user confirmed no candidate test URL exists. See [release notes](../calendar-stability-release.md) for the remaining gate.

@@ -275,7 +275,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     setNewDoorSession(editingLineId === null ? { ...nextSession, mode: nextMode } : nextSession);
     setEditor((current) => {
       const defaults = editingLineId === null ? newDoorFromSession(nextSession, nextMode) : defaultDoorLine(nextMode);
-      return { ...defaults, lineId: current.lineId, lineIndex: current.lineIndex, lineStatus: current.lineStatus, qty: current.qty, notes: current.notes, doorId: current.doorId, productCode: current.productCode, ...(editingLineId !== null ? { doorType: current.doorType, hingeType: hingeTypeAfterModeChange(nextMode, 'D', current.hingeType) } : {}) };
+      return { ...defaults, lineId: current.lineId, lineIndex: current.lineIndex, lineStatus: current.lineStatus, qty: current.qty, notes: current.notes, doorId: current.doorId, productCode: current.productCode, individualDoorIds: current.individualDoorIds, ...(editingLineId !== null ? { doorType: current.doorType, hingeType: hingeTypeAfterModeChange(nextMode, 'D', current.hingeType) } : {}) };
     }); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
@@ -366,6 +366,20 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     const change = { [name]: value || null };
     onChange(lines.map((line) => line.lineId === lineId ? { ...line, ...change } : line));
     if (editingLineId !== null && editingLineId === lineId) {
+      setEditor((current) => ({ ...current, ...change }));
+      setEditorBaseline((current) => JSON.stringify({ ...JSON.parse(current), ...change }));
+    }
+  }
+
+  function changeIndividualDoorId(lineId: unknown, index: number, value: string) {
+    const line = lines.find((item) => item.lineId === lineId);
+    if (!line) return;
+    const ids = [...(line.individualDoorIds ?? [])];
+    while (ids.length <= index) ids.push('');
+    ids[index] = value;
+    const change = { individualDoorIds: ids };
+    onChange(lines.map((item) => item.lineId === lineId ? { ...item, ...change } : item));
+    if (editingLineId === lineId) {
       setEditor((current) => ({ ...current, ...change }));
       setEditorBaseline((current) => JSON.stringify({ ...JSON.parse(current), ...change }));
     }
@@ -521,6 +535,12 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
           <label className="mt-1 grid gap-1 text-xs font-semibold" key={name}>{label}<input className={control}
             onChange={(event) => changeDoorLabelField(line.lineId, name, event.target.value)} value={line[name] ?? ''}/></label>
         ) : line[name] ? <p className="mt-1 text-xs" key={name}>{label}: {line[name]}</p> : null)}
+        <details className="mt-1 text-sm"><summary>Individual Door IDs</summary>
+          <p>Blank uses the shared Door ID. IDs beyond the current quantity are retained for later reuse.</p>
+          {Array.from({ length: Math.min(500, Math.max(Number(line.qty) || 1, line.individualDoorIds?.length ?? 0)) }, (_, copy) => <label className="flex gap-2" key={copy}>
+            Copy {copy + 1}{copy >= Number(line.qty) ? ' (retained)' : ''}<input aria-label={`Copy ${copy + 1} Door ID`} className="min-w-0 rounded border px-1" disabled={!canEdit} onChange={(event) => changeIndividualDoorId(line.lineId, copy, event.target.value)} placeholder={line.doorId || undefined} value={line.individualDoorIds?.[copy] ?? ''}/>
+          </label>)}
+        </details>
         {savedLineSelections(line) ? <p className="mt-0.5 text-xs">{savedLineSelections(line)}</p> : null}{attention.length && !hasVisibleStatus(presentedLine.glassCalcStatus) ? <p className="mt-1 text-xs font-bold text-amber-800 dark:text-amber-200">⚠ Needs Attention</p> : null}{isGlassConfiguration(line.config) ? <div className="job-line-glass-summary"><GlassUnitDiagram compact line={presentedLine}/>{presentedLine.glassWorkorderDetail ? <details className="text-xs"><summary className="cursor-pointer font-semibold">Line details</summary><pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-xs">{savedGlassDetails(presentedLine)}</pre>{presentedLine.glassOverride ? <p className="mt-1"><strong>Geometry Exception Approved:</strong> {presentedLine.glassOverride.reason}</p> : null}</details> : null}</div> : null}{!isGlassConfiguration(line.config) && (isFourSideJamb(line) || usesCustomRo(line) || usesAutomaticCustomSlabRoWidth(line) || line.doubleDoorSizing?.kind === 'custom-slabs') ? <details className="text-xs"><summary className="cursor-pointer font-semibold">Line details</summary><CustomRoSummary line={line}/></details> : null}{canEdit ? <div className="job-line-actions mt-1.5 flex flex-wrap gap-1"><button className={button} onClick={() => adjust(line.lineId, 1)} type="button">+ Qty</button><button className={button} onClick={() => adjust(line.lineId, -1)} type="button">− Qty</button><button className={button} onClick={() => edit(line)} type="button">Edit</button><button className={button} onClick={() => duplicate(line)} type="button">Duplicate</button><button className={button} disabled={index === 0} onClick={() => move(line.lineId, -1)} type="button">Move Up</button><button className={button} disabled={index === active.length - 1} onClick={() => move(line.lineId, 1)} type="button">Move Down</button><button className={`${button} border-rose-400 text-rose-800 dark:text-rose-200`} onClick={() => archive(line.lineId)} type="button">Archive / Remove</button></div> : null}</article>; }) : <p className="rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">No active door lines.</p>}</div>
       <details className="mt-5"><summary className="cursor-pointer font-semibold">Archived Lines ({archived.length})</summary><div className="mt-3 grid gap-3">{archived.length ? archived.map((line, index) => <article className="rounded-xl border border-slate-200 p-3 opacity-80 dark:border-slate-700" key={importedLineRenderKey(line, index)}><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-semibold">{lineTitle(line)}</h3><StatusBadge status={line.glassCalcStatus}/></div><p className="mt-1 text-sm">Qty {String(line.qty)} · Archived</p>{isGlassConfiguration(line.config) ? <GlassUnitDiagram compact line={line}/> : null}{canEdit ? <button className={`${button} mt-3`} onClick={() => restore(line.lineId)} type="button">Restore Line</button> : null}</article>) : <p className="text-sm text-slate-500">No archived lines.</p>}</div></details>
     </aside> : null}

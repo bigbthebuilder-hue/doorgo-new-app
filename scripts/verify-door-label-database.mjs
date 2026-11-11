@@ -85,10 +85,17 @@ try {
     CREATE TRIGGER label_test_parent_guard BEFORE UPDATE ON public.dg_native_jobs FOR EACH ROW EXECUTE FUNCTION public.label_test_no_parent_write();
   `);
   sql(read('20261111020255_save_native_door_labels.sql'));
+  sql(read('20261111142016_persist_individual_door_ids.sql'));
   const beforeJob = sql(`SELECT row_to_json(j) FROM public.dg_native_jobs j;`);
   const beforeSpecs = sql(`SELECT to_jsonb(l)-'glass_calc' FROM public.dg_native_job_lines l;`);
   for (const stage of ['Draft', 'Confirmed Job']) {
     sql(`ALTER TABLE public.dg_native_jobs DISABLE TRIGGER label_test_parent_guard; UPDATE public.dg_native_jobs SET lifecycle_stage='${stage}'; ALTER TABLE public.dg_native_jobs ENABLE TRIGGER label_test_parent_guard;`);
+    save({ individualDoorIds: { expected: [], value: ['A', '', 'C'] } });
+    assert.equal(save({ individualDoorIds: { expected: [], value: ['A', '', 'C'] } }), 't');
+    reject(auth + change({ individualDoorIds: { expected: [], value: ['X'] } }), /stale_labels/);
+    reject(auth + change({ individualDoorIds: { expected: ['A', '', 'C'], value: [3] } }), /validation_failed/);
+    save({ individualDoorIds: { expected: ['A', '', 'C'], value: [] } });
+    sql(`UPDATE public.dg_native_job_lines SET glass_calc=glass_calc-'labelIndividualDoorIds';`);
     const before = sql(`SELECT row_to_json(j) FROM public.dg_native_jobs j;`);
     assert.equal(save({ doorId: { expected: null, value: 'Room' }, productCode: { expected: null, value: ' 001_A ' } }), 't');
     assert.equal(save({ doorId: { expected: null, value: 'Room' } }), 't', 'lost-response retry');
@@ -120,12 +127,15 @@ try {
   assert.equal(sql(`SELECT glass_calc ? 'labelDoorId' FROM public.dg_native_job_lines;`), 'f', 'multi-field failure is atomic');
 
   // Independent connections genuinely overlap while the first holds the row locks.
+  save({ individualDoorIds: { expected: [], value: ['one', 'two', 'three'] } });
   const first = concurrent(auth + `SET application_name='label-first'; BEGIN;` + change({ doorId: { expected: null, value: 'A' } }) + `SELECT pg_sleep(3); COMMIT;`);
   await waitForHeldTransaction('label-first');
   const second = concurrent(auth + change({ productCode: { expected: null, value: 'B' } }));
+  const copyEditor = concurrent(auth + change({ individualDoorIds: { expected: ['one', 'two', 'three'], value: ['updated', 'two', 'three'] } }));
   const contender = concurrent(auth + change({ doorId: { expected: null, value: 'C' } }));
   assert.equal((await first).status, 0);
   assert.equal((await second).status, 0);
+  assert.equal((await copyEditor).status, 0);
   const conflict = await contender;
   assert.notEqual(conflict.status, 0);
   assert.match(conflict.errors, /stale_labels/);
@@ -142,7 +152,8 @@ try {
   }
   sql(auth + aggregateSave());
   const calc = JSON.parse(sql(`SELECT glass_calc FROM public.dg_native_job_lines;`));
-  assert.equal(calc.labelDoorId, 'A'); assert.equal(calc.labelProductCode, 'B'); assert.equal(calc.unknown, 'keep');
+  assert.equal(calc.labelDoorId, 'A'); assert.equal(calc.labelProductCode, 'B'); assert.equal(calc.unknown, 'keep'); assert.deepEqual(calc.labelIndividualDoorIds, ['updated', 'two', 'three']);
+  save({ individualDoorIds: { expected: ['updated', 'two', 'three'], value: [] } });
   save({ doorId: { expected: 'A', value: null }, productCode: { expected: 'B', value: null } });
   sql(auth + aggregateSave());
   assert.equal(sql(`SELECT glass_calc ?| ARRAY['labelDoorId','labelProductCode'] FROM public.dg_native_job_lines;`), 'f', 'old saves cannot resurrect cleared labels');

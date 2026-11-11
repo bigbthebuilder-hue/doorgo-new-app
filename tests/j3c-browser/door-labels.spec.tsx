@@ -7,7 +7,7 @@ import type { NativeDoorLine, NativeJobAggregate } from '../../lib/jobs/job-inta
 const line = {
   lineId: 'door-1', lineIndex: 1, lineStatus: 'Active', mode: 'Interior', config: 'D',
   width: "3'0\"", height: "6'8\"", hand: 'LH', jambWidth: '4-9/16"',
-  qty: 2, doorId: 'Saved 01', notes: 'Handle with care', productCode: ' 00-Ab_9 ',
+  qty: 2, individualDoorIds: ['', 'North'], doorId: 'Saved 01', notes: 'Handle with care', productCode: ' 00-Ab_9 ',
 } as NativeDoorLine;
 const job = {
   customer: 'Example & Sons <North>', bizTrackSalesOrder: '000123', siteAddress: 'Example Street',
@@ -45,13 +45,11 @@ test('preview defaults to door quantities and prints selected copies and individ
   await print.click();
   await expect(preview.locator('body')).toHaveAttribute('data-printed', 'yes');
   await page.getByRole('checkbox', { name: 'Include' }).last().uncheck();
-  await page.getByText('Optional Door ID overrides', { exact: true }).click();
-  await page.getByRole('textbox', { name: 'Label 2' }).fill('North');
   await expect(preview.locator('article')).toHaveCount(2);
   await expect(preview.locator('article').first()).toContainText('Door ID Saved 01');
   await expect(preview.locator('article').last()).toContainText('Door ID North');
-  await page.getByRole('textbox', { name: 'Label 2' }).clear();
-  await expect(preview.locator('article').last()).toContainText('Door ID Saved 01');
+  await page.getByText('Saved individual Door IDs', { exact: true }).first().click();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Print 2 labels' })).toBeEnabled();
 });
 

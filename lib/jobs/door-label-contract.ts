@@ -74,7 +74,7 @@ export function prepareDoorLabels(job: NativeJobAggregate, selection: LabelSelec
   if (invalid) return { error: 'Line ' + invalid.lineIndex + ' has a product code that cannot fit in Code 128 or contains unsupported characters. Edit the code or deselect that line.' };
   const labels = selected.flatMap((line) => {
     const { quantity, doorIds } = selection[line.lineId];
-    return Array.from({ length: Number(quantity) }, (_, copy) => labelHtml(job, line, doorIds[copy]?.trim() || line.doorId || '', omitNotes));
+    return Array.from({ length: Number(quantity) }, (_, copy) => labelHtml(job, line, doorIds[copy]?.trim() || line.individualDoorIds?.[copy]?.trim() || line.doorId || '', omitNotes));
   });
   return { count, html: '<!doctype html><html lang="en"><meta charset="utf-8"><title>Door Labels</title><style>' +
     '@page{size:4in 6in;margin:0}*{box-sizing:border-box}body{margin:0;background:#ddd;color:#000;font:13pt/1.22 Arial,sans-serif}' +

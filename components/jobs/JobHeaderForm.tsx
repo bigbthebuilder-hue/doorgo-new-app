@@ -254,16 +254,6 @@ export function JobHeaderForm({
         savedJob = { ...savedJob, lines: savedJob.lines.map((line) => mergeSavedDoorLabels(line, request)) };
         savedLabelLines++;
         setJob(savedJob);
-        setLines((current) => current.map((line) => {
-          // Retain edits typed while this request was in flight.
-          if (line.lineId !== request.lineId) return line;
-          const next = { ...line };
-          for (const key of ['doorId', 'productCode'] as const) {
-            const change = request.changes[key];
-            if (change && (line[key] || null) === change.value) next[key] = change.value;
-          }
-          return next;
-        }));
         setBaseline((current) => {
           const parsed = JSON.parse(current);
           parsed.lines = parsed.lines.map((line: DoorLineInput) => mergeSavedDoorLabels(line, request));
@@ -334,11 +324,20 @@ export function JobHeaderForm({
     <button className="app-button app-button-secondary" onClick={leave} type="button">Exit</button>
     {job ? <details className="job-work-order-menu relative" open={openBottomMenu === 'documents'} ref={documentsMenu}><summary className="app-button app-button-secondary cursor-pointer list-none" onClick={(event) => { event.preventDefault(); setOpenBottomMenu((current) => current === 'documents' ? null : 'documents'); }}>Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => {
       setOpenBottomMenu(null);
-      if (dirty || hasUnappliedLineChanges) {
-        setMessage({ kind: 'error', text: 'Save the job before printing door labels.' });
+      if (hasUnappliedLineChanges) {
+        setMessage({ kind: 'error', text: 'Apply or cancel the door editor changes before printing door labels.' });
         return;
       }
-      setLabelJob(job);
+      if (!dirty) { setLabelJob(job); return; }
+      if (!canEdit) { setMessage({ kind: 'error', text: 'You do not have permission to save these changes.' }); return; }
+      startTransition(async () => {
+        try {
+          const saved = await persistAggregate();
+          if (saved) setLabelJob(saved);
+        } catch {
+          setMessage({ kind: 'error', text: 'DoorGo could not save this Job. Please try again.' });
+        }
+      });
     }} type="button">Print Door Labels</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
     {archiveTarget || deleteTarget ? <details className="job-actions-menu relative" open={openBottomMenu === 'job-actions'} ref={jobActionsMenu}><summary className="app-button app-button-secondary cursor-pointer list-none" onClick={(event) => { event.preventDefault(); setOpenBottomMenu((current) => current === 'job-actions' ? null : 'job-actions'); }}>Job Actions ▾</summary><div className="absolute right-0 z-20 grid min-w-52 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Actions</span><JobArchiveControl onArchive={archiveDraftJobAction} onNavigate={(path) => router.push(path)} target={archiveTarget}/><JobDeleteControl onDelete={deleteDraftJobAction} onNavigate={(path) => router.push(path)} target={deleteTarget}/></div></details> : null}
     {canEdit ? <><button aria-busy={pendingSaveIntent==='save'||undefined} className="app-button app-button-primary" disabled={isPending || salesOrderChecking || Boolean(fieldErrors.bizTrackSalesOrder) || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{pendingSaveIntent==='save' ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button aria-busy={pendingSaveIntent==='exit'||undefined} className="app-button app-button-dark" disabled={isPending || salesOrderChecking || Boolean(fieldErrors.bizTrackSalesOrder)} onClick={() => save(true)} type="button">{pendingSaveIntent==='exit'?'Saving…':'Save and Exit'}</button> : null}</> : null}

@@ -151,6 +151,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   if (!width || !(allowedWidths as readonly string[]).includes(width)) errors.width = 'Choose an available slab width for this mode.';
   if (!height || !(DOOR_HEIGHTS as readonly string[]).includes(height)) errors.height = 'Choose an available slab height.';
 
+  if (input.individualDoorIds !== undefined && (!Array.isArray(input.individualDoorIds) || input.individualDoorIds.length > 500 || input.individualDoorIds.some((id) => typeof id !== 'string'))) errors.individualDoorIds = 'Use at most 500 individual Door IDs.';
   const quantity = Number(input.qty);
   if (!Number.isInteger(quantity) || quantity <= 0) errors.qty = 'Quantity must be a positive whole number.';
 
@@ -228,7 +229,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       // Presentation uses sillChoice; only construction can select special geometry.
       sill: noJamb ? null : normalizeConstruction(input.construction) === 'standard' ? text(input.sill) ?? 'STD' : sillChoice(input),
       weatherstrip: mode === 'Interior' ? null : text(input.weatherstrip),
-      hingeType: hingeType.ok ? hingeType.value : null, notes: text(input.notes), doorId: text(input.doorId), productCode: typeof input.productCode === 'string' ? input.productCode || null : null, qty: quantity,
+      hingeType: hingeType.ok ? hingeType.value : null, notes: text(input.notes), individualDoorIds: Array.isArray(input.individualDoorIds) ? [...input.individualDoorIds] : [], doorId: text(input.doorId), productCode: typeof input.productCode === 'string' ? input.productCode || null : null, qty: quantity,
       roWidth: noJamb || patio ? null : text(input.roWidth), roHeight: config === 'PKT' ? null : roHeight,
       material, doorThickness: text(input.doorThickness),
       doubleDoorSizing: input.doubleDoorSizing ? structuredClone(input.doubleDoorSizing) : null,
@@ -329,6 +330,7 @@ export function doorLineEquivalenceKey(line: DoorLineInput): string {
   if (parsedConfig.ok) comparable.config = parsedConfig.canonicalConfig;
   return JSON.stringify({
     ...comparable,
+    individualIdentity: line.individualDoorIds?.some(Boolean) ? line.lineId : null,
     doorId: text(line.doorId) ?? '',
     productCode: line.productCode ?? '',
     construction: normalizeConstruction(line.construction),

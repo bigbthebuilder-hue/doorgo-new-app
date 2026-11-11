@@ -27,6 +27,7 @@ let saved = {
     created_at: timestamp, updated_at: timestamp, created_by_user_id: userId, updated_by_user_id: userId,
   }],
 };
+let rejectLabelSave = false;
 let writes = 0;
 let aggregateWrites = 0;
 let labelWrites = 0;
@@ -52,15 +53,16 @@ const api = createServer(async (request, response) => {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const update = JSON.parse(Buffer.concat(chunks).toString());
+    if (rejectLabelSave) return reply({ message: 'Synthetic save failure' }, 500);
     const line = saved.lines.find((line) => line.line_id === update.p_line_id);
     if (update.p_internal_job_id !== jobId || !line) return reply({ message: 'native_job.not_found' }, 404);
     for (const [field, change] of Object.entries(update.p_changes)) {
-      const key = field === 'doorId' ? 'labelDoorId' : 'labelProductCode';
-      const current = line.glass_calc?.[key] ?? null;
-      if (current !== change.expected && current !== change.value) return reply({ message: 'native_job.stale_labels' }, 409);
+      const key = field === 'individualDoorIds' ? 'labelIndividualDoorIds' : field === 'doorId' ? 'labelDoorId' : 'labelProductCode';
+      const current = line.glass_calc?.[key] ?? (field === 'individualDoorIds' ? [] : null);
+      if (JSON.stringify(current) !== JSON.stringify(change.expected) && JSON.stringify(current) !== JSON.stringify(change.value)) return reply({ message: 'native_job.stale_labels' }, 409);
     }
     for (const [field, change] of Object.entries(update.p_changes)) {
-      const key = field === 'doorId' ? 'labelDoorId' : 'labelProductCode';
+      const key = field === 'individualDoorIds' ? 'labelIndividualDoorIds' : field === 'doorId' ? 'labelDoorId' : 'labelProductCode';
       line.glass_calc ??= {};
       if (change.value === null) delete line.glass_calc[key];
       else line.glass_calc[key] = change.value;
@@ -79,7 +81,7 @@ const api = createServer(async (request, response) => {
         const previous = saved.lines.find((item) => item.line_id === line.line_id);
         if (!previous) return line;
         const geometry = { ...line.glass_calc };
-        for (const key of ['labelDoorId', 'labelProductCode']) {
+        for (const key of ['labelDoorId', 'labelProductCode', 'labelIndividualDoorIds']) {
           delete geometry[key];
           if (previous.glass_calc?.[key] !== undefined) geometry[key] = previous.glass_calc[key];
         }
@@ -171,11 +173,14 @@ try {
   assert.equal(await listCode().inputValue(), draftCode);
   await intakeDoorId().fill('Draft 01');
   assert.equal(await listDoorId().inputValue(), 'Draft 01');
+  await page.locator('#job-lines-pane').getByText('Individual Door IDs', { exact: true }).first().click();
+  await page.getByRole('textbox', { name: 'Copy 2 Door ID', exact: true }).fill('Draft copy 2');
   const draftHeader = structuredClone(saved.job);
   await save(1, draftCode, 'Draft 01');
   assert.deepEqual(saved.job, draftHeader);
   assert.equal(aggregateWrites, 0);
   assert.equal(saved.job.lifecycle_stage, 'Draft');
+  assert.deepEqual(saved.lines[0].glass_calc.labelIndividualDoorIds, ['', 'Draft copy 2']);
 
   await lifecycle().selectOption('Confirmed Job');
   await save(2, draftCode, 'Draft 01');
@@ -194,17 +199,24 @@ try {
   assert.equal(await intakeDoorId().inputValue(), 'Confirmed 02');
   await page.getByRole('button', { name: 'Cancel Edit' }).click();
 
+  // Print action saves pending per-copy IDs before opening the read-only preview.
+  await page.locator('#job-lines-pane').getByText('Individual Door IDs', { exact: true }).first().click();
+  await page.getByRole('textbox', { name: 'Copy 2 Door ID', exact: true }).fill('Saved copy 2');
+  const beforeAutoSave = writes;
+  let autoPreview = await openLabels();
+  await autoPreview.getByText('Door ID Saved copy 2', { exact: true }).waitFor();
+  assert.equal(writes, beforeAutoSave + 1);
+  assert.equal(saved.job.revision, 2);
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await reopen();
   const beforePrint = structuredClone(saved);
   const writesBeforePrint = writes;
   const preview = await openLabels();
   assert.equal(await preview.locator('footer div').first().textContent(), confirmedCode);
   assert.equal(await preview.locator('h1').first().textContent(), 'SO# 001234');
   assert.equal(await preview.locator('h2').first().textContent(), 'Synthetic Label Customer');
-  assert.equal(await preview.getByText('Door ID Confirmed 02', { exact: true }).count(), 2);
-  await page.getByText('Optional Door ID overrides', { exact: true }).click();
-  await page.getByRole('textbox', { name: 'Label 2', exact: true }).fill('Batch 99');
-  await preview.getByText('Batch 99', { exact: false }).waitFor();
   assert.equal(await preview.getByText('Door ID Confirmed 02', { exact: true }).count(), 1);
+  await preview.getByText('Door ID Saved copy 2', { exact: true }).waitFor();
   await preview.locator('body').evaluate(() => { window.print = () => { document.body.dataset.printCount = String(Number(document.body.dataset.printCount ?? 0) + 1); }; });
   await page.getByRole('button', { name: 'Print 2 labels', exact: true }).click();
   await preview.locator('body[data-print-count="1"]').waitFor();
@@ -215,21 +227,47 @@ try {
   await reopen();
   const reopenedPreview = await openLabels();
   assert.equal(await reopenedPreview.locator('footer div').first().textContent(), confirmedCode);
-  assert.equal(await reopenedPreview.getByText('Door ID Confirmed 02', { exact: true }).count(), 2);
-  await page.getByText('Optional Door ID overrides', { exact: true }).click();
-  assert.equal(await page.getByRole('textbox', { name: 'Label 2', exact: true }).inputValue(), '');
+  assert.equal(await reopenedPreview.getByText('Door ID Confirmed 02', { exact: true }).count(), 1);
+  await reopenedPreview.getByText('Door ID Saved copy 2', { exact: true }).waitFor();
   assert.equal(writes, writesBeforePrint);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await listDoorId().clear();
   await save(2, confirmedCode, '');
   assert.equal(aggregateWrites, 1);
-  assert.equal(labelWrites, 3);
+  assert.equal(labelWrites, 4);
   // A different session updates metadata while this editor still holds old data.
   saved.lines[0].glass_calc.labelProductCode = 'REMOTE-001';
+  saved.lines[0].glass_calc.labelIndividualDoorIds = ['Remote copy 1', 'Saved copy 2'];
   await page.locator('#job-lines-pane').getByRole('button', { name: '+ Qty', exact: true }).first().click();
-  await save(3, 'REMOTE-001', '');
-  assert.equal(labelWrites, 3, 'normal specification save must not send stale label edits');
-  assert.equal(saved.lines[0].qty, 3);
+  const savedQuantityPreview = await openLabels();
+  await savedQuantityPreview.locator('article').nth(2).waitFor();
+  assert.equal(saved.job.revision, 3);
+  assert.deepEqual(saved.lines[0].glass_calc.labelIndividualDoorIds, ['Remote copy 1', 'Saved copy 2']);
+  assert.equal(labelWrites, 4, 'normal specification save must not send stale label edits');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await reopen();
+  // Quantity reduction never truncates identifiers; increasing restores positions.
+  await page.locator('#job-lines-pane').getByRole('button', { name: '− Qty', exact: true }).first().click();
+  await page.locator('#job-lines-pane').getByRole('button', { name: '− Qty', exact: true }).first().click();
+  await save(4, 'REMOTE-001', '');
+  assert.equal(saved.lines[0].qty, 1);
+  assert.deepEqual(saved.lines[0].glass_calc.labelIndividualDoorIds, ['Remote copy 1', 'Saved copy 2']);
+  await page.locator('#job-lines-pane').getByRole('button', { name: '+ Qty', exact: true }).first().click();
+  await save(5, 'REMOTE-001', '');
+  // Failed label save blocks preview, preserves local inputs and can be retried.
+  await page.locator('#job-lines-pane').getByText('Individual Door IDs', { exact: true }).first().click();
+  await page.getByRole('textbox', { name: 'Copy 2 Door ID', exact: true }).fill('Retry ID');
+  rejectLabelSave = true;
+  await page.getByText('Documents ▾', { exact: true }).click();
+  await page.getByRole('button', { name: 'Print Door Labels', exact: true }).click();
+  await page.getByText('Hosted Job Intake is temporarily unavailable.', { exact: true }).first().waitFor();
+  assert.equal(await page.getByRole('dialog', { name: 'Door Labels' }).count(), 0);
+  assert.equal(await page.getByRole('textbox', { name: 'Copy 2 Door ID', exact: true }).inputValue(), 'Retry ID');
+  rejectLabelSave = false;
+  await openLabels();
+  assert.equal(saved.job.revision, 5);
+  assert.deepEqual(saved.lines[0].glass_calc.labelIndividualDoorIds, ['Remote copy 1', 'Retry ID']);
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
 
   // Unsaved lines carry their initial labels through the first aggregate insert.
   await page.getByRole('button', { name: 'Interior', exact: true }).click();
@@ -238,13 +276,13 @@ try {
   await intakeDoorId().fill('Unsaved room');
   await page.getByRole('button', { name: 'Add Door', exact: true }).click();
   await page.locator('#job-lines-pane .job-line-card').nth(1).waitFor();
-  await save(4, 'REMOTE-001', '');
+  await save(6, 'REMOTE-001', '');
   assert.equal(saved.lines[1].glass_calc.labelProductCode, 'NEW_002');
   assert.equal(saved.lines[1].glass_calc.labelDoorId, 'Unsaved room');
-  assert.equal(labelWrites, 3, 'unsaved new lines must not invoke the existing-line operation');
-  assert.equal(aggregateWrites, 3);
+  assert.equal(labelWrites, 5, 'unsaved new lines must not invoke the existing-line operation');
+  assert.equal(aggregateWrites, 5);
   assert.deepEqual(unexpected, []);
-  console.log('Door label save/reopen passed: Draft and Confirmed Door ID and Product Code round trips, unchanged specs, and read-only printing and reprinting with batch-only overrides.');
+  console.log('Door label save/reopen passed: Draft and Confirmed Door ID and Product Code round trips, unchanged specs, and read-only printing and reprinting with persistent individual IDs.');
 } catch (error) {
   console.error(appOutput);
   throw error;

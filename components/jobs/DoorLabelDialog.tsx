@@ -7,7 +7,7 @@ export function DoorLabelDialog({ job, onClose }: { job: NativeJobAggregate; onC
   const dialog = useRef<HTMLDialogElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const [selection, setSelection] = useState<LabelSelection>(() => Object.fromEntries(
-    lines.map((line) => [line.lineId, { selected: true, quantity: String(line.qty), doorIds: [] }]),
+    lines.map((line) => [line.lineId, { selected: true, quantity: String(line.qty), doorIds: line.individualDoorIds ?? [] }]),
   ));
   const [omitNotes, setOmitNotes] = useState(false);
   const [checked, setChecked] = useState<{ html: string; overflow: boolean }>();
@@ -51,16 +51,9 @@ export function DoorLabelDialog({ job, onClose }: { job: NativeJobAggregate; onC
                 <label>Quantity <input className="w-20 rounded border px-1" disabled={!current.selected} min={1} max={MAX_LABEL_BATCH} onChange={(event) => update(line.lineId, { quantity: event.target.value })} type="number" value={current.quantity}/></label>
               </div>
               {current.selected && Number.isInteger(quantity) && quantity > 0 && quantity <= MAX_LABEL_BATCH ? <details>
-                <summary className="cursor-pointer">Optional Door ID overrides</summary>
-                <div className="mt-2 grid gap-1">
-                  {Array.from({ length: quantity }, (_, index) => <label className="flex items-center gap-2" key={index}>
-                    Label {index + 1}<input className="min-w-0 rounded border px-1" onChange={(event) => {
-                      const doorIds = [...current.doorIds];
-                      doorIds[index] = event.target.value;
-                      update(line.lineId, { doorIds });
-                    }} placeholder={line.doorId || undefined} value={current.doorIds[index] ?? ''}/>
-                  </label>)}
-                </div>
+                <summary className="cursor-pointer">Saved individual Door IDs</summary>
+                <p className="text-sm">Edit and save individual IDs on the job door line before previewing.</p>
+                {Array.from({ length: quantity }, (_, index) => <p key={index}>Label {index + 1}: {current.doorIds[index] || line.doorId || '—'}</p>)}
               </details> : null}
             </fieldset>;
           })}

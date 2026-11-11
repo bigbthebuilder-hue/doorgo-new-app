@@ -17,7 +17,8 @@ test('confirmed job Product Code stays in sync across intake and the right-side 
   await expect(inlineCode).toHaveValue('007x');
   await component.getByText('Documents ▾', { exact: true }).click();
   await component.getByRole('button', { name: 'Print Door Labels', exact: true }).click();
-  await expect(component.getByText('Save the job before printing door labels.').first()).toBeVisible();
+  await expect(component.getByText('Not available in component layout tests.').first()).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Door Labels' })).toHaveCount(0);
 });
 
 test('door labels open alongside work-order printing for a saved job', async ({ mount, page }) => {

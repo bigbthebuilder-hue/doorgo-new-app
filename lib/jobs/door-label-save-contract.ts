@@ -1,9 +1,10 @@
+import { individualDoorIds } from './individual-door-ids';
 import type { DoorLineInput, NativeJobAggregate } from './job-intake-types';
 
-export const doorLabelKeys = ['doorId', 'productCode'] as const;
+export const doorLabelKeys = ['doorId', 'productCode', 'individualDoorIds'] as const;
 export type DoorLabelKey = typeof doorLabelKeys[number];
-export type DoorLabelValues = Record<DoorLabelKey, string | null>;
-export type DoorLabelChange = { expected: string | null; value: string | null };
+export type DoorLabelValues = { doorId: string | null; productCode: string | null; individualDoorIds: string[] };
+export type DoorLabelChange = { expected: string | string[] | null; value: string | string[] | null };
 export type DoorLabelSaveRequest = {
   internalJobId: string;
   lineId: string;
@@ -12,6 +13,7 @@ export type DoorLabelSaveRequest = {
 
 export function doorLabelValues(line: DoorLineInput): DoorLabelValues {
   return {
+    individualDoorIds: individualDoorIds(line.individualDoorIds),
     doorId: typeof line.doorId === 'string' ? line.doorId || null : null,
     productCode: typeof line.productCode === 'string' ? line.productCode || null : null,
   };
@@ -26,7 +28,7 @@ export function pendingDoorLabelSaves(job: NativeJobAggregate, lines: DoorLineIn
     const next = doorLabelValues(line);
     const changes: DoorLabelSaveRequest['changes'] = {};
     for (const key of doorLabelKeys) {
-      if (expected[key] !== next[key]) changes[key] = { expected: expected[key], value: next[key] };
+      if (JSON.stringify(expected[key]) !== JSON.stringify(next[key])) changes[key] = { expected: expected[key], value: next[key] };
     }
     if (Object.keys(changes).length) requests.push({ internalJobId: job.internalJobId, lineId: saved.lineId, changes });
   }
@@ -40,6 +42,7 @@ export function jobSpecificationSnapshot(snapshot: string): string {
     const specifications = { ...line };
     delete specifications.doorId;
     delete specifications.productCode;
+    delete specifications.individualDoorIds;
     return specifications;
   });
   return JSON.stringify(parsed);
@@ -50,7 +53,7 @@ export function mergeSavedDoorLabels<T extends DoorLineInput>(line: T, request: 
   const result = { ...line };
   for (const key of doorLabelKeys) {
     const change = request.changes[key];
-    if (change) result[key] = change.value;
+    if (change) Object.assign(result, { [key]: change.value });
   }
   return result;
 }
@@ -64,7 +67,7 @@ export function retainPendingDoorLabelEdits(saved: DoorLineInput[], submitted: D
     const sentValues = doorLabelValues(sent);
     const editedValues = doorLabelValues(edited);
     for (const key of doorLabelKeys) {
-      if (sentValues[key] !== editedValues[key]) result[key] = editedValues[key];
+      if (JSON.stringify(sentValues[key]) !== JSON.stringify(editedValues[key])) Object.assign(result, { [key]: editedValues[key] });
     }
     return result;
   });

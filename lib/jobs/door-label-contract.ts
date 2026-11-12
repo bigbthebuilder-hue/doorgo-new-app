@@ -56,9 +56,9 @@ function labelHtml(job: NativeJobAggregate, line: NativeDoorLine, doorId: string
   const bars = barcode ? '<svg xmlns="http://www.w3.org/2000/svg" aria-label="Code 128 barcode" viewBox="0 0 ' +
     barcode.modules + ' 135" style="width:' + (barcode.modules * 2 / 203) + 'in">' +
     barcode.bars.map(({ x, width }) => '<rect x="' + x + '" width="' + width + '" height="135"/>').join('') + '</svg>' : '';
-  return '<article><section><h1>SO# ' + escape(job.bizTrackSalesOrder ?? '') + '</h1><h2>' + escape(job.customer ?? '') +
-    '</h2>' + (job.siteAddress?.trim() ? '<p>' + escape(job.siteAddress) + '</p>' : '') +
-    fields.map(([name, value]) => '<p><strong>' + escape(name!) + '</strong> ' + escape(value!) + '</p>').join('') +
+  return '<article><section><header><h1>SO# ' + escape(job.bizTrackSalesOrder ?? '') + '</h1><h2>' + escape(job.customer ?? '') +
+    '</h2></header>' + (job.siteAddress?.trim() ? '<p class="address">' + escape(job.siteAddress) + '</p>' : '') +
+    fields.map(([name, value]) => '<p' + (name === 'Notes' ? ' class="notes"' : '') + '><strong>' + escape(name!) + '</strong> ' + escape(value!) + '</p>').join('') +
     (code ? '<footer>' + bars + '<div>' + escape(code) + '</div></footer>' : '') + '</section></article>';
 }
 
@@ -77,10 +77,15 @@ export function prepareDoorLabels(job: NativeJobAggregate, selection: LabelSelec
     return Array.from({ length: Number(quantity) }, (_, copy) => labelHtml(job, line, doorIds[copy]?.trim() || line.individualDoorIds?.[copy]?.trim() || line.doorId || '', omitNotes));
   });
   return { count, html: '<!doctype html><html lang="en"><meta charset="utf-8"><title>Door Labels</title><style>' +
-    '@page{size:4in 6in;margin:0}*{box-sizing:border-box}body{margin:0;background:#ddd;color:#000;font:13pt/1.22 Arial,sans-serif}' +
+    '@page{size:4in 6in;margin:0}*{box-sizing:border-box}body{margin:0;background:#ddd;color:#000;font:16pt/1.18 Arial,sans-serif}' +
     'article{width:4in;height:6in;padding:.15in;background:#fff;overflow:hidden;break-after:page}article:last-child{break-after:auto}' +
-    'section{overflow-wrap:anywhere;white-space:pre-wrap}h1{font-size:29pt;margin:0 0 .08in}h2{font-size:23pt;margin:0 0 .13in}' +
-    'p{margin:0 0 .075in}footer{padding-top:.14in;text-align:center;font:12pt/1.2 monospace}svg{display:block;margin:0 auto .06in;height:.66in}' +
+    'section{min-height:100%;display:flex;flex-direction:column;overflow-wrap:anywhere;white-space:pre-wrap}' +
+    'header{border:2pt solid #000;padding:.06in .08in;margin-bottom:.06in}' +
+    'h1{font-size:38pt;line-height:1.04;margin:0;padding-bottom:.04in;border-bottom:1.5pt solid #000}' +
+    'h2{font-size:28pt;line-height:1.08;margin:.04in 0 0}' +
+    'p{margin:0 0 .02in}.address,.notes{font-size:14pt}strong{font-weight:700}' +
+    'footer{margin-top:auto;padding-top:.04in;text-align:center;font:14pt/1.15 monospace;flex-shrink:0}' +
+    'svg{display:block;margin:0 auto .05in;height:.66in;max-width:100%;fill:#000}' +
     '@media screen{article{margin:.08in auto .18in}}@media print{body{background:white}}' +
     '</style><body>' + labels.join('') + '</body></html>' };
 }

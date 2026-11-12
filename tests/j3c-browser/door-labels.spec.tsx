@@ -67,14 +67,52 @@ test('required data and label overflow block printing', async ({ mount, page }) 
 });
 
 
-test('Chromium prints one 4 × 6 page per copy', async ({ page }) => {
+test('Chromium prints bordered labels without backgrounds, clipping or extra pages', async ({ page }) => {
   const preview = prepareDoorLabels(job, {
     'door-1': { selected: true, quantity: '2', doorIds: [] },
     'door-2': { selected: true, quantity: '1', doorIds: [] },
   }, false);
   expect(preview.html).toBeTruthy();
   await page.setContent(preview.html!);
-  const pdf = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true }));
+  await page.emulateMedia({ media: 'print' });
+  expect(await page.locator('h1').first().evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeCloseTo(38 * 96 / 72, 2);
+  expect(await page.locator('h2').first().evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeCloseTo(28 * 96 / 72, 2);
+  for (const label of await page.locator('article').all()) {
+    expect(await label.evaluate(element => {
+      const border = getComputedStyle(element.querySelector('header')!);
+      return {
+        width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height,
+        overflow: element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth,
+        borderStyle: border.borderTopStyle, borderColor: border.borderTopColor,
+      };
+    })).toEqual({ width: 384, height: 576, overflow: false, borderStyle: 'solid', borderColor: 'rgb(0, 0, 0)' });
+  }
+  for (const footer of await page.locator('footer').all()) {
+    expect(await footer.evaluate(element => {
+      const page = element.closest('article')!.getBoundingClientRect();
+      const bounds = element.getBoundingClientRect();
+      const barcode = element.querySelector('svg')?.getBoundingClientRect();
+      return bounds.bottom <= page.bottom - 14 && bounds.top > page.top + page.height / 2 &&
+        (!barcode || (barcode.left >= page.left + 14 && barcode.right <= page.right - 14));
+    })).toBe(true);
+  }
+  const pdf = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true, printBackground: false }));
   expect(pdf.getPageCount()).toBe(3);
   for (const label of pdf.getPages()) expect(label.getSize()).toEqual({ width: 288, height: 432 });
+});
+
+test('large label headings wrap with ordinary notes inside one portrait label', async ({ page }) => {
+  const preview = prepareDoorLabels({
+    ...job, customer: 'North Shore Heritage Millwork & Renovations Ltd.',
+    lines: [{ ...line, qty: 1, notes: 'Protect the finished face.\nKeep the hardware pack with the unit.' }],
+  }, { 'door-1': { selected: true, quantity: '1', doorIds: ['North 02'] } }, false);
+  await page.setContent(preview.html!);
+  await page.emulateMedia({ media: 'print' });
+  const label = page.locator('article');
+  expect(await label.evaluate(element => element.scrollHeight <= element.clientHeight && element.scrollWidth <= element.clientWidth)).toBe(true);
+  await expect(label).toContainText('Door ID North 02');
+  await expect(label).toContainText('Keep the hardware pack with the unit.');
+  const pdf = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true, printBackground: false }));
+  expect(pdf.getPageCount()).toBe(1);
+  expect(pdf.getPages()[0].getSize()).toEqual({ width: 288, height: 432 });
 });

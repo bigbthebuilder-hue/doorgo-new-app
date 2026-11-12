@@ -33,7 +33,7 @@ assert.match(service, /^import 'server-only';/);
 assert.match(service, /createAuthenticatedSupabaseServerClient/);
 const actions = readFileSync(actionsPath, 'utf8');
 assert.match(actions, /^'use server';/);
-assert.doesNotMatch(actions, /revalidatePath/);
+assert.doesNotMatch(actions, /revalidatePath\(['"]\/calendar/);
 assert.match(actions, /Calendar past-to-past move/);
 const workspace = readFileSync(workspacePath, 'utf8');
 assert.doesNotMatch(workspace, /router\.refresh\(/);

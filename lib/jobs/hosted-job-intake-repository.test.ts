@@ -103,3 +103,29 @@ async function main(){
   console.log('Hosted native-job repository adapter tests passed');
 }
 void main();
+
+async function verifyCompleteList() {
+  const ids = [job.internal_job_id, '88888888-8888-4888-8888-888888888888'];
+  let requests = 0;
+  const paginated = createHostedJobIntakeRepository({ client: { rpc: async (name, args) => {
+    assert.equal(name, 'dg_list_native_jobs');
+    assert.equal(args.p_include_archived, false);
+    assert.equal(args.p_limit, 100);
+    const second = args.p_cursor_internal_job_id !== null;
+    requests += 1;
+    return { data: {
+      items: [{...job,internal_job_id:ids[second ? 1 : 0],salesperson:second ? 'Aaron' : 'Barrett',is_complete:second,active_line_count:1,archived_line_count:0,archived_at:null}],
+      page: {limit:100,has_more:!second,next_cursor_updated_at:second?null:job.updated_at,next_cursor_internal_job_id:second?null:ids[0]},
+    },error:null};
+  } } });
+  const items = await paginated.list();
+  assert.equal(requests,2);
+  assert.deepEqual(items.map(item => item.salesperson), ['Barrett','Aaron']);
+  assert.deepEqual(items.map(item => item.isComplete), [false,true]);
+  const repeated = createHostedJobIntakeRepository({client:{rpc:async()=>({data:{
+    items:[],page:{limit:100,has_more:true,next_cursor_updated_at:job.updated_at,next_cursor_internal_job_id:job.internal_job_id},
+  },error:null})}});
+  await assert.rejects(repeated.list(), error => error instanceof JobIntakeFailure && error.code === 'unavailable');
+  console.log('Jobs list loads every authorized page, retains salesperson assignments and rejects repeated cursors.');
+}
+verifyCompleteList().catch(error => { console.error(error); process.exitCode = 1; });

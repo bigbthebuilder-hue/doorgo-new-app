@@ -238,6 +238,13 @@
   .app-context-bar--compact .app-context-actions .app-button { min-height: var(--app-toolbar-control-height); border-radius: var(--app-radius-sm); padding-inline: .6rem; font-size: .72rem; white-space: nowrap; }
   .app-context-bar--compact .app-jobs-filter { width: min(32rem, 100%); min-width: 0; }
   .app-context-bar--compact .app-jobs-filter input { height: 1.45rem; min-height: 1.45rem; border-radius: .25rem; padding-block: 0; }
+  .app-context-bar--compact:has(.app-jobs-salesperson) { grid-template-columns: minmax(4rem, 10%) minmax(0, 1fr) auto; }
+  .app-jobs-salesperson { display: grid; flex: 0 1 11rem; min-width: 7rem; gap: .05rem; color: var(--app-color-muted); font-size: .6rem; font-weight: 700; text-transform: uppercase; }
+  .app-context-bar--compact .app-jobs-salesperson select { width: 100%; min-width: 0; height: 1.45rem; min-height: 1.45rem; padding-block: 0; text-transform: none; }
+  @media (max-width: 640px) {
+    .app-context-bar--compact:has(.app-jobs-salesperson) { height: auto; min-height: 3rem; max-height: none; grid-template-columns: minmax(0, 1fr) auto; }
+    .app-context-bar--compact:has(.app-jobs-salesperson) .app-context-controls { grid-row: 2; grid-column: 1 / -1; }
+  }
   .app-context-bar--schedule { display: grid; height: 4rem; min-height: 4rem; max-height: 4rem; grid-template-columns: minmax(15rem, 1fr) auto; gap: .5rem; padding: .2rem .5rem; }
   .app-context-bar--schedule .app-context-primary { min-width: 0; }
   .app-context-bar--schedule .app-context-primary > div { gap: .35rem; }

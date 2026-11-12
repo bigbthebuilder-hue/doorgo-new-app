@@ -70,7 +70,7 @@ assert.doesNotMatch(nav, /label: 'Edit Schedule'/, 'Legacy Edit Schedule must no
 assert.doesNotMatch(nav, /label: 'Past Schedule'|label: 'Carry Checkpoint'/, 'Legacy utility labels must not consume permanent rail positions');
 assert.match(nav, /label: 'Account'.*placement: 'bottom'/);
 assert.match(jobs, /<JobsWorkspace/);
-assert.match(jobsWorkspace, /controls={<label className="app-jobs-filter"/, 'Jobs filter must live in the contextual top bar');
+assert.match(jobsWorkspace, /controls={<>\s*<label className="app-jobs-filter"/, 'Jobs filter must live in the contextual top bar');
 assert.match(jobsWorkspace, /density="compact"[\s\S]*Import Legacy Job[\s\S]*New Job/, 'Jobs actions must use the compact contextual top bar with accurate creation copy');
 assert.match(productionPage, /hasAtLeastView\(access, 'production'\)[\s\S]*navigation=\{buildProtectedAppNavigation\(access\)\}/, 'Production Board requires explicit production access and permission-aware navigation');
 assert.match(production, /<ContextTopBar/);
@@ -161,3 +161,5 @@ assert.match(login, /\/brand\/doorgo-mark\.svg/);
 assert.doesNotMatch(login, /<AppShell/, 'Unauthenticated login must not render the authenticated rail');
 
 console.log('Desktop shell static verification passed.');
+
+assert.match(jobsWorkspace, /id="job-salesperson"/, 'Jobs salesperson selection stays in the contextual controls');

@@ -33,5 +33,5 @@ export default async function JobsPage() {
   }
 
   const canCreate = getPermissionAccess(access, 'jobs') === 'use';
-  return <JobsWorkspace canCreate={canCreate} jobs={jobs} navigation={buildProtectedAppNavigation(access)}/>;
+  return <JobsWorkspace canCreate={canCreate} currentSalesperson={access.state === 'active' ? access.profile.displayName : ''} jobs={jobs} navigation={buildProtectedAppNavigation(access)}/>;
 }

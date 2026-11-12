@@ -3,7 +3,7 @@ import { normalizeConstruction } from './construction-contract';
 import {
   JobIntakeFailure,
   type DoubleDoorSizing,type ArchiveJobCommand,type CreateJobHeaderCommand,type CreateTransferredJobCommand,type DoorLineInput,type JobHeaderInput,
-  type JobIntakeRepository,type NativeDoorLine,type NativeJobAggregate,type NativeJobListItem,type DeleteJobResult,
+  type JobIntakeRepository,type NativeDoorLine,type NativeJobAggregate,type NativeJobListItem,type NativeJobListCursor,type DeleteJobResult,
   type NativeJobListPage,type NativeJobListRequest,type UpdateJobHeaderCommand,
 } from './job-intake-types';
 import { normalizeJobHeaderInput, isUuid, jobFailureMessage } from './job-intake-contract';
@@ -115,7 +115,7 @@ function aggregate(value:unknown):NativeJobAggregate{
   return {...job,lines} as NativeJobAggregate;
 }
 function listItem(value:unknown):NativeJobListItem{
-  const row=fromRow(value,['internalJobId','doorGoReference','bizTrackSalesOrder','visibleIdentifier','visibleIdentifierKind','legacyJobId','customer','siteAddress','lifecycleStage','createdAt','updatedAt','revision','archivedAt','activeLineCount','archivedLineCount']);
+  const row=fromRow(value,['internalJobId','doorGoReference','bizTrackSalesOrder','visibleIdentifier','visibleIdentifierKind','legacyJobId','customer','siteAddress','salesperson','isComplete','lifecycleStage','createdAt','updatedAt','revision','archivedAt','activeLineCount','archivedLineCount']);
   if(typeof row.internalJobId!=='string'||typeof row.updatedAt!=='string'||typeof row.revision!=='number') throw unavailable();
   return row as NativeJobListItem;
 }
@@ -139,7 +139,22 @@ export function createHostedJobIntakeRepository(options:HostedRepositoryOptions)
     return {items:result.items.map(listItem),page:{limit:Number(page.limit),hasMore,nextCursor}};
   };
   return {
-    async list(){return (await listPage()).items;},listPage,
+    async list(){
+      const jobs = new Map<string, NativeJobListItem>();
+      const cursors = new Set<string>();
+      let cursor: NativeJobListCursor | null = null;
+      do {
+        const result = await listPage({ limit: 100, cursor });
+        for (const job of result.items) jobs.set(job.internalJobId, job);
+        cursor = result.page.nextCursor;
+        if (cursor) {
+          const key = JSON.stringify(cursor);
+          if (cursors.has(key)) throw unavailable();
+          cursors.add(key);
+        }
+      } while (cursor);
+      return [...jobs.values()];
+    },listPage,
     async findById(internalJobId){try{return aggregate(await call('dg_get_native_job',{p_internal_job_id:internalJobId,p_include_archived:false}));}catch(error){if(error instanceof JobIntakeFailure&&error.code==='not_found')return null;throw error;}},
     async create(command:CreateJobHeaderCommand){
       return aggregate(await call('dg_create_native_job',{p_command_id:command.commandId,p_origin:'native',p_legacy_job_id:null,p_legacy_identifier_kind:null,p_header:createHeaderPayload(command.input,command.defaultSalesperson),p_lines:(command.lines??[]).map(linePayload)}));

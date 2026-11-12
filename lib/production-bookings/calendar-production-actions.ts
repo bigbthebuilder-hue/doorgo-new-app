@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 import { getCurrentDoorGoAccess } from '@/lib/auth/current-access';
 import { hasAtLeastView } from '@/lib/auth/access';
 import { addDaysToDateOnly, getCurrentDateInTimeZone, getMondayForDate } from '@/lib/production-board/date-utils';
@@ -49,12 +51,16 @@ export async function reorderCalendarProductionDay(request: ReorderProductionDay
 
 export async function completeCalendarProductionBooking(request: CompleteProductionBookingRequest): Promise<ProductionBookingCompletionResult> {
   if (!await hasCalendarUse()) return { ok: false, code: 'permission_required', message: 'Calendar use permission is required.' };
-  return executeCompleteProductionBooking(request, calendarProductionRpc);
+  const result = await executeCompleteProductionBooking(request, calendarProductionRpc);
+  if (result.ok) revalidatePath('/jobs');
+  return result;
 }
 
 export async function reopenCalendarProductionBooking(request: Omit<ReopenProductionBookingRequest, 'reason'>): Promise<ProductionBookingCompletionResult> {
   if (!await hasCalendarUse()) return { ok: false, code: 'permission_required', message: 'Calendar use permission is required.' };
-  return executeReopenProductionBooking({ ...request, reason: 'Reopened from Calendar' }, calendarProductionRpc);
+  const result = await executeReopenProductionBooking({ ...request, reason: 'Reopened from Calendar' }, calendarProductionRpc);
+  if (result.ok) revalidatePath('/jobs');
+  return result;
 }
 
 export async function placeCalendarProductionBooking(request: ProductionPlacementRequest): Promise<ProductionPlacementResult> {
@@ -66,7 +72,7 @@ export type DeleteCalendarProductionResult={ok:true;data:Record<string,unknown>}
 export async function deleteCalendarProductionBooking(request:{commandId:string;bookingId:string;expectedProductionDate:string|null;expectedUpdatedAt:string}):Promise<DeleteCalendarProductionResult>{
   if(!await hasCalendarUse())return {ok:false,code:'permission_required',message:'Calendar use permission is required.'};
   const {data,error}=await (await createAuthenticatedSupabaseServerClient()).rpc('delete_calendar_production_booking',{p_command_id:request.commandId,p_booking_id:request.bookingId,p_expected_production_date:request.expectedProductionDate,p_expected_updated_at:request.expectedUpdatedAt});
-  if(!error)return {ok:true,data:(data??{}) as Record<string,unknown>};
+  if(!error){revalidatePath('/jobs');return {ok:true,data:(data??{}) as Record<string,unknown>};}
   const raw=error.message.startsWith('production_booking_delete.')?error.message.slice('production_booking_delete.'.length):'unavailable';
   const messages:Record<string,string>={permission_required:'Calendar use permission is required.',not_found:'This Production item is no longer active.',completed_booking:'Reopen this Production item before deleting it.',stale_booking:'This Production item changed. Reopen its details and try again.',ineligible_booking:'This Production item is not eligible for deletion.',invalid_request:'The Production delete request is invalid.',command_uuid_collision:'This delete request conflicts with an earlier command.'};
   return {ok:false,code:raw,message:messages[raw]??'Production could not be deleted. Reopen Calendar and try again.'};

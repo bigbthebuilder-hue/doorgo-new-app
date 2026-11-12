@@ -63,7 +63,7 @@ function compatibleAggregate(job: NativeJobHeader & { lines?: unknown }): Native
 function summarizeJob(job: NativeJobAggregate): NativeJobListItem {
   return {
     internalJobId: job.internalJobId,doorGoReference: job.doorGoReference,
-    bizTrackSalesOrder: job.bizTrackSalesOrder,customer: job.customer,siteAddress: job.siteAddress,
+    bizTrackSalesOrder: job.bizTrackSalesOrder,customer: job.customer,siteAddress: job.siteAddress, salesperson: job.salesperson,
     lifecycleStage: job.lifecycleStage,createdAt: job.createdAt,updatedAt: job.updatedAt,revision: job.revision,
     archivedAt: job.archivedAt ?? null,activeLineCount: job.lines.filter((line) => line.lineStatus==='Active').length,
     archivedLineCount: job.lines.filter((line) => line.lineStatus==='Archived').length,

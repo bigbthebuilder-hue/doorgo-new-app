@@ -189,7 +189,7 @@ export type NativeJobListItem = Pick<NativeJobHeader,
   'internalJobId' | 'doorGoReference' | 'bizTrackSalesOrder' | 'customer' | 'siteAddress' |
   'lifecycleStage' | 'createdAt' | 'updatedAt' | 'revision' | 'visibleIdentifier' |
   'visibleIdentifierKind' | 'legacyJobId'
-> & { activeLineCount: number; archivedLineCount: number; archivedAt: string | null };
+> & { salesperson?: string | null; isComplete?: boolean; activeLineCount: number; archivedLineCount: number; archivedAt: string | null };
 export type NativeJobListPage = {
   items: NativeJobListItem[];
   page: { limit: number; hasMore: boolean; nextCursor: NativeJobListCursor | null };

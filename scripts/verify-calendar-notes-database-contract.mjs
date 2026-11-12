@@ -113,6 +113,7 @@ const permissions = loadModule(fs.readFileSync('lib/calendar/permissions.ts', 'u
   return accessHelpers;
 });
 const api = loadModule(actions, name => {
+  if (name === 'next/cache') return { revalidatePath(path) { assert.equal(path, '/jobs'); } };
   if (name === './permissions') return permissions;
   if (name.endsWith('/auth/current-access')) return { getCurrentDoorGoAccess: async () => ({
     state: 'active',

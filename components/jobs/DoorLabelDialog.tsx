@@ -10,7 +10,7 @@ export function DoorLabelDialog({ job, onClose }: { job: NativeJobAggregate; onC
     lines.map((line) => [line.lineId, { selected: true, quantity: String(line.qty), doorIds: line.individualDoorIds ?? [] }]),
   ));
   const [omitNotes, setOmitNotes] = useState(false);
-  const [checked, setChecked] = useState<{ html: string; overflow: boolean }>();
+  const [checked, setChecked] = useState<{ html: string; overflow: boolean; pages: number }>();
   const preview = prepareDoorLabels(job, selection, omitNotes);
 
   useEffect(() => {
@@ -28,6 +28,7 @@ export function DoorLabelDialog({ job, onClose }: { job: NativeJobAggregate; onC
   }
 
   const overflow = Boolean(preview.html && checked?.html === preview.html && checked.overflow);
+  const printCount = checked && checked.html === preview.html ? checked.pages : preview.count;
   const ready = Boolean(preview.html && checked?.html === preview.html && !overflow);
   return (
     <dialog aria-labelledby="door-label-title" className="m-auto max-h-[90vh] w-[min(95vw,58rem)] overflow-auto rounded-xl bg-white p-4 text-slate-900 shadow-xl backdrop:bg-black/50" onCancel={onClose} ref={dialog}>
@@ -59,15 +60,16 @@ export function DoorLabelDialog({ job, onClose }: { job: NativeJobAggregate; onC
           })}
           <label><input checked={omitNotes} onChange={(event) => setOmitNotes(event.target.checked)} type="checkbox"/> Omit line notes from this batch</label>
           {preview.error ? <p role="status">{preview.error}</p> : null}
-          {overflow ? <p role="alert">At least one label exceeds the available space. Review the preview. You can omit notes from this batch, shorten the text, or deselect the affected line.</p> : null}
+          {overflow ? <p role="alert">The label layout could not be fitted safely. Review the preview and shorten the affected text before printing.</p> : null}
+          {!overflow && checked && checked.html === preview.html && checked.pages > (preview.count ?? 0) ? <p role="status">Long content continues onto additional labels. Review all {checked.pages} labels before printing.</p> : null}
           <button className="app-button app-button-primary justify-self-start" disabled={!ready} onClick={() => frame.current?.contentWindow?.print()} type="button">
-            {preview.count ? 'Print ' + preview.count + (preview.count === 1 ? ' label' : ' labels') : 'Print labels'}
+            {printCount ? 'Print ' + printCount + (printCount === 1 ? ' label' : ' labels') : 'Print labels'}
           </button>
         </div>
         {preview.html ? <iframe key={preview.html} className="h-[min(68vh,38rem)] min-h-64 w-full rounded border border-slate-300" onLoad={() => {
           const pages = frame.current?.contentDocument?.querySelectorAll('article');
           if (!pages?.length) return;
-          setChecked({ html: preview.html!, overflow: Array.from(pages).some((page) => page.scrollHeight > page.clientHeight) });
+          setChecked({ html: preview.html!, pages: pages.length, overflow: frame.current?.contentDocument?.body.dataset.labelsReady !== 'true' || Array.from(pages).some((page) => page.scrollHeight > page.clientHeight || page.scrollWidth > page.clientWidth) });
         }} ref={frame} srcDoc={preview.html} title="4 × 6 door label preview"/> : null}
       </div>
     </dialog>

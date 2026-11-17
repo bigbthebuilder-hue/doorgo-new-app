@@ -131,7 +131,7 @@ test('labels include saved descriptions and optional specifications without chan
   }
   expect(await page.locator('footer div').first().textContent()).toBe(line.productCode);
   expect(await page.locator('.door-id').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(22 * 96 / 72);
-  expect(await page.locator('.description').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(20 * 96 / 72);
+  expect(await page.locator('.description').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16 * 96 / 72 - 0.001);
 });
 
 for (const size of ['short', 'typical', 'unusually long'] as const) {
@@ -190,7 +190,7 @@ test('standalone print script has no bundler dependencies and optional data is e
 
 for (const sku of ['zz_SO_DOOR_0123', 'zz_SO_DOOR_' + 'X'.repeat(18)]) {
   test('dual FRAME and SLAB barcodes retain complete values: ' + sku, async ({ page }) => {
-    const preview = prepareDoorLabels({ ...job, lines: [{ ...line, doorSlabSku: sku, notes: 'Wrap these notes safely. '.repeat(60) }] }, { 'door-1': { selected: true, quantity: '2', doorIds: [] } }, false);
+    const preview = prepareDoorLabels({ ...job, lines: [{ ...line, doorSlabSku: sku, doorType: 'Long custom fir description with matching panels. '.repeat(8), notes: 'Wrap these notes safely. '.repeat(60) }] }, { 'door-1': { selected: true, quantity: '2', doorIds: [] } }, false);
     expect(code128(sku)).not.toBeNull();
     expect(preview.error).toBeUndefined();
     await page.setContent(preview.html!);
@@ -198,12 +198,13 @@ for (const sku of ['zz_SO_DOOR_0123', 'zz_SO_DOOR_' + 'X'.repeat(18)]) {
     await expect(page.locator('body')).toHaveAttribute('data-labels-ready', 'true');
     for (const article of await page.locator('article').all()) {
       await expect(article.locator('svg')).toHaveCount(2);
-      await expect(article.locator('.barcode-kind')).toHaveText(['FRAME', 'SLAB']);
+      await expect(article.locator('.barcode-kind')).toHaveCount(0);
       expect(await article.locator('.barcode-value').allTextContents()).toEqual([line.productCode, sku]);
       for (const [index, code] of [line.productCode!, sku].entries()) {
         const svg = article.locator('svg').nth(index);
         const encoding = code128(code)!;
         expect(await svg.locator('rect').evaluateAll(rects => rects.map(r => ({ x: Number(r.getAttribute('x')), width: Number(r.getAttribute('width')) })))).toEqual(encoding.bars);
+        expect(await svg.evaluate(el => el.getBoundingClientRect().height)).toBeCloseTo(.30 * 96, 1);
         expect(await svg.evaluate(el => el.getBoundingClientRect().width)).toBeCloseTo(encoding.modules * 2 / 203 * 96, 1);
         expect(encoding.bars[0].x).toBe(10);
         expect(encoding.modules - encoding.bars.at(-1)!.x - encoding.bars.at(-1)!.width).toBeGreaterThanOrEqual(10);
@@ -221,6 +222,7 @@ for (const sku of ['zz_SO_DOOR_0123', 'zz_SO_DOOR_' + 'X'.repeat(18)]) {
       const id = copy === '1' ? 'Saved 01' : 'North';
       expect((await pages.locator('.door-id span').allTextContents()).join('')).toBe(id);
       expect((await pages.locator('.notes span').allTextContents()).join('')).toBe('Wrap these notes safely. '.repeat(60));
+      expect((await pages.locator('.description span').allTextContents()).join('')).toBe('Long custom fir description with matching panels. '.repeat(8));
     }
     const pdf = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true, printBackground: false }));
     expect(pdf.getPageCount()).toBe(await page.locator('article').count());
@@ -242,3 +244,59 @@ test('slab SKU is optional and oversize values block printing without truncation
   expect(code128('A'.repeat(29))).not.toBeNull();
   expect(code128('A'.repeat(30))).toBeNull();
 });
+
+
+// Visible Rideout continuation-page specifications plus synthetic missing first-page
+// values. No production records are loaded or changed by this fixture.
+for (const description of ['Fir text Vista GR. 4 lite']) {
+  test('Rideout dual label keeps normal specifications on one portrait page: ' + description, async ({ page }) => {
+    const door = { ...line, mode: 'Exterior' as const, config: 'T/D', width: "2'8\"", height: "6'8\"",
+      jambWidth: '6-9/16"', material: 'Fir', sill: 'STD', doorType: description,
+      productCode: 'zz_DW_6380', doorSlabSku: 'SLAB_0123', notes: 'Handle with care' };
+    const result = prepareDoorLabels({ ...job, customer: 'Rideout', bizTrackSalesOrder: '1932050', siteAddress: '', lines: [door] },
+      { 'door-1': { selected: true, quantity: '2', doorIds: ['Front', 'Back'] } }, false);
+    await page.setContent(result.html!);
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('body')).toHaveAttribute('data-labels-ready', 'true');
+    await expect(page.locator('article')).toHaveCount(2);
+    await expect(page.locator('.page-reference')).toHaveCount(0);
+    for (const [index, article] of (await page.locator('article').all()).entries()) {
+      await expect(article.locator('.door-id span')).toHaveText(index ? 'Back' : 'Front');
+      await expect(article.locator('.description span')).toHaveText(description);
+      await expect(article.locator('.barcode-value')).toHaveText(['zz_DW_6380', 'SLAB_0123']);
+      await expect(article.locator('.barcode-kind')).toHaveCount(0);
+      for (const value of ['Exterior', 'Fir', 'LH', '6-9/16"', 'T/D', 'STD', 'Handle with care'])
+        await expect(article).toContainText(value);
+      const measurements = await article.evaluate(el => {
+        const section = el.querySelector('section')!;
+        const details = el.querySelector('.details')!.getBoundingClientRect();
+        const footer = el.querySelector('footer')!.getBoundingClientRect();
+        const description = el.querySelector('.description')!;
+        const style = getComputedStyle(description);
+        return { overflow: section.scrollHeight > section.clientHeight + 1 || section.scrollWidth > section.clientWidth + 1,
+          separated: details.bottom <= footer.top + 1,
+          descriptionHeight: description.getBoundingClientRect().height, lineHeight: parseFloat(style.lineHeight),
+          notesSize: parseFloat(getComputedStyle(el.querySelector('.notes')!).fontSize),
+          idSize: parseFloat(getComputedStyle(el.querySelector('.door-id')!).fontSize),
+          customerSize: parseFloat(getComputedStyle(el.querySelector('h2')!).fontSize),
+          barcodeHeights: Array.from(el.querySelectorAll('svg'), svg => svg.getBoundingClientRect().height) };
+      });
+      expect(measurements.overflow).toBe(false);
+      expect(measurements.separated).toBe(true);
+      expect(measurements.notesSize).toBeCloseTo(11 * 96 / 72, 2);
+      expect(measurements.idSize).toBeGreaterThanOrEqual(26 * 96 / 72);
+      expect(measurements.customerSize).toBeGreaterThanOrEqual(32 * 96 / 72);
+      for (const height of measurements.barcodeHeights) {
+        expect(height).toBeCloseTo(.30 * 96, 1);
+        expect(height).toBeLessThan(.66 * 96 / 2);
+      }
+      if (description === 'Fir text Vista GR. 4 lite')
+        expect(measurements.descriptionHeight).toBeLessThanOrEqual(measurements.lineHeight + 1);
+    }
+    const pdfBytes = await page.pdf({ preferCSSPageSize: true, printBackground: false });
+    await test.info().attach('Rideout-4x6.pdf', { body: pdfBytes, contentType: 'application/pdf' });
+    const pdf = await PDFDocument.load(pdfBytes);
+    expect(pdf.getPageCount()).toBe(2);
+    for (const sheet of pdf.getPages()) expect(sheet.getSize()).toEqual({ width: 288, height: 432 });
+  });
+}

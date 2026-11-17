@@ -56,10 +56,10 @@ function labelHtml(job: NativeJobAggregate, line: NativeDoorLine, doorId: string
     ['Sill', line.construction === 'low-profile-quarter-sill' || line.construction === 'jamb-four-sides' ? sillChoice(line) : line.sill],
     ['Notes', omitNotes ? '' : line.notes],
   ].filter(([, value]) => value?.trim());
-  const barcodeHtml = (value: string, title?: string) => {
+  const barcodeHtml = (value: string) => {
     const barcode = code128(value);
     if (!barcode) return '';
-    return '<div class="barcode-block">' + (title ? '<b class="barcode-kind">' + title + '</b>' : '') +
+    return '<div class="barcode-block">' +
       '<svg xmlns="http://www.w3.org/2000/svg" aria-label="Code 128 barcode" preserveAspectRatio="none" viewBox="0 0 ' +
       barcode.modules + ' 135" style="width:' + (barcode.modules * 2 / 203) + 'in">' +
       barcode.bars.map(({ x, width }) => '<rect x="' + x + '" width="' + width + '" height="135"/>').join('') + '</svg>' +
@@ -68,7 +68,7 @@ function labelHtml(job: NativeJobAggregate, line: NativeDoorLine, doorId: string
   return '<article data-copy="' + copy + '" data-line="' + line.lineIndex + '"><section><header><h1>SO# ' + escape(job.bizTrackSalesOrder ?? '') + '</h1><h2>' + escape(job.customer ?? '') +
     '</h2></header><div class="details">' + (job.siteAddress?.trim() ? '<p class="address">' + escape(job.siteAddress) + '</p>' : '') +
     fields.map(([name, value]) => '<p class="' + (name === 'Notes' ? 'notes' : name === 'Door ID' ? 'door-id' : name === 'Description' ? 'description' : 'spec') + '"><strong>' + escape(name!) + '</strong> <span>' + escape(value!) + '</span></p>').join('') + '</div>' +
-    (code || slab ? '<footer>' + (code ? barcodeHtml(code, slab ? 'FRAME' : undefined) : '') + (slab ? barcodeHtml(slab, 'SLAB') : '') + '</footer>' : '') + '</section></article>';
+    (code || slab ? '<footer' + (code && slab ? ' class="dual-barcode"' : '') + '>' + (code ? barcodeHtml(code) : '') + (slab ? barcodeHtml(slab) : '') + '</footer>' : '') + '</section></article>';
 }
 
 // Measure the actual print DOM. Keep a readable minimum; overflow becomes explicit
@@ -79,10 +79,26 @@ const labelLayoutScript = String.raw`(function layoutDoorLabels() {
         const section = page.querySelector('section');
         return section.scrollHeight <= section.clientHeight + 1 && section.scrollWidth <= section.clientWidth + 1;
     };
+    // Fit only the description to one line where readable; longer descriptions wrap.
+    // Measuring without wrapping includes its field label and preserves the full text.
+    const fitDescription = (page) => {
+        for (const description of page.querySelectorAll('.description')) {
+            description.style.whiteSpace = 'nowrap';
+            for (const points of [24, 22, 20, 18, 16]) {
+                description.style.fontSize = points + 'pt';
+                if (description.scrollWidth <= description.clientWidth + 1)
+                    break;
+            }
+            description.style.whiteSpace = '';
+        }
+    };
     for (const original of Array.from(document.querySelectorAll('article'))) {
+        const dual = Boolean(original.querySelector('.dual-barcode'));
         let fitted = false;
-        for (const scale of [1.16, 1.08, 1, 0.94, 0.88]) {
+        // Dual symbols recover vertical space without reducing customer/ID/spec sizes.
+        for (const scale of (dual ? [1.08, 1] : [1.16, 1.08, 1, 0.94, 0.88])) {
             original.querySelector('section').style.setProperty('--scale', String(scale));
+            fitDescription(original);
             if (fits(original)) {
                 fitted = true;
                 break;
@@ -188,7 +204,7 @@ export function prepareDoorLabels(job: NativeJobAggregate, selection: LabelSelec
     'p{margin:0 0 .01in}.spec{display:inline-block;max-width:calc(100% - .07in);margin-right:.07in;vertical-align:top}strong{font-size:calc(12pt * var(--scale));line-height:1}.door-id{font-size:calc(26pt * var(--scale));font-weight:700}.description{font-size:calc(24pt * var(--scale))}' +
     '.address{font-size:calc(18pt * var(--scale))}.notes,.notes strong{font-size:11pt;line-height:1.15}.page-reference{font:11pt/1.1 Arial,sans-serif;margin-top:.03in}' +
     'footer{margin-top:auto;padding-top:.04in;text-align:center;font:16pt/1.1 monospace;flex-shrink:0}' +
-    '.barcode-block + .barcode-block{margin-top:.05in}.barcode-kind{display:block;font:700 10pt/1.1 Arial,sans-serif;margin-bottom:.02in}' +
+    '.barcode-block + .barcode-block{margin-top:.04in}.dual-barcode svg{height:.30in}' +
     'svg{display:block;margin:0 auto .03in;height:.66in;max-width:100%;fill:#000}' +
     '@media screen{article{margin:.08in auto .18in}}@media print{body{background:white}}' +
     '</style><body>' + labels.join('') + '<script>' + labelLayoutScript + '</script></body></html>' };

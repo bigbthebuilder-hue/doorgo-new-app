@@ -57,12 +57,12 @@ const api = createServer(async (request, response) => {
     const line = saved.lines.find((line) => line.line_id === update.p_line_id);
     if (update.p_internal_job_id !== jobId || !line) return reply({ message: 'native_job.not_found' }, 404);
     for (const [field, change] of Object.entries(update.p_changes)) {
-      const key = field === 'individualDoorIds' ? 'labelIndividualDoorIds' : field === 'doorId' ? 'labelDoorId' : 'labelProductCode';
+      const key = field === 'individualDoorIds' ? 'labelIndividualDoorIds' : field === 'doorId' ? 'labelDoorId' : field === 'doorSlabSku' ? 'labelSlabSku' : 'labelProductCode';
       const current = line.glass_calc?.[key] ?? (field === 'individualDoorIds' ? [] : null);
       if (JSON.stringify(current) !== JSON.stringify(change.expected) && JSON.stringify(current) !== JSON.stringify(change.value)) return reply({ message: 'native_job.stale_labels' }, 409);
     }
     for (const [field, change] of Object.entries(update.p_changes)) {
-      const key = field === 'individualDoorIds' ? 'labelIndividualDoorIds' : field === 'doorId' ? 'labelDoorId' : 'labelProductCode';
+      const key = field === 'individualDoorIds' ? 'labelIndividualDoorIds' : field === 'doorId' ? 'labelDoorId' : field === 'doorSlabSku' ? 'labelSlabSku' : 'labelProductCode';
       line.glass_calc ??= {};
       if (change.value === null) delete line.glass_calc[key];
       else line.glass_calc[key] = change.value;
@@ -81,7 +81,7 @@ const api = createServer(async (request, response) => {
         const previous = saved.lines.find((item) => item.line_id === line.line_id);
         if (!previous) return line;
         const geometry = { ...line.glass_calc };
-        for (const key of ['labelDoorId', 'labelProductCode', 'labelIndividualDoorIds']) {
+        for (const key of ['labelDoorId', 'labelProductCode', 'labelIndividualDoorIds', 'labelSlabSku']) {
           delete geometry[key];
           if (previous.glass_calc?.[key] !== undefined) geometry[key] = previous.glass_calc[key];
         }
@@ -281,6 +281,22 @@ try {
   assert.equal(saved.lines[1].glass_calc.labelDoorId, 'Unsaved room');
   assert.equal(labelWrites, 5, 'unsaved new lines must not invoke the existing-line operation');
   assert.equal(aggregateWrites, 5);
+  // Direct SKU edits use the same label-only save and survive a fresh HTTP load.
+  const skuInputs = () => page.locator('#job-lines-pane').getByRole('textbox', { name: 'Door Slab SKU (Optional)', exact: true });
+  const longSku = 'zz_SO_DOOR_0123_' + 'x'.repeat(150);
+  await skuInputs().nth(0).fill(longSku);
+  await skuInputs().nth(1).fill('SECOND-SLAB');
+  await save(6, 'REMOTE-001', '');
+  assert.equal(saved.lines[0].glass_calc.labelSlabSku, longSku);
+  assert.equal(saved.lines[1].glass_calc.labelSlabSku, 'SECOND-SLAB');
+  await reopen();
+  assert.equal(await skuInputs().nth(0).inputValue(), longSku);
+  assert.equal(await skuInputs().nth(1).inputValue(), 'SECOND-SLAB');
+  await skuInputs().nth(0).clear();
+  await save(6, 'REMOTE-001', '');
+  await reopen();
+  assert.equal(await skuInputs().nth(0).inputValue(), '');
+  assert.equal(await skuInputs().nth(1).inputValue(), 'SECOND-SLAB');
   assert.deepEqual(unexpected, []);
   console.log('Door label save/reopen passed: Draft and Confirmed Door ID and Product Code round trips, unchanged specs, and read-only printing and reprinting with persistent individual IDs.');
 } catch (error) {

@@ -54,19 +54,21 @@ async function main(){
     rpc: async (name, args) => {
         assert.equal(name, 'dg_create_native_job');
       const written = (args.p_lines as Record<string, unknown>[])[0];
-      assert.deepEqual(written.glass_calc, { labelDoorId: doorId, labelProductCode: exactCode, labelIndividualDoorIds: ['Copy A', '', 'Retained C'] });
+      assert.deepEqual(written.glass_calc, { labelDoorId: doorId, labelProductCode: exactCode, labelIndividualDoorIds: ['Copy A', '', 'Retained C'], labelSlabSku: 'zz_SO_DOOR_0123_' + 'x'.repeat(100) });
       return { data: { job: { ...job, lifecycle_stage: 'Confirmed Job' }, lines: [{ ...line, glass_calc: written.glass_calc }] }, error: null };
     },
   } });
   const updatedLabelJob = await labelRepository.create({
     commandId: '99999999-9999-4999-8999-999999999999', actorUserId: job.updated_by_user_id, defaultSalesperson: 'Tester',
     input: { lifecycleStage: 'Confirmed Job', customer: 'Label fixture' },
-    lines: [{ ...created.lines[0], doorId, productCode: exactCode, individualDoorIds: ['Copy A', '', 'Retained C'] }],
+    lines: [{ ...created.lines[0], doorId, productCode: exactCode, doorSlabSku: 'zz_SO_DOOR_0123_' + 'x'.repeat(100), individualDoorIds: ['Copy A', '', 'Retained C'] }],
   });
   assert.deepEqual(updatedLabelJob.lines[0].individualDoorIds, ['Copy A', '', 'Retained C']);
   assert.equal(updatedLabelJob.lines[0].doorId, doorId);
   assert.equal(created.lines[0].doorId, null);
   assert.equal(updatedLabelJob.lines[0].productCode, exactCode);
+  assert.equal(updatedLabelJob.lines[0].doorSlabSku, 'zz_SO_DOOR_0123_' + 'x'.repeat(100));
+  assert.equal(created.lines[0].doorSlabSku, null);
   assert.equal(updatedLabelJob.lines[0].glassCalc, null);
   assert.equal(created.lines[0].productCode, null);
   const page=await repository.listPage({limit:2,cursor:{updatedAt:'2026-07-29T11:00:00.000Z',internalJobId:'55555555-5555-4555-8555-555555555555'}});
@@ -74,8 +76,9 @@ async function main(){
   assert.deepEqual(calls[4].args,{p_include_archived:false,p_limit:2,p_cursor_updated_at:'2026-07-29T11:00:00.000Z',p_cursor_internal_job_id:'55555555-5555-4555-8555-555555555555'});
   await repository.createTransferred({commandId:'77777777-7777-4777-8777-777777777777',actorUserId:job.created_by_user_id,defaultSalesperson:'Tester',
     provenance:{direction:'legacy_to_native',sourceSystem:'legacy-doorgo',sourceJobState:'active',transferSchema:'doorgo.legacy-job-transfer',transferVersion:1,sourceIdentifierKind:'legacy_job_id',sourceIdentifierValue:'JOB-0065',sourceSavedAt:'2026-07-30T09:30:00.000Z',exportedAt:'2026-07-30T10:00:00.000Z',sourceFingerprint:'a'.repeat(64)},
-    input:{customer:'Adapter Test',lifecycleStage:'Draft'},lines:[{lineId:line.line_id,lineStatus:'Active',mode:'Interior',doorType:'Madison H/C',config:'D',width:`2'6"`,height:`6'8"`,customSlab:'No',hand:'LH',prep:'YES',jambWidth:`4-9/16"`,jambType:'Primed',hingeType:'REG',qty:1}]});
+    input:{customer:'Adapter Test',lifecycleStage:'Draft'},lines:[{doorSlabSku:'zz_SO_DOOR_0123',lineId:line.line_id,lineStatus:'Active',mode:'Interior',doorType:'Madison H/C',config:'D',width:`2'6"`,height:`6'8"`,customSlab:'No',hand:'LH',prep:'YES',jambWidth:`4-9/16"`,jambType:'Primed',hingeType:'REG',qty:1}]});
   assert.equal(calls[5].name,'dg_create_transferred_native_job');
+  assert.equal((calls[5].args.p_lines as Array<{glass_calc: {labelSlabSku: string}}>)[0].glass_calc.labelSlabSku, 'zz_SO_DOOR_0123');
   assert.deepEqual(calls[5].args.p_provenance,{direction:'legacy_to_native',source_system:'legacy-doorgo',source_job_state:'active',transfer_schema:'doorgo.legacy-job-transfer',transfer_version:1,source_identifier_kind:'legacy_job_id',source_identifier_value:'JOB-0065',source_saved_at:'2026-07-30T09:30:00.000Z',exported_at:'2026-07-30T10:00:00.000Z',source_fingerprint:'a'.repeat(64)});
   assert.equal((calls[5].args.p_header as Record<string,unknown>).biztrack_sales_order,null,'JOB identifiers never populate Sales Order');
   const deleted=await repository.deletePermanently({internalJobId:job.internal_job_id,expectedRevision:1});

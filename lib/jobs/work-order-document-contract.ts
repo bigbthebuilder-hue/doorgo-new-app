@@ -186,7 +186,7 @@ function productionWarningRows(warnings: readonly Pick<GlassIssue, 'code' | 'mes
         ? warning.message.replace(/^Cut inactive slab (.+?) from /, 'CUT: Remove $1 from inactive slab ')
         : `CUT: ${warning.message}`);
     } else if (warning.code === 'door_cut_down') {
-      instructions.push(warning.message.replace(/^Door will be cut down /, 'CUT DOWN: '));
+      continue; // Finished slab height is already printed; omit the height reduction amount.
     } else review.push(warning.message);
   }
   return [

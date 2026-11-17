@@ -1,9 +1,9 @@
 import { individualDoorIds } from './individual-door-ids';
 import type { DoorLineInput, NativeJobAggregate } from './job-intake-types';
 
-export const doorLabelKeys = ['doorId', 'productCode', 'individualDoorIds'] as const;
+export const doorLabelKeys = ['doorId', 'productCode', 'doorSlabSku', 'individualDoorIds'] as const;
 export type DoorLabelKey = typeof doorLabelKeys[number];
-export type DoorLabelValues = { doorId: string | null; productCode: string | null; individualDoorIds: string[] };
+export type DoorLabelValues = { doorId: string | null; productCode: string | null; doorSlabSku: string | null; individualDoorIds: string[] };
 export type DoorLabelChange = { expected: string | string[] | null; value: string | string[] | null };
 export type DoorLabelSaveRequest = {
   internalJobId: string;
@@ -15,6 +15,7 @@ export function doorLabelValues(line: DoorLineInput): DoorLabelValues {
   return {
     individualDoorIds: individualDoorIds(line.individualDoorIds),
     doorId: typeof line.doorId === 'string' ? line.doorId || null : null,
+    doorSlabSku: typeof line.doorSlabSku === 'string' ? line.doorSlabSku || null : null,
     productCode: typeof line.productCode === 'string' ? line.productCode || null : null,
   };
 }
@@ -42,6 +43,7 @@ export function jobSpecificationSnapshot(snapshot: string): string {
     const specifications = { ...line };
     delete specifications.doorId;
     delete specifications.productCode;
+    delete specifications.doorSlabSku;
     delete specifications.individualDoorIds;
     return specifications;
   });

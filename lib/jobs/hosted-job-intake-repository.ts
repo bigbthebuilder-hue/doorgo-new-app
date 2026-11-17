@@ -32,11 +32,12 @@ function fromRow(row:unknown,fields:readonly string[]):Record<string,unknown>{
 function fromLineRow(row: unknown): Record<string, unknown> {
   const mapped = fromRow(row, serverLineFields);
   const storedCalc = mapped.glassCalc as NativeDoorLine['glassCalc'];
-  const { labelDoorId, labelProductCode, labelIndividualDoorIds, ...geometry } = storedCalc ?? {};
-  const calc = labelDoorId === undefined && labelProductCode === undefined && labelIndividualDoorIds === undefined ? storedCalc : Object.keys(geometry).length ? geometry : null;
+  const { labelDoorId, labelProductCode, labelSlabSku, labelIndividualDoorIds, ...geometry } = storedCalc ?? {};
+  const calc = labelDoorId === undefined && labelProductCode === undefined && labelIndividualDoorIds === undefined && labelSlabSku === undefined ? storedCalc : Object.keys(geometry).length ? geometry : null;
   mapped.glassCalc = calc;
   mapped.individualDoorIds = individualDoorIds(labelIndividualDoorIds);
   mapped.doorId = typeof labelDoorId === 'string' ? labelDoorId : null;
+  mapped.doorSlabSku = typeof labelSlabSku === 'string' ? labelSlabSku : null;
   mapped.productCode = typeof labelProductCode === 'string' ? labelProductCode : null;
   return { ...mapped, construction: normalizeConstruction(calc && typeof calc === 'object' ? (calc as Record<string, unknown>).construction : undefined), doubleDoorSizing: calc && typeof calc === 'object' && !Array.isArray(calc) ? ((calc as Record<string, unknown>).doubleDoorSizing as DoubleDoorSizing | undefined) ?? null : null, doubleDoorAstragal: calc && typeof calc === 'object' && !Array.isArray(calc) ? (calc as Record<string, unknown>).doubleDoorAstragal : null };
 }
@@ -55,12 +56,13 @@ function linePayload(input:DoorLineInput,index:number):Record<string,unknown>{
     ? { ...(normalized.value.glassCalc ?? {}), construction: normalized.value.construction }
     : normalized.value.glassCalc;
   // Line metadata travels through the existing JSON field, as construction does.
-  const { doorId, productCode, individualDoorIds: copyIds } = normalized.value;
-  const glassCalc = doorId || productCode || copyIds?.length ? {
+  const { doorId, productCode, doorSlabSku, individualDoorIds: copyIds } = normalized.value;
+  const glassCalc = doorId || productCode || doorSlabSku || copyIds?.length ? {
     ...geometry,
     ...(copyIds?.length ? { labelIndividualDoorIds: copyIds } : {}),
     ...(doorId ? { labelDoorId: doorId } : {}),
     ...(productCode ? { labelProductCode: productCode } : {}),
+    ...(doorSlabSku ? { labelSlabSku: doorSlabSku } : {}),
   } : geometry;
   return mapFields({...normalized.value, glassCalc, lineId:lineId||undefined,lineIndex:index+1,lineStatus:input.lineStatus==='Archived'||input.lineStatus==='Merged'?input.lineStatus:'Active'},lineFields,true);
 }

@@ -111,6 +111,7 @@ function storedShopInput(value: unknown): string {
 const doorLabelFields = [
   { name: 'doorId', label: 'Door ID' },
   { name: 'productCode', label: 'Product Code' },
+  { name: 'doorSlabSku', label: 'Door Slab SKU (Optional)' },
 ] as const;
 
 export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit, hingeColor = '', onHingeColorChange, lifecycleStage, calculationOnly = false, onDraftChange }: {
@@ -275,7 +276,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     setNewDoorSession(editingLineId === null ? { ...nextSession, mode: nextMode } : nextSession);
     setEditor((current) => {
       const defaults = editingLineId === null ? newDoorFromSession(nextSession, nextMode) : defaultDoorLine(nextMode);
-      return { ...defaults, lineId: current.lineId, lineIndex: current.lineIndex, lineStatus: current.lineStatus, qty: current.qty, notes: current.notes, doorId: current.doorId, productCode: current.productCode, individualDoorIds: current.individualDoorIds, ...(editingLineId !== null ? { doorType: current.doorType, hingeType: hingeTypeAfterModeChange(nextMode, 'D', current.hingeType) } : {}) };
+      return { ...defaults, lineId: current.lineId, lineIndex: current.lineIndex, lineStatus: current.lineStatus, qty: current.qty, notes: current.notes, doorId: current.doorId, productCode: current.productCode, doorSlabSku: current.doorSlabSku, individualDoorIds: current.individualDoorIds, ...(editingLineId !== null ? { doorType: current.doorType, hingeType: hingeTypeAfterModeChange(nextMode, 'D', current.hingeType) } : {}) };
     }); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 

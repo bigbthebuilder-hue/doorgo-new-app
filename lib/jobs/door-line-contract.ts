@@ -229,7 +229,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       // Presentation uses sillChoice; only construction can select special geometry.
       sill: noJamb ? null : normalizeConstruction(input.construction) === 'standard' ? text(input.sill) ?? 'STD' : sillChoice(input),
       weatherstrip: mode === 'Interior' ? null : text(input.weatherstrip),
-      hingeType: hingeType.ok ? hingeType.value : null, notes: text(input.notes), individualDoorIds: Array.isArray(input.individualDoorIds) ? [...input.individualDoorIds] : [], doorId: text(input.doorId), productCode: typeof input.productCode === 'string' ? input.productCode || null : null, qty: quantity,
+      hingeType: hingeType.ok ? hingeType.value : null, notes: text(input.notes), individualDoorIds: Array.isArray(input.individualDoorIds) ? [...input.individualDoorIds] : [], doorId: text(input.doorId), productCode: typeof input.productCode === 'string' ? input.productCode || null : null, doorSlabSku: typeof input.doorSlabSku === 'string' ? input.doorSlabSku || null : null, qty: quantity,
       roWidth: noJamb || patio ? null : text(input.roWidth), roHeight: config === 'PKT' ? null : roHeight,
       material, doorThickness: text(input.doorThickness),
       doubleDoorSizing: input.doubleDoorSizing ? structuredClone(input.doubleDoorSizing) : null,
@@ -333,6 +333,7 @@ export function doorLineEquivalenceKey(line: DoorLineInput): string {
     individualIdentity: line.individualDoorIds?.some(Boolean) ? line.lineId : null,
     doorId: text(line.doorId) ?? '',
     productCode: line.productCode ?? '',
+    doorSlabSku: line.doorSlabSku ?? '',
     construction: normalizeConstruction(line.construction),
     glassWarnings: JSON.stringify(line.glassWarnings ?? []),
     glassBlockers: JSON.stringify(line.glassBlockers ?? []),

@@ -186,3 +186,59 @@ test('standalone print script has no bundler dependencies and optional data is e
   expect(document.body.dataset.labelsReady).toBe('true');
   expect(JSON.stringify(source)).toBe(before);
 });
+
+
+for (const sku of ['zz_SO_DOOR_0123', 'zz_SO_DOOR_' + 'X'.repeat(18)]) {
+  test('dual FRAME and SLAB barcodes retain complete values: ' + sku, async ({ page }) => {
+    const preview = prepareDoorLabels({ ...job, lines: [{ ...line, doorSlabSku: sku, notes: 'Wrap these notes safely. '.repeat(60) }] }, { 'door-1': { selected: true, quantity: '2', doorIds: [] } }, false);
+    expect(code128(sku)).not.toBeNull();
+    expect(preview.error).toBeUndefined();
+    await page.setContent(preview.html!);
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('body')).toHaveAttribute('data-labels-ready', 'true');
+    for (const article of await page.locator('article').all()) {
+      await expect(article.locator('svg')).toHaveCount(2);
+      await expect(article.locator('.barcode-kind')).toHaveText(['FRAME', 'SLAB']);
+      expect(await article.locator('.barcode-value').allTextContents()).toEqual([line.productCode, sku]);
+      for (const [index, code] of [line.productCode!, sku].entries()) {
+        const svg = article.locator('svg').nth(index);
+        const encoding = code128(code)!;
+        expect(await svg.locator('rect').evaluateAll(rects => rects.map(r => ({ x: Number(r.getAttribute('x')), width: Number(r.getAttribute('width')) })))).toEqual(encoding.bars);
+        expect(await svg.evaluate(el => el.getBoundingClientRect().width)).toBeCloseTo(encoding.modules * 2 / 203 * 96, 1);
+        expect(encoding.bars[0].x).toBe(10);
+        expect(encoding.modules - encoding.bars.at(-1)!.x - encoding.bars.at(-1)!.width).toBeGreaterThanOrEqual(10);
+      }
+      expect(await article.evaluate(el => {
+        const footer = el.querySelector('footer')!.getBoundingClientRect();
+        const details = el.querySelector('.details')!.getBoundingClientRect();
+        const section = el.querySelector('section')!;
+        return details.bottom <= footer.top + 1 && section.scrollHeight <= section.clientHeight + 1;
+      })).toBe(true);
+    }
+    expect(await page.locator('.notes').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeCloseTo(11 * 96 / 72, 2);
+    for (const copy of ['1', '2']) {
+      const pages = page.locator('article[data-copy="' + copy + '"]');
+      const id = copy === '1' ? 'Saved 01' : 'North';
+      expect((await pages.locator('.door-id span').allTextContents()).join('')).toBe(id);
+      expect((await pages.locator('.notes span').allTextContents()).join('')).toBe('Wrap these notes safely. '.repeat(60));
+    }
+    const pdf = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true, printBackground: false }));
+    expect(pdf.getPageCount()).toBe(await page.locator('article').count());
+    for (const sheet of pdf.getPages()) expect(sheet.getSize()).toEqual({ width: 288, height: 432 });
+  });
+}
+
+test('slab SKU is optional and oversize values block printing without truncation', () => {
+  const selection = { 'door-1': { selected: true, quantity: '1', doorIds: [] } };
+  const blank = prepareDoorLabels({ ...job, lines: [{ ...line, doorSlabSku: '' }] }, selection, false);
+  expect(blank.html!.match(/<svg /g)).toHaveLength(1);
+  expect(blank.html).not.toContain('>SLAB<');
+  expect(blank.html).not.toContain('>FRAME<');
+  const source = { ...line, doorSlabSku: 'SKU_' + 'x'.repeat(150) };
+  const tooLong = prepareDoorLabels({ ...job, lines: [source] }, selection, false);
+  expect(tooLong.error).toContain('Door Slab SKU cannot fit');
+  expect(source.doorSlabSku).toBe('SKU_' + 'x'.repeat(150));
+  expect(code128('zz_SO_DOOR_0123')).not.toBeNull();
+  expect(code128('A'.repeat(29))).not.toBeNull();
+  expect(code128('A'.repeat(30))).toBeNull();
+});

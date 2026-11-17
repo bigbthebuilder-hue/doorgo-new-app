@@ -175,7 +175,7 @@ async function main() {
   assert.doesNotMatch(await extractedWinAnsiText(approvedPdf.bytes), /AUDIT_|MANUAL OVERRIDE|Geometry Exception Approved/);
   for (const [source, instruction] of [
     [{ ...specialSource, config: 'D', roWidth: '37.5' }, 'Slab width cut: 1/2"'],
-    [{ ...specialSource, roWidth: '74.25', roHeight: '81' }, 'CUT DOWN:'],
+    [{ ...specialSource, roWidth: '74.25', roHeight: '81' }, 'Door cut to:'],
   ] as const) {
     const routineJob = aggregate({ lines: [source] });
     const result = await generateSavedWorkOrderPdfWithAccess(access('view'), routineJob.internalJobId, 'inline', { findById: async () => routineJob }, true);
@@ -325,7 +325,8 @@ async function main() {
   const cutSingle = createWorkOrderRowGroup(line({ config: 'D', mode: 'Interior', customSlab: 'RO', roWidth: '32', roHeight: '60', hand: 'LH' }), null);
   const cutText = JSON.stringify(cutSingle.detailRows).replaceAll('\u00a0', ' ');
   assert.match(cutText, /Final slab:/);
-  assert.match(cutText, /CUT DOWN:/);
+  assert.doesNotMatch(cutText, /CUT DOWN:|Door will be cut down/);
+  assert.match(cutText, /Slab width cut:/);
   assert.doesNotMatch(cutText, /Door cut to/);
   const realistic = createWorkOrderRowGroup(line({ mode: 'Exterior', config: 'D', doorType: 'CraftsmanThreePanel', construction: 'low-profile-quarter-sill', sill: 'LOW-PRO', weatherstrip: 'Bronze', customSlab: 'WoodCustom', customSlabWidth: '35 13/16', customSlabHeight: '95 1/4', material: 'wood', hand: 'LH', hingeType: 'BB' }), null);
   const realisticLayout = measureWorkOrderGroup(realistic.primaryRow, realistic.detailRows, measurementFont);

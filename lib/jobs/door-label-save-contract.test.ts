@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { doorLabelValues, jobSpecificationSnapshot, mergeSavedDoorLabels, pendingDoorLabelSaves, retainPendingDoorLabelEdits } from './door-label-save-contract';
+import { doorLineEquivalenceKey } from './door-line-contract';
 import { saveHostedDoorLineLabels } from './hosted-job-intake-repository';
 import type { NativeJobAggregate } from './job-intake-types';
 
@@ -29,7 +30,7 @@ async function main() {
     await assert.rejects(saveHostedDoorLineLabels({ rpc: async () => ({ data: null, error: { message: 'native_job.stale_labels' } }) }, requests[0]), /another session/);
     await assert.rejects(saveHostedDoorLineLabels({ rpc: async () => { throw Error('must not call'); } }, { ...requests[0], changes: { qty: { expected: null, value: '3' } } } as never), /Invalid door label update/);
   }
-  assert.deepEqual(doorLabelValues({}), { doorId: null, productCode: null, individualDoorIds: [] });
+  assert.deepEqual(doorLabelValues({}), { doorId: null, productCode: null, doorSlabSku: null, individualDoorIds: [] });
   assert.deepEqual(retainPendingDoorLabelEdits(
     [{ lineId: '1', doorId: 'Server room', productCode: 'REMOTE' }],
     [{ lineId: '1', doorId: 'Old room', productCode: 'OLD' }],
@@ -47,6 +48,22 @@ async function main() {
     await saveHostedDoorLineLabels({ rpc: async () => ({ data: true, error: null }) }, request);
     await assert.rejects(saveHostedDoorLineLabels({ rpc: async () => { throw Error('must not call'); } }, { ...request, changes: { individualDoorIds: { expected: [], value: [4] } } } as never), /Invalid door label values/);
   }
+  const longSku = 'zz_SO_DOOR_0123_' + 'a'.repeat(150);
+  const skuJob = { internalJobId, lines: [{ lineId, doorSlabSku: null }, { lineId: 'second', doorSlabSku: 'KEEP' }] } as NativeJobAggregate;
+  const skuLines = [{ ...skuJob.lines[0], doorSlabSku: longSku }, skuJob.lines[1]];
+  const [skuRequest] = pendingDoorLabelSaves(skuJob, skuLines);
+  assert.deepEqual(skuRequest.changes, { doorSlabSku: { expected: null, value: longSku } });
+  assert.equal(mergeSavedDoorLabels(skuLines[1], skuRequest), skuLines[1]);
+  const skuSaved = mergeSavedDoorLabels(skuJob.lines[0], skuRequest);
+  assert.equal(skuSaved.doorSlabSku, longSku);
+  assert.notEqual(doorLineEquivalenceKey(skuSaved), doorLineEquivalenceKey({ ...skuSaved, doorSlabSku: 'OTHER' }), 'different SKUs cannot merge');
+  const snapshot = (lines: unknown) => JSON.stringify({ lines });
+  assert.equal(jobSpecificationSnapshot(snapshot(skuJob.lines)), jobSpecificationSnapshot(snapshot([skuSaved, skuJob.lines[1]])));
+  assert.equal(retainPendingDoorLabelEdits([skuSaved], [skuSaved], [{ ...skuSaved, doorSlabSku: '' }])[0].doorSlabSku, null);
+  await saveHostedDoorLineLabels({ rpc: async (_name, args) => {
+    assert.equal((args!.p_changes as typeof skuRequest.changes).doorSlabSku!.value, longSku);
+    return { data: true, error: null };
+  } }, skuRequest);
   console.log('Door label save contract and adapter tests passed');
 }
 void main();

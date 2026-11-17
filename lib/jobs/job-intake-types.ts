@@ -99,6 +99,7 @@ export type NativeDoorLine = {
   doorId?: string | null;
   individualDoorIds?: string[];
   productCode?: string | null;
+  doorSlabSku?: string | null;
   qty: number;
   roWidth: string | null;
   roHeight: string | null;

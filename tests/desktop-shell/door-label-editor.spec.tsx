@@ -29,3 +29,38 @@ test('door labels open alongside work-order printing for a saved job', async ({ 
   await expect(page.getByRole('dialog', { name: 'Door Labels' })).toBeVisible();
   await expect(page.frameLocator('iframe[title="4 × 6 door label preview"]').locator('h1')).toHaveText('SO# 12345');
 });
+
+
+for (const width of [1600, 1280]) {
+  test('slab SKU quick inputs are independent and synchronize at ' + width + 'px', async ({ mount, page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const component = await mount(<JobEditorWorkbenchHarness saved lineCount={2}/>);
+    const showLines = async () => {
+      if (width <= 1440) await component.getByRole('button', { name: 'Job Lines (2)', exact: true }).click();
+    };
+    await showLines();
+    const cards = component.locator('.job-line-card');
+    await expect(cards).toHaveCount(2);
+    await expect(cards.first()).toBeVisible();
+    const first = cards.nth(0).getByRole('textbox', { name: 'Door Slab SKU (Optional)', exact: true });
+    const second = cards.nth(1).getByRole('textbox', { name: 'Door Slab SKU (Optional)', exact: true });
+    const long = 'zz_SO_DOOR_0123_' + 'A'.repeat(150);
+    await first.fill(long);
+    await second.fill('SECOND-SLAB');
+    await expect(first).toHaveValue(long);
+    await cards.first().getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(component.getByRole('textbox', { name: 'Door Slab SKU (Optional)', exact: true }).first()).toHaveValue(long);
+    await component.getByRole('button', { name: 'Cancel Edit', exact: true }).click();
+    await showLines();
+    await expect(second).toHaveValue('SECOND-SLAB');
+    await first.clear();
+    await expect(second).toHaveValue('SECOND-SLAB');
+  });
+}
+
+test('Jobs View cannot edit slab SKUs through visible quick-input cards', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  const component = await mount(<JobEditorWorkbenchHarness saved canEdit={false}/>);
+  await expect(component.locator('.job-line-card').first()).toBeVisible();
+  await expect(component.locator('.job-line-card').getByRole('textbox', { name: 'Door Slab SKU (Optional)', exact: true })).toHaveCount(0);
+});

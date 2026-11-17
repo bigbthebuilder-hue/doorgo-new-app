@@ -48,7 +48,7 @@ const escape = (value: string) => value.replace(/[&<>"']/g, (character) => ({
 
 function labelHtml(job: NativeJobAggregate, line: NativeDoorLine, doorId: string, omitNotes: boolean, copy: number) {
   const code = line.productCode ?? '';
-  const barcode = code128(code);
+  const slab = line.doorSlabSku ?? '';
   const fields = [
     ['Door ID', doorId], ['Door type', line.mode], ['Description', line.doorType],
     ['Material', line.material], ['Size', doorSizeDisplay(line, true)], ['Swing', line.hand],
@@ -56,13 +56,19 @@ function labelHtml(job: NativeJobAggregate, line: NativeDoorLine, doorId: string
     ['Sill', line.construction === 'low-profile-quarter-sill' || line.construction === 'jamb-four-sides' ? sillChoice(line) : line.sill],
     ['Notes', omitNotes ? '' : line.notes],
   ].filter(([, value]) => value?.trim());
-  const bars = barcode ? '<svg xmlns="http://www.w3.org/2000/svg" aria-label="Code 128 barcode" preserveAspectRatio="none" viewBox="0 0 ' +
-    barcode.modules + ' 135" style="width:' + (barcode.modules * 2 / 203) + 'in">' +
-    barcode.bars.map(({ x, width }) => '<rect x="' + x + '" width="' + width + '" height="135"/>').join('') + '</svg>' : '';
+  const barcodeHtml = (value: string, title?: string) => {
+    const barcode = code128(value);
+    if (!barcode) return '';
+    return '<div class="barcode-block">' + (title ? '<b class="barcode-kind">' + title + '</b>' : '') +
+      '<svg xmlns="http://www.w3.org/2000/svg" aria-label="Code 128 barcode" preserveAspectRatio="none" viewBox="0 0 ' +
+      barcode.modules + ' 135" style="width:' + (barcode.modules * 2 / 203) + 'in">' +
+      barcode.bars.map(({ x, width }) => '<rect x="' + x + '" width="' + width + '" height="135"/>').join('') + '</svg>' +
+      '<div class="barcode-value">' + escape(value) + '</div></div>';
+  };
   return '<article data-copy="' + copy + '" data-line="' + line.lineIndex + '"><section><header><h1>SO# ' + escape(job.bizTrackSalesOrder ?? '') + '</h1><h2>' + escape(job.customer ?? '') +
     '</h2></header><div class="details">' + (job.siteAddress?.trim() ? '<p class="address">' + escape(job.siteAddress) + '</p>' : '') +
     fields.map(([name, value]) => '<p class="' + (name === 'Notes' ? 'notes' : name === 'Door ID' ? 'door-id' : name === 'Description' ? 'description' : 'spec') + '"><strong>' + escape(name!) + '</strong> <span>' + escape(value!) + '</span></p>').join('') + '</div>' +
-    (code ? '<footer>' + bars + '<div>' + escape(code) + '</div></footer>' : '') + '</section></article>';
+    (code || slab ? '<footer>' + (code ? barcodeHtml(code, slab ? 'FRAME' : undefined) : '') + (slab ? barcodeHtml(slab, 'SLAB') : '') + '</footer>' : '') + '</section></article>';
 }
 
 // Measure the actual print DOM. Keep a readable minimum; overflow becomes explicit
@@ -163,6 +169,8 @@ export function prepareDoorLabels(job: NativeJobAggregate, selection: LabelSelec
   if (selected.some((line) => !/^[0-9]+$/.test(selection[line.lineId].quantity) || Number(selection[line.lineId].quantity) < 1) || count > MAX_LABEL_BATCH) {
     return { error: 'Enter a whole number of labels per selected line, with at most ' + MAX_LABEL_BATCH + ' labels per batch.' };
   }
+  const invalidSlab = selected.find((line) => line.doorSlabSku && !code128(line.doorSlabSku));
+  if (invalidSlab) return { error: 'Line ' + invalidSlab.lineIndex + ' Door Slab SKU cannot fit a scannable Code 128 barcode on this label or contains unsupported characters. The complete SKU remains saved. Shorten the SKU or deselect this line to print.' };
   const invalid = selected.find((line) => line.productCode && !code128(line.productCode));
   if (invalid) return { error: 'Line ' + invalid.lineIndex + ' has a product code that cannot fit in Code 128 or contains unsupported characters. Edit the code or deselect that line.' };
   const labels = selected.flatMap((line) => {
@@ -178,8 +186,9 @@ export function prepareDoorLabels(job: NativeJobAggregate, selection: LabelSelec
     'h2{font-size:calc(32pt * var(--scale));line-height:1.05;margin:.03in 0 0}' +
     '.details{flex-shrink:0;font-size:calc(20pt * var(--scale));line-height:1.08}' +
     'p{margin:0 0 .01in}.spec{display:inline-block;max-width:calc(100% - .07in);margin-right:.07in;vertical-align:top}strong{font-size:calc(12pt * var(--scale));line-height:1}.door-id{font-size:calc(26pt * var(--scale));font-weight:700}.description{font-size:calc(24pt * var(--scale))}' +
-    '.address,.notes{font-size:calc(18pt * var(--scale))}.page-reference{font:11pt/1.1 Arial,sans-serif;margin-top:.03in}' +
+    '.address{font-size:calc(18pt * var(--scale))}.notes,.notes strong{font-size:11pt;line-height:1.15}.page-reference{font:11pt/1.1 Arial,sans-serif;margin-top:.03in}' +
     'footer{margin-top:auto;padding-top:.04in;text-align:center;font:16pt/1.1 monospace;flex-shrink:0}' +
+    '.barcode-block + .barcode-block{margin-top:.05in}.barcode-kind{display:block;font:700 10pt/1.1 Arial,sans-serif;margin-bottom:.02in}' +
     'svg{display:block;margin:0 auto .03in;height:.66in;max-width:100%;fill:#000}' +
     '@media screen{article{margin:.08in auto .18in}}@media print{body{background:white}}' +
     '</style><body>' + labels.join('') + '<script>' + labelLayoutScript + '</script></body></html>' };

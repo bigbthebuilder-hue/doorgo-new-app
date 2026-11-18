@@ -212,7 +212,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     if (name === 'doorType' || name === 'hingeType' || name === 'sill') setNewDoorSession(rememberNewDoor(newDoorSession, name === 'sill' ? withSillChoice(editor, value as SillChoice) : { ...editor, [name]: value }, editingLineId));
     if (geometryFields.has(name) && (name !== 'sill' || geometryChanged(editor, withSillChoice(editor, value as SillChoice)))) setExplicitGlassDetailNeeded(false);
     setEditor((current) => {
-      const next = name === 'sill' ? withSillChoice(current, value as SillChoice) : name === 'customSlab' ? changeSizingMode(current, value as 'No' | 'WoodCustom' | 'RO') : { ...current, [name]: value };
+      const next = name === 'sill' ? withSillChoice(current, value as SillChoice) : name === 'customSlab' ? changeSizingMode(current, value as 'No' | 'WoodCustom' | 'RO') : { ...current, [name]: value, ...(name === 'prep' ? { prepSource: 'manual' as const } : {}) };
       if (name === 'doubleDoorSizing' && next.doubleDoorSizing?.kind === 'custom-slabs') next.customSlab = 'WoodCustom';
       return geometryFields.has(name) && geometryChanged(current, next) ? clearCalculated(reconcileGlassDoorSetupChange(current, next)) : next;
     });
@@ -249,7 +249,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     setEditor((current) => clearCalculated(reconcileGlassDoorSetupChange(current, {
       ...current,
       height: value,
-      prep: prepAfterHeightChange(current.mode === 'Interior' ? 'Interior' : 'Exterior', String(current.config), current.prep, value),
+      prep: prepAfterHeightChange(current.mode === 'Interior' ? 'Interior' : 'Exterior', String(current.config), current.prep, value, current.prepSource),
     })));
     setExplicitGlassDetailNeeded(false);
     setCalculationStatus(null);
@@ -276,7 +276,8 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
     setNewDoorSession(editingLineId === null ? { ...nextSession, mode: nextMode } : nextSession);
     setEditor((current) => {
       const defaults = editingLineId === null ? newDoorFromSession(nextSession, nextMode) : defaultDoorLine(nextMode);
-      return { ...defaults, lineId: current.lineId, lineIndex: current.lineIndex, lineStatus: current.lineStatus, qty: current.qty, notes: current.notes, doorId: current.doorId, productCode: current.productCode, doorSlabSku: current.doorSlabSku, individualDoorIds: current.individualDoorIds, ...(editingLineId !== null ? { doorType: current.doorType, hingeType: hingeTypeAfterModeChange(nextMode, 'D', current.hingeType) } : {}) };
+      const automatic = current.prepSource === 'automatic' || (current.mode !== 'Exterior' && current.mode !== 'Interior');
+      return { ...defaults, prep: automatic ? defaults.prep : current.prep, prepSource: automatic ? 'automatic' : 'manual', lineId: current.lineId, lineIndex: current.lineIndex, lineStatus: current.lineStatus, qty: current.qty, notes: current.notes, doorId: current.doorId, productCode: current.productCode, doorSlabSku: current.doorSlabSku, individualDoorIds: current.individualDoorIds, ...(editingLineId !== null ? { doorType: current.doorType, hingeType: hingeTypeAfterModeChange(nextMode, 'D', current.hingeType) } : {}) };
     }); setRipMode(false); setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 
@@ -299,7 +300,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
       ? retainCompatibleGlassFields(editor, nextConfig, isGlassConfiguration(nextConfig) && glassConfigurationTopology(nextConfig).sidelightPositions.length ? (normalizeSidelightType(editor.sidelightType) ?? 'Glass') : null)
       : { ...editor, config: nextConfig };
     next.includeDiagramOnWorkOrder = nextApplicable ? (previouslyApplicable ? editor.includeDiagramOnWorkOrder !== false : true) : false;
-    next.prep = prepChoices(mode, nextConfig)[0] ?? '';
+    next.prep = prepAfterHeightChange(mode, nextConfig, editor.prepSource === 'automatic' ? '' : editor.prep, editor.height, editor.prepSource);
     if (mode === 'Interior' && (nextConfig === 'PKT' || nextConfig === 'B.P.')) {
       next = { ...next, sill: null, construction: 'standard', hand: '', jambWidth: '', jambType: '', hingeType: '', ripJamb: '', customSlab: 'No', customSlabWidth: '', customSlabHeight: '' };
       setRipMode(false);
@@ -473,7 +474,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
           </>}
           {!noJamb ? <label className="grid gap-1 text-sm font-semibold">Swing<select data-comparison-different={differs('hand') || undefined} className={control} onChange={(event) => setSwing(event.target.value)} value={String(editor.hand ?? '')}>{mode === 'Interior' && config === 'DD' ? <option value="">No handing</option> : null}<option>LH</option><option>RH</option>{mode === 'Exterior' || normalizeConstruction(editor.construction) === 'low-profile-quarter-sill' ? <><option>LHOUT</option><option>RHOUT</option></> : null}</select></label> : null}
           {mode === 'Exterior' && config === 'DD' ? <label className="grid gap-1 text-sm font-semibold">Astragal<select className={control} onChange={(event) => set('doubleDoorAstragal', event.target.value as DoubleDoorAstragalType)} value={String(editor.doubleDoorAstragal ?? DEFAULT_DOUBLE_DOOR_ASTRAGAL)}>{Object.entries(DOUBLE_DOOR_ASTRAGALS).map(([value, option]) => <option key={value} value={value}>{option.label}</option>)}</select></label> : null}
-          <label className="grid gap-1 text-sm font-semibold">Prep<select data-comparison-different={differs('prep') || undefined} className={control} onChange={(event) => set('prep', event.target.value)} value={String(editor.prep ?? '')}>{prepChoices(mode, config).map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label className="grid gap-1 text-sm font-semibold">Prep<select data-comparison-different={differs('prep') || undefined} className={control} onChange={(event) => set('prep', event.target.value)} value={String(editor.prep ?? '')}>{!prepChoices(mode, config).includes(String(editor.prep ?? '')) ? <option value={String(editor.prep ?? '')} disabled>Choose preparation</option> : null}{prepChoices(mode, config).map((value) => <option key={value} value={value}>{mode === 'Exterior' ? ({ STD: 'Double Drill', SINGLE: 'Single Drill', MULTI: 'Multipoint' }[value] ?? value) : value}</option>)}</select></label>
           <label className="grid gap-1 text-sm font-semibold">Quantity<input data-comparison-different={differs('qty') || undefined} className={control} min="1" onChange={(event) => set('qty', event.target.value)} step="1" type="number" value={String(editor.qty ?? 1)}/></label>
         </div>
 

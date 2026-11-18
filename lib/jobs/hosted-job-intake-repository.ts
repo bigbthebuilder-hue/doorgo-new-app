@@ -32,9 +32,10 @@ function fromRow(row:unknown,fields:readonly string[]):Record<string,unknown>{
 function fromLineRow(row: unknown): Record<string, unknown> {
   const mapped = fromRow(row, serverLineFields);
   const storedCalc = mapped.glassCalc as NativeDoorLine['glassCalc'];
-  const { labelDoorId, labelProductCode, labelSlabSku, labelIndividualDoorIds, ...geometry } = storedCalc ?? {};
-  const calc = labelDoorId === undefined && labelProductCode === undefined && labelIndividualDoorIds === undefined && labelSlabSku === undefined ? storedCalc : Object.keys(geometry).length ? geometry : null;
+  const { prepControl, labelDoorId, labelProductCode, labelSlabSku, labelIndividualDoorIds, ...geometry } = storedCalc ?? {};
+  const calc = labelDoorId === undefined && labelProductCode === undefined && labelIndividualDoorIds === undefined && labelSlabSku === undefined && prepControl === undefined ? storedCalc : Object.keys(geometry).length ? geometry : null;
   mapped.glassCalc = calc;
+  mapped.prepSource = prepControl === 'automatic' ? 'automatic' : 'manual';
   mapped.individualDoorIds = individualDoorIds(labelIndividualDoorIds);
   mapped.doorId = typeof labelDoorId === 'string' ? labelDoorId : null;
   mapped.doorSlabSku = typeof labelSlabSku === 'string' ? labelSlabSku : null;
@@ -52,9 +53,11 @@ function linePayload(input:DoorLineInput,index:number):Record<string,unknown>{
   if(lineId&&!isUuid(lineId))throw new JobIntakeFailure('validation_failed',`Door line ${index+1}: A new door line must have a valid UUID identity.`,{[`lines.${index}.lineId`]:'A new door line must have a valid UUID identity.'});
   const normalized=normalizeDoorLineInput(input);
   if(normalized.ok===false)throw new JobIntakeFailure('validation_failed',`Door line ${index+1}: ${normalized.message}`,Object.fromEntries(Object.entries(normalized.fieldErrors).map(([key,value])=>[`lines.${index}.${key}`,value])));
-  const geometry = normalizeConstruction(normalized.value.construction) !== 'standard'
+  const calculatedGeometry = normalizeConstruction(normalized.value.construction) !== 'standard'
     ? { ...(normalized.value.glassCalc ?? {}), construction: normalized.value.construction }
     : normalized.value.glassCalc;
+  const geometry = normalized.value.prepSource === 'automatic'
+    ? { ...(calculatedGeometry ?? {}), prepControl: 'automatic' } : calculatedGeometry;
   // Line metadata travels through the existing JSON field, as construction does.
   const { doorId, productCode, doorSlabSku, individualDoorIds: copyIds } = normalized.value;
   const glassCalc = doorId || productCode || doorSlabSku || copyIds?.length ? {

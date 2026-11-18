@@ -49,7 +49,7 @@ assert.equal(newDoorFromSession(session).hingeType, 'BB');
 assert.equal(newDoorFromSession(createNewDoorSession()).doorType, '', 'Reopen starts a fresh session');
 for (const height of [`7'0"`, `8'0"`]) {
   const tall = rememberNewDoor(createNewDoorSession(), { ...defaultDoorLine('Exterior'), height }, null);
-  assert.equal(newDoorFromSession(tall).prep, 'MULTI');
+  assert.equal(newDoorFromSession(tall).prep, height === `8'0"` ? 'MULTI' : 'STD');
 }
 
 // Guard actual handler wiring as well as the pure state transitions above.

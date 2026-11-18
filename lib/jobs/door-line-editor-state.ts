@@ -49,7 +49,7 @@ export function rememberNewDoor(session: NewDoorSession, line: DoorLineInput, ed
 
 export function newDoorFromSession(session: NewDoorSession, mode = session.mode): DoorLineInput {
   const next = { ...defaultDoorLine(mode), ...session.values[mode] };
-  next.prep = prepAfterHeightChange(mode, String(next.config), next.prep, next.height);
+  next.prep = prepAfterHeightChange(mode, String(next.config), next.prep, next.height, next.prepSource);
   return next;
 }
 

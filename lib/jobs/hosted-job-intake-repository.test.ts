@@ -132,3 +132,37 @@ async function verifyCompleteList() {
   console.log('Jobs list loads every authorized page, retains salesperson assignments and rejects repeated cursors.');
 }
 verifyCompleteList().catch(error => { console.error(error); process.exitCode = 1; });
+
+async function verifyPreparationRoundTrip() {
+  for (const selected of ['STD', 'SINGLE', 'MULTI']) for (const source of ['manual', 'automatic'] as const) {
+    let stored = { ...line, mode: 'Exterior', config: 'D', height: `8'0"`, width: `3'0"`, hand: 'LH',
+      material: 'fiberglass', hinge_type: 'BB', prep: selected, glass_calc: source === 'automatic' ? { prepControl: 'automatic' } : null } as Record<string, unknown>;
+    const rpc: NativeJobRpcClient = { rpc: async (name, args) => {
+      if (name === 'dg_update_native_job') stored = { ...stored, ...(args.p_lines as Record<string, unknown>[])[0] };
+      return { data: { job, lines: [stored] }, error: null };
+    } };
+    const repository = createHostedJobIntakeRepository({ client: rpc });
+    const opened = (await repository.findById(job.internal_job_id))!;
+    assert.equal(opened.lines[0].prepSource, source);
+    assert.equal(opened.lines[0].prep, selected, 'read never reinterprets a stored choice');
+    assert.equal(opened.lines[0].glassCalc, null, 'control metadata stays outside geometry');
+    const result = await repository.update({ internalJobId: job.internal_job_id, expectedRevision: 1,
+      actorUserId: job.created_by_user_id, input: { customer: 'Unrelated change' }, lines: opened.lines });
+    assert.equal(result.lines[0].prep, source === 'automatic' ? 'MULTI' : selected);
+    assert.equal(result.lines[0].prepSource, source);
+    const refreshed = (await createHostedJobIntakeRepository({ client: rpc }).findById(job.internal_job_id))!;
+    assert.equal(refreshed.lines[0].prepSource, source);
+    assert.equal(refreshed.lines[0].prep, source === 'automatic' ? 'MULTI' : selected);
+    // A deliberate choice must clear the stored automatic marker on the next full save.
+    await repository.update({ internalJobId: job.internal_job_id, expectedRevision: 1,
+      actorUserId: job.created_by_user_id, input: {}, lines: [{ ...refreshed.lines[0], prep: 'STD', prepSource: 'manual' }] });
+    const reopened = (await repository.findById(job.internal_job_id))!;
+    assert.equal(reopened.lines[0].prep, 'STD');
+    assert.equal(reopened.lines[0].prepSource, 'manual');
+    await repository.update({ internalJobId: job.internal_job_id, expectedRevision: 1,
+      actorUserId: job.created_by_user_id, input: { notes: 'Header-only save' } });
+    assert.equal((await repository.findById(job.internal_job_id))!.lines[0].prep, 'STD');
+  }
+  console.log('Preparation hosted-adapter save, fresh repository reopen, legacy values, full-job saves and manual-marker clearing passed (synthetic RPC).');
+}
+verifyPreparationRoundTrip().catch(error => { console.error(error); process.exitCode = 1; });

@@ -184,7 +184,7 @@ async function main() {
     assert.equal(pkt.ok && pkt.value.prep, 'Round Weiser');
     if (pkt.ok) assert.deepEqual([pkt.value.hand, pkt.value.jambWidth, pkt.value.jambType, pkt.value.hingeType], [null, null, null, null]);
     assert.deepEqual(prepChoices('Interior', 'PKT'), ['Round Weiser', 'Reg Emtek', 'LRG Emtek']);
-    assert.equal(prepAfterHeightChange('Exterior', 'D', 'STD', `8'0"`), 'MULTI', 'overheight Exterior doors default to multipoint prep');
+    assert.equal(prepAfterHeightChange('Exterior', 'D', 'STD', `8'0"`, 'automatic'), 'MULTI', 'overheight Exterior doors default to multipoint prep');
     assert.equal(prepAfterHeightChange('Exterior', 'SD', 'SINGLE', `6'8"`), 'SINGLE', 'a compatible prep remains selected');
     assert.equal(prepAfterHeightChange('Exterior', 'T/DS', 'MULTI', `6'8"`), 'MULTI', 'returning to standard height preserves a still-valid prep');
     const bp = normalizeDoorLineInput(validLine({ mode: 'Interior', config: 'B.P.', width: `2'6"`, prep: 'HALF', material: 'wood', roWidth: '40', roHeight: '80' }));

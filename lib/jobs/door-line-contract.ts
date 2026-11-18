@@ -80,7 +80,7 @@ export function parseDoorInches(value: unknown): number {
 }
 
 export function prepChoices(mode: DoorLineMode, config: string): readonly string[] {
-  if (mode === 'Exterior') return ['STD', 'MULTI', 'SINGLE'];
+  if (mode === 'Exterior') return ['STD', 'SINGLE', 'MULTI'];
   if (config === 'D') return ['YES', 'NO'];
   if (config === 'DD') return ['NO', 'BOTH'];
   if (config === 'PKT') return PKT_PREPS;
@@ -93,10 +93,16 @@ export function prepAfterHeightChange(
   config: string,
   currentPrep: unknown,
   nextHeight: unknown,
+  source: unknown = 'manual',
 ): string {
   const choices = prepChoices(mode, config);
   const current = String(currentPrep ?? '');
-  if (mode === 'Exterior' && [`7'0"`, `8'0"`].includes(String(nextHeight))) return choices.includes('MULTI') ? 'MULTI' : (choices[0] ?? '');
+  // Missing provenance is historical/manual, never permission to reinterpret a saved choice.
+  if (source !== 'automatic') return current;
+  if (mode === 'Exterior') {
+    const height = parseStoredShopDimension(nextHeight);
+    return height.ok && Math.abs(height.inches - 96) < 0.001 ? 'MULTI' : 'STD';
+  }
   return choices.includes(current) ? current : (choices[0] ?? '');
 }
 
@@ -108,7 +114,7 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
     width: mode === 'Exterior' ? `3'0"` : `2'6"`,
     height: `6'8"`,
     customSlab: 'No', customSlabWidth: '', customSlabHeight: '',
-    hand: 'LH', prep: mode === 'Exterior' ? 'STD' : 'YES',
+    hand: 'LH', prep: mode === 'Exterior' ? 'STD' : 'YES', prepSource: 'automatic',
     jambWidth: mode === 'Exterior' ? `6-9/16"` : `4-9/16"`,
     jambType: 'Primed', sill: mode === 'Interior' ? 'NONE' : 'STD',
     weatherstrip: mode === 'Exterior' ? 'WHT' : '',
@@ -174,7 +180,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const allowedPreps = mode && config ? prepChoices(mode, config) : [];
   let prep = text(input.prep);
   if (prep === 'Round') prep = 'Round Weiser';
-  if (!patio && mode && config && height) prep = prepAfterHeightChange(mode, config, prep, height);
+  if (!patio && mode && config && height) prep = prepAfterHeightChange(mode, config, prep, height, input.prepSource);
   if (!prep || !allowedPreps.includes(prep)) errors.prep = 'Choose an available prep option.';
 
   const hand = noJamb ? null : text(input.hand);
@@ -223,7 +229,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       doorType: text(input.doorType), config: config as string, width: width as string, height: height as string,
       customSlab, customSlabWidth: customSlabAxis({ customSlab }, 'width') ? text(input.customSlabWidth) : null,
       customSlabHeight: customSlabAxis({ customSlab }, 'height') ? text(input.customSlabHeight) : null,
-      hand, prep, glass: null, jambWidth, ripJamb,
+      hand, prep, prepSource: input.prepSource === 'automatic' ? 'automatic' : 'manual', glass: null, jambWidth, ripJamb,
       jambType: noJamb ? null : text(input.jambType),
       // Keep legacy standard text until staff explicitly select a replacement.
       // Presentation uses sillChoice; only construction can select special geometry.
@@ -331,6 +337,7 @@ export function doorLineEquivalenceKey(line: DoorLineInput): string {
   return JSON.stringify({
     ...comparable,
     individualIdentity: line.individualDoorIds?.some(Boolean) ? line.lineId : null,
+    prepSource: line.prepSource === 'automatic' ? 'automatic' : 'manual',
     doorId: text(line.doorId) ?? '',
     productCode: line.productCode ?? '',
     doorSlabSku: line.doorSlabSku ?? '',

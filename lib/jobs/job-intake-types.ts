@@ -89,6 +89,7 @@ export type NativeDoorLine = {
   customSlabHeight: string | null;
   hand: string | null;
   prep: string | null;
+  prepSource?: 'automatic' | 'manual';
   glass: string | null;
   jambWidth: string | null;
   jambType: string | null;

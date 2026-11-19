@@ -33,9 +33,17 @@ function fromRow(row:unknown,fields:readonly string[]):Record<string,unknown>{
 function fromLineRow(row: unknown): Record<string, unknown> {
   const mapped = fromRow(row, serverLineFields);
   const storedCalc = mapped.glassCalc as NativeDoorLine['glassCalc'];
-  const { intakeReceipt, prepControl, labelDoorId, labelProductCode, labelSlabSku, labelIndividualDoorIds, ...geometry } = storedCalc ?? {};
-  const calc = labelDoorId === undefined && labelProductCode === undefined && labelIndividualDoorIds === undefined && labelSlabSku === undefined && prepControl === undefined && intakeReceipt === undefined ? storedCalc : Object.keys(geometry).length ? geometry : null;
+  const { slabSupply, slabDrilling, framePreparation, slabPreparation, intakeReceipt, prepControl, labelDoorId, labelProductCode, labelSlabSku, labelIndividualDoorIds, ...geometry } = storedCalc ?? {};
+  const calc = labelDoorId === undefined && labelProductCode === undefined && labelIndividualDoorIds === undefined && labelSlabSku === undefined && prepControl === undefined && intakeReceipt === undefined && slabSupply === undefined && slabDrilling === undefined && framePreparation === undefined && slabPreparation === undefined ? storedCalc : Object.keys(geometry).length ? geometry : null;
   mapped.glassCalc = calc;
+  mapped.supplyType = slabSupply === 'slab-only' ? 'slab-only' : 'prehung';
+  if (typeof slabPreparation === 'string') {
+    try { const value = JSON.parse(slabPreparation); if (value && typeof value === 'object') mapped.slabPreparation = { hand: typeof value.hand === 'string' ? value.hand : null, prep: typeof value.prep === 'string' ? value.prep : null, slabDrilling: typeof value.slabDrilling === 'string' ? value.slabDrilling : null }; } catch { /* Ignore malformed inactive optional metadata. */ }
+  }
+  mapped.slabDrilling = typeof slabDrilling === 'string' ? slabDrilling : null;
+  if (typeof framePreparation === 'string') {
+    try { const value = JSON.parse(framePreparation); if (value && typeof value === 'object') mapped.framePreparation = { hand: typeof value.hand === 'string' ? value.hand : null, prep: typeof value.prep === 'string' ? value.prep : null, prepSource: value.prepSource === 'automatic' ? 'automatic' : 'manual' }; } catch { /* Older/malformed optional metadata cannot assign instructions. */ }
+  }
   mapped.intakeChange = intakeChange(intakeReceipt);
   mapped.prepSource = prepControl === 'automatic' ? 'automatic' : 'manual';
   mapped.individualDoorIds = individualDoorIds(labelIndividualDoorIds);
@@ -59,8 +67,10 @@ function linePayload(input:DoorLineInput,index:number):Record<string,unknown>{
     ? { ...(normalized.value.glassCalc ?? {}), construction: normalized.value.construction }
     : normalized.value.glassCalc;
   const receipt = intakeChange(normalized.value.intakeChange);
-  const geometry = normalized.value.prepSource === 'automatic' || receipt
+  const receiptGeometry = normalized.value.prepSource === 'automatic' || receipt
     ? { ...(calculatedGeometry ?? {}), ...(normalized.value.prepSource === 'automatic' ? { prepControl: 'automatic' } : {}), ...(receipt ? { intakeReceipt: JSON.stringify(receipt) } : {}) } : calculatedGeometry;
+  const baseGeometry = normalized.value.slabPreparation ? { ...(receiptGeometry ?? {}), slabPreparation: JSON.stringify(normalized.value.slabPreparation) } : receiptGeometry;
+  const geometry = normalized.value.supplyType === 'slab-only' ? { ...(baseGeometry ?? {}), slabSupply: 'slab-only', ...(normalized.value.slabDrilling ? { slabDrilling: normalized.value.slabDrilling } : {}), ...(normalized.value.framePreparation ? { framePreparation: JSON.stringify(normalized.value.framePreparation) } : {}) } : baseGeometry;
   // Line metadata travels through the existing JSON field, as construction does.
   const { doorId, productCode, doorSlabSku, individualDoorIds: copyIds } = normalized.value;
   const glassCalc = doorId || productCode || doorSlabSku || copyIds?.length ? {

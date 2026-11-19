@@ -1,3 +1,4 @@
+import { isSlabOnly, preparationDisplay, drillingDisplay } from './slab-only-contract';
 import type { NativeDoorLine, NativeJobAggregate } from './job-intake-types';
 import { doorSizeDisplay } from './door-size-presentation';
 import { sillChoice } from './construction-contract';
@@ -50,10 +51,10 @@ function labelHtml(job: NativeJobAggregate, line: NativeDoorLine, doorId: string
   const code = line.productCode ?? '';
   const slab = line.doorSlabSku ?? '';
   const fields = [
-    ['Door ID', doorId], ['Door type', line.mode], ['Description', line.doorType],
-    ['Material', line.material], ['Size', doorSizeDisplay(line, true)], ['Swing', line.hand],
-    ['Jamb width', line.jambWidth], ['Configuration', line.config],
-    ['Sill', line.construction === 'low-profile-quarter-sill' || line.construction === 'jamb-four-sides' ? sillChoice(line) : line.sill],
+    ['Supply', isSlabOnly(line) ? ['SLAB ONLY', line.prep === 'MTM' ? 'MTM' : '', line.prep === 'MTM' ? drillingDisplay(line.slabDrilling) : preparationDisplay(line)].filter(Boolean).join(' · ') : ''], ['Door ID', doorId], ['Door type', line.mode], ['Description', line.doorType],
+    ['Material', line.material], ['Thickness', isSlabOnly(line) ? line.doorThickness : ''], ['Size', doorSizeDisplay(line, true)], ['Swing', line.hand],
+    ['Jamb width', isSlabOnly(line) ? '' : line.jambWidth], ['Configuration', line.config],
+    ['Sill', isSlabOnly(line) ? '' : line.construction === 'low-profile-quarter-sill' || line.construction === 'jamb-four-sides' ? sillChoice(line) : line.sill],
     ['Notes', omitNotes ? '' : line.notes],
   ].filter(([, value]) => value?.trim());
   const barcodeHtml = (value: string) => {
@@ -67,7 +68,7 @@ function labelHtml(job: NativeJobAggregate, line: NativeDoorLine, doorId: string
   };
   return '<article data-copy="' + copy + '" data-line="' + line.lineIndex + '"><section><header><h1>SO# ' + escape(job.bizTrackSalesOrder ?? '') + '</h1><h2>' + escape(job.customer ?? '') +
     '</h2></header><div class="details">' + (job.siteAddress?.trim() ? '<p class="address">' + escape(job.siteAddress) + '</p>' : '') +
-    fields.map(([name, value]) => '<p class="' + (name === 'Notes' ? 'notes' : name === 'Door ID' ? 'door-id' : name === 'Description' ? 'description' : 'spec') + '"><strong>' + escape(name!) + '</strong> <span>' + escape(value!) + '</span></p>').join('') + '</div>' +
+    fields.map(([name, value]) => '<p class="' + (isSlabOnly(line) && (name === 'Supply') ? 'spec slab-instructions' : name === 'Notes' ? 'notes' : name === 'Door ID' ? 'door-id' : name === 'Description' ? 'description' : 'spec') + '">' + (isSlabOnly(line) && name === 'Supply' ? '' : '<strong>' + escape(name!) + '</strong> ') + '<span>' + escape(value!) + '</span></p>').join('') + '</div>' +
     (code || slab ? '<footer' + (code && slab ? ' class="dual-barcode"' : '') + '>' + (code ? barcodeHtml(code) : '') + (slab ? barcodeHtml(slab) : '') + '</footer>' : '') + '</section></article>';
 }
 
@@ -202,7 +203,7 @@ export function prepareDoorLabels(job: NativeJobAggregate, selection: LabelSelec
     'h2{font-size:calc(32pt * var(--scale));line-height:1.05;margin:.03in 0 0}' +
     '.details{flex-shrink:0;font-size:calc(20pt * var(--scale));line-height:1.08}' +
     'p{margin:0 0 .01in}.spec{display:inline-block;max-width:calc(100% - .07in);margin-right:.07in;vertical-align:top}strong{font-size:calc(12pt * var(--scale));line-height:1}.door-id{font-size:calc(26pt * var(--scale));font-weight:700}.description{font-size:calc(24pt * var(--scale))}' +
-    '.address{font-size:calc(18pt * var(--scale))}.notes,.notes strong{font-size:11pt;line-height:1.15}.page-reference{font:11pt/1.1 Arial,sans-serif;margin-top:.03in}' +
+    '.slab-instructions{font-size:14pt;line-height:1.1;font-weight:700}.address{font-size:calc(18pt * var(--scale))}.notes,.notes strong{font-size:11pt;line-height:1.15}.page-reference{font:11pt/1.1 Arial,sans-serif;margin-top:.03in}' +
     'footer{margin-top:auto;padding-top:.04in;text-align:center;font:16pt/1.1 monospace;flex-shrink:0}' +
     '.barcode-block + .barcode-block{margin-top:.04in}.dual-barcode svg{height:.30in}' +
     'svg{display:block;margin:0 auto .03in;height:.66in;max-width:100%;fill:#000}' +

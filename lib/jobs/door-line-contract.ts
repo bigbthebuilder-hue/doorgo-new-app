@@ -1,3 +1,4 @@
+import { isSlabOnly, SLAB_DRILLING } from './slab-only-contract';
 import { intakeChange } from './mobile-intake';
 import { customSlabAxis, hasCustomSlabAxis, SLAB_SIZING_MODES } from './slab-sizing-contract';
 import { normalizeConstruction, validConstruction, sillChoice } from './construction-contract';
@@ -143,7 +144,10 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const width = text(input.width);
   const height = text(input.height);
   const errors: Record<string, string> = {};
-  if (!validConstruction(input.construction)) errors.construction = 'Choose a Sill: STD, DARK, LOW-PRO, NONE, or J-4-S.';
+  const slabOnly = isSlabOnly(input);
+  if (input.supplyType !== undefined && !['prehung', 'slab-only'].includes(String(input.supplyType))) errors.supplyType = 'Choose a supply type.';
+  if (slabOnly && mode === 'Exterior' && config && isGlassConfiguration(config)) errors.config = 'Choose D or DD for replacement slabs; framed sidelights and transoms require a complete door.';
+  if (!slabOnly && !validConstruction(input.construction)) errors.construction = 'Choose a Sill: STD, DARK, LOW-PRO, NONE, or J-4-S.';
   const sizingError = validateDoubleDoorSizing({ ...input, config: config ?? undefined });
   if (sizingError) errors.doubleDoorSizing = sizingError;
   const patio = input.doubleDoorSizing?.kind === 'patio';
@@ -170,7 +174,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   if (patio) customSlab = 'No';
   if (['CustomWidth', 'CustomHeight'].includes(customSlab) && hasDoubleDoorCore(config)) errors.customSlab = 'Use Custom DD active width, inactive width, and shared height.';
   if (customSlab === 'Yes') customSlab = 'WoodCustom';
-  if (noJamb) customSlab = 'No';
+  if (noJamb && !slabOnly) customSlab = 'No';
   if (!(SLAB_SIZING_MODES as readonly string[]).includes(customSlab)) errors.customSlab = 'Choose Standard sizing, Custom Slab, or Fit to RO.';
   if (hasCustomSlabAxis({ customSlab }) && !hasDoubleDoorCore(config)) {
     if (material !== 'wood') errors.customSlab = 'Custom slab dimensions are available for Wood only.';
@@ -181,26 +185,28 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const allowedPreps = mode && config ? prepChoices(mode, config) : [];
   let prep = text(input.prep);
   if (prep === 'Round') prep = 'Round Weiser';
-  if (!patio && mode && config && height) prep = prepAfterHeightChange(mode, config, prep, height, input.prepSource);
-  if (!prep || !allowedPreps.includes(prep)) errors.prep = 'Choose an available prep option.';
+  if (!slabOnly && !patio && mode && config && height) prep = prepAfterHeightChange(mode, config, prep, height, input.prepSource);
+  if (!(slabOnly && (prep === null || prep === 'MTM')) && (!prep || !allowedPreps.includes(prep))) errors.prep = 'Choose an available prep option.';
 
-  const hand = noJamb ? null : text(input.hand);
+  const hand = noJamb && !slabOnly ? null : text(input.hand);
+  const slabDrilling = slabOnly && prep === 'MTM' ? text(input.slabDrilling) : null;
+  if (slabDrilling && (!SLAB_DRILLING.includes(slabDrilling as typeof SLAB_DRILLING[number]) || !allowedPreps.includes(slabDrilling))) errors.slabDrilling = 'Choose an applicable drilling option.';
   const handOptions = mode === 'Exterior' ? ['LH', 'RH', 'LHOUT', 'RHOUT']
     : [...(config === 'DD' ? [null] : []), 'LH', 'RH', ...(normalizeConstruction(input.construction) === 'low-profile-quarter-sill' ? ['LHOUT', 'RHOUT'] : [])];
-  if (!noJamb && !handOptions.includes(hand)) errors.hand = 'Choose an available swing.';
+  if ((!noJamb || slabOnly) && !(slabOnly && hand === null) && !handOptions.includes(hand)) errors.hand = 'Choose an available swing.';
 
-  const jambWidth = noJamb ? null : text(input.jambWidth);
-  const ripJamb = noJamb ? null : (String(input.ripJamb ?? '').trim().toLowerCase() === 'yes' ? 'Yes' : null);
-  if (!noJamb && (!jambWidth || jambWidth === 'None')) errors.jambWidth = 'Choose or enter a jamb width.';
-  if (!noJamb && (jambWidth === 'RIP' || (ripJamb === 'Yes' && !(parseDoorInches(jambWidth) > 0)))) {
+  const jambWidth = noJamb && !slabOnly ? null : text(input.jambWidth);
+  const ripJamb = noJamb && !slabOnly ? null : (String(input.ripJamb ?? '').trim().toLowerCase() === 'yes' ? 'Yes' : null);
+  if (!slabOnly && !noJamb && (!jambWidth || jambWidth === 'None')) errors.jambWidth = 'Choose or enter a jamb width.';
+  if (!slabOnly && !noJamb && (jambWidth === 'RIP' || (ripJamb === 'Yes' && !(parseDoorInches(jambWidth) > 0)))) {
     errors.jambWidth = 'Enter the completed RIP jamb size before saving.';
   }
-  if (!noJamb && !text(input.jambType)) errors.jambType = 'Choose a jamb type.';
+  if (!slabOnly && !noJamb && !text(input.jambType)) errors.jambType = 'Choose a jamb type.';
   const hingeType = normalizeHingeType(mode, config, input.hingeType);
-  if (hingeType.ok === false) errors.hingeType = hingeType.message;
+  if (!slabOnly && hingeType.ok === false) errors.hingeType = hingeType.message;
 
   let roHeight = patio ? null : text(input.roHeight);
-  if (config === 'B.P.' && roHeight && height) {
+  if (!slabOnly && config === 'B.P.' && roHeight && height) {
     const finishedOpening = parseDoorInches(roHeight);
     const slabHeight = parseDoorInches(height);
     if (!Number.isFinite(finishedOpening)) errors.roHeight = 'Enter a valid Finished Opening height.';
@@ -215,7 +221,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   }
 
   const sizingInput = { ...input, material, customSlab, config: config ?? undefined };
-  if (usesCustomRo(sizingInput)) {
+  if (!slabOnly && usesCustomRo(sizingInput)) {
     for (const blocker of calculateNonGlassFrameCut(sizingInput).blockers) {
       errors[blocker.field ?? 'customSlab'] = blocker.message;
     }
@@ -225,20 +231,23 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   return {
     ok: true,
     value: {
-      construction: noJamb ? 'standard' : normalizeConstruction(input.construction),
+      supplyType: slabOnly ? 'slab-only' : 'prehung', slabDrilling,
+      slabPreparation: input.slabPreparation ? { hand: text(input.slabPreparation.hand), prep: text(input.slabPreparation.prep), slabDrilling: text(input.slabPreparation.slabDrilling) } : null,
+      framePreparation: input.framePreparation ? { hand: text(input.framePreparation.hand), prep: text(input.framePreparation.prep), prepSource: input.framePreparation.prepSource === 'automatic' ? 'automatic' : 'manual' } : null,
+      construction: noJamb && !slabOnly ? 'standard' : normalizeConstruction(input.construction),
       mode: mode as DoorLineMode,
       doorType: text(input.doorType), config: config as string, width: width as string, height: height as string,
       customSlab, customSlabWidth: customSlabAxis({ customSlab }, 'width') ? text(input.customSlabWidth) : null,
       customSlabHeight: customSlabAxis({ customSlab }, 'height') ? text(input.customSlabHeight) : null,
       intakeChange: intakeChange(input.intakeChange),
       hand, prep, prepSource: input.prepSource === 'automatic' ? 'automatic' : 'manual', glass: null, jambWidth, ripJamb,
-      jambType: noJamb ? null : text(input.jambType),
+      jambType: noJamb && !slabOnly ? null : text(input.jambType),
       // Keep legacy standard text until staff explicitly select a replacement.
       // Presentation uses sillChoice; only construction can select special geometry.
-      sill: noJamb ? null : normalizeConstruction(input.construction) === 'standard' ? text(input.sill) ?? 'STD' : sillChoice(input),
+      sill: noJamb && !slabOnly ? null : normalizeConstruction(input.construction) === 'standard' ? text(input.sill) ?? 'STD' : sillChoice(input),
       weatherstrip: mode === 'Interior' ? null : text(input.weatherstrip),
-      hingeType: hingeType.ok ? hingeType.value : null, notes: text(input.notes), individualDoorIds: Array.isArray(input.individualDoorIds) ? [...input.individualDoorIds] : [], doorId: text(input.doorId), productCode: typeof input.productCode === 'string' ? input.productCode || null : null, doorSlabSku: typeof input.doorSlabSku === 'string' ? input.doorSlabSku || null : null, qty: quantity,
-      roWidth: noJamb || patio ? null : text(input.roWidth), roHeight: config === 'PKT' ? null : roHeight,
+      hingeType: slabOnly ? text(input.hingeType) : hingeType.ok ? hingeType.value : null, notes: text(input.notes), individualDoorIds: Array.isArray(input.individualDoorIds) ? [...input.individualDoorIds] : [], doorId: text(input.doorId), productCode: typeof input.productCode === 'string' ? input.productCode || null : null, doorSlabSku: typeof input.doorSlabSku === 'string' ? input.doorSlabSku || null : null, qty: quantity,
+      roWidth: !slabOnly && (noJamb || patio) ? null : text(input.roWidth), roHeight: !slabOnly && config === 'PKT' ? null : roHeight,
       material, doorThickness: text(input.doorThickness),
       doubleDoorSizing: input.doubleDoorSizing ? structuredClone(input.doubleDoorSizing) : null,
       doubleDoorAstragal: hasDoubleDoorCore(config) ? normalizeDoubleDoorAstragal(input.doubleDoorAstragal) : null,
@@ -282,6 +291,7 @@ export function calculateJ2AShopHours(lines: DoorLineInput[]): {
   const unknown: string[] = [];
   const active = lines.filter((line) => (line.lineStatus ?? 'Active') === 'Active');
   active.forEach((line, index) => {
+    if (isSlabOnly(line)) { unknown.push(`Line ${index + 1}: Slab Only — enter reviewed Shop Hours`); return; }
     const mode = String(line.mode ?? '').trim();
     const config = String(line.config ?? '').trim();
     const interiorBase: Record<string, number> = { D: 15, DD: 30, PKT: 15, 'B.P.': 15 };
@@ -338,6 +348,7 @@ export function doorLineEquivalenceKey(line: DoorLineInput): string {
   if (parsedConfig.ok) comparable.config = parsedConfig.canonicalConfig;
   return JSON.stringify({
     ...comparable,
+    supplyType: line.supplyType ?? 'prehung', slabDrilling: line.slabDrilling ?? '', framePreparation: line.framePreparation ?? null, slabPreparation: line.slabPreparation ?? null,
     individualIdentity: line.individualDoorIds?.some(Boolean) ? line.lineId : null,
     prepSource: line.prepSource === 'automatic' ? 'automatic' : 'manual',
     doorId: text(line.doorId) ?? '',

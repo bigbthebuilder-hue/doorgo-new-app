@@ -1,0 +1,72 @@
+import { MobileJobIntakeHarness } from './MobileJobIntakeHarness';
+import { mobileIntakeJob } from './MobileJobIntakeHarness';
+import type { MobileIntakeFixture } from './job-intake-actions-shim';
+import { test, expect } from '@playwright/experimental-ct-react';
+import { SlabSizingHarness } from './SlabSizingHarness';
+import { defaultDoorLine } from '../../lib/jobs/door-line-contract';
+
+for (const width of [412, 1600]) for (const mode of ['Interior', 'Exterior'] as const) {
+  test(`Slab Only ${mode} MTM optional instructions and reversible frame at ${width}`, async ({ mount, page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const component = await mount(<SlabSizingHarness line={{ ...defaultDoorLine(mode), lineId: 'fixture', lineIndex: 1, lineStatus: 'Active', doorType: 'Replacement slab', jambType: 'Fir' }}/>);
+    await component.getByRole('button', { name: 'Edit', exact: true }).click();
+    const pane = component.locator('#door-input-pane');
+    await pane.getByRole('combobox', { name: 'Supply', exact: true }).selectOption('slab-only');
+    for (const name of ['Jamb Width', 'Jamb Type', 'Hinge Type', 'Hinge Color', 'Sill', 'Weatherstrip', 'Astragal']) await expect(pane.getByRole('combobox', { name, exact: true })).toHaveCount(0);
+    await expect(pane.getByRole('textbox', { name: 'Weatherstrip', exact: true })).toHaveCount(0);
+    const prep = pane.getByRole('combobox', { name: 'Prep', exact: true });
+    const hand = pane.getByRole('combobox', { name: 'Swing', exact: true });
+    await expect(prep).toHaveValue(''); await expect(hand).toHaveValue('');
+    await prep.selectOption('MTM');
+    const drilling = pane.getByRole('combobox', { name: 'Drilling (Optional)', exact: true });
+    await expect(drilling).toHaveValue('');
+    await pane.getByRole('combobox', { name: 'Height', exact: true }).selectOption(`8'0"`);
+    await expect(prep).toHaveValue('MTM'); await expect(drilling).toHaveValue('');
+    await pane.getByRole('button', { name: 'Update Door', exact: true }).click();
+    let lines = JSON.parse(await component.getByTestId('saved-sizing').textContent() ?? '[]');
+    expect(lines[0]).toMatchObject({ supplyType: 'slab-only', prep: 'MTM', hand: null, slabDrilling: null, jambType: 'Fir' });
+    await component.getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(prep).toHaveValue('MTM');
+    await drilling.selectOption(mode === 'Exterior' ? 'STD' : 'YES'); await hand.selectOption('RH');
+    await pane.getByRole('button', { name: 'Update Door', exact: true }).click();
+    await component.getByRole('button', { name: 'Duplicate', exact: true }).click();
+    lines = JSON.parse(await component.getByTestId('saved-sizing').textContent() ?? '[]');
+    expect(lines).toHaveLength(2); expect(lines[1].prep).toBe('MTM'); expect(lines[1].supplyType).toBe('slab-only');
+    await component.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    await pane.getByRole('combobox', { name: 'Supply', exact: true }).selectOption('prehung');
+    await expect(pane.getByRole('combobox', { name: 'Jamb Type', exact: true })).toHaveValue('Fir');
+    await expect(hand).toHaveValue('LH');
+    await expect(prep).toHaveValue(mode === 'Exterior' ? 'STD' : 'YES');
+    await pane.getByRole('button', { name: 'Update Door', exact: true }).click();
+    lines = JSON.parse(await component.getByTestId('saved-sizing').textContent() ?? '[]');
+    expect(lines[0].supplyType).toBe('prehung'); expect(lines[1].supplyType).toBe('slab-only');
+  });
+}
+
+test('phone Add Door & Next saves MTM once, reopens and retains independent quantity changes', async ({ mount, page }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  const job = mobileIntakeJob();
+  type FixtureGlobal = typeof globalThis & { mobileIntakeFixture: MobileIntakeFixture };
+  await page.evaluate(job => { (globalThis as FixtureGlobal).mobileIntakeFixture = { job, calls: 0, requests: [], delay: 400 }; }, job);
+  const component = await mount(<MobileJobIntakeHarness job={job}/>);
+  const pane = component.locator('#door-input-pane');
+  await pane.getByRole('textbox', { name: 'Door ID', exact: true }).fill('Slab A');
+  await pane.getByRole('combobox', { name: 'Supply', exact: true }).selectOption('slab-only');
+  await pane.getByRole('combobox', { name: 'Prep', exact: true }).selectOption('MTM');
+  await expect(pane.getByRole('combobox', { name: 'Jamb Width', exact: true })).toHaveCount(0);
+  await pane.getByRole('button', { name: 'Add Door & Next', exact: true }).click();
+  await expect(component.locator('.mobile-last-saved')).toContainText('Door added');
+  const saved = await page.evaluate(() => (globalThis as FixtureGlobal).mobileIntakeFixture.job);
+  expect(saved.lines).toHaveLength(3);
+  expect(saved.lines[2]).toMatchObject({ supplyType: 'slab-only', prep: 'MTM', hand: null, slabDrilling: null });
+  await expect(pane.getByRole('combobox', { name: 'Supply', exact: true })).toHaveValue('prehung');
+  await expect(pane.getByRole('combobox', { name: 'Prep', exact: true })).toHaveValue('STD');
+  await component.unmount();
+  const reopened = await mount(<MobileJobIntakeHarness job={saved}/>);
+  await reopened.getByRole('button', { name: 'Job Lines (3)', exact: true }).click();
+  await reopened.getByRole('button', { name: 'Increase quantity for Slab A', exact: true }).click();
+  await expect(reopened.locator('.mobile-last-saved')).toContainText('Quantity updated: 1 → 2');
+  const updated = await page.evaluate(() => (globalThis as FixtureGlobal).mobileIntakeFixture.job);
+  expect(updated.lines[2]).toMatchObject({ supplyType: 'slab-only', prep: 'MTM', qty: 2, hand: null });
+  expect(updated.lines[0].qty).toBe(2);
+});

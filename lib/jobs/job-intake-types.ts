@@ -91,6 +91,10 @@ export type NativeDoorLine = {
   hand: string | null;
   prep: string | null;
   prepSource?: 'automatic' | 'manual';
+  supplyType?: 'prehung' | 'slab-only';
+  slabDrilling?: string | null;
+  slabPreparation?: { hand: string | null; prep: string | null; slabDrilling: string | null } | null;
+  framePreparation?: { hand: string | null; prep: string | null; prepSource: 'automatic' | 'manual' } | null;
   intakeChange?: IntakeChange;
   glass: string | null;
   jambWidth: string | null;

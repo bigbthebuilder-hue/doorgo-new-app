@@ -186,3 +186,33 @@ async function verifyIntakeReceiptRoundTrip() {
   console.log('Mobile intake receipt survives hosted-adapter full save/reopen without geometry or individual-ID loss (synthetic RPC).');
 }
 verifyIntakeReceiptRoundTrip().catch(error => { console.error(error); process.exitCode = 1; });
+
+async function verifySlabOnlyRoundTrip() {
+  const { defaultDoorLine } = await import('./door-line-contract');
+  const { changeSupplyType } = await import('./slab-only-contract');
+  for (const mode of ['Interior', 'Exterior'] as const) {
+    let rows: Record<string, unknown>[] = [];
+    const client: NativeJobRpcClient = { rpc: async (name, args) => {
+      if (name === 'dg_update_native_job') rows = structuredClone(args.p_lines as Record<string, unknown>[]);
+      return { data: { job, lines: rows }, error: null };
+    } };
+    const frame = { ...defaultDoorLine(mode), lineId: line.line_id, lineIndex: 1, jambType: 'Fir', doorId: 'Opening 1', doorSlabSku: 'SLAB_1' };
+    const slab = { ...changeSupplyType(frame, 'slab-only'), prep: 'MTM', hand: null, slabDrilling: null };
+    const repo = createHostedJobIntakeRepository({ client });
+    await repo.update({ actorUserId: job.created_by_user_id, internalJobId: job.internal_job_id, expectedRevision: 1, input: { customer: 'Fixture', lifecycleStage: 'Draft' }, lines: [frame, { ...slab, lineId: '44444444-4444-4444-8444-444444444444', lineIndex: 2 }] });
+    const reopened = await createHostedJobIntakeRepository({ client }).findById(job.internal_job_id);
+    assert.ok(reopened);
+    const saved = reopened.lines[1];
+    assert.equal(saved.supplyType, 'slab-only'); assert.equal(saved.prep, 'MTM'); assert.equal(saved.hand, null); assert.equal(saved.slabDrilling, null);
+    assert.equal(saved.jambType, 'Fir'); assert.equal(saved.doorSlabSku, 'SLAB_1');
+    assert.ok(!saved.glassCalc || !('slabSupply' in saved.glassCalc));
+    const restored = changeSupplyType(saved, 'prehung');
+    assert.equal(restored.hand, 'LH'); assert.equal(restored.prep, mode === 'Exterior' ? 'STD' : 'YES');
+    const edited = { ...saved, hand: 'RH', slabDrilling: mode === 'Exterior' ? 'STD' : 'YES', qty: 3 };
+    await repo.update({ actorUserId: job.created_by_user_id, internalJobId: job.internal_job_id, expectedRevision: 1, input: { customer: 'Fixture', lifecycleStage: 'Draft' }, lines: [reopened.lines[0], edited] });
+    const again = await createHostedJobIntakeRepository({ client }).findById(job.internal_job_id);
+    assert.ok(again); assert.equal(again.lines[1].slabDrilling, edited.slabDrilling); assert.equal(again.lines[1].qty, 3);
+  }
+  console.log('Mixed prehung/Slab Only MTM persists through full save and fresh hosted-adapter reopen (synthetic RPC).');
+}
+verifySlabOnlyRoundTrip().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,3 +1,4 @@
+import { isSlabOnly, preparationDisplay } from './slab-only-contract';
 import { customSlabAxis } from './slab-sizing-contract';
 import { missingDoorFieldMessage } from './status-presentation';
 import { sillChoice } from './construction-contract';
@@ -158,7 +159,7 @@ function prepDisplay(prep: string | null): string {
 }
 
 function jambDisplay(line: NativeDoorLine): string {
-  if (isNoJamb(line)) return '';
+  if (isSlabOnly(line) || isNoJamb(line)) return '';
   const type = text(line.jambType) || 'Primed';
   const width = text(line.jambWidth);
   if (!width) return type === 'Primed' ? '' : type;
@@ -293,7 +294,7 @@ function notesGlass(line: NativeDoorLine, status: WorkOrderPresentationStatus, r
   if (status === 'Glass Detail Needed') values.push('DETAILS NEEDED');
   else if (status === 'Blocked') values.push('BLOCKED: ' + reasons.join(' | '));
   else if (line.glassUnits.length && !values.some((value) => /glass/i.test(value))) values.push('Glass');
-  if (line.roWidth && line.roHeight && line.config !== 'PKT' && line.config !== 'B.P.') values.push(`RO ${canonicalStoredDimension(line.roWidth)} × ${canonicalStoredDimension(line.roHeight)}`);
+  if (!isSlabOnly(line) && line.roWidth && line.roHeight && line.config !== 'PKT' && line.config !== 'B.P.') values.push(`RO ${canonicalStoredDimension(line.roWidth)} × ${canonicalStoredDimension(line.roHeight)}`);
   return formatWorkOrderNotesGlass([...new Map(values.map((value) => [value.toLowerCase(), value])).values()].join(' | '));
 }
 
@@ -311,22 +312,22 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
   const glassConfiguration = isFrameGlassConfiguration(line.config);
   const outputLine = withDerivedGlassGeometry(line);
   const nonGlassResult = glassConfiguration ? null : calculateNonGlassFrameCut(outputLine);
-  const status = glassConfiguration
+  const status = isSlabOnly(line) ? 'Complete' : glassConfiguration
     ? presentationStatus(outputLine)
     : nonGlassResult?.status === 'Blocked' || nonGlassResult?.status === 'Incomplete' || nonGlassResult?.values?.widthReviewRequired
       ? 'Blocked'
       : nonGlassResult?.warnings.length ? 'Warning' : 'Complete';
-  const details = compactWorkOrderDetails(glassConfiguration ? glassDetailRows(outputLine) : nonGlassDetailRows(nonGlassResult!, outputLine));
-  if (showsMagCatch(outputLine)) {
+  const details = isSlabOnly(line) ? [] : compactWorkOrderDetails(glassConfiguration ? glassDetailRows(outputLine) : nonGlassDetailRows(nonGlassResult!, outputLine));
+  if (!isSlabOnly(line) && showsMagCatch(outputLine)) {
     const frame = details.find((row) => row.kind === 'frame');
     if (frame) frame.lines = [...frame.lines, 'Mag Catch'];
     else details.unshift({ kind: 'frame', lines: ['Mag Catch'] });
-  } else if (!glassConfiguration && hasDoubleDoorCore(outputLine.config) && normalizeDoubleDoorAstragal(outputLine.doubleDoorAstragal) === 'wood-ferco-astra-lock') {
+  } else if (!isSlabOnly(line) && !glassConfiguration && hasDoubleDoorCore(outputLine.config) && normalizeDoubleDoorAstragal(outputLine.doubleDoorAstragal) === 'wood-ferco-astra-lock') {
     const frame = details.find((row) => row.kind === 'frame');
     if (frame) frame.lines = [...frame.lines, 'Astragal: Wood / Ferco Astra Lock — 1"'];
     else details.unshift({ kind: 'frame', lines: ['Astragal: Wood / Ferco Astra Lock — 1"'] });
   }
-  const diagram = glassConfiguration && outputLine.includeDiagramOnWorkOrder !== false ? calculatePersistedGlassDiagramLayout(outputLine) : null;
+  const diagram = !isSlabOnly(line) && glassConfiguration && outputLine.includeDiagramOnWorkOrder !== false ? calculatePersistedGlassDiagramLayout(outputLine) : null;
   const detailCharactersPerLine = diagram ? 75 : 100;
   const detailLineCount = details.reduce((count, row) => count + row.lines.reduce(
     (lineCount, value) => lineCount + Math.max(1, Math.ceil(protectWorkOrderMeasurements(value).length / detailCharactersPerLine)), 0,
@@ -335,11 +336,11 @@ export function createWorkOrderRowGroup(line: NativeDoorLine, hingeColor: string
     primaryRow: {
       lineId: outputLine.lineId, lineIndex: outputLine.lineIndex, status,
       cells: {
-        quantity: String(outputLine.qty), configuration: text(outputLine.config), size: doorSizeDisplay(outputLine),
+        quantity: String(outputLine.qty), configuration: [isSlabOnly(outputLine) ? 'SLAB ONLY' : '', text(outputLine.config)].filter(Boolean).join(' / '), size: doorSizeDisplay(outputLine),
         thickness: text(outputLine.doorThickness) || (outputLine.mode === 'Interior' ? '1-3/8' : '1-3/4'),
-        doorType: text(outputLine.doorType), drill: prepDisplay(outputLine.prep), hinge: workOrderHingeDisplay({ ...outputLine, hingeColor }),
-        swing: isNoJamb(outputLine) ? '' : text(outputLine.hand), jamb: jambDisplay(outputLine), sill: isNoJamb(outputLine) || (outputLine.mode === 'Interior' && sillChoice(outputLine) === 'NONE') ? '' : sillChoice(outputLine),
-        weatherstrip: text(outputLine.weatherstrip), notesGlass: notesGlass(outputLine, status, details.filter((row) => row.kind === 'blocker' || row.kind === 'warning').flatMap((row) => row.lines)),
+        doorType: text(outputLine.doorType), drill: isSlabOnly(outputLine) ? preparationDisplay(outputLine) : prepDisplay(outputLine.prep), hinge: isSlabOnly(outputLine) ? '' : workOrderHingeDisplay({ ...outputLine, hingeColor }),
+        swing: !isSlabOnly(outputLine) && isNoJamb(outputLine) ? '' : text(outputLine.hand), jamb: jambDisplay(outputLine), sill: isSlabOnly(outputLine) || isNoJamb(outputLine) || (outputLine.mode === 'Interior' && sillChoice(outputLine) === 'NONE') ? '' : sillChoice(outputLine),
+        weatherstrip: isSlabOnly(outputLine) ? '' : text(outputLine.weatherstrip), notesGlass: notesGlass(outputLine, status, details.filter((row) => row.kind === 'blocker' || row.kind === 'warning').flatMap((row) => row.lines)),
       },
     },
     detailRows: details,
@@ -404,7 +405,7 @@ export function generateWorkOrderDocument(aggregate: NativeJobAggregate, input: 
   if (hingeColor.ok === false) validationIssues.push({ field: 'hingeColor', lineIndex: null, message: hingeColor.message });
   for (const line of activeLines) {
     const hingeType = normalizeHingeType(line.mode, line.config, line.hingeType);
-    if (hingeType.ok === false) validationIssues.push({ field: 'hingeType', lineIndex: line.lineIndex, message: `Door line ${line.lineIndex}: ${hingeType.message}` });
+    if (!isSlabOnly(line) && hingeType.ok === false) validationIssues.push({ field: 'hingeType', lineIndex: line.lineIndex, message: `Door line ${line.lineIndex}: ${hingeType.message}` });
   }
   const rowGroups = activeLines.map((line) => createWorkOrderRowGroup(line, hingeColor.ok ? hingeColor.value : null));
   return {

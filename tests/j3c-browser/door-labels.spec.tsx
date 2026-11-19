@@ -300,3 +300,27 @@ for (const description of ['Fir text Vista GR. 4 lite']) {
     for (const sheet of pdf.getPages()) expect(sheet.getSize()).toEqual({ width: 288, height: 432 });
   });
 }
+
+for (const drilling of [null, 'STD']) {
+  test('Slab Only MTM portrait label omits frame work and prints only explicit drilling: ' + drilling, async ({ page }) => {
+    const source = { ...line, supplyType: 'slab-only' as const, prep: 'MTM', slabDrilling: drilling, hand: drilling ? 'RH' : null, qty: 1, doorType: 'Replacement slab', doorSlabSku: 'SLAB_0123', jambWidth: 'Hidden frame jamb', sill: 'DARK', notes: 'Match supplied slab', doorThickness: '1-3/4' };
+    const preview = prepareDoorLabels({ ...job, lines: [source] }, { 'door-1': { selected: true, quantity: '1', doorIds: ['Opening A'] } }, false);
+    expect(preview.error).toBeUndefined();
+    await page.emulateMedia({ media: 'print' });
+    await page.setContent(preview.html!, { waitUntil: 'load' });
+    await page.waitForFunction(() => document.body.dataset.labelsReady === 'true');
+    await expect(page.locator('article')).toHaveCount(1);
+    await expect(page.locator('.slab-instructions').first()).toContainText('SLAB ONLY · MTM');
+    await expect(page.locator('article').first()).toContainText('SLAB ONLY');
+    await expect(page.locator('article').first()).toContainText('MTM');
+    await expect(page.locator('article').first()).not.toContainText('Hidden frame jamb');
+    await expect(page.locator('article').first()).not.toContainText('DARK');
+    if (drilling) await expect(page.locator('article').first()).toContainText('Double drilled');
+    else await expect(page.locator('article').first()).not.toContainText('drilled');
+    await expect(page.locator('svg')).toHaveCount(2);
+    expect(await page.locator('article').evaluate(el => el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    const pdf = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true, printBackground: false }));
+    expect(pdf.getPageCount()).toBe(1);
+    expect(pdf.getPage(0).getSize()).toEqual({ width: 288, height: 432 });
+  });
+}

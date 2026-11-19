@@ -1,3 +1,4 @@
+import { intakeChange } from './mobile-intake';
 import { individualDoorIds, validIndividualDoorIds } from './individual-door-ids';
 import { normalizeConstruction } from './construction-contract';
 import {
@@ -32,9 +33,10 @@ function fromRow(row:unknown,fields:readonly string[]):Record<string,unknown>{
 function fromLineRow(row: unknown): Record<string, unknown> {
   const mapped = fromRow(row, serverLineFields);
   const storedCalc = mapped.glassCalc as NativeDoorLine['glassCalc'];
-  const { prepControl, labelDoorId, labelProductCode, labelSlabSku, labelIndividualDoorIds, ...geometry } = storedCalc ?? {};
-  const calc = labelDoorId === undefined && labelProductCode === undefined && labelIndividualDoorIds === undefined && labelSlabSku === undefined && prepControl === undefined ? storedCalc : Object.keys(geometry).length ? geometry : null;
+  const { intakeReceipt, prepControl, labelDoorId, labelProductCode, labelSlabSku, labelIndividualDoorIds, ...geometry } = storedCalc ?? {};
+  const calc = labelDoorId === undefined && labelProductCode === undefined && labelIndividualDoorIds === undefined && labelSlabSku === undefined && prepControl === undefined && intakeReceipt === undefined ? storedCalc : Object.keys(geometry).length ? geometry : null;
   mapped.glassCalc = calc;
+  mapped.intakeChange = intakeChange(intakeReceipt);
   mapped.prepSource = prepControl === 'automatic' ? 'automatic' : 'manual';
   mapped.individualDoorIds = individualDoorIds(labelIndividualDoorIds);
   mapped.doorId = typeof labelDoorId === 'string' ? labelDoorId : null;
@@ -56,8 +58,9 @@ function linePayload(input:DoorLineInput,index:number):Record<string,unknown>{
   const calculatedGeometry = normalizeConstruction(normalized.value.construction) !== 'standard'
     ? { ...(normalized.value.glassCalc ?? {}), construction: normalized.value.construction }
     : normalized.value.glassCalc;
-  const geometry = normalized.value.prepSource === 'automatic'
-    ? { ...(calculatedGeometry ?? {}), prepControl: 'automatic' } : calculatedGeometry;
+  const receipt = intakeChange(normalized.value.intakeChange);
+  const geometry = normalized.value.prepSource === 'automatic' || receipt
+    ? { ...(calculatedGeometry ?? {}), ...(normalized.value.prepSource === 'automatic' ? { prepControl: 'automatic' } : {}), ...(receipt ? { intakeReceipt: JSON.stringify(receipt) } : {}) } : calculatedGeometry;
   // Line metadata travels through the existing JSON field, as construction does.
   const { doorId, productCode, doorSlabSku, individualDoorIds: copyIds } = normalized.value;
   const glassCalc = doorId || productCode || doorSlabSku || copyIds?.length ? {

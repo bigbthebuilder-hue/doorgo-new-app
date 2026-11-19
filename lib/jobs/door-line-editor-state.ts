@@ -82,6 +82,7 @@ export function duplicateDoorLine(line: DoorLineInput, newLineId: string, lineIn
   return {
     ...structuredClone(line),
     lineId: newLineId,
+    intakeChange: undefined,
     lineStatus: 'Active',
     lineIndex,
     glassOverride: null,

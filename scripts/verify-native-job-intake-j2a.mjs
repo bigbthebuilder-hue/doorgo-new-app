@@ -58,6 +58,6 @@ assert.ok(form.includes('aria-label="Job lifecycle"'), 'job lifecycle must remai
 assert.ok(form.includes('onChange={(event) => setLifecycleStage(event.target.value as JobLifecycleStage)}'), 'the compact lifecycle control must update the authoritative lifecycle state');
 assert.ok(form.includes("disabled={lifecycleStage !== 'Confirmed Job' && !hasValidActiveDoorLine(lines)}"), 'confirming must remain unavailable until a valid active line exists');
 assert.ok(form.includes('jobAggregateDirtySnapshot({ values: nextValues, lines: nextLines, lifecycleStage: nextStage, pendingPoNumber: nextPendingPo })'), 'dirty snapshot must include header, lines, lifecycle, and pending PO input');
-assert.ok(form.includes('expectedRevision: job.revision, input, lines'));
-assert.ok(form.includes('commandId: commandId.current as string, input, lines'));
+assert.ok(form.includes('expectedRevision: job.revision, input: withEffectiveShopHours(input, lines), lines'));
+assert.ok(form.includes('commandId: commandId.current as string, input: withEffectiveShopHours(input, lines), lines'));
 console.log('Native Job Intake J2A verifier: PASS');

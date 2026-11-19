@@ -1,3 +1,4 @@
+import type { IntakeChange } from './mobile-intake';
 import type { DoorConstruction } from './construction-contract';
 export type JobLifecycleStage = 'Draft' | 'Confirmed Job';
 export type DoorLineMode = 'Interior' | 'Exterior';
@@ -90,6 +91,7 @@ export type NativeDoorLine = {
   hand: string | null;
   prep: string | null;
   prepSource?: 'automatic' | 'manual';
+  intakeChange?: IntakeChange;
   glass: string | null;
   jambWidth: string | null;
   jambType: string | null;

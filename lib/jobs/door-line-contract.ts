@@ -1,3 +1,4 @@
+import { intakeChange } from './mobile-intake';
 import { customSlabAxis, hasCustomSlabAxis, SLAB_SIZING_MODES } from './slab-sizing-contract';
 import { normalizeConstruction, validConstruction, sillChoice } from './construction-contract';
 import {
@@ -229,6 +230,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       doorType: text(input.doorType), config: config as string, width: width as string, height: height as string,
       customSlab, customSlabWidth: customSlabAxis({ customSlab }, 'width') ? text(input.customSlabWidth) : null,
       customSlabHeight: customSlabAxis({ customSlab }, 'height') ? text(input.customSlabHeight) : null,
+      intakeChange: intakeChange(input.intakeChange),
       hand, prep, prepSource: input.prepSource === 'automatic' ? 'automatic' : 'manual', glass: null, jambWidth, ripJamb,
       jambType: noJamb ? null : text(input.jambType),
       // Keep legacy standard text until staff explicitly select a replacement.

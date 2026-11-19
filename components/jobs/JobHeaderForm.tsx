@@ -11,6 +11,7 @@ import { unresolvedTransferBlockers } from '@/lib/jobs/legacy-transfer-import-co
 import { workOrderOutputDecision, type WorkOrderOutputIntent } from '@/lib/jobs/work-order-preview-contract';
 import { DoorLabelDialog } from './DoorLabelDialog';
 import { jobSpecificationSnapshot, mergeSavedDoorLabels, pendingDoorLabelSaves, retainPendingDoorLabelEdits } from '@/lib/jobs/door-label-save-contract';
+import { intakeChangeText, lastSavedIntakeChange, stampIntakeChange, type IntakeMutation } from '@/lib/jobs/mobile-intake';
 import { DoorLineWorkspace } from './DoorLineWorkspace';
 import { JobArchiveControl, jobArchiveTarget } from './JobArchiveControl';
 import { JobDeleteControl, jobDeleteTarget } from './JobDeleteControl';
@@ -124,6 +125,12 @@ export function JobHeaderForm({
   const router = useRouter();
   const requestNavigation = useGuardedNavigation();
   const [job, setJob] = useState(initialJob);
+  const [jobDetailsOpen, setJobDetailsOpen] = useState(false);
+  const [intakeSaving, setIntakeSaving] = useState(false);
+  const saveLock = useRef(false);
+  const pendingIntakeMutation = useRef<IntakeMutation | null>(null);
+  const intakeAttempt = useRef<{ key: string; id: string } | null>(null);
+  const lastIntakeChange = useMemo(() => lastSavedIntakeChange(job), [job]);
   const [values, setValues] = useState(() => initialValues(initialJob, defaultSalesperson, initialDraft?.header));
   const [lines, setLines] = useState<DoorLineInput[]>(() => initialJob?.lines ?? initialDraft?.lines ?? []);
   const [lifecycleStage, setLifecycleStage] = useState<JobLifecycleStage>(() => initialLifecycle(initialJob, initialDraft?.header));
@@ -147,7 +154,7 @@ export function JobHeaderForm({
   const jobActionsMenu = useRef<HTMLDetailsElement | null>(null);
   const commandId = useRef<string | null>(null);
   const dirty = snapshot() !== baseline;
-  const navigationDirty = dirty || hasUnappliedLineChanges;
+  const navigationDirty = dirty || hasUnappliedLineChanges || intakeSaving;
   const visibleIdentifier = transferReview?.primaryIdentifier.value || values.bizTrackSalesOrder.trim() || job?.visibleIdentifier || job?.doorGoReference || 'New Job';
   useUnsavedChanges(navigationDirty);
   useEffect(()=>{const internalJobId=job?.internalJobId;if(!internalJobId)return;let cancelled=false;void loadJobFulfillmentFamily(internalJobId).then((result)=>{if(!cancelled&&result.ok)setFulfillmentFamily({familyKey:result.familyKey,orders:result.orders});});return()=>{cancelled=true;};},[job?.internalJobId]);
@@ -219,30 +226,49 @@ export function JobHeaderForm({
     return `/jobs/${internalJobId}/work-order${query}`;
   }
 
-  function validateAggregateBeforeSave(): boolean {
+  function validateAggregateBeforeSave(submittedLines = lines): boolean {
     if (salesOrderChecking || fieldErrors.bizTrackSalesOrder) {
+      setJobDetailsOpen(true);
       setMessage({ kind: 'error', text: salesOrderChecking ? 'Wait for the Sales Order check.' : fieldErrors.bizTrackSalesOrder });
       return false;
     }
     const normalizedPoNumbers = normalizePoNumbers(poNumbersFromText(pendingPoNumber));
     if (!normalizedPoNumbers.ok) {
       setFieldErrors((current) => ({ ...current, poNumbers: normalizedPoNumbers.message }));
+      setJobDetailsOpen(true);
       setMessage({ kind: 'error', text: 'Review the PO Numbers entry.' });
       return false;
     }
-    if (lifecycleStage === 'Confirmed Job' && !hasValidActiveDoorLine(lines)) {
+    if (lifecycleStage === 'Confirmed Job' && !hasValidActiveDoorLine(submittedLines)) {
       setMessage({ kind: 'error', text: CONFIRMED_JOB_LINE_MESSAGE });
       return false;
     }
     return true;
   }
 
-  async function persistAggregate() {
+  async function persistAggregate(submittedLines = lines) {
+    if (saveLock.current) return null;
+    saveLock.current = true;
+    try {
+      let prepared = submittedLines;
+      const mutation = submittedLines === lines ? pendingIntakeMutation.current : null;
+      if (mutation && submittedLines.some(line => line.lineId === mutation.lineId && Number(line.qty) === mutation.quantity && line.lineStatus === 'Active')) {
+        const key = JSON.stringify([job?.internalJobId, job?.revision, input, submittedLines, mutation]);
+        if (intakeAttempt.current?.key !== key) intakeAttempt.current = { key, id: globalThis.crypto.randomUUID() };
+        prepared = stampIntakeChange(submittedLines, mutation, (job?.revision ?? 0) + 1, intakeAttempt.current.id);
+      }
+      const saved = await persistAggregateUnlocked(prepared);
+      if (saved) { pendingIntakeMutation.current = null; }
+      return saved;
+    } finally { saveLock.current = false; }
+  }
+
+  async function persistAggregateUnlocked(lines: DoorLineInput[]) {
     // Label changes on persisted lines have their own compare-and-set operation.
     // Keep each success in the baseline so a later conflict/failure is safely retryable.
     let savedJob = job;
-    const specificationsChanged = jobSpecificationSnapshot(snapshot()) !== jobSpecificationSnapshot(baseline);
-    if ((!job || specificationsChanged) && !validateAggregateBeforeSave()) return null;
+    const specificationsChanged = jobSpecificationSnapshot(snapshot(values, lines)) !== jobSpecificationSnapshot(baseline);
+    if ((!job || specificationsChanged) && !validateAggregateBeforeSave(lines)) return null;
     let savedLabelLines = 0;
     if (savedJob) {
       for (const request of pendingDoorLabelSaves(savedJob, lines)) {
@@ -268,14 +294,15 @@ export function JobHeaderForm({
     }
     setMessage(null); setFieldErrors({}); commandId.current ??= globalThis.crypto.randomUUID();
     const result = job
-      ? await updateDraftJobAction({ internalJobId: job.internalJobId, expectedRevision: job.revision, input, lines })
+      ? await updateDraftJobAction({ internalJobId: job.internalJobId, expectedRevision: job.revision, input: withEffectiveShopHours(input, lines), lines })
       : transferReview
-        ? await createTransferredJobAction({ commandId: commandId.current as string, rawPayload: transferReview.rawPayload, input, lines })
-        : await createDraftJobAction({ commandId: commandId.current as string, input, lines });
+        ? await createTransferredJobAction({ commandId: commandId.current as string, rawPayload: transferReview.rawPayload, input: withEffectiveShopHours(input, lines), lines })
+        : await createDraftJobAction({ commandId: commandId.current as string, input: withEffectiveShopHours(input, lines), lines });
     if (!result.ok) {
       setEarlySalesOrderError(false);
       setMessage({ kind: 'error', text: savedLabelLines ? `Door label changes were saved. ${result.message}` : result.message });
       setFieldErrors(result.fieldErrors ?? {});
+      if (Object.keys(result.fieldErrors ?? {}).length) setJobDetailsOpen(true);
       return null;
     }
     setJob(result.job);
@@ -286,8 +313,33 @@ export function JobHeaderForm({
     return result.job;
   }
 
+  async function persistIntakeLines(nextLines: DoorLineInput[], mutation: IntakeMutation): Promise<boolean> {
+    if (!canEdit || saveLock.current || isPending || intakeSaving) return false;
+    const key = JSON.stringify([job?.internalJobId, job?.revision, input, nextLines, mutation]);
+    if (intakeAttempt.current?.key !== key) intakeAttempt.current = { key, id: globalThis.crypto.randomUUID() };
+    const id = intakeAttempt.current.id;
+    const submitted = stampIntakeChange(nextLines, mutation, (job?.revision ?? 0) + 1, id);
+    setIntakeSaving(true);
+    try {
+      const saved = await persistAggregate(submitted);
+      if (!saved) return false;
+      const confirmed = lastSavedIntakeChange(saved);
+      if (!confirmed || confirmed.id !== id) {
+        setMessage({ kind: 'error', text: 'The save response could not confirm this door change. Reopen the job and verify it before retrying.' });
+        return false;
+      }
+      intakeAttempt.current = null;
+      setMessage({ kind: 'success', text: intakeChangeText(confirmed) });
+      if (!job) router.replace(`/jobs/${saved.internalJobId}/edit`);
+      return true;
+    } catch {
+      setMessage({ kind: 'error', text: 'The door could not be confirmed saved. Your input is retained. If the connection was interrupted, reopen the job and check before retrying.' });
+      return false;
+    } finally { setIntakeSaving(false); }
+  }
+
   function openWorkOrder(intent: Exclude<WorkOrderOutputIntent, 'send'>) {
-    if (isPending) return;
+    if (isPending || intakeSaving || saveLock.current) return;
     const decision = workOrderOutputDecision({ hasSavedJob: Boolean(job), dirty, canEdit, hasUnappliedLineChanges });
     if (!decision.ok) {
       setMessage({ kind: 'error', text: decision.message });
@@ -301,7 +353,7 @@ export function JobHeaderForm({
   }
 
   function save(exitAfterSave: boolean) {
-    if (!canEdit || isPending) return;
+    if (!canEdit || isPending || intakeSaving || saveLock.current) return;
     setPendingSaveIntent(exitAfterSave?'exit':'save');
     startTransition(async () => {
       try {
@@ -317,12 +369,12 @@ export function JobHeaderForm({
   }
 
   const [labelJob, setLabelJob] = useState<NativeJobAggregate | null>(null);
-  const bottomStatus = message?.text ?? (navigationDirty ? 'Unsaved changes' : job ? `Saved · Rev ${job.revision}` : 'Not saved yet');
-  const archiveTarget = jobArchiveTarget(job, canEdit);
-  const deleteTarget = jobDeleteTarget(job, canPermanentlyDelete);
+  const bottomStatus = intakeSaving ? 'Saving door…' : message?.text ?? (navigationDirty ? 'Unsaved changes' : job ? `Saved · Rev ${job.revision}` : 'Not saved yet');
+  const archiveTarget = jobArchiveTarget(job, canEdit && !intakeSaving && !isPending);
+  const deleteTarget = jobDeleteTarget(job, canPermanentlyDelete && !intakeSaving && !isPending);
   const bottomActions = <>
     <button className="app-button app-button-secondary" onClick={leave} type="button">Exit</button>
-    {job ? <details className="job-work-order-menu relative" open={openBottomMenu === 'documents'} ref={documentsMenu}><summary className="app-button app-button-secondary cursor-pointer list-none" onClick={(event) => { event.preventDefault(); setOpenBottomMenu((current) => current === 'documents' ? null : 'documents'); }}>Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => openWorkOrder('print')} type="button">Print</button><button className="app-button app-button-secondary justify-start" disabled={isPending} onClick={() => {
+    {job ? <details className="job-work-order-menu relative" open={openBottomMenu === 'documents'} ref={documentsMenu}><summary className="app-button app-button-secondary cursor-pointer list-none" onClick={(event) => { event.preventDefault(); setOpenBottomMenu((current) => current === 'documents' ? null : 'documents'); }}>Documents ▾</summary><div className="absolute bottom-full right-0 z-20 mb-1 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Work Order</span><button className="app-button app-button-secondary justify-start" disabled={isPending || intakeSaving} onClick={() => openWorkOrder('preview')} type="button">Preview</button><button className="app-button app-button-secondary justify-start" disabled={isPending || intakeSaving} onClick={() => openWorkOrder('download')} type="button">Download</button><button className="app-button app-button-secondary justify-start" disabled={isPending || intakeSaving} onClick={() => openWorkOrder('print')} type="button">Print</button><button className="app-button app-button-secondary justify-start" disabled={isPending || intakeSaving} onClick={() => {
       setOpenBottomMenu(null);
       if (hasUnappliedLineChanges) {
         setMessage({ kind: 'error', text: 'Apply or cancel the door editor changes before printing door labels.' });
@@ -338,28 +390,29 @@ export function JobHeaderForm({
           setMessage({ kind: 'error', text: 'DoorGo could not save this Job. Please try again.' });
         }
       });
-    }} type="button">Print Door Labels</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
+    }} type="button">Print Door Labels</button><WorkOrderSendEntryButton dirty={dirty} disabled={isPending || intakeSaving} hasSavedJob={Boolean(job)} hasUnappliedLineChanges={hasUnappliedLineChanges} onBlocked={(text) => setMessage({ kind: 'error', text })} onOpen={() => router.push(outputPath(job.internalJobId, 'send'))}/></div></details> : null}
     {archiveTarget || deleteTarget ? <details className="job-actions-menu relative" open={openBottomMenu === 'job-actions'} ref={jobActionsMenu}><summary className="app-button app-button-secondary cursor-pointer list-none" onClick={(event) => { event.preventDefault(); setOpenBottomMenu((current) => current === 'job-actions' ? null : 'job-actions'); }}>Job Actions ▾</summary><div className="absolute right-0 z-20 grid min-w-52 gap-1 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"><span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Job Actions</span><JobArchiveControl onArchive={archiveDraftJobAction} onNavigate={(path) => router.push(path)} target={archiveTarget}/><JobDeleteControl onDelete={deleteDraftJobAction} onNavigate={(path) => router.push(path)} target={deleteTarget}/></div></details> : null}
-    {canEdit ? <><button aria-busy={pendingSaveIntent==='save'||undefined} className="app-button app-button-primary" disabled={isPending || salesOrderChecking || Boolean(fieldErrors.bizTrackSalesOrder) || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{pendingSaveIntent==='save' ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button aria-busy={pendingSaveIntent==='exit'||undefined} className="app-button app-button-dark" disabled={isPending || salesOrderChecking || Boolean(fieldErrors.bizTrackSalesOrder)} onClick={() => save(true)} type="button">{pendingSaveIntent==='exit'?'Saving…':'Save and Exit'}</button> : null}</> : null}
+    {canEdit ? <><button aria-busy={pendingSaveIntent==='save'||undefined} className="app-button app-button-primary" disabled={isPending || intakeSaving || salesOrderChecking || Boolean(fieldErrors.bizTrackSalesOrder) || Boolean(transferReview && unresolvedTransferBlockers(transferReview.blockers).length)} onClick={() => save(false)} type="button">{pendingSaveIntent==='save' ? 'Saving…' : transferReview ? 'Save as Native Job' : 'Save'}</button>{!transferReview ? <button aria-busy={pendingSaveIntent==='exit'||undefined} className="app-button app-button-dark" disabled={isPending || intakeSaving || salesOrderChecking || Boolean(fieldErrors.bizTrackSalesOrder)} onClick={() => save(true)} type="button">{pendingSaveIntent==='exit'?'Saving…':'Save and Exit'}</button> : null}</> : null}
   </>;
   return (
     <>
     {labelJob ? <DoorLabelDialog job={labelJob} onClose={() => setLabelJob(null)}/> : null}
     {inAppShell ? <ContextTopBar
       title={visibleIdentifier}
-      status={<span className="job-shell-identity-status"><select aria-label="Job lifecycle" disabled={!canEdit} onChange={(event) => setLifecycleStage(event.target.value as JobLifecycleStage)} value={lifecycleStage}><option value="Draft">Draft</option><option disabled={lifecycleStage !== 'Confirmed Job' && !hasValidActiveDoorLine(lines)} value="Confirmed Job">Confirmed</option></select><span>{job ? `Rev ${job.revision}` : 'New'}{!canEdit ? ' · Read only' : ''}</span></span>}
-      controls={<div className="app-job-context-fields app-job-shell-fields">
-        <label className="app-job-context-field job-shell-customer" htmlFor="customer"><span>Customer</span><input aria-invalid={fieldErrors.customer ? true : undefined} disabled={!canEdit} id="customer" onChange={(event) => update('customer', event.target.value)} placeholder="Not entered" title={fieldErrors.customer || undefined} value={values.customer}/></label>
-        <label className="app-job-context-field job-shell-site" htmlFor="siteAddress"><span>Site / Address</span><input aria-invalid={fieldErrors.siteAddress ? true : undefined} disabled={!canEdit} id="siteAddress" onChange={(event) => update('siteAddress', event.target.value)} placeholder="Not entered" title={fieldErrors.siteAddress || undefined} value={values.siteAddress}/></label>
-        <label className="app-job-context-field job-shell-salesperson" htmlFor="salesperson"><span>Salesperson</span><input disabled={!canEdit} id="salesperson" onChange={(event) => update('salesperson', event.target.value)} placeholder="Not assigned" value={values.salesperson}/></label>
-        <label className="app-job-context-field job-shell-sales-order" htmlFor="bizTrackSalesOrder"><span>BizTrack Sales Order</span><input aria-invalid={fieldErrors.bizTrackSalesOrder ? true : undefined} disabled={!canEdit || Boolean(transferReview)} aria-describedby={fieldErrors.bizTrackSalesOrder || salesOrderChecking ? "sales-order-check" : undefined} className={fieldErrors.bizTrackSalesOrder ? "outline outline-2 outline-rose-600" : undefined} id="bizTrackSalesOrder" onBlur={checkSalesOrder} onChange={(event) => update('bizTrackSalesOrder', event.target.value)} placeholder="Optional" title={salesOrderFieldMessage || undefined} value={values.bizTrackSalesOrder}/>{fieldErrors.bizTrackSalesOrder || salesOrderChecking ? <span id="sales-order-check" role="status" className="job-sales-order-message">{salesOrderChecking ? "Checking Sales Order..." : salesOrderFieldMessage}</span> : null}</label>
-        <label className="app-job-context-field job-shell-phone" htmlFor="phone"><span>Phone</span><input autoComplete="tel" disabled={!canEdit} id="phone" onChange={(event) => update('phone', event.target.value)} placeholder="Not entered" type="tel" value={values.phone}/></label>
-        <label className="app-job-context-field job-shell-email" htmlFor="email"><span>Email</span><input aria-invalid={fieldErrors.email ? true : undefined} autoComplete="email" disabled={!canEdit} id="email" onChange={(event) => update('email', event.target.value)} placeholder="Not entered" title={fieldErrors.email || undefined} type="email" value={values.email}/></label>
-        <label className="app-job-context-field job-shell-hours" htmlFor="shopHours"><span>Shop Hours</span><input aria-invalid={fieldErrors.shopHours ? true : undefined} disabled={!canEdit} id="shopHours" min="0" onChange={(event) => update('shopHours', event.target.value)} step="0.25" type="number" value={effectiveShopHours}/></label>
-        <label className="app-job-context-field job-shell-fulfillment" htmlFor="fulfillmentPlan"><span>Fulfillment Plan</span><span className="job-shell-fulfillment-controls"><select disabled={!canEdit} id="fulfillmentPlan" onChange={(event) => update('fulfillmentPlan', event.target.value)} value={values.fulfillmentPlan}><option value="">Not selected</option><option value="Delivery">Delivery</option><option value="Customer Pickup">Customer Pickup</option></select>{values.fulfillmentPlan === 'Delivery' ? <DateOnlyPicker ariaLabel="Delivery Date" disabled={!canEdit} id="deliveryDate" onChange={(value)=>update('deliveryDate',value)} value={values.deliveryDate}/> : null}{values.fulfillmentPlan === 'Customer Pickup' ? <DateOnlyPicker ariaLabel="Customer Pickup Date" disabled={!canEdit} id="customerPickupDate" onChange={(value)=>update('customerPickupDate',value)} value={values.customerPickupDate}/> : null}</span></label>
-        <label className="app-job-context-field job-shell-shop-date" htmlFor="shopDate"><span>Shop Date</span><DateOnlyPicker ariaLabel="Shop Date" capacity={shopDateCapacity} disabled={!canEdit} id="shopDate" onChange={(value)=>update('shopDate',value)} value={values.shopDate}/></label>
-        <label className="app-job-context-field job-shell-po" htmlFor="poNumbers"><span>PO Number(s)</span><input aria-describedby={fieldErrors.poNumbers ? 'poNumbers-error' : undefined} aria-invalid={fieldErrors.poNumbers ? true : undefined} disabled={!canEdit} id="poNumbers" inputMode="numeric" onChange={(event) => { setPendingPoNumber(event.target.value); setFieldErrors((current) => ({ ...current, poNumbers: '' })); setMessage(null); }} placeholder="Optional · comma separated" title={fieldErrors.poNumbers || undefined} value={pendingPoNumber}/></label>
-        <label className="app-job-context-field job-shell-notes" htmlFor="notes"><span>Job Notes</span><textarea disabled={!canEdit} id="notes" onChange={(event) => update('notes', event.target.value)} placeholder="Job notes" rows={1} value={values.notes}/></label>
+      secondary={<div className="mobile-job-summary"><strong>{values.customer || 'New customer'}</strong><span>{lines.filter(line => line.lineStatus !== 'Archived' && line.lineStatus !== 'Merged').reduce((count, line) => count + (Number(line.qty) || 0), 0)} doors</span><button type="button" aria-expanded={jobDetailsOpen} onClick={() => setJobDetailsOpen(open => !open)}>Job details {jobDetailsOpen ? '▴' : '▾'}</button></div>}
+      status={<span className="job-shell-identity-status"><select aria-label="Job lifecycle" disabled={!canEdit || intakeSaving} onChange={(event) => setLifecycleStage(event.target.value as JobLifecycleStage)} value={lifecycleStage}><option value="Draft">Draft</option><option disabled={lifecycleStage !== 'Confirmed Job' && !hasValidActiveDoorLine(lines)} value="Confirmed Job">Confirmed</option></select><span>{job ? `Rev ${job.revision}` : 'New'}{!canEdit ? ' · Read only' : ''}</span></span>}
+      controls={<div data-mobile-expanded={jobDetailsOpen} className="app-job-context-fields app-job-shell-fields">
+        <label className="app-job-context-field job-shell-customer" htmlFor="customer"><span>Customer</span><input aria-invalid={fieldErrors.customer ? true : undefined} disabled={!canEdit || intakeSaving} id="customer" onChange={(event) => update('customer', event.target.value)} placeholder="Not entered" title={fieldErrors.customer || undefined} value={values.customer}/></label>
+        <label className="app-job-context-field job-shell-site" htmlFor="siteAddress"><span>Site / Address</span><input aria-invalid={fieldErrors.siteAddress ? true : undefined} disabled={!canEdit || intakeSaving} id="siteAddress" onChange={(event) => update('siteAddress', event.target.value)} placeholder="Not entered" title={fieldErrors.siteAddress || undefined} value={values.siteAddress}/></label>
+        <label className="app-job-context-field job-shell-salesperson" htmlFor="salesperson"><span>Salesperson</span><input disabled={!canEdit || intakeSaving} id="salesperson" onChange={(event) => update('salesperson', event.target.value)} placeholder="Not assigned" value={values.salesperson}/></label>
+        <label className="app-job-context-field job-shell-sales-order" htmlFor="bizTrackSalesOrder"><span>BizTrack Sales Order</span><input aria-invalid={fieldErrors.bizTrackSalesOrder ? true : undefined} disabled={!canEdit || intakeSaving || Boolean(transferReview)} aria-describedby={fieldErrors.bizTrackSalesOrder || salesOrderChecking ? "sales-order-check" : undefined} className={fieldErrors.bizTrackSalesOrder ? "outline outline-2 outline-rose-600" : undefined} id="bizTrackSalesOrder" onBlur={checkSalesOrder} onChange={(event) => update('bizTrackSalesOrder', event.target.value)} placeholder="Optional" title={salesOrderFieldMessage || undefined} value={values.bizTrackSalesOrder}/>{fieldErrors.bizTrackSalesOrder || salesOrderChecking ? <span id="sales-order-check" role="status" className="job-sales-order-message">{salesOrderChecking ? "Checking Sales Order..." : salesOrderFieldMessage}</span> : null}</label>
+        <label className="app-job-context-field job-shell-phone" htmlFor="phone"><span>Phone</span><input autoComplete="tel" disabled={!canEdit || intakeSaving} id="phone" onChange={(event) => update('phone', event.target.value)} placeholder="Not entered" type="tel" value={values.phone}/></label>
+        <label className="app-job-context-field job-shell-email" htmlFor="email"><span>Email</span><input aria-invalid={fieldErrors.email ? true : undefined} autoComplete="email" disabled={!canEdit || intakeSaving} id="email" onChange={(event) => update('email', event.target.value)} placeholder="Not entered" title={fieldErrors.email || undefined} type="email" value={values.email}/></label>
+        <label className="app-job-context-field job-shell-hours" htmlFor="shopHours"><span>Shop Hours</span><input aria-invalid={fieldErrors.shopHours ? true : undefined} disabled={!canEdit || intakeSaving} id="shopHours" min="0" onChange={(event) => update('shopHours', event.target.value)} step="0.25" type="number" value={effectiveShopHours}/></label>
+        <label className="app-job-context-field job-shell-fulfillment" htmlFor="fulfillmentPlan"><span>Fulfillment Plan</span><span className="job-shell-fulfillment-controls"><select disabled={!canEdit || intakeSaving} id="fulfillmentPlan" onChange={(event) => update('fulfillmentPlan', event.target.value)} value={values.fulfillmentPlan}><option value="">Not selected</option><option value="Delivery">Delivery</option><option value="Customer Pickup">Customer Pickup</option></select>{values.fulfillmentPlan === 'Delivery' ? <DateOnlyPicker ariaLabel="Delivery Date" disabled={!canEdit || intakeSaving} id="deliveryDate" onChange={(value)=>update('deliveryDate',value)} value={values.deliveryDate}/> : null}{values.fulfillmentPlan === 'Customer Pickup' ? <DateOnlyPicker ariaLabel="Customer Pickup Date" disabled={!canEdit || intakeSaving} id="customerPickupDate" onChange={(value)=>update('customerPickupDate',value)} value={values.customerPickupDate}/> : null}</span></label>
+        <label className="app-job-context-field job-shell-shop-date" htmlFor="shopDate"><span>Shop Date</span><DateOnlyPicker ariaLabel="Shop Date" capacity={shopDateCapacity} disabled={!canEdit || intakeSaving} id="shopDate" onChange={(value)=>update('shopDate',value)} value={values.shopDate}/></label>
+        <label className="app-job-context-field job-shell-po" htmlFor="poNumbers"><span>PO Number(s)</span><input aria-describedby={fieldErrors.poNumbers ? 'poNumbers-error' : undefined} aria-invalid={fieldErrors.poNumbers ? true : undefined} disabled={!canEdit || intakeSaving} id="poNumbers" inputMode="numeric" onChange={(event) => { setPendingPoNumber(event.target.value); setFieldErrors((current) => ({ ...current, poNumbers: '' })); setMessage(null); }} placeholder="Optional · comma separated" title={fieldErrors.poNumbers || undefined} value={pendingPoNumber}/></label>
+        <label className="app-job-context-field job-shell-notes" htmlFor="notes"><span>Job Notes</span><textarea disabled={!canEdit || intakeSaving} id="notes" onChange={(event) => update('notes', event.target.value)} placeholder="Job notes" rows={1} value={values.notes}/></label>
       </div>}
     /> : null}
     <JobEditorWorkspaceFrame inAppShell={inAppShell}>
@@ -392,7 +445,7 @@ export function JobHeaderForm({
 
       {!hasValidActiveDoorLine(lines) ? <p className="mt-1 text-[11px] text-slate-500">Add a valid active line before confirming.</p> : null}
 
-      <div className="job-operational-strip mt-1 grid gap-1.5">
+      <div data-mobile-expanded={inAppShell ? jobDetailsOpen : true} className="job-operational-strip mt-1 grid gap-1.5">
         {job&&fulfillmentFamily?.orders.length?<section className="rounded-md border border-slate-200 px-2 py-1.5 text-xs" aria-label="Order family"><strong>Order family {fulfillmentFamily.familyKey}</strong><span className="ml-2">Actual orders: {fulfillmentFamily.orders.join(', ')}</span></section>:null}
         <section aria-label="Job header validation">
           {fieldErrors.bizTrackSalesOrder && !earlySalesOrderError ? <p className="text-sm text-rose-700" role="alert">BizTrack Sales Order: {fieldErrors.bizTrackSalesOrder}</p> : null}
@@ -401,15 +454,15 @@ export function JobHeaderForm({
           {inAppShell && fieldErrors.siteAddress ? <p className="mt-2 text-sm text-rose-700" role="alert">Site / Address: {fieldErrors.siteAddress}</p> : null}
         </section>
 
-        {!inAppShell ? <section className="job-production-strip rounded-md border border-slate-200 p-1.5 dark:border-slate-700" aria-label="Production Setup"><div className="job-production-fields grid gap-1.5 md:grid-cols-3 xl:grid-cols-5"><Field error={fieldErrors.shopHours} label={`Shop Hours${effectiveShopHoursSource ? ` · ${effectiveShopHoursSource}` : ''}`} name="shopHours"><input className={inputClass} disabled={!canEdit} id="shopHours" min="0" onChange={(event) => update('shopHours', event.target.value)} step="0.25" type="number" value={effectiveShopHours}/></Field><Field label="Fulfillment Plan" name="fulfillmentPlan"><select className={inputClass} disabled={!canEdit} id="fulfillmentPlan" onChange={(event) => update('fulfillmentPlan', event.target.value)} value={values.fulfillmentPlan}><option value="">Not selected</option><option value="Delivery">Delivery</option><option value="Customer Pickup">Customer Pickup</option></select></Field>{values.fulfillmentPlan === 'Delivery' ? <Field label="Delivery Date" name="deliveryDate"><DateOnlyPicker ariaLabel="Delivery Date" className={inputClass} disabled={!canEdit} id="deliveryDate" onChange={(value)=>update('deliveryDate',value)} value={values.deliveryDate}/></Field> : null}{values.fulfillmentPlan === 'Customer Pickup' ? <Field label="Customer Pickup Date" name="customerPickupDate"><DateOnlyPicker ariaLabel="Customer Pickup Date" className={inputClass} disabled={!canEdit} id="customerPickupDate" onChange={(value)=>update('customerPickupDate',value)} value={values.customerPickupDate}/></Field> : null}<Field label="Shop Date" name="shopDate"><DateOnlyPicker ariaLabel="Shop Date" capacity={shopDateCapacity} className={inputClass} disabled={!canEdit} id="shopDate" onChange={(value)=>update('shopDate',value)} value={values.shopDate}/></Field></div></section> : null}
+        {!inAppShell ? <section className="job-production-strip rounded-md border border-slate-200 p-1.5 dark:border-slate-700" aria-label="Production Setup"><div className="job-production-fields grid gap-1.5 md:grid-cols-3 xl:grid-cols-5"><Field error={fieldErrors.shopHours} label={`Shop Hours${effectiveShopHoursSource ? ` · ${effectiveShopHoursSource}` : ''}`} name="shopHours"><input className={inputClass} disabled={!canEdit || intakeSaving} id="shopHours" min="0" onChange={(event) => update('shopHours', event.target.value)} step="0.25" type="number" value={effectiveShopHours}/></Field><Field label="Fulfillment Plan" name="fulfillmentPlan"><select className={inputClass} disabled={!canEdit || intakeSaving} id="fulfillmentPlan" onChange={(event) => update('fulfillmentPlan', event.target.value)} value={values.fulfillmentPlan}><option value="">Not selected</option><option value="Delivery">Delivery</option><option value="Customer Pickup">Customer Pickup</option></select></Field>{values.fulfillmentPlan === 'Delivery' ? <Field label="Delivery Date" name="deliveryDate"><DateOnlyPicker ariaLabel="Delivery Date" className={inputClass} disabled={!canEdit || intakeSaving} id="deliveryDate" onChange={(value)=>update('deliveryDate',value)} value={values.deliveryDate}/></Field> : null}{values.fulfillmentPlan === 'Customer Pickup' ? <Field label="Customer Pickup Date" name="customerPickupDate"><DateOnlyPicker ariaLabel="Customer Pickup Date" className={inputClass} disabled={!canEdit || intakeSaving} id="customerPickupDate" onChange={(value)=>update('customerPickupDate',value)} value={values.customerPickupDate}/></Field> : null}<Field label="Shop Date" name="shopDate"><DateOnlyPicker ariaLabel="Shop Date" capacity={shopDateCapacity} className={inputClass} disabled={!canEdit || intakeSaving} id="shopDate" onChange={(value)=>update('shopDate',value)} value={values.shopDate}/></Field></div></section> : null}
 
         {!inAppShell ? <div className="job-details-strip">
-          <div className="job-po-numbers"><Field error={fieldErrors.poNumbers} label="PO Number(s)" name="poNumbers"><input aria-describedby={fieldErrors.poNumbers ? 'poNumbers-error' : undefined} className={inputClass} disabled={!canEdit} id="poNumbers" inputMode="numeric" onChange={(event) => { setPendingPoNumber(event.target.value); setFieldErrors((current) => ({ ...current, poNumbers: '' })); setMessage(null); }} placeholder="Optional · separate multiple numbers with commas" value={pendingPoNumber}/></Field></div>
-          <Field label="Job Notes" name="notes"><textarea className={`${inputClass} job-notes-compact resize-y`} disabled={!canEdit} id="notes" onChange={(e) => update('notes', e.target.value)} placeholder="Job notes" rows={1} value={values.notes}/></Field>
+          <div className="job-po-numbers"><Field error={fieldErrors.poNumbers} label="PO Number(s)" name="poNumbers"><input aria-describedby={fieldErrors.poNumbers ? 'poNumbers-error' : undefined} className={inputClass} disabled={!canEdit || intakeSaving} id="poNumbers" inputMode="numeric" onChange={(event) => { setPendingPoNumber(event.target.value); setFieldErrors((current) => ({ ...current, poNumbers: '' })); setMessage(null); }} placeholder="Optional · separate multiple numbers with commas" value={pendingPoNumber}/></Field></div>
+          <Field label="Job Notes" name="notes"><textarea className={`${inputClass} job-notes-compact resize-y`} disabled={!canEdit || intakeSaving} id="notes" onChange={(e) => update('notes', e.target.value)} placeholder="Job notes" rows={1} value={values.notes}/></Field>
         </div> : null}
       </div>
 
-      <div className="mt-3"><DoorLineWorkspace canEdit={canEdit} hingeColor={values.hingeColor} lifecycleStage={lifecycleStage} lines={lines} onChange={setLines} onHingeColorChange={(value) => update('hingeColor', value)} onUnappliedChange={setHasUnappliedLineChanges}/></div>
+      <div className="mt-3"><DoorLineWorkspace onLineMutation={(mutation) => { pendingIntakeMutation.current = mutation; }} onPersistLines={transferReview ? undefined : persistIntakeLines} savePending={isPending || intakeSaving} lastSavedChange={lastIntakeChange} canEdit={canEdit} hingeColor={values.hingeColor} lifecycleStage={lifecycleStage} lines={lines} onChange={setLines} onHingeColorChange={(value) => update('hingeColor', value)} onUnappliedChange={setHasUnappliedLineChanges}/></div>
 
       {!inAppShell && message ? <p className={`mt-5 rounded-xl p-3 text-sm ${message.kind === 'success' ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-950 dark:text-rose-100'}`} role="status">{message.text}</p> : null}
       {!inAppShell ? <div className="job-editor-actions flex flex-wrap gap-1 border-t border-slate-200 py-1.5">{bottomActions}</div> : null}
@@ -418,7 +471,7 @@ export function JobHeaderForm({
       {!inAppShell ? <JobArchiveControl
         onArchive={archiveDraftJobAction}
         onNavigate={(path) => router.push(path)}
-        target={jobArchiveTarget(job, canEdit)}
+        target={jobArchiveTarget(job, canEdit && !intakeSaving && !isPending)}
       /> : null}
     </JobEditorWorkspaceFrame>
     {inAppShell ? <ContextBottomBar label="Job actions" status={<span className={message?.kind === 'error' ? 'text-rose-700' : undefined}>{bottomStatus}</span>} context="Confirmation requires one valid active door line · saving does not schedule production" actions={bottomActions}/> : null}

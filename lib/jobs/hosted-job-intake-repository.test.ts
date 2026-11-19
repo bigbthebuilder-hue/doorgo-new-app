@@ -166,3 +166,23 @@ async function verifyPreparationRoundTrip() {
   console.log('Preparation hosted-adapter save, fresh repository reopen, legacy values, full-job saves and manual-marker clearing passed (synthetic RPC).');
 }
 verifyPreparationRoundTrip().catch(error => { console.error(error); process.exitCode = 1; });
+
+async function verifyIntakeReceiptRoundTrip() {
+  const receipt = { id: '99999999-9999-4999-8999-999999999999', revision: 2, kind: 'quantity', before: 1, quantity: 2 };
+  let stored: Record<string, unknown> = { ...line, qty: 2, glass_calc: { intakeReceipt: JSON.stringify(receipt), labelIndividualDoorIds: ['A','B','Retained'], labelSlabSku: 'SLAB' } };
+  const repository = createHostedJobIntakeRepository({ client: { rpc: async (name, args) => {
+    if (name === 'dg_update_native_job') stored = { ...stored, ...(args.p_lines as Record<string, unknown>[])[0] };
+    return { data: { job: { ...job, revision: 2 }, lines: [stored] }, error: null };
+  } } });
+  const opened = (await repository.findById(job.internal_job_id))!;
+  assert.deepEqual(opened.lines[0].intakeChange, receipt);
+  assert.equal(opened.lines[0].glassCalc, null, 'receipt metadata must never masquerade as calculated geometry');
+  const saved = await repository.update({ internalJobId: job.internal_job_id, expectedRevision: 2, actorUserId: job.created_by_user_id,
+    input: { notes: 'Unrelated header save' }, lines: opened.lines });
+  assert.deepEqual(saved.lines[0].intakeChange, receipt);
+  assert.deepEqual(saved.lines[0].individualDoorIds, ['A','B','Retained']);
+  assert.equal(saved.lines[0].doorSlabSku, 'SLAB');
+  assert.deepEqual((await repository.findById(job.internal_job_id))!.lines[0].intakeChange, receipt);
+  console.log('Mobile intake receipt survives hosted-adapter full save/reopen without geometry or individual-ID loss (synthetic RPC).');
+}
+verifyIntakeReceiptRoundTrip().catch(error => { console.error(error); process.exitCode = 1; });

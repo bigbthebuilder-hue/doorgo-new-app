@@ -307,8 +307,8 @@
   .door-input-pane textarea { min-height: 2rem !important; }
   .door-input-pane .door-line-notes { grid-column: 1 / -1 !important; }
   .door-primary-grid + section { gap: .25rem; padding: .3rem; }
-  .door-input-pane > div.mt-2, .door-input-pane > section.mt-2 { margin-top: .35rem; }
-  .door-input-pane > div.mt-2.rounded-md { padding: .3rem; }
+  :is(.door-input-pane, .door-editor-controls) > div.mt-2, :is(.door-input-pane, .door-editor-controls) > section.mt-2 { margin-top: .35rem; }
+  :is(.door-input-pane, .door-editor-controls) > div.mt-2.rounded-md { padding: .3rem; }
 
   .glass-unit-builder { grid-template-rows: auto minmax(0, 1fr) auto; }
   .glass-unit-builder > div:nth-child(2) { overflow: hidden; padding: .25rem; }
@@ -924,3 +924,99 @@ body {
   .calendar-needs-attention-dropdown { width: 100%; max-width: 100%; }
   .calendar-floating-backdrop { left: 0; }
 }
+
+/* Walkthrough intake: the desktop controls and geometry remain a single shared tree. */
+.mobile-job-summary, .mobile-last-saved, .mobile-intake-actions,
+.mobile-quantity-controls, .mobile-card-change { display: none; }
+.mobile-intake-section, .mobile-intake-section-fields { display: contents; }
+.mobile-intake-section > summary { display: none; }
+@media (max-width: 640px) {
+  .mobile-job-summary { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .85rem; }
+  .mobile-job-summary strong { flex: 1 1 10rem; overflow-wrap: anywhere; }
+  .mobile-job-summary span { border-radius: 1rem; background: var(--app-color-surface); padding: .3rem .6rem; font-weight: 700; }
+  .mobile-job-summary button { min-height: 44px; padding: .25rem .5rem; text-decoration: underline; }
+  .app-context-bar:has(.mobile-job-summary) { padding: .5rem .75rem; gap: .25rem; }
+  .app-context-bar:has(.mobile-job-summary) .app-context-primary { min-width: 0; flex-basis: 100%; }
+  .app-context-bar:has(.mobile-job-summary) .app-context-controls:has([data-mobile-expanded="false"]),
+  .job-operational-strip[data-mobile-expanded="false"] { display: none; }
+  .app-context-bar .app-job-shell-fields[data-mobile-expanded="true"] { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 40dvh; overflow-y: auto; }
+  .app-job-shell-fields input, .app-job-shell-fields select { min-height: 44px; font-size: 16px; }
+  .door-line-workbench[data-server-intake] .door-editor-controls { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .5rem; min-width: 0; }
+  .door-line-workbench[data-server-intake] .door-primary-grid { display: contents; }
+  .door-line-workbench[data-server-intake] .door-editor-controls > *,
+  .door-line-workbench[data-server-intake] .door-primary-grid > * { grid-column: span 6; min-width: 0; }
+  .door-line-workbench[data-server-intake] .door-primary-grid > label { grid-column: span 3; }
+  .door-line-workbench[data-server-intake] .door-primary-grid > .door-field-width,
+  .door-line-workbench[data-server-intake] .door-primary-grid > .door-field-height,
+  .door-line-workbench[data-server-intake] .door-primary-grid > .door-field-swing { grid-column: span 2; }
+  .door-line-workbench[data-server-intake] [data-label-field="doorId"] { order: -1; grid-column: span 6; }
+  .door-line-workbench[data-server-intake] .door-input-pane input:not([type="checkbox"]),
+  .door-line-workbench[data-server-intake] .door-input-pane select,
+  .door-line-workbench[data-server-intake] button,
+  .door-line-workbench[data-server-intake] summary { min-height: 44px !important; }
+  .door-line-workbench[data-server-intake] input:not([type="checkbox"]),
+  .door-line-workbench[data-server-intake] select, .door-line-workbench[data-server-intake] textarea { font-size: 16px; }
+  .door-line-workbench[data-server-intake] .door-input-pane label { font-size: .8rem; }
+  .door-line-workbench[data-server-intake] .door-production-grid { display: flex; flex-direction: column; gap: 0; order: 10; padding-top: 0; border: 1px solid var(--app-color-border, #cbd5e1); border-radius: .65rem; }
+  .door-line-workbench[data-server-intake] .mobile-intake-section { display: block; border-bottom: 1px solid var(--app-color-border, #cbd5e1); }
+  .door-line-workbench[data-server-intake] .mobile-intake-section:last-child { border-bottom: 0; }
+  .door-line-workbench[data-server-intake] .mobile-intake-section > summary { display: flex; align-items: center; gap: .5rem; justify-content: space-between; padding: .4rem .6rem; cursor: pointer; }
+  .door-line-workbench[data-server-intake] .mobile-intake-section > summary::after { content: '▾'; }
+  .door-line-workbench[data-server-intake] .mobile-intake-section[open] > summary::after { content: '▴'; }
+  .door-line-workbench[data-server-intake] .mobile-intake-section > summary span { margin-left: auto; font-size: .75rem; }
+  .door-line-workbench[data-server-intake] .mobile-intake-section-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; padding: .5rem; }
+  .door-line-workbench[data-server-intake] .mobile-intake-section-fields > fieldset,
+  .door-line-workbench[data-server-intake] .mobile-intake-section-fields > details,
+  .door-line-workbench[data-server-intake] .mobile-intake-section-fields > p { grid-column: 1 / -1; }
+  .door-line-workbench[data-server-intake] [data-label-field="productCode"],
+  .door-line-workbench[data-server-intake] [data-label-field="doorSlabSku"] { grid-column: span 3; order: 15; }
+  .door-line-workbench[data-server-intake] .door-line-notes { order: 20; }
+  .door-line-workbench[data-server-intake] .door-input-local-footer { grid-column: span 6; order: 30; position: sticky; bottom: 0; background: var(--app-color-surface, white); padding-block: .5rem; z-index: 2; }
+  .door-line-workbench[data-server-intake] .desktop-intake-actions,
+  .door-line-workbench[data-server-intake] .door-input-preview { display: none; }
+  .mobile-intake-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }
+  .mobile-intake-actions > button { flex: 1 1 40%; min-height: 44px; }
+  .door-input-local-footer .mobile-intake-actions > button:first-child { flex-basis: 100%; min-height: 48px !important; }
+  .mobile-last-saved { display: block; border: 1px solid #86b596; border-radius: .5rem; background: #e9f7ec; color: #174d2b; padding: .5rem .6rem; font-size: .8rem; }
+  .mobile-card-change { display: block; color: #216336; font-size: .8rem; font-weight: 700; }
+  .job-line-card[data-last-saved="true"] { border: 2px solid #5aab70; background: #edf8ef; }
+  .dark .job-line-card[data-last-saved="true"] { background: #183124; }
+  .mobile-quantity-controls { display: flex; align-items: center; gap: .5rem; margin-block: .5rem; }
+  .mobile-quantity-controls strong { margin-right: auto; }
+  .mobile-quantity-controls button { min-width: 52px; min-height: 48px; border: 1px solid #94a3b8; border-radius: .5rem; font-size: 1.4rem; font-weight: 700; }
+  .mobile-quantity-controls button:last-child { color: white; background: #087ba9; border-color: #087ba9; }
+  .job-line-card .job-line-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .job-line-card .job-line-actions button { min-height: 44px !important; }
+  .job-line-card .job-line-actions > button:nth-child(-n+2) { display: none; }
+  .job-line-card h3 { font-size: 1rem; }
+  .door-workspace-switcher button { min-height: 44px; }
+}
+@media (max-width: 640px) {
+  .door-line-workbench[data-server-intake] .mobile-intake-section:not([open]) > .mobile-intake-section-fields { display: none; }
+}
+
+@media (max-width: 640px) { .mobile-save-hint { flex-basis: 100%; text-align: center; font-size: .7rem; } }
+@media (max-width: 640px) {
+  .door-line-workbench[data-server-intake] .door-editor-controls > .mobile-intake-section { order: 15; }
+  .door-line-workbench[data-server-intake] .mobile-intake-section-fields > [data-label-field] { grid-column: auto; order: initial; }
+  .door-line-workbench[data-server-intake] .mobile-intake-section-fields > .door-line-notes { grid-column: 1 / -1; order: initial; }
+}
+@media (max-width: 640px) {
+  .app-context-bar:has(.mobile-job-summary) .app-context-secondary { max-width: none; overflow: visible; white-space: normal; line-height: 1.2; }
+  .app-context-bar:has(.mobile-job-summary) .app-context-controls { flex-basis: 100%; }
+  .door-line-workbench[data-server-intake] { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; }
+  .door-line-workbench[data-server-intake] .door-workspace-switcher { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem; padding: .25rem; border: 1px solid var(--app-color-border, #cbd5e1); border-radius: .5rem; }
+  .door-line-workbench[data-server-intake] .door-workspace-switcher button[aria-pressed="true"] { background: #e0f2fe; color: #075985; border-radius: .35rem; font-weight: 700; }
+  .door-line-workbench[data-server-intake][data-workspace-pane="input"] .job-lines-pane,
+  .door-line-workbench[data-server-intake][data-workspace-pane="lines"] .door-input-pane { display: none; }
+  .door-line-workbench[data-server-intake] > .door-input-pane,
+  .door-line-workbench[data-server-intake] > .job-lines-pane { height: auto; overflow: visible; }
+}
+.app-context-secondary:has(.mobile-job-summary), .mobile-card-door-id { display: none; }
+@media (max-width: 640px) {
+  .app-context-secondary:has(.mobile-job-summary) { display: block; }
+  .mobile-card-door-id { display: block; margin-top: .35rem; font-weight: 700; overflow-wrap: anywhere; }
+  .door-line-workbench[data-server-intake] .job-line-actions > .mobile-intake-section { grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) { .dark .mobile-card-change { color: #a9dfb7; } }

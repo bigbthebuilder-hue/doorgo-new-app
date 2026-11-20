@@ -1,3 +1,4 @@
+import { usesInteriorRoSizing, gapUnderDoor } from './interior-ro-sizing';
 import { isSlabOnly, SLAB_DRILLING } from './slab-only-contract';
 import { intakeChange } from './mobile-intake';
 import { customSlabAxis, hasCustomSlabAxis, SLAB_SIZING_MODES } from './slab-sizing-contract';
@@ -145,6 +146,8 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const height = text(input.height);
   const errors: Record<string, string> = {};
   const slabOnly = isSlabOnly(input);
+  const bottomGap = gapUnderDoor(input.gapUnderDoor);
+  if (usesInteriorRoSizing(input) && !bottomGap.ok) errors.gapUnderDoor = 'Enter a valid Gap Under Door in inches.';
   if (input.supplyType !== undefined && !['prehung', 'slab-only'].includes(String(input.supplyType))) errors.supplyType = 'Choose a supply type.';
   if (slabOnly && mode === 'Exterior' && config && isGlassConfiguration(config)) errors.config = 'Choose D or DD for replacement slabs; framed sidelights and transoms require a complete door.';
   if (!slabOnly && !validConstruction(input.construction)) errors.construction = 'Choose a Sill: STD, DARK, LOW-PRO, NONE, or J-4-S.';
@@ -237,6 +240,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       construction: noJamb && !slabOnly ? 'standard' : normalizeConstruction(input.construction),
       mode: mode as DoorLineMode,
       doorType: text(input.doorType), config: config as string, width: width as string, height: height as string,
+      gapUnderDoor: bottomGap.ok ? bottomGap.formatted : text(input.gapUnderDoor),
       customSlab, customSlabWidth: customSlabAxis({ customSlab }, 'width') ? text(input.customSlabWidth) : null,
       customSlabHeight: customSlabAxis({ customSlab }, 'height') ? text(input.customSlabHeight) : null,
       intakeChange: intakeChange(input.intakeChange),
@@ -346,8 +350,10 @@ export function doorLineEquivalenceKey(line: DoorLineInput): string {
   for (const field of DEPLOYED_MERGE_FIELDS) comparable[field] = String(line[field] ?? '').trim();
   const parsedConfig = parseGlassUnitConfiguration(line.config);
   if (parsedConfig.ok) comparable.config = parsedConfig.canonicalConfig;
+  const bottomGap = gapUnderDoor(line.gapUnderDoor);
   return JSON.stringify({
     ...comparable,
+    gapUnderDoor: bottomGap.ok ? bottomGap.formatted : String(line.gapUnderDoor ?? ''),
     supplyType: line.supplyType ?? 'prehung', slabDrilling: line.slabDrilling ?? '', framePreparation: line.framePreparation ?? null, slabPreparation: line.slabPreparation ?? null,
     individualIdentity: line.individualDoorIds?.some(Boolean) ? line.lineId : null,
     prepSource: line.prepSource === 'automatic' ? 'automatic' : 'manual',

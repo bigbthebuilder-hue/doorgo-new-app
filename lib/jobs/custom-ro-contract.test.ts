@@ -152,7 +152,7 @@ assert.equal(both.values.finalSlabHeight.inches, 78.25);
 assert.equal(both.values.inactiveLeafWidth?.inches, 33.9375);
 assert.match(both.detailLines.join(' '), /active 34 1\/2" x 78 1\/4"; inactive 33 15\/16" x 78 1\/4"/);
 const interiorHeight = calculated({ ...defaultDoorLine('Interior'), customSlab: 'RO', roHeight: '82' });
-assert.equal(interiorHeight.values.finalSlabHeight.inches, 79.25);
+assert.equal(interiorHeight.values.finalSlabHeight.inches, 79.625);
 assert.equal(interiorHeight.values.jambLeg?.inches, 81.5);
 for (const field of ['roWidth', 'roHeight']) {
   for (const value of ['bad', '0', '-1', '1.01', '1']) {

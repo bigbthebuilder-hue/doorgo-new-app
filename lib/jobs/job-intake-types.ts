@@ -86,6 +86,7 @@ export type NativeDoorLine = {
   width: string;
   height: string;
   customSlab: string | null;
+  gapUnderDoor?: string | null;
   customSlabWidth: string | null;
   customSlabHeight: string | null;
   hand: string | null;

@@ -216,3 +216,28 @@ async function verifySlabOnlyRoundTrip() {
   console.log('Mixed prehung/Slab Only MTM persists through full save and fresh hosted-adapter reopen (synthetic RPC).');
 }
 verifySlabOnlyRoundTrip().catch(error => { console.error(error); process.exitCode = 1; });
+
+async function verifyBottomGapRoundTrip() {
+  const { defaultDoorLine, normalizeDoorLineInput } = await import('./door-line-contract');
+  const { calculateNonGlassFrameCut } = await import('./non-glass-frame-cut-contract');
+  let stored: Record<string, unknown>[] = [];
+  const client: NativeJobRpcClient = { rpc: async (name, args) => {
+    if (name === 'dg_update_native_job') stored = structuredClone(args.p_lines as Record<string, unknown>[]);
+    return { data: { job, lines: stored }, error: null };
+  } };
+  const base = { ...defaultDoorLine('Interior'), customSlab: 'RO', roHeight: '77 1/4', lineId: line.line_id, lineIndex: 1, doorId: 'Door A', doorSlabSku: 'SLAB_A' };
+  const repo = createHostedJobIntakeRepository({ client });
+  await repo.update({ actorUserId: job.created_by_user_id, internalJobId: job.internal_job_id, expectedRevision: 1, input: { customer: 'Fixture', lifecycleStage: 'Draft' }, lines: [{ ...base, gapUnderDoor: '1/2' }, { ...defaultDoorLine(), lineId: '44444444-4444-4444-8444-444444444444', lineIndex: 2 }] });
+  const reopened = await createHostedJobIntakeRepository({ client }).findById(job.internal_job_id);
+  assert.ok(reopened); assert.equal(reopened.lines[0].gapUnderDoor, '1/2"');
+  assert.equal(reopened.lines[0].doorSlabSku, 'SLAB_A');
+  assert.ok(!reopened.lines[0].glassCalc || !('interiorBottomGap' in reopened.lines[0].glassCalc));
+  assert.equal(calculateNonGlassFrameCut(reopened.lines[0]).values?.finalSlabHeight.display, '75 3/8"');
+  const checked = normalizeDoorLineInput(reopened.lines[0]); assert.ok(checked.ok);
+  await repo.update({ actorUserId: job.created_by_user_id, internalJobId: job.internal_job_id, expectedRevision: 1, input: { customer: 'Fixture', lifecycleStage: 'Draft' }, lines: [{ ...reopened.lines[0], gapUnderDoor: '1' }, reopened.lines[1]] });
+  assert.ok(!('interiorBottomGap' in (stored[0].glass_calc as Record<string, unknown>)), 'reset to default removes obsolete metadata');
+  const again = await createHostedJobIntakeRepository({ client }).findById(job.internal_job_id);
+  assert.ok(again); assert.equal(calculateNonGlassFrameCut(again.lines[0]).values?.finalSlabHeight.display, '74 7/8"');
+  console.log('Interior bottom gap survives mixed-job save/fresh hosted-adapter reopen and default reset without label/spec loss (synthetic RPC).');
+}
+verifyBottomGapRoundTrip().catch(error => { console.error(error); process.exitCode = 1; });

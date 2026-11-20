@@ -34,6 +34,7 @@ async function main() {
     { mode: 'Interior', config: 'DD', customSlab: 'RO', roWidth: '70', roHeight: '79' },
     { mode: 'Exterior', config: 'D', customSlab: 'RO', roWidth: '37.5', roHeight: '81' },
     { mode: 'Exterior', config: 'T/DD', customSlab: 'RO', roWidth: '73', roHeight: '95', transomTBarSize: '2.25', transomGlassTypeCode: 'CLEAR' },
+    { mode: 'Interior', config: 'D', customSlab: 'RO', roHeight: '77 1/4', gapUnderDoor: '1/2' },
   ] as const;
   for (const [index, sample] of samples.entries()) {
     const line = { ...defaultDoorLine(sample.mode), ...sample, lineId: '11111111-1111-4111-8111-111111111111', lineIndex: 1, lineStatus: 'Active', doorType: 'Test door', updatedAt: '2026-11-16T00:00:00Z', includeDiagramOnWorkOrder: false } as NativeDoorLine;
@@ -51,6 +52,7 @@ async function main() {
     assert.match(pdfText, /Final slab|Door cut to|Active slab/);
     assert.ok(pdfText.includes(String(finishedHeight).replace(/\s+/g,' ')), 'PDF retains the authoritative finished height');
     if (index === 0 || index === 3) assert.match(pdfText, /Slab width cut:/);
+    if (index === 5) { assert.match(pdfText, /Gap under door: 1\/2/); assert.match(pdfText, /75 3\/8/); }
     assert.equal(JSON.stringify(line), before, 'output must never change saved/calculation input');
   }
   console.log('Production print regressions passed: Interior/Exterior D, DD, B.P. and glass; finished height and width cuts retained in document/PDF; height reduction amount omitted; source unchanged.');

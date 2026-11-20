@@ -1,3 +1,4 @@
+import { usesInteriorRoSizing, gapUnderDoor, resolveInteriorRoHeight } from './interior-ro-sizing';
 import { customSlabAxis, slabAxisInput } from './slab-sizing-contract';
 import { constructionAllowance, lowProfileLabel, isFourSideJamb, FOUR_SIDE_JAMB, SIDE_JAMB_THICKNESS } from './construction-contract';
 import { PATIO_DOOR_PRESETS, customDoubleDoorSlabs, resolvedDoubleDoorLeaves, validateDoubleDoorSizing } from './double-door-sizing-contract';
@@ -35,6 +36,8 @@ export type NonGlassFrameCutValues = {
   finalSlabWidth: ShopDimension;
   finalSlabHeight: ShopDimension;
   jambLeg: ShopDimension | null;
+  bottomGap?: ShopDimension;
+  selectedBottomGap?: ShopDimension;
   headerWidth: ShopDimension | null;
   recommendedRoWidth?: ShopDimension;
   clearOpeningWidth?: ShopDimension;
@@ -213,7 +216,11 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
   // Preserve existing Standard/Patio allowances; the locked Custom RO path
   // uses the supplied normal inswing/outswing shop totals.
   const deduction = constructionAllowance(line.construction, outswing, !customRo && interior ? 1.875 : undefined);
-  const height = resolveCustomRoHeight(slab.height, deduction, dimensions.roHeight);
+  const interiorRo = usesInteriorRoSizing(line);
+  const gap = gapUnderDoor(line.gapUnderDoor);
+  if (interiorRo && !gap.ok) return blocked(line, [issue('invalid_bottom_gap', 'gapUnderDoor', 'Enter a valid Gap Under Door in inches.')]);
+  const interiorHeight = interiorRo && gap.ok ? resolveInteriorRoHeight(slab.height, dimensions.roHeight, gap.inches) : null;
+  const height = interiorHeight ?? resolveCustomRoHeight(slab.height, deduction, dimensions.roHeight);
   const jambLeg = height.jambLeg;
   const finalHeight = height.finalSlabHeight;
   const cutDown = height.cutDown;
@@ -246,6 +253,7 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
     actualSlabWidth: dimension(slab.width), actualSlabHeight: dimension(slab.height),
     finalSlabWidth: dimension(finalWidth), finalSlabHeight: dimension(finalHeight),
     ...(isDouble ? { activeLeafWidth: dimension(leaves[0]), inactiveLeafWidth: dimension(finalLeaves[1]), actualSlabWidth: dimension(leaves[0]), finalSlabWidth: dimension(leaves[0]) } : {}),
+    ...(interiorHeight && gap.ok ? { bottomGap: dimension(interiorHeight.effectiveBottomGap), selectedBottomGap: dimension(gap.inches) } : {}),
     jambLeg: dimension(jambLeg), headerWidth: widthReviewRequired ? null : dimension(header),
     ...((fourSides || line.doubleDoorSizing?.kind === 'custom-slabs' || usesAutomaticCustomSlabRoWidth(line)) && !widthReviewRequired ? { recommendedRoWidth: dimension(header + 2) } : {}),
     sillOrThresholdWidth: interior || widthReviewRequired ? null : dimension(header), frameWidth: widthReviewRequired ? null : dimension(header + 2 * SIDE_JAMB_THICKNESS),
@@ -254,7 +262,9 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
     ...(customRo ? { widthCutDown: dimension(widthCut), requiredWidthReduction: dimension(requiredReduction), widthReviewRequired, targetHeaderWidth: dimension(targetHeader) } : {}), cutDown: dimension(cutDown),
     finishedOpeningHeight: null, finishedOpeningWidth: null, dividerWidth: null,
   };
-  const warnings = cutDown > 0
+  // Routine intentional interior sizing is an instruction, not an acknowledgement.
+  // Retain review of large cuts using the existing 2.5-inch large-cut threshold.
+  const warnings = cutDown > (interiorRo ? 2.5 : 0)
     ? [issue('door_cut_down', 'roHeight', `Door will be cut down ${values.cutDown.display}.`)]
     : [];
   if (widthReviewRequired) warnings.push(issue('special_dd_width', 'roWidth', `SPECIAL / REVIEW REQUIRED: DD needs an inactive-slab reduction of ${dimension(requiredReduction).display}, beyond the normal 2-inch limit. No width cut or header/sill cut is approved.`));
@@ -271,6 +281,7 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
       `Active slab: ${dimension(leaves[0]).display} x ${dimension(finalHeight).display}; Inactive slab: ${dimension(leaves[1]).display} x ${dimension(finalHeight).display}`,
     ] : []),
     `Jamb legs: ${values.jambLeg?.display}`,
+    ...(interiorHeight && gap.ok && Math.abs(gap.inches - 1) > 0.001 ? [`Gap under door: ${values.bottomGap?.display}${Math.abs(interiorHeight.effectiveBottomGap - gap.inches) > 0.001 ? ` (selected ${values.selectedBottomGap?.display}; full-height slab retained)` : ''}`] : []),
     ...(values.recommendedRoWidth ? [`Recommended RO width: ${values.recommendedRoWidth.display}`] : []),
     ...(widthReviewRequired ? [`Target header/sill for review only: ${dimension(targetHeader).display}`] : [`${interior ? 'Header' : 'Header/Sill'}: ${values.headerWidth?.display}`]),
     ...(cutDown > 0 ? [`Door cut to ${values.finalSlabHeight.display}`] : []),

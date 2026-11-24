@@ -16,14 +16,14 @@ test('compact actions preserve width, completion and read-only access',async({mo
   await page.screenshot({path:testInfo.outputPath('compact-actions.png')});
   await component.locator('.calendar-detail-panel').getByRole('button',{name:'Complete',exact:true}).click();
   await expect(day.locator('[data-booking-id="shared-booking"]')).toHaveAttribute('data-completed','true');
-  await component.locator('.calendar-detail-panel').getByRole('button',{name:'Close Calendar details'}).click();
+  await expect(component.locator('.calendar-detail-panel')).toHaveCount(0);
   await component.update(<CalendarStabilityHarness readOnly/>);
   await day.getByRole('button',{name:'Actions for Original shared job'}).click();
   await expect(component.locator('.calendar-detail-panel').getByRole('button',{name:'Complete',exact:true})).toHaveCount(0);
   await expect(component.locator('.calendar-detail-panel').getByRole('button',{name:'Edit',exact:true})).toHaveCount(0);
 });
 
-test('two independent sessions receive remote edits, moves and capacity without remounting',async({mount,page})=>{
+test('two independent fixture views receive remote edits, moves and capacity without remounting',async({mount,page})=>{
   let shared=undefined as ProductionBoardViewModel|undefined;let requests=0;
   await page.route('**/api/calendar/window?*',async route=>{requests++;if(!shared){await route.fulfill({status:503,body:'{}'});return;}await route.fulfill({json:{board:shared}});});
   const component=await mount(<CalendarStabilityHarness sessions={2}/>);
@@ -75,27 +75,44 @@ test('refresh pauses during details and drag; reconnect catches up after failure
 });
 
 test('late background response cannot overwrite a local completion',async({mount,page})=>{
-  let shared=undefined as ProductionBoardViewModel|undefined;let release:(()=>void)|undefined;let hold=false;
-  await page.route('**/api/calendar/window?*',async route=>{if(hold)await new Promise<void>(resolve=>{release=resolve;});try{await route.fulfill(shared?{json:{board:shared}}:{status:503,body:'{}'});}catch{/* aborted requests are expected */}});
+  let shared=undefined as ProductionBoardViewModel|undefined;let release:(()=>void)|undefined;let holdNext=false;
+  await page.route('**/api/calendar/window?*',async route=>{
+    // A delayed read retains its request-time snapshot. Later reads see the saved transaction.
+    const snapshot=shared?structuredClone(shared):undefined;
+    if(holdNext){holdNext=false;await new Promise<void>(resolve=>{release=resolve;});}
+    try{await route.fulfill(snapshot?{json:{board:snapshot}}:{status:503,body:'{}'});}catch{/* aborted requests are expected */}
+  });
   const component=await mount(<CalendarStabilityHarness/>);shared=JSON.parse(await component.getByTestId('board-fixture').textContent()??'{}');
-  hold=true;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect.poll(()=>Boolean(release)).toBe(true);
+  holdNext=true;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect.poll(()=>Boolean(release)).toBe(true);
   await component.getByRole('button',{name:'Actions for Original shared job'}).click();
+  const complete=(days:ProductionBoardViewModel['days'])=>days.map(day=>({...day,cards:day.cards.map(card=>card.bookingId==='shared-booking'?{...card,completedAt:'2026-10-06T20:00:00Z',revision:(card.revision??0)+1}:card)}));
+  // Match the existing completion RPC fixture's success, without changing the held snapshot.
+  shared!.days=complete(shared!.days);shared!.weekGroups=shared!.weekGroups.map(week=>({...week,days:complete(week.days)}));
   await component.locator('.calendar-detail-panel').getByRole('button',{name:'Complete',exact:true}).click();
-  hold=false;release?.();
-  await expect(component.locator('[data-booking-id="shared-booking"]').first()).toHaveAttribute('data-completed','true');
+  release?.();
+  const card=component.locator('[data-booking-id="shared-booking"]').first();
+  await expect(card).toHaveAttribute('data-completed','true');
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  await expect(component.locator('.calendar-refresh-status')).toHaveAttribute('data-state','current');
+  await expect(card).toHaveAttribute('data-completed','true');
 });
 
 test('a timed-out refresh keeps current cards and recovers without stacking requests',async({mount,page})=>{
   await page.clock.install();
-  let shared=undefined as ProductionBoardViewModel|undefined;let release:(()=>void)|undefined;let hold=true;let requests=0;
-  await page.route('**/api/calendar/window?*',async route=>{requests++;if(hold)await new Promise<void>(resolve=>{release=resolve;});try{await route.fulfill(shared?{json:{board:shared}}:{status:503,body:'{}'});}catch{/* timed-out fetch may already be aborted */}});
+  let shared=undefined as ProductionBoardViewModel|undefined;let release:(()=>void)|undefined;let hold=true;
+  const active=new Set<import('playwright/test').Request>();
+  page.on('request',request=>{if(request.url().includes('/api/calendar/window?'))active.add(request);});
+  page.on('requestfinished',request=>active.delete(request));page.on('requestfailed',request=>active.delete(request));
+  await page.route('**/api/calendar/window?*',async route=>{if(hold)await new Promise<void>(resolve=>{release=resolve;});try{await route.fulfill(shared?{json:{board:shared}}:{status:503,body:'{}'});}catch{/* timed-out fetch may already be aborted */}});
   const component=await mount(<CalendarStabilityHarness/>);shared=JSON.parse(await component.getByTestId('board-fixture').textContent()??'{}');
+  // Initial anchoring can replace the one-week read with the full visible window.
+  await page.clock.runFor(100);
   await expect.poll(()=>Boolean(release)).toBe(true);
-  const started=requests;
+  await expect.poll(()=>active.size).toBe(1);
   await page.clock.runFor(16000);
   await expect(component.locator('.calendar-refresh-status')).toHaveAttribute('data-state','retrying');
   await expect(component.locator('[data-booking-id="shared-booking"]').first()).toContainText('Original shared job');
-  expect(requests).toBe(started);hold=false;release?.();
+  await expect.poll(()=>active.size).toBe(0);hold=false;release?.();
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.clock.runFor(100);
   await expect(component.locator('.calendar-refresh-status')).toHaveAttribute('data-state','current');
 });
@@ -150,5 +167,5 @@ for(const width of [320,390,1600])test('Needs Attention controls remain usable a
   await expect(component.getByRole('dialog',{name:'Add to Needs Attention'})).toBeVisible();
   await component.getByRole('button',{name:'Close Add picker'}).click();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-  if(width===1600)expect((await toolbar.boundingBox())!.width).toBe(640);
+  if(width===1600)expect((await toolbar.boundingBox())!.width).toBeCloseTo(640,2);
 });

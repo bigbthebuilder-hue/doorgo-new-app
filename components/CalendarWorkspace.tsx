@@ -4,6 +4,7 @@ import { clampActionCard, centreActionCard } from '@/lib/calendar/action-card-po
 import { CalendarActivityProvider, useCalendarActivity } from './calendar/CalendarActivity';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useCalendarViewport } from './calendar/useCalendarViewport';
 import { useCalendarRefresh } from './calendar/useCalendarRefresh';
 import { mergeRefreshedCalendarWindow } from '@/lib/calendar/refresh-window';
 import Link from 'next/link';
@@ -13,7 +14,7 @@ import { addDaysToDateOnly, getMondayForDate } from '@/lib/production-board/date
 import { completeCalendarProductionBooking, deleteCalendarProductionBooking, loadCalendarWindow, placeCalendarProductionBooking, reloadCalendarProductionDays, reopenCalendarProductionBooking } from '@/lib/production-bookings/calendar-production-actions';
 import { createCalendarItem, deleteCalendarItem, moveCalendarItem, reorderCalendarItems, searchCalendarLinkableJobs, searchScheduledCalendar, setCalendarItemCompletion, type CalendarCreateInput, type CalendarSearchTarget } from '@/lib/calendar/calendar-item-actions';
 import type {CalendarJobOption} from '@/lib/calendar/calendar-job-linking';
-import {calendarOperationalBounds,dateWithinCalendarBounds,mergeContinuousCalendarBoards,nextCalendarChunk,preservedPrependScrollTop} from '@/lib/calendar/continuous-range';
+import {calendarOperationalBounds,dateWithinCalendarBounds,mergeContinuousCalendarBoards,nextCalendarChunk} from '@/lib/calendar/continuous-range';
 import { AddBackorderDialog } from '@/components/calendar/AddBackorderDialog';
 import {StaffAwayEditor} from '@/components/calendar/StaffAwayEditor';
 import {NoteActionPanel,NoteDetailsActions} from '@/components/calendar/NoteDetailsActions';
@@ -98,7 +99,8 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
   const streamRef=useRef<HTMLElement>(null);
   const rangeLoadRef=useRef<Promise<ProductionBoardViewModel|null>|null>(null);
   const initialScrollDone=useRef(false);
-  const initialAnchorReady=useRef(false);
+  const viewport = useCalendarViewport(streamRef, preferenceOwner);
+  const initialAnchorReady = viewport.ready;
   const searchWrapper = useRef<HTMLDivElement>(null);
   const needsAttentionWrapper = useRef<HTMLDivElement>(null);
   const highlightTimer = useRef<number | null>(null);
@@ -169,37 +171,32 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
     setToast({ id: toastId.current, tone, text });
     if (tone === 'error') window.dispatchEvent(new Event('doorgo:calendar-refresh'));
   };
-  const fetchChunk=async(base:ProductionBoardViewModel,direction:'prepend'|'append',preserveAnchor:boolean)=>{const request=nextCalendarChunk(base,direction,bounds);if(!request)return base;if(rangeLoadRef.current)return rangeLoadRef.current;const stream=streamRef.current;const beforeHeight=stream?.scrollHeight??0;const beforeTop=stream?.scrollTop??0;setLoadingCount(count=>count+1);const task=loadCalendarWindow({boardStart:request.startDate,boardEndExclusive:request.endDateExclusive,weeks:request.weeks,today}).then((result)=>{if(!result.ok)return null;const merged=mergeContinuousCalendarBoards(base,result.board);setDisplayBoard((current)=>mergeContinuousCalendarBoards(current,result.board));if(direction==='prepend'&&preserveAnchor&&stream)window.requestAnimationFrame(()=>{stream.scrollTop=preservedPrependScrollTop(beforeTop,beforeHeight,stream.scrollHeight);});return merged;}).catch(()=>{announce('error','Calendar could not load more dates. Please try again.');return null;}).finally(()=>{rangeLoadRef.current=null;setLoadingCount(count=>count-1);});rangeLoadRef.current=task;return task;};
-  const ensureDateLoaded=async(date:string,preserveAnchor=false)=>{if(!dateWithinCalendarBounds(date,bounds))return null;let loaded=displayBoard;while(date<loaded.startDate){const next=await fetchChunk(loaded,'prepend',preserveAnchor);if(!next||next===loaded)break;loaded=next;}while(date>=loaded.endDateExclusive){const next=await fetchChunk(loaded,'append',false);if(!next||next===loaded)break;loaded=next;}return loaded;};
-  const scrollToWeek=(monday:string,behavior:ScrollBehavior='smooth')=>{setNavigationMonday(monday);window.history.replaceState({},'',`/calendar?week=${encodeURIComponent(monday)}`);window.requestAnimationFrame(()=>streamRef.current?.querySelector<HTMLElement>(`[data-calendar-week="${monday}"]`)?.scrollIntoView({behavior,block:'start'}));};
-  const navigate = (monday: string) => startTransition(async()=>{const clamped=monday<bounds.minimumMonday?bounds.minimumMonday:monday>=bounds.maximumEndExclusive?addDaysToDateOnly(bounds.maximumEndExclusive,-7):monday;const loaded=await ensureDateLoaded(clamped);if(loaded)scrollToWeek(clamped);});
+  const fetchChunk=async(base:ProductionBoardViewModel,direction:'prepend'|'append')=>{const request=nextCalendarChunk(base,direction,bounds);if(!request)return base;if(rangeLoadRef.current)return rangeLoadRef.current;setLoadingCount(count=>count+1);const task=loadCalendarWindow({boardStart:request.startDate,boardEndExclusive:request.endDateExclusive,weeks:request.weeks,today}).then((result)=>{if(!result.ok)return null;const merged=mergeContinuousCalendarBoards(base,result.board);setDisplayBoard((current)=>mergeContinuousCalendarBoards(current,result.board));return merged;}).catch(()=>{announce('error','Calendar could not load more dates. Please try again.');return null;}).finally(()=>{rangeLoadRef.current=null;setLoadingCount(count=>count-1);});rangeLoadRef.current=task;return task;};
+  const ensureDateLoaded=async(date:string,token?:number)=>{if(!dateWithinCalendarBounds(date,bounds))return null;let loaded=displayBoard;while(date<loaded.startDate){if(token!==undefined&&!viewport.current(token))return null;const next=await fetchChunk(loaded,'prepend');if(!next||next===loaded)break;loaded=next;}while(date>=loaded.endDateExclusive){if(token!==undefined&&!viewport.current(token))return null;const next=await fetchChunk(loaded,'append');if(!next||next===loaded)break;loaded=next;}return loaded;};
+  const scrollToWeek=(monday:string,token:number)=>{if(!viewport.current(token))return;setNavigationMonday(monday);viewport.jump({week:monday,offset:0},token);};
+  const navigate = (monday: string) => {
+    const token=viewport.prepare();
+    startTransition(async()=>{const clamped=monday<bounds.minimumMonday?bounds.minimumMonday:monday>=bounds.maximumEndExclusive?addDaysToDateOnly(bounds.maximumEndExclusive,-7):monday;const loaded=await ensureDateLoaded(clamped,token);if(loaded)scrollToWeek(clamped,token);});
+  };
 
-  // Anchor before paint, without smooth scrolling through the prepend threshold.
   useLayoutEffect(() => {
-    if (initialScrollDone.current) return;
-    initialScrollDone.current = true;
-    const target = dateWithinCalendarBounds(initialTargetMonday,bounds) ? initialTargetMonday : currentMonday;
-    const element = streamRef.current?.querySelector<HTMLElement>(`[data-calendar-week="${target}"]`);
-    if (element) {
-      element.scrollIntoView({behavior:'instant',block:'start'});
-      initialAnchorReady.current = true;
-    } else {
-      // Explicit deep links may need more than the initial window.
-      void ensureDateLoaded(target).then(loaded => { if (loaded) scrollToWeek(target,'instant'); initialAnchorReady.current = true; });
-    }
-    // This is deliberately a one-time anchor, not a reaction to refreshes.
+    if(initialScrollDone.current)return;
+    initialScrollDone.current=true;
+    const stored=viewport.read();
+    const target=stored&&dateWithinCalendarBounds(stored.week,bounds)?stored:{week:dateWithinCalendarBounds(initialTargetMonday,bounds)?initialTargetMonday:currentMonday,offset:0};
+    const token=viewport.prepare();
+    if(!viewport.place(target,token))void ensureDateLoaded(target.week,token).then(loaded=>{if(loaded)viewport.jump(target,token);});
+    return()=>{initialScrollDone.current=false;};
+    // One initialization per account mount. User input invalidates its token.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    const restoreHistory=()=>{const target=viewport.read();if(!target||!dateWithinCalendarBounds(target.week,bounds))return;const token=viewport.prepare();void ensureDateLoaded(target.week,token).then(loaded=>{if(loaded)viewport.jump(target,token);});};
+    window.addEventListener('popstate',restoreHistory);
+    return()=>window.removeEventListener('popstate',restoreHistory);
+  });
   const applyRefreshedWindow = useCallback((incoming: ProductionBoardViewModel, baseline: ProductionBoardViewModel) => {
-    const stream = streamRef.current;
-    const top = stream?.getBoundingClientRect().top ?? 0;
-    const anchor = stream ? [...stream.querySelectorAll<HTMLElement>('[data-calendar-week]')].find(week => week.getBoundingClientRect().bottom > top) : undefined;
-    const before = anchor?.getBoundingClientRect().top;
     setDisplayBoard(current => current === baseline ? mergeRefreshedCalendarWindow(current,incoming) : current);
-    if (anchor && before !== undefined && stream) window.requestAnimationFrame(() => {
-      const after = stream.querySelector<HTMLElement>(`[data-calendar-week="${anchor.dataset.calendarWeek}"]`)?.getBoundingClientRect().top;
-      if (after !== undefined) stream.scrollTop += after-before;
-    });
   }, []);
   const refreshStatus = useCalendarRefresh({
     board: displayBoard, monday: navigationMonday, endMonday: visibleEndMonday, today, onBoard: applyRefreshedWindow,
@@ -213,6 +210,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
   const setLayerColor=(key:string,colorId:CalendarLayerColorId)=>setLayerColors((current)=>{const next={...current,[key]:colorId};window.localStorage.setItem(layerColorStorageKey,JSON.stringify(next));return next;});
   const colorIdForCard=(card:ProductionBoardCard)=>layerColors[calendarItemLayerKey(card)]??layers.find((layer)=>layer.key===calendarItemLayerKey(card))?.colorId;
   const selectSearchResult = (card: ProductionBoardCard) => {
+    const token=viewport.prepare();
     const layerKey = calendarItemLayerKey(card);
     setVisibleLayers((current) => {
       if (current.includes(layerKey)) return current;
@@ -225,13 +223,15 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
     if (card.productionDate === null) {
       setNeedsAttentionOpen(true);
     }
-    window.setTimeout(() => {
-      document.getElementById(bookingElementId(card.bookingId))?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 0);
+    window.requestAnimationFrame(() => {
+      if(!viewport.current(token))return;
+      document.getElementById(bookingElementId(card.bookingId))?.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+      viewport.finish();
+    });
     if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current);
     highlightTimer.current = window.setTimeout(() => setHighlightedBookingId(null), 2200);
   };
-  const selectSearchTarget=(target:CalendarSearchTarget)=>{if(!dateWithinCalendarBounds(target.productionDate,bounds)){announce('error','This item exists outside the operational Calendar range.');setSearchOpen(false);return;}startTransition(async()=>{const loaded=await ensureDateLoaded(target.productionDate);if(!loaded)return;scrollToWeek(getMondayForDate(target.productionDate));const card=[...loaded.days.flatMap((day)=>day.cards),...loaded.needsAttentionCards].find((item)=>item.bookingId===target.bookingId);if(card)window.setTimeout(()=>selectSearchResult(card),0);});};
+  const selectSearchTarget=(target:CalendarSearchTarget)=>{if(!dateWithinCalendarBounds(target.productionDate,bounds)){announce('error','This item exists outside the operational Calendar range.');setSearchOpen(false);return;}const token=viewport.prepare();startTransition(async()=>{const loaded=await ensureDateLoaded(target.productionDate,token);if(!loaded||!viewport.current(token))return;scrollToWeek(getMondayForDate(target.productionDate),token);const card=[...loaded.days.flatMap((day)=>day.cards),...loaded.needsAttentionCards].find((item)=>item.bookingId===target.bookingId);if(card)window.setTimeout(()=>{if(viewport.current(token))selectSearchResult(card);},0);});};
   const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
       setSearchOpen(false);
@@ -513,12 +513,12 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
         </div> : null}
       </div>
       <LayersPicker colors={layerColors} layers={layers} onColor={setLayerColor} open={layersOpen} setOpen={setLayersOpen} toggle={toggleLayer} visible={visibleLayers}/>
-      <NeedsAttentionToolbar calendarWeek={displayBoard.startDate} canInteract={canInteract} canUseCalendar={canUseCalendar} canOpenJobs={canOpenJobs} cards={visibleNeedsAttention} colorIdForCard={colorIdForCard} count={displayBoard.needsAttentionCards.length} dropReady={needsAttentionDropReady} highlightedBookingId={highlightedBookingId} onAdd={()=>openQuickAdd(null)} onDetails={openDetails} onDragEnd={onCardDragEnd} onDragStart={onCardDragStart} onDrop={onNeedsAttentionDrop} onToggle={() => setNeedsAttentionOpen((open) => !open)} open={needsAttentionOpen} wrapperRef={needsAttentionWrapper}/>
+      <NeedsAttentionToolbar calendarWeek={navigationMonday} canInteract={canInteract} canUseCalendar={canUseCalendar} canOpenJobs={canOpenJobs} cards={visibleNeedsAttention} colorIdForCard={colorIdForCard} count={displayBoard.needsAttentionCards.length} dropReady={needsAttentionDropReady} highlightedBookingId={highlightedBookingId} onAdd={()=>openQuickAdd(null)} onDetails={openDetails} onDragEnd={onCardDragEnd} onDragStart={onCardDragStart} onDrop={onNeedsAttentionDrop} onToggle={() => setNeedsAttentionOpen((open) => !open)} open={needsAttentionOpen} wrapperRef={needsAttentionWrapper}/>
       <button className="calendar-toolbar-button" type="button" title="Calendar document workflow is planned for a later pass">Documents · 0</button>
       <span className="calendar-refresh-status" data-state={refreshStatus.state} role="status" title={refreshStatus.checkedAt ? 'Last checked '+new Date(refreshStatus.checkedAt).toLocaleTimeString() : 'Checks for shared changes every 10 seconds while idle'}>{refreshStatus.label}</span>
       {pending ? <span className="sr-only" role="status">Loading Calendar…</span> : null}
     </header>
-    <main className="calendar-stream" aria-label="DoorGo Calendar" onScroll={(event)=>{const stream=event.currentTarget;const top=stream.getBoundingClientRect().top+8;const visibleWeeks=[...stream.querySelectorAll<HTMLElement>('[data-calendar-week]')].filter(week=>{const rect=week.getBoundingClientRect();return rect.bottom>top&&rect.top<stream.getBoundingClientRect().bottom;});const visible=visibleWeeks[0];const last=visibleWeeks.at(-1)?.dataset.calendarWeek;if(last)setVisibleEndMonday(addDaysToDateOnly(last,7));if(visible?.dataset.calendarWeek)setNavigationMonday(visible.dataset.calendarWeek);if(initialAnchorReady.current&&stream.scrollTop<480&&displayBoard.startDate>bounds.minimumMonday)void fetchChunk(displayBoard,'prepend',true);if(stream.scrollHeight-stream.scrollTop-stream.clientHeight<640&&displayBoard.endDateExclusive<bounds.maximumEndExclusive)void fetchChunk(displayBoard,'append',false);}} ref={streamRef}>
+    <main className="calendar-stream" aria-label="DoorGo Calendar" onScroll={(event)=>{const stream=event.currentTarget;const top=stream.getBoundingClientRect().top+8;const visibleWeeks=[...stream.querySelectorAll<HTMLElement>('[data-calendar-week]')].filter(week=>{const rect=week.getBoundingClientRect();return rect.bottom>top&&rect.top<stream.getBoundingClientRect().bottom;});const visible=visibleWeeks[0];const last=visibleWeeks.at(-1)?.dataset.calendarWeek;if(last)setVisibleEndMonday(addDaysToDateOnly(last,7));if(visible?.dataset.calendarWeek)setNavigationMonday(visible.dataset.calendarWeek);if(initialAnchorReady.current&&stream.scrollTop<480&&displayBoard.startDate>bounds.minimumMonday)void fetchChunk(displayBoard,'prepend');if(stream.scrollHeight-stream.scrollTop-stream.clientHeight<640&&displayBoard.endDateExclusive<bounds.maximumEndExclusive)void fetchChunk(displayBoard,'append');}} ref={streamRef}>
       {displayBoard.weekGroups.map((week) => <section className="calendar-week" data-calendar-week={week.startDate} key={week.startDate}>
         <div className="calendar-month-row" style={{gridTemplateColumns:`repeat(${week.days.length}, minmax(0, 1fr))`}}>
           {calendarMonthSegments(week.days.map((day) => day.date)).map((segment) => <span key={`${week.startDate}-${segment.label}`} style={{ gridColumn: `${segment.startColumn} / span ${segment.span}` }}>{segment.label}</span>)}
@@ -543,7 +543,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
       </section>)}
     </main>
     {printRequest ? <SavedJobPrint key={printRequest.internalJobId + printRequest.kind} request={printRequest} onClose={() => setPrintRequest(null)} onReady={() => setDetailBookingId(null)}/> : null}
-    {detailCard ? detailCard.recordKind==='staff_away'?<StaffAwayEditor canEdit={canUseCalendar} card={detailCard} onChanged={(dates)=>{announce('success','Staff Away updated.');void reconcileDays(dates);}} onClose={()=>setDetailBookingId(null)} roster={displayBoard.staffAwayRoster??[]}/>:detailCard.recordKind==='capacity_exception'?<CapacityExceptionDetails canEdit={canManageSettings} card={detailCard} onClose={()=>setDetailBookingId(null)}/>:<ProductionDetailPanel key={detailCard.bookingId + ":" + detailGeneration} onPrint={kind => { if (detailCard.internalJobId && canOpenJobs) setPrintRequest({ internalJobId: detailCard.internalJobId, kind }); }} calendarWeek={displayBoard.startDate} canAddBackorders={canAddBackorders&&canInteract} canDelete={canInteract} canDeleteProduction={canUseCalendar} completionPending={completionPendingId === detailCard.bookingId} onProductionCompletion={() => void (detailCard.completedAt ? reopenCard(detailCard) : completeCard(detailCard))} canEdit={canInteract} canOpenJobs={canOpenJobs} card={detailCard} onCardCreated={(created)=>{setDisplayBoard((current)=>insertCalendarCardLocally(current,created));setDetailBookingId(current => current === detailCard.bookingId ? null : current);void reconcileDays([created.productionDate].filter((value):value is string=>Boolean(value)));}} onCardDeleted={(deleted)=>{setDisplayBoard((current)=>removeCalendarCardLocally(current,deleted.bookingId));setDetailBookingId(null);announce('success','Deleted');void reconcileDays([deleted.productionDate].filter((value):value is string=>Boolean(value)));}} onCardUpdated={(updated)=>{setDisplayBoard((current)=>replaceCalendarCardLocally(current,updated));setDetailBookingId(current => current === detailCard.bookingId ? null : current);void reconcileDays([updated.productionDate].filter((value):value is string=>Boolean(value)));}} onClose={() => setDetailBookingId(null)} onEditOperational={(card)=>{setDetailBookingId(null);setQuickAdd(null);setNoteAction(null);setOperationalEditCard(card);}} onNoteAction={(mode,card)=>{setDetailBookingId(null);setQuickAdd(null);setOperationalEditCard(null);setNoteAction({mode,card});}} position={detailPosition} setPosition={setDetailPosition}/> : null}
+    {detailCard ? detailCard.recordKind==='staff_away'?<StaffAwayEditor canEdit={canUseCalendar} card={detailCard} onChanged={(dates)=>{announce('success','Staff Away updated.');void reconcileDays(dates);}} onClose={()=>setDetailBookingId(null)} roster={displayBoard.staffAwayRoster??[]}/>:detailCard.recordKind==='capacity_exception'?<CapacityExceptionDetails canEdit={canManageSettings} card={detailCard} onClose={()=>setDetailBookingId(null)}/>:<ProductionDetailPanel key={detailCard.bookingId + ":" + detailGeneration} onPrint={kind => { if (detailCard.internalJobId && canOpenJobs) setPrintRequest({ internalJobId: detailCard.internalJobId, kind }); }} calendarWeek={navigationMonday} canAddBackorders={canAddBackorders&&canInteract} canDelete={canInteract} canDeleteProduction={canUseCalendar} completionPending={completionPendingId === detailCard.bookingId} onProductionCompletion={() => void (detailCard.completedAt ? reopenCard(detailCard) : completeCard(detailCard))} canEdit={canInteract} canOpenJobs={canOpenJobs} card={detailCard} onCardCreated={(created)=>{setDisplayBoard((current)=>insertCalendarCardLocally(current,created));setDetailBookingId(current => current === detailCard.bookingId ? null : current);void reconcileDays([created.productionDate].filter((value):value is string=>Boolean(value)));}} onCardDeleted={(deleted)=>{setDisplayBoard((current)=>removeCalendarCardLocally(current,deleted.bookingId));setDetailBookingId(null);announce('success','Deleted');void reconcileDays([deleted.productionDate].filter((value):value is string=>Boolean(value)));}} onCardUpdated={(updated)=>{setDisplayBoard((current)=>replaceCalendarCardLocally(current,updated));setDetailBookingId(current => current === detailCard.bookingId ? null : current);void reconcileDays([updated.productionDate].filter((value):value is string=>Boolean(value)));}} onClose={() => setDetailBookingId(null)} onEditOperational={(card)=>{setDetailBookingId(null);setQuickAdd(null);setNoteAction(null);setOperationalEditCard(card);}} onNoteAction={(mode,card)=>{setDetailBookingId(null);setQuickAdd(null);setOperationalEditCard(null);setNoteAction({mode,card});}} position={detailPosition} setPosition={setDetailPosition}/> : null}
     {operationalEditCard ? <OperationalItemDateEditor card={operationalEditCard} closedDates={displayBoard.days.filter((day)=>day.isExplicitlyClosed).map((day)=>day.date)} onClose={()=>setOperationalEditCard(null)} onSave={(snapshot)=>saveOperationalEdit(operationalEditCard,snapshot)}/> : null}
     {noteAction ? <NoteActionPanel boardStart={displayBoard.startDate} canUseCalendar={canUseCalendar} card={noteAction.card} mode={noteAction.mode} onClose={()=>setNoteAction(null)} onConverted={(dates)=>{setDisplayBoard(current=>removeCalendarCardLocally(current,noteAction.card.bookingId));setNoteAction(null);announce('success','Note converted.');void reconcileDays(dates);}} onSaved={(updated)=>setDisplayBoard((current)=>replaceCalendarCardLocally(current,updated))} roster={displayBoard.staffAwayRoster??[]} today={today} weeks={Math.max(1,Math.ceil(displayBoard.days.length/7))}/> : null}
     {quickAdd ? <QuickAddPicker canUseCalendar={canUseCalendar} date={quickAdd.date} defaultSalesperson={defaultSalesperson} onAwayChanged={(dates)=>{setQuickAdd(null);announce('success','Staff Away added.');void reconcileDays(dates);}} onClose={() => setQuickAdd(null)} onCreated={(card)=>{setDisplayBoard((current)=>insertCalendarCardLocally(current,card));setQuickAdd(null);announce('success','Calendar item added.');}} roster={displayBoard.staffAwayRoster??[]} today={today}/> : null}

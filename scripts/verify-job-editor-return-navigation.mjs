@@ -13,7 +13,8 @@ assert.match(form,/function leave\(\) \{\s*requestNavigation\(returnTo\);\s*\}/,
 assert.match(form,/jobEditorPostSaveNavigation\(\{exitAfterSave,hadJobBeforeSave:Boolean\(job\),internalJobId:saved\.internalJobId,returnTo\}\)/);
 assert.match(form,/if\(navigation\)router\[navigation\.method\]\(navigation\.href\)/);
 assert.match(calendar,/function jobHref[\s\S]*jobEditorHref\(internalJobId, `\/calendar\?week=\$\{calendarWeek\}`\)/);
-assert.equal((calendar.match(/href=\{jobHref\(/g)??[]).length,3,'every Calendar Open Job entry point uses the return-aware link');
+assert.equal((calendar.match(/href=\{jobHref\(/g)??[]).length,2,'every Calendar Open Job entry point uses the return-aware link');
+assert.doesNotMatch(calendar,/calendarWeek=\{displayBoard\.startDate\}/,'job return links must use the viewed week, not the cached range start');
 assert.match(contract,/^const CALENDAR_RETURN_TARGET = \/\^\\\/calendar/m);
 assert.doesNotMatch(contract,/new URL|startsWith/,'return targets must use an explicit allowlist, not broad URL parsing');
 

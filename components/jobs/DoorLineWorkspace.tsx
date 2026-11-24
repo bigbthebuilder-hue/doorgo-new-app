@@ -1,4 +1,5 @@
 'use client';
+import { withUnitTBarControl } from '@/lib/jobs/unit-tbar-contract';
 
 import { usesInteriorRoSizing } from '@/lib/jobs/interior-ro-sizing';
 import { changeSupplyType, isSlabOnly, preparationDisplay } from '../../lib/jobs/slab-only-contract';
@@ -325,6 +326,7 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
       next = { ...next, sill: null, construction: 'standard', hand: '', jambWidth: '', jambType: '', hingeType: '', ripJamb: '', customSlab: 'No', customSlabWidth: '', customSlabHeight: '' };
       setRipMode(false);
     }
+    next = withUnitTBarControl(next, editor);
     setEditor(nextApplicable ? initialBuilderDraft(next) : next); setFieldErrors({}); setOverrideReason(''); setCalculationStatus(null); setExplicitGlassDetailNeeded(false); clearWorkspaceMessage();
   }
 

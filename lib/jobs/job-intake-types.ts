@@ -129,6 +129,7 @@ export type NativeDoorLine = {
   sidelightMeasurementRight: string | null;
   panelSidelightWidth: string | null;
   sidelightSpecifications?: SidelightSpecification[];
+  unitTBarControl?: { source: 'automatic' | 'manual'; size: GlassTBarSize } | null;
   transomTBarSize?: GlassTBarSize | null;
   transomGlassTypeCode?: GlassTypeCode | null;
   transomCustomGlassDescription?: string | null;

@@ -52,8 +52,9 @@ for (const viewport of [{ width: 1600, height: 900 }, { width: 900, height: 700 
     expect(await pane.evaluate((node) => node.scrollWidth <= node.clientWidth + 2)).toBe(true);
     await pane.getByLabel('Door Type', { exact: true }).scrollIntoViewIfNeeded();
     await expect(pane.getByLabel('Door Type', { exact: true })).toBeInViewport();
-    await pane.hover();
-    await page.mouse.wheel(0, 5000);
+    // Phone layout scrolls the whole document, including Job Lines after Add Door.
+    // Target the control instead of overshooting it with a fixed wheel distance.
+    await pane.getByRole('button', { name: 'Add Door', exact: true }).scrollIntoViewIfNeeded();
     await expect(pane.getByRole('button', { name: 'Add Door', exact: true })).toBeInViewport();
     expect(errors).toEqual([]);
   });

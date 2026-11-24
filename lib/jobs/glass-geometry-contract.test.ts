@@ -347,8 +347,8 @@ const preservedSelections = calculateGlassGeometry(line({ config: 'SDS', roWidth
 ] }));
 assert.deepEqual((preservedSelections.glassCalc?.resolvedSidelights as Array<{tBar:{resolvedSize:string}}>).map((entry) => entry.tBar.resolvedSize), ['2.25', '2.25'], 'the first valid saved T-bar becomes the coherent unit-wide selection');
 const singleTransomOverride = calculateGlassGeometry(line({ config: 'T/SD', roHeight: '96', transomTBarSize: '2.25' }));
-assert.equal((singleTransomOverride.glassCalc?.transomTBar as {automaticDefault:string;nonStandard:boolean}).automaticDefault, '1.5');
-assert.equal((singleTransomOverride.glassCalc?.transomTBar as {nonStandard:boolean}).nonStandard, true);
+assert.equal((singleTransomOverride.glassCalc?.transomTBar as {automaticDefault:string;nonStandard:boolean}).automaticDefault, '2.25');
+assert.equal((singleTransomOverride.glassCalc?.transomTBar as {nonStandard:boolean}).nonStandard, false);
 const doubleTransomOverride = calculateGlassGeometry(line({ config: 'T/SDDS', roWidth: '96', roHeight: '96', transomTBarSize: '1.5' }));
 assert.equal((doubleTransomOverride.glassCalc?.transomTBar as {automaticDefault:string;nonStandard:boolean}).automaticDefault, '2.25');
 assert.equal((doubleTransomOverride.glassCalc?.transomTBar as {nonStandard:boolean}).nonStandard, true);

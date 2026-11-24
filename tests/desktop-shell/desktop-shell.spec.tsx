@@ -936,7 +936,7 @@ test('T/DD exposes 1.5 and preserves 2.25 through calculation and print output',
   await page.getByLabel('RO Height (inches)').blur();
   await page.getByRole('button', { name: 'Add transom' }).click();
 
-  const tBar = page.getByLabel('Transom T-bar Size');
+  const tBar = page.getByLabel('Unit T-bar Size');
   await expect(page.locator('.glass-unit-builder header').locator('p')).toHaveText('T/DD');
   await expect(tBar.locator('option')).toHaveText(['1-1/2 inch', '2-1/4 inch']);
   await expect(tBar).toHaveValue('2.25');

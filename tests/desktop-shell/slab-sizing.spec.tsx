@@ -40,10 +40,10 @@ for (const stored of [false, true]) {
 }
 
 for (const config of ['SD', 'T/D']) {
-  test('new panel/transom default is heavy: ' + config, async ({ mount }) => {
+  test('new panel/transom default follows configuration: ' + config, async ({ mount }) => {
     const component = await mount(<SlabSizingHarness initializeGlass line={{ ...defaultDoorLine('Exterior'), config, sidelightType: 'Panel' }}/>);
     const line = JSON.parse(await component.getByTestId('saved-sizing').textContent() ?? '[]')[0];
-    expect(config === 'SD' ? line.sidelightSpecifications[0].tBarSize : line.transomTBarSize).toBe('2.25');
+    expect(config === 'SD' ? line.sidelightSpecifications[0].tBarSize : line.transomTBarSize).toBe(config === 'T/D' ? '1.5' : '2.25');
     expect(line.includeDiagramOnWorkOrder).toBe(true);
   });
 }

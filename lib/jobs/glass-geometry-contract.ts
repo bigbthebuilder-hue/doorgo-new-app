@@ -166,6 +166,11 @@ export function automaticSidelightTBar(type: SidelightType): GlassTBarSize {
   return type === 'Panel' ? '1.5' : '2.25';
 }
 
+export function automaticUnitTBar(config: string): GlassTBarSize {
+  const composition = parseGlassUnitConfiguration(config);
+  return composition.ok && composition.value.hasTransom && composition.value.door === 'D' && !composition.value.leftSidelightCount && !composition.value.rightSidelightCount ? '1.5' : '2.25';
+}
+
 export function automaticTransomTBar(doorCount: 1 | 2): GlassTBarSize {
   return doorCount === 2 ? '2.25' : '1.5';
 }
@@ -323,7 +328,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
   const resolvedSidelights: ResolvedSidelight[] = hasStructuredSpecifications ? structuredSpecifications.map((raw, index) => {
     const specification = raw as SidelightSpecification;
     const resolvedType = sidelightSpecificationType(specification, sidelightType) ?? 'Glass';
-    const automaticDefault = automaticSidelightTBar(resolvedType);
+    const automaticDefault = automaticUnitTBar(config);
     const resolvedSize = unitTBar;
     const glassTypeCode = resolvedType === 'Glass' ? normalizeGlassTypeCode(specification.glassTypeCode ?? input.sidelightGlass ?? input.glass) : null;
     const parsedWidth = numericDimension(specification.finishedWidth);
@@ -469,7 +474,7 @@ export function calculateGlassGeometry(input: DoorLineInput): GlassGeometryResul
     panelWidth: parsedPanelWidth === null ? '' : formatShopDimension(parsedPanelWidth), panelHeight: hasPanel ? formatShopDimension(finalDoorHeight + 0.125) : '',
     transomWidth: transomWidth === null ? '' : formatShopDimension(transomWidth), transomHeight: transomHeight === null ? '' : formatShopDimension(transomHeight),
     divider: formatShopDimension(divider), sidelightType, panelSidelights: panels, resolvedSidelights,
-    transomTBar: { resolvedSize: unitTBar, automaticDefault: automaticTransomTBar(topology.doorCount), nonStandard: unitTBar !== automaticTransomTBar(topology.doorCount) },
+    transomTBar: { resolvedSize: unitTBar, automaticDefault: automaticUnitTBar(String(input.config)), nonStandard: unitTBar !== automaticUnitTBar(String(input.config)) },
     doubleDoorAstragal: topology.doorCount === 2 ? doubleDoorAstragal : null,
   };
   const visibleWarnings = warnings.filter((entry) => entry.code !== 'door_cut_down');

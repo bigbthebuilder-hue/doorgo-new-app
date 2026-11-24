@@ -1,3 +1,4 @@
+import { unitTBarControl, withUnitTBarControl } from './unit-tbar-contract';
 import { usesInteriorRoSizing, gapUnderDoor } from './interior-ro-sizing';
 import { isSlabOnly, SLAB_DRILLING } from './slab-only-contract';
 import { intakeChange } from './mobile-intake';
@@ -138,6 +139,7 @@ export function defaultDoorLine(mode: DoorLineMode = 'Exterior'): DoorLineInput 
 }
 
 export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation {
+  if (input.unitTBarControl) input = withUnitTBarControl(input);
   const mode = text(input.mode) as DoorLineMode | null;
   const submittedConfig = text(input.config);
   const parsedConfig = mode === 'Exterior' ? parseGlassUnitConfiguration(submittedConfig) : null;
@@ -244,6 +246,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
       customSlab, customSlabWidth: customSlabAxis({ customSlab }, 'width') ? text(input.customSlabWidth) : null,
       customSlabHeight: customSlabAxis({ customSlab }, 'height') ? text(input.customSlabHeight) : null,
       intakeChange: intakeChange(input.intakeChange),
+      unitTBarControl: input.unitTBarControl || isGlassConfiguration(input.config) ? unitTBarControl(input) : null,
       hand, prep, prepSource: input.prepSource === 'automatic' ? 'automatic' : 'manual', glass: null, jambWidth, ripJamb,
       jambType: noJamb && !slabOnly ? null : text(input.jambType),
       // Keep legacy standard text until staff explicitly select a replacement.
@@ -356,6 +359,7 @@ export function doorLineEquivalenceKey(line: DoorLineInput): string {
     gapUnderDoor: bottomGap.ok ? bottomGap.formatted : String(line.gapUnderDoor ?? ''),
     supplyType: line.supplyType ?? 'prehung', slabDrilling: line.slabDrilling ?? '', framePreparation: line.framePreparation ?? null, slabPreparation: line.slabPreparation ?? null,
     individualIdentity: line.individualDoorIds?.some(Boolean) ? line.lineId : null,
+    unitTBarControl: unitTBarControl(line),
     prepSource: line.prepSource === 'automatic' ? 'automatic' : 'manual',
     doorId: text(line.doorId) ?? '',
     productCode: line.productCode ?? '',

@@ -241,3 +241,25 @@ async function verifyBottomGapRoundTrip() {
   console.log('Interior bottom gap survives mixed-job save/fresh hosted-adapter reopen and default reset without label/spec loss (synthetic RPC).');
 }
 verifyBottomGapRoundTrip().catch(error => { console.error(error); process.exitCode = 1; });
+
+async function verifyTBarControlRoundTrip() {
+  const { defaultDoorLine } = await import('./door-line-contract');
+  const { withUnitTBarControl } = await import('./unit-tbar-contract');
+  let stored: Record<string, unknown>[] = [];
+  const client: NativeJobRpcClient = { rpc: async (name,args) => {
+    if (name === 'dg_update_native_job') stored = structuredClone(args.p_lines as Record<string,unknown>[]);
+    return {data:{job,lines:stored},error:null};
+  }};
+  for (const source of ['automatic','manual'] as const) {
+    const input: import('./job-intake-types').DoorLineInput = { ...defaultDoorLine('Exterior'), lineId: line.line_id, config:'T/D', roWidth:'38', roHeight:'95', transomGlassTypeCode:'CLEAR', transomTBarSize:'1.5', unitTBarControl:{source,size:'1.5' as const} };
+    const repo = createHostedJobIntakeRepository({client});
+    await repo.update({actorUserId:job.created_by_user_id,internalJobId:job.internal_job_id,expectedRevision:1,input:{customer:'Fixture',lifecycleStage:'Draft'},lines:[input]});
+    const reopened = await createHostedJobIntakeRepository({client}).findById(job.internal_job_id);assert.ok(reopened);
+    assert.deepEqual(reopened.lines[0].unitTBarControl,{source,size:'1.5'});
+    assert.equal(reopened.lines[0].transomTBarSize,'1.5');
+    assert.equal(withUnitTBarControl({...reopened.lines[0],config:'T/DD'},reopened.lines[0]).transomTBarSize,source==='automatic'?'2.25':'1.5');
+    assert.ok(!reopened.lines[0].glassCalc || !('tBarControl' in reopened.lines[0].glassCalc));
+  }
+  console.log('T-bar automatic/manual provenance survives fresh hosted-adapter save/reopen (synthetic RPC).');
+}
+verifyTBarControlRoundTrip().catch(error=>{console.error(error);process.exitCode=1;});

@@ -29,3 +29,16 @@ test('Jobs Work Order reuses saved PDF preview controls',async({mount,page})=>{
   await expect(dialog.getByRole('link',{name:'Download PDF',exact:true})).toBeVisible();
   await expect(dialog.getByText(/Generated from saved revision 9/)).toBeVisible();
 });
+
+test('Jobs columns identify the date and place Open before customer and status after date', async ({mount,page}) => {
+  await page.setViewportSize({width:1600,height:900});
+  const component = await mount(<JobsList jobs={jobs}/>);
+  const row = component.locator('article').first();
+  await expect(row.locator(':scope > *').nth(1)).toHaveText('Open');
+  await expect(row.locator(':scope > *').nth(2)).toHaveText('Stale list customer');
+  await expect(row.locator(':scope > *').nth(4)).toHaveAttribute('datetime',jobs[0].updatedAt);
+  await expect(row.locator(':scope > *').nth(5)).toHaveText('Draft');
+  await expect(component.locator('.jobs-column-header')).toContainText('Last updated');
+  expect(await component.locator('.jobs-column-header').evaluate(el=>getComputedStyle(el).position)).toBe('sticky');
+  expect((await row.locator('.jobs-more-button').boundingBox())!.width).toBeGreaterThanOrEqual(72 - 0.1);
+});

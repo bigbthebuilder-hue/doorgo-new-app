@@ -10,10 +10,10 @@ test('Calendar navigation is permission-aware and does not send or change revisi
   await denied.unmount();
   for (const calendarAccess of ['view', 'use'] as const) {
     const preview = await mount(<J3CBrowserHarness calendarAccess={calendarAccess}/>);
-    await expect(preview.getByRole('link', { name: 'Back to Job' })).toHaveAttribute('href', '/jobs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/edit');
+    await expect(preview.getByRole('link', { name: 'Go to Job' })).toHaveAttribute('href', '/jobs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/edit');
     await expect(preview.getByRole('link', { name: 'Go to Calendar' })).toHaveAttribute('href', '/calendar');
     await expect(preview.getByRole('link', { name: 'Download PDF' })).toHaveAttribute('href', /revision=7/);
-    expect(await preview.locator('.work-order-preview-controls a').allTextContents()).toEqual(['Back to Job', 'Go to Calendar', 'Download PDF']);
+    expect(await preview.locator('.work-order-preview-controls a').allTextContents()).toEqual(['Go to Job', 'Go to Calendar', 'Download PDF']);
     await expect(preview.getByRole('button', { name: 'Print' })).toBeEnabled();
     await expect(preview.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
     expect(await page.evaluate(() => window.__j3cRequests)).toEqual([]);
@@ -45,7 +45,7 @@ test('real preview UI exposes actions and sends IDs only', async ({ mount, page 
   expect(JSON.stringify(requests)).not.toContain('@');
 });
 
-test('Print stays on the preview and Back to Job keeps its destination', async ({ mount, page }) => {
+test('Print stays on the preview and Go to Job keeps its destination', async ({ mount, page }) => {
   const preview = await mount(<J3CBrowserHarness calendarAccess="view"/>);
   await expect(preview.getByRole('button', { name: 'Print' })).toBeEnabled();
   const before = page.url();
@@ -59,7 +59,7 @@ test('Print stays on the preview and Back to Job keeps its destination', async (
   expect(page.url()).toBe(before);
   expect(await page.evaluate(() => window.__j3cRequests)).toEqual([]);
   await page.route('**/jobs/*/edit', route => route.fulfill({ contentType: 'text/html', body: '<h1>Saved Job editor</h1>' }));
-  await preview.getByRole('link', { name: 'Back to Job' }).click();
+  await preview.getByRole('link', { name: 'Go to Job' }).click();
   await expect(page).toHaveURL(/\/jobs\/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\/edit$/);
 });
 

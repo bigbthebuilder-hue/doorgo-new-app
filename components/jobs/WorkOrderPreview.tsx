@@ -109,7 +109,7 @@ export function WorkOrderPreview({ internalJobId, sourceRevision, visibleIdentif
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div><p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Saved Work Order</p><h1 className="mt-1 text-2xl font-semibold">{visibleIdentifier}</h1><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{pdfFilename} · Generated from saved revision {sourceRevision}</p></div>
             <div className="flex flex-wrap gap-2">
-              <Link className="inline-flex min-h-11 items-center rounded-xl border border-slate-300 px-4 font-semibold dark:border-slate-600" href={`/jobs/${internalJobId}/edit`}>Back to Job</Link>
+              <Link className="inline-flex min-h-11 items-center rounded-xl border border-slate-300 px-4 font-semibold dark:border-slate-600" href={`/jobs/${internalJobId}/edit`}>Go to Job</Link>
               {canViewCalendar ? <Link className="inline-flex min-h-11 items-center rounded-xl border border-slate-300 px-4 font-semibold dark:border-slate-600" href="/calendar">Go to Calendar</Link> : null}
               {allowed ? <a className="inline-flex min-h-11 items-center rounded-xl bg-sky-700 px-4 font-semibold text-white" download={pdfFilename} href={downloadUrl}>Download PDF</a> : <span aria-disabled="true" className="inline-flex min-h-11 items-center rounded-xl bg-sky-700 px-4 font-semibold text-white opacity-50">Download PDF</span>}
               <button className="min-h-11 rounded-xl bg-slate-900 px-4 font-semibold text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900" disabled={!ready || !allowed} onClick={() => frame.current?.contentWindow?.print()} type="button">Print</button>

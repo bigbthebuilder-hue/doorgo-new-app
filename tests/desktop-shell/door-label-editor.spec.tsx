@@ -24,7 +24,7 @@ test('confirmed job Product Code stays in sync across intake and the right-side 
 test('door labels open alongside work-order printing for a saved job', async ({ mount, page }) => {
   const component = await mount(<JobEditorWorkbenchHarness saved salesOrder="12345"/>);
   await component.getByText('Documents ▾', { exact: true }).click();
-  await expect(component.getByRole('button', { name: 'Print', exact: true })).toBeVisible();
+  await expect(component.getByRole('button', { name: 'Print Work Order', exact: true })).toBeVisible();
   await component.getByRole('button', { name: 'Print Door Labels', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Door Labels' })).toBeVisible();
   await expect(page.frameLocator('iframe[title="4 × 6 door label preview"]').locator('h1')).toHaveText('SO# 12345');

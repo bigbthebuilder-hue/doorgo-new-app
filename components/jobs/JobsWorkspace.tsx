@@ -19,6 +19,7 @@ export function JobsWorkspace({ jobs, navigation, canCreate, currentSalesperson 
   const [salesperson, setSalesperson] = useState(() => salespersonKey(defaultJobSalesperson(jobs, currentSalesperson)));
   const salespeople = jobSalespeople(jobs);
   return <AppShell
+    scrollOwner="workspace"
     navigation={navigation}
     topBar={<ContextTopBar
       density="compact"
@@ -33,6 +34,6 @@ export function JobsWorkspace({ jobs, navigation, canCreate, currentSalesperson 
       actions={canCreate ? <><Link className="app-button app-button-secondary" href="/jobs/import">Import Legacy Job</Link><Link className="app-button app-button-primary" href="/jobs/new">New Job</Link></> : null}
     />}
   >
-    <div className="app-workspace app-workspace-fluid"><JobsList filter={filter} jobs={jobs} salesperson={salesperson}/></div>
+    <div className="app-workspace app-workspace-fluid app-workspace-region"><JobsList filter={filter} jobs={jobs} salesperson={salesperson}/></div>
   </AppShell>;
 }

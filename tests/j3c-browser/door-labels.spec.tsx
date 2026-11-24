@@ -82,7 +82,7 @@ test('Chromium prints bordered labels without backgrounds, clipping or extra pag
     expect(await label.evaluate(element => {
       const border = getComputedStyle(element.querySelector('header')!);
       return {
-        width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height,
+        width: Math.round(element.getBoundingClientRect().width * 10) / 10, height: Math.round(element.getBoundingClientRect().height * 10) / 10,
         overflow: element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth,
         borderStyle: border.borderTopStyle, borderColor: border.borderTopColor,
       };

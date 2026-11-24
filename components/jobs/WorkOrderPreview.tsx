@@ -10,8 +10,9 @@ import { workOrderEmailSubject } from '@/lib/jobs/work-order-send-contract';
 
 export type WorkOrderSendCallback = (request: { internalJobId: string; expectedRevision: number; acknowledged: boolean; recipientUserIds: string[] }) => Promise<{ ok: true; outcome: 'success' | 'partial' | 'failure'; message: string; failedRecipientUserIds: string[] } | { ok: false; message: string }>;
 
-export function WorkOrderPreview({ internalJobId, sourceRevision, visibleIdentifier, pdfFilename, preflight, recipients, recipientDirectoryError, sendWorkOrder, initialAction = 'preview', canViewCalendar = false }: {
+export function WorkOrderPreview({ internalJobId, sourceRevision, visibleIdentifier, pdfFilename, preflight, recipients, recipientDirectoryError, sendWorkOrder, initialAction = 'preview', canViewCalendar = false, onReady }: {
   canViewCalendar?: boolean;
+  onReady?: () => void;
   internalJobId: string;
   sourceRevision: number;
   visibleIdentifier: string;
@@ -24,6 +25,8 @@ export function WorkOrderPreview({ internalJobId, sourceRevision, visibleIdentif
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
+  const [verifiedPdfUrl, setVerifiedPdfUrl] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [acknowledged, setAcknowledged] = useState(!preflight.acknowledgementRequired);
   const [sendOpen, setSendOpen] = useState(initialAction === 'send');
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
@@ -47,6 +50,21 @@ export function WorkOrderPreview({ internalJobId, sourceRevision, visibleIdentif
       frame.current?.contentWindow?.print();
     }
   }, [allowed, downloadUrl, initialAction, ready]);
+
+  useEffect(() => { if (ready && allowed) onReady?.(); }, [ready, allowed, onReady]);
+
+  useEffect(() => {
+    if (!onReady) return; // Existing standalone preview retains its existing loading path.
+    const controller = new AbortController();
+    let url: string | null = null;
+    if (allowed) void fetch(inlineUrl, { credentials: 'same-origin', cache: 'no-store', signal: controller.signal }).then(async response => {
+      if (!response.ok || !response.headers.get('content-type')?.includes('application/pdf')) throw new Error(response.status === 409 ? 'The saved job changed. Reload the latest saved information to retry.' : 'The saved PDF could not be loaded. Reload the preview to retry.');
+      const blob = await response.blob();
+      if (controller.signal.aborted) return;
+      url = URL.createObjectURL(blob); setVerifiedPdfUrl(url);
+    }).catch(error => { if (!controller.signal.aborted) setPdfError(error instanceof Error ? error.message : 'The saved PDF could not be loaded. Reload the preview to retry.'); });
+    return () => { controller.abort(); if (url) URL.revokeObjectURL(url); };
+  }, [allowed, inlineUrl, onReady]);
 
   function toggleRecipient(userId: string) {
     setSelectedRecipientIds((current) => current.includes(userId) ? current.filter((value) => value !== userId) : [...current, userId]);
@@ -109,7 +127,8 @@ export function WorkOrderPreview({ internalJobId, sourceRevision, visibleIdentif
             <button className="mt-4 min-h-12 rounded-xl bg-sky-700 px-5 font-bold text-white disabled:opacity-50" disabled={sending || !allowed || !recipients.length} onClick={submitSend} type="button">{sending ? 'Sending…' : 'Send Email'}</button>
           </section> : null}
         </header>
-        {allowed ? <iframe className="work-order-pdf-frame h-[78vh] min-h-[32rem] w-full rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-700" onLoad={() => setReady(true)} ref={frame} src={inlineUrl} title={`Work order ${visibleIdentifier}`}/> : <div className="grid min-h-80 place-items-center rounded-xl border border-slate-300 bg-white p-6 text-center font-semibold dark:border-slate-700 dark:bg-slate-900">Complete the work-order preflight above to load the saved PDF.</div>}
+        {pdfError ? <p role="alert">{pdfError}</p> : null}
+        {allowed && (!onReady || verifiedPdfUrl) ? <iframe className="work-order-pdf-frame h-[78vh] min-h-[32rem] w-full rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-700" onLoad={() => setReady(true)} ref={frame} src={onReady ? verifiedPdfUrl! : inlineUrl} title={`Work order ${visibleIdentifier}`}/> : <div className="grid min-h-80 place-items-center rounded-xl border border-slate-300 bg-white p-6 text-center font-semibold dark:border-slate-700 dark:bg-slate-900">{allowed ? 'Loading saved PDF…' : 'Complete the work-order preflight above to load the saved PDF.'}</div>}
       </div>
       <AppConfirmationToast message={toast} onDismiss={dismissToast}/>
     </main>

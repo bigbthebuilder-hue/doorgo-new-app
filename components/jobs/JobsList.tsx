@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { SavedJobPrint, type SavedPrintRequest } from './SavedJobPrint';
+import { useMemo, useState } from 'react';
 import { visibleJobIdentifier } from '@/lib/jobs/job-intake-contract';
 import { organizedJobs } from '@/lib/jobs/jobs-list';
 import type { NativeJobListItem } from '@/lib/jobs/job-intake-types';
@@ -16,6 +17,8 @@ function formattedUpdatedAt(value: string): string {
 }
 
 export function JobsList({ jobs, filter = '', salesperson = '' }: { jobs: NativeJobListItem[]; filter?: string; salesperson?: string }) {
+  const [printRequest, setPrintRequest] = useState<SavedPrintRequest | null>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const filteredJobs = useMemo(() => organizedJobs(jobs, filter, salesperson), [jobs, filter, salesperson]);
 
   return (
@@ -31,9 +34,9 @@ export function JobsList({ jobs, filter = '', salesperson = '' }: { jobs: Native
             <span className="truncate text-xs text-slate-600" title={job.siteAddress ?? undefined}>{job.siteAddress ?? 'Site not entered'}</span>
             <span className="text-[11px] text-slate-500">{formattedUpdatedAt(job.updatedAt)}</span>
             <span className="text-[11px] text-slate-600">{job.activeLineCount} active{job.archivedLineCount ? ` · ${job.archivedLineCount} archived` : ''}</span>
-            <Link className="app-button app-button-secondary min-h-8 px-2" href={`/jobs/${job.internalJobId}/edit`}>
+            <div className="flex items-center justify-self-end gap-1"><Link className="app-button app-button-secondary min-h-8 px-2" href={`/jobs/${job.internalJobId}/edit`}>
               Open
-            </Link>
+            </Link><details className="job-list-more relative" open={openMenu === job.internalJobId}><summary aria-label={`More actions for ${visibleJobIdentifier(job)}`} className="app-button cursor-pointer" onClick={event => { event.preventDefault(); setOpenMenu(current => current === job.internalJobId ? null : job.internalJobId); }}>⋯</summary><div className="job-print-menu">{(['work-order', 'labels'] as const).map(kind => <button className="app-button" type="button" key={kind} onClick={() => setPrintRequest({ internalJobId: job.internalJobId, kind })}>{kind === 'labels' ? 'Print Labels' : 'Print Work Order'}</button>)}</div></details></div>
           </article>
           ))}
         </section>)}
@@ -43,6 +46,7 @@ export function JobsList({ jobs, filter = '', salesperson = '' }: { jobs: Native
           </p>
         ) : null}
       </div>
+      {printRequest ? <SavedJobPrint key={printRequest.internalJobId + printRequest.kind} request={printRequest} onClose={() => setPrintRequest(null)} onReady={() => setOpenMenu(null)}/> : null}
     </section>
   );
 }

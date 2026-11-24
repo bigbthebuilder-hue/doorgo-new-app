@@ -1,3 +1,4 @@
+import { PDFDocument } from 'pdf-lib';
 import { expect, test } from '@playwright/experimental-ct-react';
 import { CalendarPermissionsHarness, ExistingCalendarEditHarness } from './CalendarPermissionsHarness';
 
@@ -76,6 +77,8 @@ for (const linked of [false, true]) test(`compact identity and real completion a
   await expect(page.locator('.calendar-activity')).toHaveText('Updating calendar…');
   await page.evaluate(()=>document.dispatchEvent(new Event('release-calendar')));
   await expect(page.locator('.calendar-activity')).toHaveCount(0);
+  await expect(component.locator('.calendar-detail-panel')).toHaveCount(0);
+  await card.getByRole('button',{name:/Actions for/}).click();
   await expect(component.locator('.calendar-detail-panel').getByRole('button',{name:'Reopen',exact:true})).toBeVisible();
   await expect(card.locator('.calendar-production-card-text')).toHaveText('3.5 · Hamilton · 1603345');
   await page.evaluate(()=>document.documentElement.removeAttribute('data-defer-calendar'));
@@ -133,7 +136,11 @@ for (const linked of [false, true]) test(`Calendar use only: ${linked ? 'linked'
   await panel.getByRole('button', { name: 'Complete', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0);
   await expect(card).not.toHaveAttribute('draggable', 'true');
+  await expect(panel).toHaveCount(0);
+  await details.click();
   await panel.getByRole('button', { name: 'Reopen', exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await details.click();
   await expect(panel.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
   await expect(card).toHaveAttribute('draggable', 'true');
   page.once('dialog', dialog => dialog.accept());
@@ -324,4 +331,80 @@ test('Shared Staff Away from another location remains visible and read-only for 
  await expect(page.getByRole('button',{name:'Delete',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Close',exact:true}).click();
  await expect(page.locator('html')).not.toHaveAttribute('data-away-save',/./);
+});
+
+
+test.describe('Calendar print shortcuts and action card', () => {
+  for (const width of [390, 900, 1600]) test('centres, drags, clamps and reopens at ' + width, async ({mount,page}) => {
+    await page.setViewportSize({width,height:900});
+    const component = await mount(<CalendarPermissionsHarness linked identity/>);
+    const card = component.locator('[data-booking-id="production-test"]').first();
+    await card.getByRole('button',{name:/Actions for/}).click();
+    const panel = page.getByRole('complementary',{name:'Calendar job actions'});
+    const initial = await panel.boundingBox(); expect(initial).not.toBeNull();
+    expect(Math.abs(initial!.x + initial!.width/2 - width/2)).toBeLessThan(2);
+    expect(Math.abs(initial!.y + initial!.height/2 - 450)).toBeLessThan(2);
+    const header = panel.locator('header').first(); const bounds = await header.boundingBox();
+    await page.mouse.move(bounds!.x+30,bounds!.y+12); await page.mouse.down(); await page.mouse.move(width-1,899); await page.mouse.up();
+    const moved = await panel.boundingBox(); expect(moved!.x+moved!.width).toBeLessThanOrEqual(width-7); expect(moved!.y+moved!.height).toBeLessThanOrEqual(893);
+    await panel.getByRole('button',{name:'Close Calendar details'}).click();
+    await card.getByRole('button',{name:/Actions for/}).click();
+    const reopened = await panel.boundingBox(); expect(reopened!.x).toBeCloseTo(initial!.x,0); expect(reopened!.y).toBeCloseTo(initial!.y,0);
+    // Real Chromium touch input creates an active pointer for header capture.
+    const before = await panel.boundingBox(); const handle = await header.boundingBox();
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:handle!.x+30,y:handle!.y+12}]});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:handle!.x+50,y:handle!.y+42}]});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]}); await cdp.detach();
+    await expect.poll(async () => (await panel.boundingBox())!.y).toBeGreaterThan(before!.y+5);
+    await page.setViewportSize({width:Math.min(width,420),height:540});
+    await expect.poll(async () => { const box=await panel.boundingBox(); return box!.y+box!.height; }).toBeLessThanOrEqual(533);
+  });
+  test('completion success closes and refreshes; failure retains retry',async({mount,page})=>{
+    const component=await mount(<CalendarPermissionsHarness linked identity/>);
+    const card=component.locator('[data-booking-id="production-test"]').first();
+    await card.getByRole('button',{name:/Actions for/}).click();
+    const panel=component.locator('.calendar-detail-panel');
+    await page.evaluate(()=>document.documentElement.setAttribute('data-fail-completion',''));
+    await panel.getByRole('button',{name:'Complete',exact:true}).click();
+    await expect(page.getByText('Fixture completion failed',{exact:true})).toBeVisible(); await expect(panel).toBeVisible();
+    await page.evaluate(()=>document.documentElement.removeAttribute('data-fail-completion'));
+    await panel.getByRole('button',{name:'Complete',exact:true}).click(); await expect(panel).toHaveCount(0);
+    await card.getByRole('button',{name:/Actions for/}).click();
+    await expect(panel.getByRole('button',{name:'Reopen',exact:true})).toBeVisible();
+  });
+  test('Calendar-only users cannot open protected printing',async({mount,page})=>{
+    const component=await mount(<CalendarPermissionsHarness linked/>);
+    await component.locator('[data-booking-id="production-test"]').first().getByRole('button',{name:/Actions for/}).click();
+    await expect(page.getByRole('button',{name:'Print Labels',exact:true})).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'Print Work Order',exact:true})).toHaveCount(0);
+  });
+  test('labels use saved data and retain line selection; load failure allows retry',async({mount,page})=>{
+    const component=await mount(<CalendarPermissionsHarness linked identity/>);
+    await component.locator('[data-booking-id="production-test"]').first().getByRole('button',{name:/Actions for/}).click();
+    const panel=component.locator('.calendar-detail-panel');
+    await page.evaluate(()=>document.documentElement.setAttribute('data-fail-print',''));
+    await panel.getByRole('button',{name:'Print Labels',exact:true}).click();
+    await expect(page.getByText('Fixture saved-document load failed.',{exact:true})).toBeVisible(); await expect(panel).toHaveCount(1);
+    await page.evaluate(()=>document.documentElement.removeAttribute('data-fail-print'));
+    await page.getByRole('button',{name:'Retry',exact:true}).click();
+    const labels=page.getByRole('dialog',{name:'Door Labels'});
+    await expect(labels.getByRole('button',{name:'Print 3 labels',exact:true})).toBeEnabled(); await expect(panel).toHaveCount(0);
+    await expect(labels.frameLocator('iframe').locator('body')).toContainText('Fresh saved customer');
+    await expect(labels.frameLocator('iframe').locator('body')).toContainText('Fresh saved Door ID');
+    await labels.getByRole('button',{name:'Clear selection',exact:true}).click();
+    await expect(labels.getByRole('button',{name:'Print labels',exact:true})).toBeDisabled();
+  });
+  test('work order checks PDF response before closing the card and retries latest revision',async({mount,page})=>{
+    let fail=true; const pdf=await PDFDocument.create();pdf.addPage();const bytes=await pdf.save();
+    await page.route('**/jobs/**/work-order/pdf?**',route=>fail?route.fulfill({status:409,contentType:'application/json',body:'{}'}):route.fulfill({status:200,contentType:'application/pdf',body:Buffer.from(bytes)}));
+    const component=await mount(<CalendarPermissionsHarness linked identity/>);
+    await component.locator('[data-booking-id="production-test"]').first().getByRole('button',{name:/Actions for/}).click();
+    const panel=component.locator('.calendar-detail-panel');
+    await panel.getByRole('button',{name:'Print Work Order',exact:true}).click();
+    await expect(page.getByText('The saved job changed. Reload the latest saved information to retry.',{exact:true})).toBeVisible(); await expect(panel).toHaveCount(1);
+    fail=false; await page.getByRole('button',{name:'Reload latest saved',exact:true}).click();
+    await expect(page.getByRole('button',{name:'Print',exact:true})).toBeEnabled(); await expect(panel).toHaveCount(0);
+    await expect(page.getByText(/Generated from saved revision 9/)).toBeVisible();
+  });
 });

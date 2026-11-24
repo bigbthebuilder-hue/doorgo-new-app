@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MAX_LABEL_BATCH, prepareDoorLabels, type LabelSelection } from '@/lib/jobs/door-label-contract';
 import type { NativeJobAggregate } from '@/lib/jobs/job-intake-types';
 
-export function DoorLabelDialog({ job, onClose }: { job: NativeJobAggregate; onClose: () => void }) {
+export function DoorLabelDialog({ job, onClose, onReady }: { job: NativeJobAggregate; onClose: () => void; onReady?: () => void }) {
   const lines = job.lines.filter((line) => line.lineStatus === 'Active');
   const dialog = useRef<HTMLDialogElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -30,6 +30,7 @@ export function DoorLabelDialog({ job, onClose }: { job: NativeJobAggregate; onC
   const overflow = Boolean(preview.html && checked?.html === preview.html && checked.overflow);
   const printCount = checked && checked.html === preview.html ? checked.pages : preview.count;
   const ready = Boolean(preview.html && checked?.html === preview.html && !overflow);
+  useEffect(() => { if (ready) onReady?.(); }, [ready, onReady]);
   return (
     <dialog aria-labelledby="door-label-title" className="m-auto max-h-[90vh] w-[min(95vw,58rem)] overflow-auto rounded-xl bg-white p-4 text-slate-900 shadow-xl backdrop:bg-black/50" onCancel={onClose} ref={dialog}>
       <header className="mb-3 flex items-center justify-between gap-2">

@@ -3,7 +3,7 @@ export async function loadCalendarWindow() { return { ok: false }; }
 export async function reloadCalendarProductionDays() { return { ok: false }; }
 export async function searchCalendarLinkableJobs() { return { ok: true, options: [{internalJobId:'22222222-2222-4222-8222-222222222222',customer:'Linked customer',salesOrder:'7654321',salesperson:'Other Staff',revision:1}] }; }
 export async function searchScheduledCalendar() { return { ok: true, targets: [] }; }
-export async function completeCalendarProductionBooking() { await activityGate(); return { ok: true, event: { resultingCompletedAt: '2026-10-06T20:00:00Z' } }; }
+export async function completeCalendarProductionBooking() { await activityGate(); if(document.documentElement.hasAttribute('data-fail-completion'))return {ok:false,message:'Fixture completion failed',code:'unavailable'}; return { ok: true, event: { resultingCompletedAt: '2026-10-06T20:00:00Z' } }; }
 export async function reopenCalendarProductionBooking() { await activityGate(); return { ok: true, event: { resultingCompletedAt: null } }; }
 export async function deleteCalendarProductionBooking() { await activityGate(); return { ok: true, data: {} }; }
 export async function placeCalendarProductionBooking() { await activityGate(); return { ok: true, move: {} }; }

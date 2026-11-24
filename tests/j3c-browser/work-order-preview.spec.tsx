@@ -5,7 +5,7 @@ import { blockedPreflight, excludedInactiveRecipient, recipientIds, recipients, 
 test.beforeEach(async ({ page }) => { await page.setViewportSize({ width: 1440, height: 900 }); await page.evaluate(() => { window.__j3cRequests = []; }); });
 
 test('Calendar navigation is permission-aware and does not send or change revision', async ({ mount, page }) => {
-  const denied = await mount(<J3CBrowserHarness/>);
+  const denied = await mount(<J3CBrowserHarness calendarAccess="none"/>);
   await expect(denied.getByRole('link', { name: 'Go to Calendar' })).toHaveCount(0);
   await denied.unmount();
   for (const calendarAccess of ['view', 'use'] as const) {

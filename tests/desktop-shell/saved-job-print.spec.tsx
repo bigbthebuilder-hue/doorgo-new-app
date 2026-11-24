@@ -1,0 +1,31 @@
+import { test, expect } from '@playwright/experimental-ct-react';
+import { JobsList } from '../../components/jobs/JobsList';
+import { PDFDocument } from 'pdf-lib';
+import type { NativeJobListItem } from '../../lib/jobs/job-intake-types';
+const jobs = [{ internalJobId:'11111111-1111-4111-8111-111111111111', doorGoReference:'DG-000001', bizTrackSalesOrder:'12345', customer:'Stale list customer', lifecycleStage:'Draft', isComplete:false, activeLineCount:2, archivedLineCount:0, updatedAt:'2026-11-23T00:00:00Z' }] as NativeJobListItem[];
+for (const width of [390,1600]) test('Jobs More prints latest saved labels with all selection options at '+width,async({mount,page})=>{
+  await page.setViewportSize({width,height:900});
+  const component=await mount(<JobsList jobs={jobs}/>);
+  await component.getByText('⋯',{exact:true}).click();
+  await component.getByRole('button',{name:'Print Labels',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Door Labels'});
+  await expect(dialog.getByRole('button',{name:'Print 3 labels',exact:true})).toBeEnabled();
+  await expect(dialog.frameLocator('iframe').locator('body')).toContainText('Fresh saved customer');
+  await expect(dialog.frameLocator('iframe').locator('body')).not.toContainText('Stale list customer');
+  await dialog.getByRole('checkbox',{name:'Omit line notes from this batch'}).check();
+  await dialog.getByRole('checkbox',{name:'Include',exact:true}).first().uncheck();
+  await expect(dialog.getByRole('button',{name:'Print 2 labels',exact:true})).toBeEnabled();
+  await dialog.getByRole('button',{name:'Close',exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+});
+test('Jobs Work Order reuses saved PDF preview controls',async({mount,page})=>{
+  const pdf=await PDFDocument.create();pdf.addPage();const bytes=await pdf.save();
+  await page.route('**/jobs/**/work-order/pdf?**',route=>route.fulfill({status:200,contentType:'application/pdf',body:Buffer.from(bytes)}));
+  const component=await mount(<JobsList jobs={jobs}/>);
+  await component.getByText('⋯',{exact:true}).click();
+  await component.getByRole('button',{name:'Print Work Order',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Saved job printing'});
+  await expect(dialog.getByRole('button',{name:'Print',exact:true})).toBeEnabled();
+  await expect(dialog.getByRole('link',{name:'Download PDF',exact:true})).toBeVisible();
+  await expect(dialog.getByText(/Generated from saved revision 9/)).toBeVisible();
+});

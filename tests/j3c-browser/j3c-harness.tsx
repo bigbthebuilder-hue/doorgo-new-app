@@ -9,7 +9,7 @@ import { accessFixture, clearPreflight, J3C_HARNESS_ONLY_MARKER, recipients as d
 declare global { interface Window { __j3cRequests?: unknown[] } }
 export type HarnessOutcome = 'success' | 'failure' | 'partial' | 'stale' | 'delayed-success' | 'failure-then-success';
 
-export function J3CBrowserHarness({ calendarAccess = 'none', accessLevel = 'view', manager = false, preflight = clearPreflight, recipients = defaultRecipients, directoryError = null, outcome = 'success', visibleIdentifier = 'SO-900', pdfFilename = 'Work_Order_SO-900.pdf' }: { calendarAccess?: 'none' | 'view' | 'use'; accessLevel?: 'none' | 'view' | 'use'; manager?: boolean; preflight?: WorkOrderPreflight; recipients?: WorkOrderRecipient[]; directoryError?: string | null; outcome?: HarnessOutcome; visibleIdentifier?: string; pdfFilename?: string }) {
+export function J3CBrowserHarness({ calendarAccess = 'view', accessLevel = 'view', manager = false, preflight = clearPreflight, recipients = defaultRecipients, directoryError = null, outcome = 'success', visibleIdentifier = 'SO-900', pdfFilename = 'Work_Order_SO-900.pdf' }: { calendarAccess?: 'none' | 'view' | 'use'; accessLevel?: 'none' | 'view' | 'use'; manager?: boolean; preflight?: WorkOrderPreflight; recipients?: WorkOrderRecipient[]; directoryError?: string | null; outcome?: HarnessOutcome; visibleIdentifier?: string; pdfFilename?: string }) {
   const access = accessFixture(accessLevel, manager);
   access.permissions.calendar = calendarAccess;
   const [attempt, setAttempt] = useState(0);

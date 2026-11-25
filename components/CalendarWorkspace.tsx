@@ -4,6 +4,8 @@ import { clampActionCard, centreActionCard } from '@/lib/calendar/action-card-po
 import { CalendarActivityProvider, useCalendarActivity } from './calendar/CalendarActivity';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useCalendarJobSearch } from './search/useCalendarJobSearch';
+import { useRetainedSearch } from './search/useRetainedSearch';
 import { useCalendarViewport } from './calendar/useCalendarViewport';
 import { useCalendarRefresh } from './calendar/useCalendarRefresh';
 import { mergeRefreshedCalendarWindow } from '@/lib/calendar/refresh-window';
@@ -12,7 +14,7 @@ import { AppConfirmationToast, type AppConfirmationToastMessage } from '@/compon
 import type { ProductionBoardCard, ProductionBoardViewModel } from '@/lib/production-board/types';
 import { addDaysToDateOnly, getMondayForDate } from '@/lib/production-board/date-utils';
 import { completeCalendarProductionBooking, deleteCalendarProductionBooking, loadCalendarWindow, placeCalendarProductionBooking, reloadCalendarProductionDays, reopenCalendarProductionBooking } from '@/lib/production-bookings/calendar-production-actions';
-import { createCalendarItem, deleteCalendarItem, moveCalendarItem, reorderCalendarItems, searchCalendarLinkableJobs, searchScheduledCalendar, setCalendarItemCompletion, type CalendarCreateInput, type CalendarSearchTarget } from '@/lib/calendar/calendar-item-actions';
+import { createCalendarItem, deleteCalendarItem, moveCalendarItem, reorderCalendarItems, searchScheduledCalendar, setCalendarItemCompletion, type CalendarCreateInput, type CalendarSearchTarget } from '@/lib/calendar/calendar-item-actions';
 import type {CalendarJobOption} from '@/lib/calendar/calendar-job-linking';
 import {calendarOperationalBounds,dateWithinCalendarBounds,mergeContinuousCalendarBoards,nextCalendarChunk} from '@/lib/calendar/continuous-range';
 import { AddBackorderDialog } from '@/components/calendar/AddBackorderDialog';
@@ -46,6 +48,13 @@ import {
   type CalendarLayer,
 } from '@/lib/calendar/presentation';
 
+const matchesCalendarTarget = (target: CalendarSearchTarget, query: string) =>
+  [target.customer, target.jobId].some(value => value?.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+const loadCalendarSearch = async (query: string) => {
+  const reply = await searchScheduledCalendar({ query });
+  return reply.ok ? { ok: true as const, items: reply.targets } : { ok: false as const, message: 'Calendar search could not complete. Please try again.' };
+};
+
 type ReopenState = { card: ProductionBoardCard; reason: string; pending: boolean; error: string | null };
 type CalendarDropTarget = { date: string; targetId: string | null; before: boolean };
 type CalendarMoveState = {
@@ -72,8 +81,9 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
   const [pending, startTransition] = useTransition();
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [remoteSearchResults,setRemoteSearchResults]=useState<CalendarSearchTarget[]>([]);
-  const [searchPending,setSearchPending]=useState(false);
+  const calendarSearch = useRetainedSearch({ query: search, scope: preferenceOwner, delay: 250,
+    load: loadCalendarSearch, matches: matchesCalendarTarget, failureMessage: 'Calendar search could not complete. Please try again.' });
+  const { items: remoteSearchResults, pending: searchPending } = calendarSearch;
   const [highlightedResult, setHighlightedResult] = useState(0);
   const [highlightedBookingId, setHighlightedBookingId] = useState<string | null>(null);
   const [printRequest, setPrintRequest] = useState<SavedPrintRequest | null>(null);
@@ -90,7 +100,6 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
   const [dragBusy, setDragBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [loadingCount, setLoadingCount] = useState(0);
-  useCalendarActivity(dragBusy || moveState?.pending || completionPendingId ? 'Updating calendar…' : pending || searchPending || loadingCount > 0 ? 'Loading…' : null);
   const [toast, setToast] = useState<AppConfirmationToastMessage | null>(null);
   const [layersOpen, setLayersOpen] = useState(false);
   const [needsAttentionOpen, setNeedsAttentionOpen] = useState(false);
@@ -116,6 +125,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
   const [layerColors,setLayerColors]=useState<Record<string,CalendarLayerColorId>>({});
   const searchResults = useMemo(() => dedupeCalendarRecords(searchCalendarCards(allCards, search)), [allCards, search]);
   const searchOptions=useMemo<CalendarSearchOption[]>(()=>[...searchResults.map((card)=>({kind:'card' as const,card})),...remoteSearchResults.filter((target)=>!allCards.some((card)=>card.bookingId===target.bookingId)).map((target)=>({kind:'target' as const,target}))],[allCards,remoteSearchResults,searchResults]);
+  useCalendarActivity(dragBusy || moveState?.pending || completionPendingId ? 'Updating calendar…' : pending || (searchPending && !searchOptions.length) || loadingCount > 0 ? 'Loading…' : null);
   const activeSearchOption=searchOptions[Math.min(highlightedResult,searchOptions.length-1)];
   const activeSearchId=activeSearchOption?(activeSearchOption.kind==='card'?activeSearchOption.card.bookingId:activeSearchOption.target.bookingId):undefined;
   const detailCard = detailBookingId ? allCards.find((card) => card.bookingId === detailBookingId) ?? null : null;
@@ -149,8 +159,6 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
     const timer = window.setTimeout(() => setMoveUndo(null), 7000);
     return () => window.clearTimeout(timer);
   }, [moveUndo]);
-
-  useEffect(()=>{const query=search.trim();if(!query)return;let cancelled=false;const timer=window.setTimeout(()=>{setSearchPending(true);void searchScheduledCalendar({query}).then((result)=>{if(!cancelled&&result.ok)setRemoteSearchResults(result.targets);}).catch(()=>{if(!cancelled)setRemoteSearchResults([]);}).finally(()=>{if(!cancelled)setSearchPending(false);});},250);return()=>{cancelled=true;window.clearTimeout(timer);};},[search]);
 
   useEffect(() => {
     if (!needsAttentionOpen) return;
@@ -231,7 +239,7 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
     if (highlightTimer.current !== null) window.clearTimeout(highlightTimer.current);
     highlightTimer.current = window.setTimeout(() => setHighlightedBookingId(null), 2200);
   };
-  const selectSearchTarget=(target:CalendarSearchTarget)=>{if(!dateWithinCalendarBounds(target.productionDate,bounds)){announce('error','This item exists outside the operational Calendar range.');setSearchOpen(false);return;}const token=viewport.prepare();startTransition(async()=>{const loaded=await ensureDateLoaded(target.productionDate,token);if(!loaded||!viewport.current(token))return;scrollToWeek(getMondayForDate(target.productionDate),token);const card=[...loaded.days.flatMap((day)=>day.cards),...loaded.needsAttentionCards].find((item)=>item.bookingId===target.bookingId);if(card)window.setTimeout(()=>{if(viewport.current(token))selectSearchResult(card);},0);});};
+  const selectSearchTarget=(target:CalendarSearchTarget)=>{setSearchOpen(false);if(!dateWithinCalendarBounds(target.productionDate,bounds)){announce('error','This item exists outside the operational Calendar range.');setSearchOpen(false);return;}const token=viewport.prepare();startTransition(async()=>{const loaded=await ensureDateLoaded(target.productionDate,token);if(!loaded||!viewport.current(token))return;scrollToWeek(getMondayForDate(target.productionDate),token);const card=[...loaded.days.flatMap((day)=>day.cards),...loaded.needsAttentionCards].find((item)=>item.bookingId===target.bookingId);if(card)window.setTimeout(()=>{if(viewport.current(token))selectSearchResult(card);},0);});};
   const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
       setSearchOpen(false);
@@ -505,11 +513,11 @@ function CalendarWorkspaceSession({ board, canAddBackorders, canUseCalendar,canM
         <ToolbarButton label="Next month" disabled={pending||navigationMonday>=addDaysToDateOnly(bounds.maximumEndExclusive,-7)} onClick={() => navigate(addDaysToDateOnly(navigationMonday, 28))}>&rsaquo;</ToolbarButton>
       </div>
       <div className="calendar-search" ref={searchWrapper} onBlur={() => window.setTimeout(() => { if (!searchWrapper.current?.contains(document.activeElement)) setSearchOpen(false); }, 0)}>
-        <label><span className="sr-only">Search by name or sales order</span><input aria-activedescendant={searchOpen&&activeSearchId?searchResultId(activeSearchId):undefined} aria-autocomplete="list" aria-controls="calendar-search-results" aria-expanded={searchOpen} onChange={(event) => { const value = event.target.value; setSearchPending(false); setSearch(value);if(!value.trim())setRemoteSearchResults([]); setHighlightedResult(0); setSearchOpen(Boolean(value.trim())); }} onFocus={() => { setNeedsAttentionOpen(false); setSearchOpen(Boolean(search.trim())); }} onKeyDown={onSearchKeyDown} placeholder="Name / SO Search" role="combobox" type="search" value={search}/></label>
+        <label><span className="sr-only">Search by name or sales order</span><input aria-activedescendant={searchOpen&&activeSearchId?searchResultId(activeSearchId):undefined} aria-autocomplete="list" aria-controls="calendar-search-results" aria-expanded={searchOpen} onChange={(event) => { const value = event.target.value; calendarSearch.invalidate(!value.trim()); setSearch(value); setHighlightedResult(0); setSearchOpen(Boolean(value.trim())); }} onFocus={() => { setNeedsAttentionOpen(false); setSearchOpen(Boolean(search.trim())); }} onKeyDown={onSearchKeyDown} placeholder="Name / SO Search" role="combobox" type="search" value={search}/></label>
         {searchOpen ? <div className="calendar-search-results" id="calendar-search-results" role="listbox">
           {/* React's refs rule cannot trace that these callbacks run only from click events. */}
           {/* eslint-disable-next-line react-hooks/refs */}
-          {searchPending?<p aria-live="polite" className="calendar-search-empty" role="status">Searching…</p>:searchOptions.length ? searchOptions.map((option,index)=>option.kind==='card'?<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.card.bookingId)} key={option.card.bookingId} onClick={()=>selectSearchResult(option.card)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{calendarCardIdentity(option.card).primary}</span><small>{[calendarCardIdentity(option.card).salesOrder,calendarItemTypeLabel(option.card),option.card.productionDate?formatSearchDate(option.card.productionDate):'Needs Attention'].filter(Boolean).join(' · ')}</small></button>:<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.target.bookingId)} key={option.target.bookingId} onClick={()=>selectSearchTarget(option.target)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.target.customer}</span><small>{[option.target.jobId?.trim(),searchTargetTypeLabel(option.target.calendarItemType),formatSearchDate(option.target.productionDate)].filter(Boolean).join(' · ')}</small></button>) : <p className="calendar-search-empty">No Calendar matches.</p>}
+          {searchOptions.length ? searchOptions.map((option,index)=>option.kind==='card'?<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.card.bookingId)} key={option.card.bookingId} onClick={()=>selectSearchResult(option.card)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{calendarCardIdentity(option.card).primary}</span><small>{[calendarCardIdentity(option.card).salesOrder,calendarItemTypeLabel(option.card),option.card.productionDate?formatSearchDate(option.card.productionDate):'Needs Attention'].filter(Boolean).join(' · ')}</small></button>:<button aria-selected={index===highlightedResult} className="calendar-search-result" id={searchResultId(option.target.bookingId)} key={option.target.bookingId} onClick={()=>selectSearchTarget(option.target)} onMouseDown={(event)=>event.preventDefault()} role="option" type="button"><span>{option.target.customer}</span><small>{[option.target.jobId?.trim(),searchTargetTypeLabel(option.target.calendarItemType),formatSearchDate(option.target.productionDate)].filter(Boolean).join(' · ')}</small></button>) : <p aria-live="polite" className="calendar-search-empty" role="status">{searchPending ? 'Searching…' : calendarSearch.error || 'No Calendar matches.'}</p>}
         </div> : null}
       </div>
       <LayersPicker colors={layerColors} layers={layers} onColor={setLayerColor} open={layersOpen} setOpen={setLayersOpen} toggle={toggleLayer} visible={visibleLayers}/>
@@ -698,20 +706,23 @@ function Detail({ label, value }: { label: string; value: string }) {
 function QuickAddPicker({canUseCalendar,date,defaultSalesperson,onAwayChanged,onClose,onCreated,roster,today}:{canUseCalendar:boolean;date:string|null;defaultSalesperson:string;onAwayChanged:(dates:string[])=>void;onClose:()=>void;onCreated:(card:ProductionBoardCard)=>void;roster:NonNullable<ProductionBoardViewModel['staffAwayRoster']>;today:string}) {
   const panel=useRef<HTMLDivElement>(null);const savingRef=useRef(false);const [kind,setKind]=useState<CalendarCreateInput['itemType']|'staff_away'|null>(null);
   const [form,setForm]=useState({find:'',linkedInternalJobId:null as string|null,name:'',salesOrder:'',salesperson:defaultSalesperson,shopHours:'',timing:'',fulfillmentNote:'',title:'',details:''});
-  const [saving,setSaving]=useState(false);const [error,setError]=useState<string|null>(null);const [matches,setMatches]=useState<CalendarJobOption[]>([]);const [searching,setSearching]=useState(false);const [highlightedJob,setHighlightedJob]=useState(0);
+  const [saving,setSaving]=useState(false);const [error,setError]=useState<string|null>(null);const [highlightedJob,setHighlightedJob]=useState(0);
   useEffect(()=>{const pointer=(event:PointerEvent)=>{const target=event.target as Node;const insideEditor=target instanceof Element&&Boolean(target.closest('.calendar-staff-away-editor'));if(shouldDismissQuickAdd(Boolean(panel.current?.contains(target)),insideEditor)){event.preventDefault();event.stopPropagation();onClose();}};const key=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose();};document.addEventListener('pointerdown',pointer,true);document.addEventListener('keydown',key);return()=>{document.removeEventListener('pointerdown',pointer,true);document.removeEventListener('keydown',key);};},[onClose]);
-  useEffect(()=>{const query=form.find.trim();if(!kind||kind==='staff_away'||!query||form.linkedInternalJobId)return;let cancelled=false;const timer=window.setTimeout(()=>{setSearching(true);void searchCalendarLinkableJobs({query,itemType:kind}).then((result)=>{if(cancelled)return;setSearching(false);if(result.ok){setMatches(result.options);setHighlightedJob(0);setError(null);}else{setMatches([]);setError(result.message);}}).catch(()=>{if(!cancelled){setSearching(false);setMatches([]);setError('DoorGo jobs could not be searched. Please try again.');}});},200);return()=>{cancelled=true;window.clearTimeout(timer);};},[form.find,form.linkedInternalJobId,kind]);
-  const choose=(job:CalendarJobOption)=>{setMatches([]);setSearching(false);setForm((current)=>({...current,find:[job.customer,job.salesOrder||job.doorGoReference].filter(Boolean).join(' · '),linkedInternalJobId:job.internalJobId,name:job.customer,salesOrder:job.salesOrder,salesperson:job.salesperson||current.salesperson}));};
+  const jobSearch = useCalendarJobSearch(form.find, kind && kind !== 'staff_away' ? kind : null, !form.linkedInternalJobId);
+  const { items: matches, pending: searching } = jobSearch;
+  const activeJob = Math.min(highlightedJob, matches.length - 1);
+  const choose=(job:CalendarJobOption)=>{jobSearch.invalidate(true);setForm((current)=>({...current,find:[job.customer,job.salesOrder||job.doorGoReference].filter(Boolean).join(' · '),linkedInternalJobId:job.internalJobId,name:job.customer,salesOrder:job.salesOrder,salesperson:job.salesperson||current.salesperson}));};
   const submit=async(event:React.FormEvent)=>{event.preventDefault();if(!kind||kind==='staff_away'||savingRef.current)return;savingRef.current=true;setSaving(true);setError(null);const hours=form.shopHours.trim()===''?null:Number(form.shopHours);const boardStart=getMondayForDate(date??today);try{const result=await createCalendarItem({commandId:createSecureCommandId(),itemType:kind,scheduledDate:date,linkedInternalJobId:form.linkedInternalJobId,name:kind==='note'?form.title:form.name,salesOrder:form.salesOrder,salesperson:form.salesperson,shopHours:hours===null||Number.isFinite(hours)?hours:null,timing:form.timing,fulfillmentNote:form.fulfillmentNote,title:form.title,details:form.details,boardStart,boardEndExclusive:addDaysToDateOnly(boardStart,7),weeks:1,today});if(!result.ok){setError(result.message);return;}onCreated(result.card);}finally{savingRef.current=false;setSaving(false);}};
-  useCalendarActivity(saving ? 'Saving…' : searching ? 'Loading…' : null);
+  useCalendarActivity(saving ? 'Saving…' : searching && !matches.length ? 'Loading…' : null);
   if(kind==='staff_away'&&date)return <StaffAwayEditor canEdit initialDate={date} onChanged={onAwayChanged} onClose={onClose} roster={roster}/>;
   const label=date?`Add to ${formatSearchDate(date)}`:'Add to Needs Attention';
   return <div className="calendar-floating-backdrop"><div className="calendar-quick-add" ref={panel} role="dialog" aria-label={label}><header><strong>{label}</strong><button aria-label="Close Add picker" onClick={onClose} type="button">×</button></header>
     {!kind?<div className="calendar-quick-add-types">{(['production','delivery','customer_pickup','note'] as const).map((value)=><button disabled={value==='production'&&!canUseCalendar} key={value} onClick={()=>setKind(value)} type="button"><span>{value==='customer_pickup'?'Customer Pickup':value[0].toUpperCase()+value.slice(1)}</span></button>)}{date?<button disabled={!canUseCalendar||!roster.length} onClick={()=>setKind('staff_away')} type="button"><span>Staff Away</span></button>:null}</div>
     :<form className="calendar-quick-add-form" onSubmit={submit}>
       {kind==='note'?<label><span>Title *</span><input autoFocus required value={form.title} onChange={(event)=>setForm({...form,title:event.target.value})}/></label>:<OperationalFields kind={kind} value={form} identityReadOnly={Boolean(form.linkedInternalJobId)} nameReadOnly={Boolean(form.linkedInternalJobId)} onChange={patch=>setForm(current=>({...current,...patch}))}/>}
-      <label><span>Find job / Sales Order{kind==='note'?' (optional)':''}</span><input aria-autocomplete="list" aria-controls="calendar-quick-add-job-results" aria-expanded={matches.length>0} onChange={(event)=>{setSearching(false);setMatches([]);setForm({...form,find:event.target.value,linkedInternalJobId:null});setHighlightedJob(0);}} onKeyDown={(event)=>{if(!matches.length)return;if(event.key==='ArrowDown'){event.preventDefault();setHighlightedJob((value)=>(value+1)%matches.length);}else if(event.key==='ArrowUp'){event.preventDefault();setHighlightedJob((value)=>(value-1+matches.length)%matches.length);}else if(event.key==='Enter'){event.preventDefault();choose(matches[highlightedJob]);}}} placeholder="Customer, Sales Order, or DoorGo reference" role="combobox" value={form.find}/>{searching?<small aria-live="polite" role="status">Searching DoorGo Jobs…</small>:null}{matches.length?<div className="calendar-quick-add-results" id="calendar-quick-add-job-results" role="listbox">{matches.map((job,index)=><button aria-selected={index===highlightedJob} key={job.internalJobId} onClick={()=>choose(job)} role="option" type="button"><strong>{job.customer||'Unnamed'}</strong><span>{job.salesOrder||job.doorGoReference}</span><small>{job.fulfillmentPlan||'Fulfillment unspecified'}</small></button>)}</div>:null}</label>
-      {!searching&&form.find.trim()&&!form.linkedInternalJobId&&!matches.length&&!error?<p className="calendar-quick-add-empty">No matching DoorGo jobs.</p>:null}
+      <label><span>Find job / Sales Order{kind==='note'?' (optional)':''}</span><input aria-autocomplete="list" aria-controls="calendar-quick-add-job-results" aria-expanded={matches.length>0} onChange={(event)=>{jobSearch.invalidate(!event.target.value.trim());setForm({...form,find:event.target.value,linkedInternalJobId:null});setHighlightedJob(0);}} onKeyDown={(event)=>{if(!matches.length)return;if(event.key==='ArrowDown'){event.preventDefault();setHighlightedJob((value)=>(value+1)%matches.length);}else if(event.key==='ArrowUp'){event.preventDefault();setHighlightedJob((value)=>(value-1+matches.length)%matches.length);}else if(event.key==='Enter'){event.preventDefault();choose(matches[activeJob]);}}} placeholder="Customer, Sales Order, or DoorGo reference" role="combobox" value={form.find}/>{searching&&!matches.length?<small aria-live="polite" role="status">Searching DoorGo Jobs…</small>:null}{matches.length?<div className="calendar-quick-add-results" id="calendar-quick-add-job-results" role="listbox">{matches.map((job,index)=><button aria-selected={index===activeJob} key={job.internalJobId} onClick={()=>choose(job)} role="option" type="button"><strong>{job.customer||'Unnamed'}</strong><span>{job.salesOrder||job.doorGoReference}</span><small>{job.fulfillmentPlan||'Fulfillment unspecified'}</small></button>)}</div>:null}</label>
+      {jobSearch.error ? <p role="alert">{jobSearch.error}</p> : null}
+      {!searching&&form.find.trim()&&!form.linkedInternalJobId&&!matches.length&&!error&&!jobSearch.error?<p className="calendar-quick-add-empty">No matching DoorGo jobs.</p>:null}
       {kind==='note'?<label><span>Salesperson</span><input value={form.salesperson} onChange={event=>setForm({...form,salesperson:event.target.value})}/></label>:null}
       {kind==='note'?<label><span>Details</span><textarea value={form.details} onChange={(event)=>setForm({...form,details:event.target.value})}/></label>:null}{error?<p role="alert">{error}</p>:null}<footer><button disabled={saving} onClick={()=>setKind(null)} type="button">Back</button><button disabled={saving} type="submit">{saving?'Adding…':'Add'}</button></footer></form>}
   </div></div>;

@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { retainedSearchItems } from './retained-results';
+const visible = {name:'Linked customer',id:'7654321'};
+const hidden = {name:'Different display',id:'555'};
+const snapshot = {query:'Link',scope:'account-a:production',items:[visible,hidden],error:null};
+const matches = (item:typeof visible,query:string) => [item.name,item.id].some(value=>value.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+const results = (query:string,scope=snapshot.scope,enabled=true) => retainedSearchItems(snapshot,query,scope,enabled,matches);
+assert.deepEqual(results('Linked'),[visible],'refinement immediately retains matching options');
+assert.deepEqual(results('Other'),[],'unrelated stale options must not be selectable');
+assert.equal(results('Link'),snapshot.items,'same-query background work preserves server-only matches and array identity');
+assert.deepEqual(results('Li'),snapshot.items,'deleting characters retains server-only matches');
+assert.deepEqual(results(''),[]);assert.deepEqual(results('  '),[]);
+assert.deepEqual(results('Link','account-b:production'),[],'account isolation');
+assert.deepEqual(results('Link','account-a:delivery'),[],'eligibility isolation');
+assert.deepEqual(results('Link',snapshot.scope,false),[],'selected/disabled searches hide options');
+assert.deepEqual(retainedSearchItems(null,'Link',snapshot.scope,true,matches),[]);
+assert.deepEqual(retainedSearchItems({...snapshot,error:'Network error'},'Linked',snapshot.scope,true,matches),[visible],'failed refresh retains useful matches');
+console.log('Retained search result checks passed.');

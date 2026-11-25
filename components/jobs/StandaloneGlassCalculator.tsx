@@ -46,7 +46,7 @@ export function StandaloneGlassCalculator() {
   const doorValues = doorPrintable ? doorResult?.values : null;
   const doorDimensions: [keyof NonGlassFrameCutValues, string][] = [
     ['activeLeafWidth', 'Active slab width'], ['inactiveLeafWidth', 'Inactive slab width'],
-    ['jambLeg', 'Jamb legs'], ['headerWidth', 'Header length'], ['sillOrThresholdWidth', 'Sill / threshold length'],
+    ['jambLeg', 'Jamb legs'], ['bottomGap', 'Gap under door'], ['selectedBottomGap', 'Selected gap under door'], ['headerWidth', 'Header length'], ['sillOrThresholdWidth', 'Sill / threshold length'],
     ['frameWidth', 'Frame width'], ['frameHeight', 'Frame height'], ['doubleDoorCoreWidth', 'Double-door core width'],
     ['clearOpeningWidth', 'Clear opening width'], ['clearOpeningHeight', 'Clear opening height'],
     ['recommendedRoWidth', 'Recommended RO width'], ['recommendedRoHeight', 'Recommended RO height'],
@@ -79,6 +79,7 @@ export function StandaloneGlassCalculator() {
           <div><dt>Final slab</dt><dd>{doorValues.finalSlabWidth.display} &times; {doorValues.finalSlabHeight.display}</dd></div>
           {doorDimensions.map(([key, label]) => {
             const value = doorValues[key];
+            if (key === 'selectedBottomGap' && doorValues.selectedBottomGap?.inches === doorValues.bottomGap?.inches) return null;
             return value && typeof value === 'object' && 'display' in value ? <div key={key}><dt>{label}</dt><dd>{value.display}</dd></div> : null;
           })}
         </dl> : hasGlass && printable && result.glassCalc ? <dl><div><dt>Actual slab</dt><dd>{String(result.glassCalc.slabWidth)} &times; {String(result.glassCalc.slabHeight)}</dd></div>{result.glassCalc.activeLeafWidth ? <div><dt>Active / inactive slab widths</dt><dd>{String(result.glassCalc.activeLeafWidth)} / {String(result.glassCalc.inactiveLeafWidth)}</dd></div> : null}<div><dt>Jamb legs</dt><dd>{String(result.glassCalc.jambLeg)}</dd></div><div><dt>Header / sill / T-bar</dt><dd>{String(result.glassCalc.headerWidth)} / {String(result.glassCalc.divider)}</dd></div>{resultRows.map((row) => <div key={`print:${row.key}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl> : reportIssues.length ? null : <p>{statusLabel(reportStatus)}</p>}

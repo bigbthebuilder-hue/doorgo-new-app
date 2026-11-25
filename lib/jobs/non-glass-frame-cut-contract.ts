@@ -1,4 +1,4 @@
-import { usesInteriorRoSizing, gapUnderDoor, resolveInteriorRoHeight } from './interior-ro-sizing';
+import { usesInteriorRoSizing, usesInteriorBottomGap, resolveInteriorSlabHeight, gapUnderDoor, resolveInteriorRoHeight } from './interior-ro-sizing';
 import { customSlabAxis, slabAxisInput } from './slab-sizing-contract';
 import { constructionAllowance, lowProfileLabel, isFourSideJamb, FOUR_SIDE_JAMB, SIDE_JAMB_THICKNESS } from './construction-contract';
 import { PATIO_DOOR_PRESETS, customDoubleDoorSlabs, resolvedDoubleDoorLeaves, validateDoubleDoorSizing } from './double-door-sizing-contract';
@@ -218,8 +218,10 @@ export function calculateNonGlassFrameCut(line: Readonly<DoorLineInput>): NonGla
   const deduction = constructionAllowance(line.construction, outswing, !customRo && interior ? 1.875 : undefined);
   const interiorRo = usesInteriorRoSizing(line);
   const gap = gapUnderDoor(line.gapUnderDoor);
-  if (interiorRo && !gap.ok) return blocked(line, [issue('invalid_bottom_gap', 'gapUnderDoor', 'Enter a valid Gap Under Door in inches.')]);
-  const interiorHeight = interiorRo && gap.ok ? resolveInteriorRoHeight(slab.height, dimensions.roHeight, gap.inches) : null;
+  if (usesInteriorBottomGap(line) && !gap.ok) return blocked(line, [issue('invalid_bottom_gap', 'gapUnderDoor', 'Enter a valid Gap Under Door in inches.')]);
+  const interiorHeight = usesInteriorBottomGap(line) && gap.ok
+    ? interiorRo ? resolveInteriorRoHeight(slab.height, dimensions.roHeight, gap.inches) : resolveInteriorSlabHeight(slab.height, gap.inches)
+    : null;
   const height = interiorHeight ?? resolveCustomRoHeight(slab.height, deduction, dimensions.roHeight);
   const jambLeg = height.jambLeg;
   const finalHeight = height.finalSlabHeight;

@@ -1,5 +1,5 @@
 import { unitTBarControl, withUnitTBarControl } from './unit-tbar-contract';
-import { usesInteriorRoSizing, gapUnderDoor } from './interior-ro-sizing';
+import { usesInteriorBottomGap, gapUnderDoor } from './interior-ro-sizing';
 import { isSlabOnly, SLAB_DRILLING } from './slab-only-contract';
 import { intakeChange } from './mobile-intake';
 import { customSlabAxis, hasCustomSlabAxis, SLAB_SIZING_MODES } from './slab-sizing-contract';
@@ -149,7 +149,7 @@ export function normalizeDoorLineInput(input: DoorLineInput): DoorLineValidation
   const errors: Record<string, string> = {};
   const slabOnly = isSlabOnly(input);
   const bottomGap = gapUnderDoor(input.gapUnderDoor);
-  if (usesInteriorRoSizing(input) && !bottomGap.ok) errors.gapUnderDoor = 'Enter a valid Gap Under Door in inches.';
+  if (usesInteriorBottomGap(input) && !bottomGap.ok) errors.gapUnderDoor = 'Enter a valid Gap Under Door in inches.';
   if (input.supplyType !== undefined && !['prehung', 'slab-only'].includes(String(input.supplyType))) errors.supplyType = 'Choose a supply type.';
   if (slabOnly && mode === 'Exterior' && config && isGlassConfiguration(config)) errors.config = 'Choose D or DD for replacement slabs; framed sidelights and transoms require a complete door.';
   if (!slabOnly && !validConstruction(input.construction)) errors.construction = 'Choose a Sill: STD, DARK, LOW-PRO, NONE, or J-4-S.';

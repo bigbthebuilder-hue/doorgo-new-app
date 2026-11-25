@@ -5,7 +5,11 @@ import { parseStoredShopDimension, type DimensionParseResult } from './dimension
 import { isSlabOnly } from './slab-only-contract';
 
 export function usesInteriorRoSizing(line: Readonly<DoorLineInput>): boolean {
-  return line.mode === 'Interior' && usesCustomRo(line) && !isSlabOnly(line)
+  return usesInteriorBottomGap(line) && usesCustomRo(line);
+}
+export function usesInteriorBottomGap(line: Readonly<DoorLineInput>): boolean {
+  return line.mode === 'Interior' && (line.config === 'D' || line.config === 'DD')
+    && line.doubleDoorSizing?.kind !== 'patio' && line.prep !== 'MTM' && !isSlabOnly(line)
     && normalizeConstruction(line.construction) === 'standard';
 }
 export function gapUnderDoor(value: unknown): DimensionParseResult {
@@ -22,4 +26,9 @@ export function resolveInteriorRoHeight(slabHeight: number, roHeight: number | n
   const jambLeg = roHeight === null ? normalJamb : Math.min(normalJamb, roHeight - 0.5);
   const finalSlabHeight = Math.min(slabHeight, jambLeg - headerAndTop - bottomGap);
   return { jambLeg, finalSlabHeight, cutDown: Math.max(0, slabHeight - finalSlabHeight), effectiveBottomGap: jambLeg - headerAndTop - finalSlabHeight };
+}
+
+// Standard and Custom Slab keep the slab fixed and build the jamb around it.
+export function resolveInteriorSlabHeight(slabHeight: number, bottomGap: number) {
+  return { jambLeg: slabHeight + 0.75 + 0.125 + bottomGap, finalSlabHeight: slabHeight, cutDown: 0, effectiveBottomGap: bottomGap };
 }

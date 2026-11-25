@@ -1,7 +1,7 @@
 'use client';
 import { withUnitTBarControl } from '@/lib/jobs/unit-tbar-contract';
 
-import { usesInteriorRoSizing } from '@/lib/jobs/interior-ro-sizing';
+import { usesInteriorBottomGap } from '@/lib/jobs/interior-ro-sizing';
 import { changeSupplyType, isSlabOnly, preparationDisplay } from '../../lib/jobs/slab-only-contract';
 import { intakeDraftReady, intakeChangeText, type IntakeChange, type IntakeMutation } from '@/lib/jobs/mobile-intake';
 import { MobileIntakeSection, usePhoneIntake } from './MobileIntakeSection';
@@ -572,7 +572,9 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
           {!patio ? <fieldset className="flex flex-wrap items-center gap-2 text-sm"><legend className="font-semibold">Sizing Adjustments</legend>{([['WoodCustom', 'Custom Slab'], ['RO', 'Fit to RO']] as const).filter(([value]) => (value !== 'RO' || !slabOnly) && (value !== 'WoodCustom' || hasDoubleDoorCore(config))).map(([value, label]) => {
             const enabled = value === 'WoodCustom' ? hasCustomSlabAxis(editor) : editor.customSlab === 'RO';
             return <button key={value} role="switch" aria-label={label} aria-checked={enabled} data-comparison-different={differs('customSlab') || undefined} disabled={!enabled && (value === 'RO' ? noJamb : !hasDoubleDoorCore(config) && editor.material !== 'wood')} className={button + (enabled ? ' border-sky-700 bg-sky-700 text-white' : '')} onClick={() => set('customSlab', enabled ? 'No' : value)} type="button">{label} <span className="text-xs font-bold">{enabled ? 'ON' : 'OFF'}</span></button>;
-          })}</fieldset> : null}
+          })}
+          {usesInteriorBottomGap(editor) ? <DimensionInput error={fieldErrors.gapUnderDoor} label="Gap Under Door" onValue={value => set('gapUnderDoor', value)} value={storedShopInput(editor.gapUnderDoor ?? '1')} /> : null}
+          </fieldset> : null}
           {customDD ? <>
             {([['activeWidth', 'Active Slab Width'], ['inactiveWidth', 'Inactive Slab Width'], ['height', 'Slab Height']] as const).map(([field, label]) => <DimensionInput key={field} label={label} required value={String(customSizing?.[field] ?? '')} onValue={(value) => set('doubleDoorSizing', { kind: 'custom-slabs', activeWidth: customSizing?.activeWidth ?? '', inactiveWidth: customSizing?.inactiveWidth ?? '', height: customSizing?.height ?? '', [field]: value })}/>)}
             {!customDoubleDoorSlabs(customSizing) ? <p className="text-xs text-amber-800" role="status">{CUSTOM_DD_REQUIRED}</p> : null}
@@ -581,7 +583,6 @@ export function DoorLineWorkspace({ lines, onChange, onUnappliedChange, canEdit,
           <label className="grid gap-1 text-sm font-semibold">Door Thickness<select data-comparison-different={differs('doorThickness') || undefined} className={control} onChange={(event) => set('doorThickness', event.target.value)} value={String(editor.doorThickness ?? '')}><option value="">Auto</option><option>1-3/8</option><option>1-3/4</option></select></label>
         {!slabOnly && usesCustomRo(editor) ? <div className="contents" aria-label="Custom RO dimensions">
           <DimensionInput error={fieldErrors.roWidth} label="RO Width" onValue={(value) => setDimension('roWidth', value)} value={String(editor.roWidth ?? '')}/>
-          {usesInteriorRoSizing(editor) ? <DimensionInput error={fieldErrors.gapUnderDoor} label="Gap Under Door" onValue={value => set('gapUnderDoor', value)} value={storedShopInput(editor.gapUnderDoor ?? '1')} /> : null}
           <DimensionInput error={fieldErrors.roHeight} label="RO Height" onValue={(value) => setDimension('roHeight', value)} value={String(editor.roHeight ?? '')}/>
         </div> : null}
         </MobileIntakeSection></div>

@@ -5,7 +5,7 @@ import { calculateNonGlassFrameCut } from './non-glass-frame-cut-contract';
 import { calculateGlassGeometry } from './glass-geometry-contract';
 import { gapUnderDoor, usesInteriorRoSizing, resolveInteriorRoHeight } from './interior-ro-sizing';
 import { createWorkOrderRowGroup } from './work-order-document-contract';
-import { duplicateDoorLine, newDoorFromSession, createNewDoorSession } from './door-line-editor-state';
+import { duplicateDoorLine, newDoorFromSession, createNewDoorSession, changeSizingMode } from './door-line-editor-state';
 import type { DoorLineInput, NativeDoorLine } from './job-intake-types';
 
 const input = (extra: DoorLineInput = {}): DoorLineInput => ({ ...defaultDoorLine('Interior'), customSlab: 'RO', ...extra });
@@ -55,7 +55,8 @@ assert.equal(duplicateDoorLine(line, 'duplicate', 2).gapUnderDoor, '1/2');
 assert.equal(gapUnderDoor(newDoorFromSession(createNewDoorSession()).gapUnderDoor).ok, true);
 for (const extra of [{ mode: 'Exterior' }, { construction: 'low-profile-quarter-sill' }, { construction: 'jamb-four-sides' }, { supplyType: 'slab-only' }, { config: 'PKT' }, { config: 'B.P.' }, { customSlab: 'No' }]) assert.equal(usesInteriorRoSizing(input(extra as DoorLineInput)), false);
 
-// Golden fingerprint captured from production c01f7a2 before changing the calculator.
+// Golden fingerprint captured from production 8cf1862 before this change;
+// excludes newly applicable standard/custom interior sizing.
 // It freezes full dimension, warning and blocker outputs for excluded workflows.
 export function excludedOutputs(calc = calculateNonGlassFrameCut) {
   const outputs: unknown[] = [];
@@ -66,8 +67,37 @@ export function excludedOutputs(calc = calculateNonGlassFrameCut) {
   for (const height of DOOR_HEIGHTS) for (const config of ['SD', 'SDS', 'T/SD']) for (const roHeight of ['77', '90', '110']) {
     outputs.push(calculateGlassGeometry({ ...defaultDoorLine(), height, config, roHeight, roWidth: '60', gapUnderDoor: '1/2', sidelightGlass: 'CLEAR', transomGlass: 'CLEAR' }));
   }
-  for (const supplyType of ['prehung', 'slab-only'] as const) for (const customSlab of ['No', 'RO']) if (!(supplyType === 'prehung' && customSlab === 'RO')) outputs.push(calc(input({ supplyType, customSlab, roHeight: '77', gapUnderDoor: '1/2' })));
+  for (const supplyType of ['slab-only'] as const) for (const customSlab of ['No', 'RO']) outputs.push(calc(input({ supplyType, customSlab, roHeight: '77', gapUnderDoor: '1/2' })));
   return outputs;
 }
-assert.equal(createHash('sha256').update(JSON.stringify(excludedOutputs())).digest('hex'), 'c998012fe7911d954c9d09d5bef39f0c6566ffff22a7eaca0cac72a0481df264');
+assert.equal(createHash('sha256').update(JSON.stringify(excludedOutputs())).digest('hex'), 'd00f8d0bc1c1630d0b6073625c4a124abc764e0658ed41ebec811f9bb4d76b77');
 console.log('Interior Fit to RO: supported heights, fixed jambs, gaps, stock cap, safeguards, work orders and excluded-workflow regression passed.');
+
+// Independent bottom clearance: preserve slab dimensions and all width/header calculations.
+for (const height of DOOR_HEIGHTS) for (const config of ['D', 'DD']) {
+  const base = input({ config, height, customSlab: 'No' });
+  const legacy = calculateNonGlassFrameCut(base);
+  for (const gap of ['0', '1/2', '1', '1 1/2']) {
+    const parsed = gapUnderDoor(gap); assert.ok(parsed.ok);
+    const sized = calculateNonGlassFrameCut({ ...base, gapUnderDoor: gap });
+    assert.equal(sized.values?.finalSlabHeight.inches, legacy.values?.finalSlabHeight.inches);
+    assert.equal(sized.values?.jambLeg?.inches, legacy.values!.actualSlabHeight.inches + 0.875 + parsed.inches);
+    assert.deepEqual(sized.values?.headerWidth, legacy.values?.headerWidth);
+    assert.deepEqual(sized.warnings, legacy.warnings);
+  }
+}
+for (const config of ['D', 'DD']) for (const gap of ['1', '1/2']) {
+  const custom = input({ config, customSlab: config === 'DD' ? 'WoodCustom' : 'CustomHeight', customSlabHeight: '78',
+    ...(config === 'DD' ? { doubleDoorSizing: { kind: 'custom-slabs', activeWidth: '22 7/8', inactiveWidth: '22 7/8', height: '78' } } : {}), gapUnderDoor: gap });
+  const sized = calculateNonGlassFrameCut(custom); assert.equal(sized.status, 'Complete');
+  assert.equal(sized.values?.finalSlabHeight.inches, 78);
+  assert.equal(sized.values?.jambLeg?.display, gap === '1' ? '79 7/8"' : '79 3/8"');
+  if (config === 'DD') assert.equal(sized.values?.headerWidth?.display, '46"');
+  const saved = normalizeDoorLineInput(custom); assert.ok(saved.ok);
+  const line = { ...saved.value, lineId: 'custom', lineIndex: 1, lineStatus: 'Active' } as NativeDoorLine;
+  if (gap === '1/2') assert.match(JSON.stringify(createWorkOrderRowGroup(line, null)), /Gap under door: 1\/2/);
+  assert.equal(duplicateDoorLine(line, 'copy', 2).gapUnderDoor, saved.value.gapUnderDoor);
+  for (const mode of ['No', 'RO', 'WoodCustom'] as const) assert.equal(changeSizingMode(custom, mode).gapUnderDoor, gap);
+}
+for (const customSlab of ['No', 'CustomHeight', 'RO']) assert.equal(normalizeDoorLineInput(input({ customSlab, gapUnderDoor: 'bad' })).ok, false);
+console.log('Independent interior gap: standard/custom slabs, D/DD, all stock heights, exact DD example, validation, documents and mode changes passed.');

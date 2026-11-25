@@ -1,7 +1,6 @@
 import { isSlabOnly, preparationDisplay, drillingDisplay } from './slab-only-contract';
 import type { NativeDoorLine, NativeJobAggregate } from './job-intake-types';
 import { doorSizeDisplay } from './door-size-presentation';
-import { sillChoice } from './construction-contract';
 
 export const MAX_LABEL_BATCH = 500;
 
@@ -50,12 +49,13 @@ const escape = (value: string) => value.replace(/[&<>"']/g, (character) => ({
 function labelHtml(job: NativeJobAggregate, line: NativeDoorLine, doorId: string, omitNotes: boolean, copy: number) {
   const code = line.productCode ?? '';
   const slab = line.doorSlabSku ?? '';
+  const joined = (values: (string | null | undefined)[]) => values.filter(value => value?.trim()).join(' · ');
   const fields = [
-    ['Supply', isSlabOnly(line) ? ['SLAB ONLY', line.prep === 'MTM' ? 'MTM' : '', line.prep === 'MTM' ? drillingDisplay(line.slabDrilling) : preparationDisplay(line)].filter(Boolean).join(' · ') : ''], ['Door ID', doorId], ['Door type', line.mode], ['Description', line.doorType],
-    ['Material', line.material], ['Thickness', isSlabOnly(line) ? line.doorThickness : ''], ['Size', doorSizeDisplay(line, true)], ['Swing', line.hand],
-    ['Jamb width', isSlabOnly(line) ? '' : line.jambWidth], ['Configuration', line.config],
-    ['Sill', isSlabOnly(line) ? '' : line.construction === 'low-profile-quarter-sill' || line.construction === 'jamb-four-sides' ? sillChoice(line) : line.sill],
-    ['Notes', omitNotes ? '' : line.notes],
+    ['slab-instructions', isSlabOnly(line) ? joined(['SLAB ONLY', line.prep === 'MTM' ? 'MTM' : '', line.prep === 'MTM' ? drillingDisplay(line.slabDrilling) : preparationDisplay(line)]) : ''],
+    ['door-id', doorId], ['description', line.doorType],
+    ['size-swing', joined([doorSizeDisplay(line, true), line.hand])],
+    ['configuration-jamb', joined([line.config, isSlabOnly(line) ? '' : line.jambWidth])],
+    ['notes', omitNotes ? '' : line.notes],
   ].filter(([, value]) => value?.trim());
   const barcodeHtml = (value: string) => {
     const barcode = code128(value);
@@ -68,7 +68,7 @@ function labelHtml(job: NativeJobAggregate, line: NativeDoorLine, doorId: string
   };
   return '<article data-copy="' + copy + '" data-line="' + line.lineIndex + '"><section><header><h1>SO# ' + escape(job.bizTrackSalesOrder ?? '') + '</h1><h2>' + escape(job.customer ?? '') +
     '</h2></header><div class="details">' + (job.siteAddress?.trim() ? '<p class="address">' + escape(job.siteAddress) + '</p>' : '') +
-    fields.map(([name, value]) => '<p class="' + (isSlabOnly(line) && (name === 'Supply') ? 'spec slab-instructions' : name === 'Notes' ? 'notes' : name === 'Door ID' ? 'door-id' : name === 'Description' ? 'description' : 'spec') + '">' + (isSlabOnly(line) && name === 'Supply' ? '' : '<strong>' + escape(name!) + '</strong> ') + '<span>' + escape(value!) + '</span></p>').join('') + '</div>' +
+    fields.map(([name, value]) => '<p class="' + name + '"' + (name === 'door-id' ? ' aria-label="Door ID"' : '') + '><span>' + escape(value!) + '</span></p>').join('') + '</div>' +
     (code || slab ? '<footer' + (code && slab ? ' class="dual-barcode"' : '') + '>' + (code ? barcodeHtml(code) : '') + (slab ? barcodeHtml(slab) : '') + '</footer>' : '') + '</section></article>';
 }
 
@@ -81,11 +81,11 @@ const labelLayoutScript = String.raw`(function layoutDoorLabels() {
         return section.scrollHeight <= section.clientHeight + 1 && section.scrollWidth <= section.clientWidth + 1;
     };
     // Fit only the description to one line where readable; longer descriptions wrap.
-    // Measuring without wrapping includes its field label and preserves the full text.
+    // Preserve a prominent readable floor, then wrap complete descriptions.
     const fitDescription = (page) => {
         for (const description of page.querySelectorAll('.description')) {
             description.style.whiteSpace = 'nowrap';
-            for (const points of [24, 22, 20, 18, 16]) {
+            for (const points of [28, 26, 24, 22, 20]) {
                 description.style.fontSize = points + 'pt';
                 if (description.scrollWidth <= description.clientWidth + 1)
                     break;
@@ -104,6 +104,25 @@ const labelLayoutScript = String.raw`(function layoutDoorLabels() {
                 fitted = true;
                 break;
             }
+        }
+        // Long identity text gets a selective, readable fit before continuation.
+        // SO, description, specifications, notes and barcode dimensions stay fixed.
+        if (!fitted) {
+            const section = original.querySelector('section');
+            section.style.setProperty('--scale', '1');
+            for (const [customer, address, id] of [[28, 16, 30], [24, 14, 28]]) {
+                section.style.setProperty('--customer-size', customer + 'pt');
+                section.style.setProperty('--address-size', address + 'pt');
+                section.style.setProperty('--id-size', id + 'pt');
+                fitDescription(original);
+                if (fits(original)) { fitted = true; break; }
+            }
+        }
+        if (!fitted) {
+            // Reclaim paragraph/header gaps only after the normal readable fit.
+            // Keep every font, barcode module, quiet zone and note unchanged.
+            original.querySelector('section').classList.add('compact-label');
+            fitted = fits(original);
         }
         if (fitted)
             continue;
@@ -200,10 +219,11 @@ export function prepareDoorLabels(job: NativeJobAggregate, selection: LabelSelec
     'section{height:100%;display:flex;flex-direction:column;overflow-wrap:anywhere;white-space:pre-wrap;--scale:1}' +
     'header{border:2pt solid #000;padding:.05in .07in;margin-bottom:.04in;flex-shrink:0}' +
     'h1{font-size:38pt;line-height:1.04;margin:0;padding-bottom:.03in;border-bottom:1.5pt solid #000}' +
-    'h2{font-size:calc(32pt * var(--scale));line-height:1.05;margin:.03in 0 0}' +
+    'h2{font-size:var(--customer-size,calc(32pt * var(--scale)));line-height:1.05;margin:.03in 0 0}' +
     '.details{flex-shrink:0;font-size:calc(20pt * var(--scale));line-height:1.08}' +
-    'p{margin:0 0 .01in}.spec{display:inline-block;max-width:calc(100% - .07in);margin-right:.07in;vertical-align:top}strong{font-size:calc(12pt * var(--scale));line-height:1}.door-id{font-size:calc(26pt * var(--scale));font-weight:700}.description{font-size:calc(24pt * var(--scale))}' +
-    '.slab-instructions{font-size:14pt;line-height:1.1;font-weight:700}.address{font-size:calc(18pt * var(--scale))}.notes,.notes strong{font-size:11pt;line-height:1.15}.page-reference{font:11pt/1.1 Arial,sans-serif;margin-top:.03in}' +
+    'p{margin:0 0 .04in}.door-id{font-size:var(--id-size,calc(32pt * var(--scale)));font-weight:800;line-height:1.04;margin:.04in 0 .06in}.description{font-size:28pt;font-weight:800;line-height:1.06;margin-bottom:.06in}.size-swing{font-size:calc(22pt * var(--scale))}.configuration-jamb{font-size:calc(20pt * var(--scale))}' +
+    '.slab-instructions{font-size:14pt;line-height:1.1;font-weight:700}.address{font-size:var(--address-size,calc(18pt * var(--scale)))}.notes{font-size:11pt;line-height:1.15;margin-top:.05in}.page-reference{font:11pt/1.1 Arial,sans-serif;margin-top:.03in}' +
+    '.compact-label .details>p{margin:0 0 .015in}.compact-label .details>.notes{margin-top:.02in}.compact-label header{padding:.035in .055in;margin-bottom:.025in}' +
     'footer{margin-top:auto;padding-top:.04in;text-align:center;font:16pt/1.1 monospace;flex-shrink:0}' +
     '.barcode-block + .barcode-block{margin-top:.04in}.dual-barcode svg{height:.30in}' +
     'svg{display:block;margin:0 auto .03in;height:.66in;max-width:100%;fill:#000}' +

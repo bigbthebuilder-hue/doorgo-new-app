@@ -41,14 +41,14 @@ try {
   await labels.nth(2).waitFor();
   assert.equal(await labels.count(), 3);
   assert.equal(await labels.first().locator('h2').textContent(), 'Cedar Ridge Builders');
-  assert.match(await labels.first().textContent(), /Door ID D-101/);
+  assert.equal(await labels.first().locator('.door-id span').textContent(), 'D-101');
   assert.deepEqual(await labels.locator('footer div').allTextContents(), [' 00-Ab_9/2+ ', ' 00-Ab_9/2+ ', '00004218']);
   assert.equal(await labels.locator('svg[aria-label="Code 128 barcode"]').count(), 3);
 
   await page.getByText('Optional Door ID overrides', { exact: true }).first().click();
   await page.getByRole('textbox', { name: 'Label 2' }).fill('D-101B');
   await labels.nth(1).getByText('D-101B', { exact: false }).waitFor();
-  assert.match(await labels.first().textContent(), /Door ID D-101Size/);
+  assert.equal(await labels.first().locator('.door-id span').textContent(), 'D-101');
   const print = page.getByRole('button', { name: 'Print 3 labels' });
   await print.click({ trial: true });
   await frame.locator('body').evaluate(() => {

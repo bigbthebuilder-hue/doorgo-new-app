@@ -47,8 +47,8 @@ test('preview defaults to door quantities and prints selected copies and individ
   await expect(preview.locator('body')).toHaveAttribute('data-printed', 'yes');
   await page.getByRole('checkbox', { name: 'Include' }).last().uncheck();
   await expect(preview.locator('article')).toHaveCount(2);
-  await expect(preview.locator('article').first()).toContainText('Door ID Saved 01');
-  await expect(preview.locator('article').last()).toContainText('Door ID North');
+  await expect(preview.locator('article').first()).toContainText('Saved 01');
+  await expect(preview.locator('article').last()).toContainText('North');
   await page.getByText('Saved individual Door IDs', { exact: true }).first().click();
   await expect(page.getByRole('textbox')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Print 2 labels' })).toBeEnabled();
@@ -112,7 +112,7 @@ test('large label headings wrap with ordinary notes inside one portrait label', 
   await expect(page.locator('article')).toHaveCount(1);
   const label = page.locator('article');
   expect(await label.evaluate(element => element.scrollHeight <= element.clientHeight && element.scrollWidth <= element.clientWidth)).toBe(true);
-  await expect(label).toContainText('Door ID North 02');
+  await expect(label).toContainText('North 02');
   await expect(label).toContainText('Keep the hardware pack with the unit.');
   const pdf = await PDFDocument.load(await page.pdf({ preferCSSPageSize: true, printBackground: false }));
   expect(pdf.getPageCount()).toBe(1);
@@ -120,15 +120,16 @@ test('large label headings wrap with ordinary notes inside one portrait label', 
 });
 
 
-test('labels include saved descriptions and optional specifications without changing barcode values', async ({ page }) => {
+test('identification labels omit manufacturing fields without changing barcode values', async ({ page }) => {
   const detailed = { ...line, mode: 'Exterior' as const, doorType: 'Custom fir panel — manually entered <door>', material: 'Wood', sill: 'DARK' };
   const preview = prepareDoorLabels({ ...job, lines: [detailed] }, { 'door-1': { selected: true, quantity: '1', doorIds: [] } }, false);
   await page.setContent(preview.html!);
   await expect(page.locator('body')).toHaveAttribute('data-labels-ready', 'true');
   await expect(page.locator('article')).toHaveCount(1);
-  for (const value of ['Door type Exterior', 'Description ' + detailed.doorType, 'Material Wood', 'Sill DARK', 'Size', 'Swing LH', 'Jamb width', 'Configuration D']) {
+  for (const value of [detailed.doorType, 'LH', detailed.jambWidth!, 'D']) {
     await expect(page.locator('article').first()).toContainText(value);
   }
+  for (const omitted of ['Door type', 'Exterior', 'Description', 'Material', 'Wood', 'Sill', 'DARK', 'Jamb width', 'Configuration']) await expect(page.locator('article').first()).not.toContainText(omitted);
   expect(await page.locator('footer div').first().textContent()).toBe(line.productCode);
   expect(await page.locator('.door-id').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(22 * 96 / 72);
   expect(await page.locator('.description').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16 * 96 / 72 - 0.001);
@@ -176,11 +177,11 @@ test('standalone print script has no bundler dependencies and optional data is e
   expect(result.count).toBe(2);
   expect(result.html).toContain('Custom &lt;script&gt;alert(1)&lt;/script&gt; &amp; fir');
   expect(result.html).toContain('article:last-of-type{break-after:auto}');
-  expect(result.html).toContain('Door ID</strong> <span>Saved 01');
-  expect(result.html).toContain('Door ID</strong> <span>North');
+  expect(result.html).toContain('aria-label="Door ID"><span>Saved 01');
+  expect(result.html).toContain('aria-label="Door ID"><span>North');
   expect(result.html).toContain('preserveAspectRatio="none"');
-  expect(result.html).toContain('Material</strong> <span>Wood');
-  expect(result.html).toContain('Sill</strong> <span>DARK');
+  expect(result.html).not.toContain('Material</strong>');
+  expect(result.html).not.toContain('Sill</strong>');
   const document = { querySelectorAll: () => [], body: { dataset: {} as Record<string, string> } };
   runInNewContext(result.html!.match(/<script>([\s\S]*?)<\/script>/)![1], { document });
   expect(document.body.dataset.labelsReady).toBe('true');
@@ -265,7 +266,7 @@ for (const description of ['Fir text Vista GR. 4 lite']) {
       await expect(article.locator('.description span')).toHaveText(description);
       await expect(article.locator('.barcode-value')).toHaveText(['zz_DW_6380', 'SLAB_0123']);
       await expect(article.locator('.barcode-kind')).toHaveCount(0);
-      for (const value of ['Exterior', 'Fir', 'LH', '6-9/16"', 'T/D', 'STD', 'Handle with care'])
+      for (const value of ['Fir', 'LH', '6-9/16"', 'T/D', 'Handle with care'])
         await expect(article).toContainText(value);
       const measurements = await article.evaluate(el => {
         const section = el.querySelector('section')!;

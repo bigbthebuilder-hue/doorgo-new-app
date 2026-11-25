@@ -160,7 +160,7 @@ try {
   };
   const openLabels = async () => {
     await page.getByText('Documents ▾', { exact: true }).click();
-    await page.getByRole('button', { name: 'Print', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Print Work Order', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Print Door Labels', exact: true }).click();
     await page.getByRole('dialog', { name: 'Door Labels' }).waitFor();
     return page.frameLocator('iframe[title="4 × 6 door label preview"]');
@@ -204,7 +204,7 @@ try {
   await page.getByRole('textbox', { name: 'Copy 2 Door ID', exact: true }).fill('Saved copy 2');
   const beforeAutoSave = writes;
   let autoPreview = await openLabels();
-  await autoPreview.getByText('Door ID Saved copy 2', { exact: true }).waitFor();
+  await autoPreview.getByText('Saved copy 2', { exact: true }).waitFor();
   assert.equal(writes, beforeAutoSave + 1);
   assert.equal(saved.job.revision, 2);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
@@ -215,8 +215,8 @@ try {
   assert.equal(await preview.locator('footer div').first().textContent(), confirmedCode);
   assert.equal(await preview.locator('h1').first().textContent(), 'SO# 001234');
   assert.equal(await preview.locator('h2').first().textContent(), 'Synthetic Label Customer');
-  assert.equal(await preview.getByText('Door ID Confirmed 02', { exact: true }).count(), 1);
-  await preview.getByText('Door ID Saved copy 2', { exact: true }).waitFor();
+  assert.equal(await preview.getByText('Confirmed 02', { exact: true }).count(), 1);
+  await preview.getByText('Saved copy 2', { exact: true }).waitFor();
   await preview.locator('body').evaluate(() => { window.print = () => { document.body.dataset.printCount = String(Number(document.body.dataset.printCount ?? 0) + 1); }; });
   await page.getByRole('button', { name: 'Print 2 labels', exact: true }).click();
   await preview.locator('body[data-print-count="1"]').waitFor();
@@ -227,8 +227,8 @@ try {
   await reopen();
   const reopenedPreview = await openLabels();
   assert.equal(await reopenedPreview.locator('footer div').first().textContent(), confirmedCode);
-  assert.equal(await reopenedPreview.getByText('Door ID Confirmed 02', { exact: true }).count(), 1);
-  await reopenedPreview.getByText('Door ID Saved copy 2', { exact: true }).waitFor();
+  assert.equal(await reopenedPreview.getByText('Confirmed 02', { exact: true }).count(), 1);
+  await reopenedPreview.getByText('Saved copy 2', { exact: true }).waitFor();
   assert.equal(writes, writesBeforePrint);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await listDoorId().clear();
